@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import OrdenDePago from "@/components/pagos/OrdenDePago";
+import BotonReclamo from "@/components/pagos/BotonReclamo";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -589,14 +590,21 @@ export default function ContractDetail() {
                   {loadingChat ? t('common.loading', 'Loading...') : t('contracts.chat', 'Chat')}
                 </button>
                 {hasPermission(PERMISSIONS.DISPUTE_CREATE) && ['in_progress', 'completed', 'awaiting_confirmation'].includes(contract?.status || '') && (
-                  <button
-                    onClick={() => navigate(`/disputes/new?contractId=${id}`)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-800/60 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 active:scale-95"
-                    title={t('contracts.reportProblemTooltip', 'Reportar problemas con este contrato')}
-                  >
-                    <Flag className="h-4 w-4" />
-                    {t('contracts.reportProblem', 'Reportar problema')}
-                  </button>
+                  /*
+                    El botón se apaga solo cuando el contrato es de los que se
+                    pagan al terminar y todavía no hay pago confirmado. En los
+                    contratos con protección se comporta como siempre.
+                  */
+                  <BotonReclamo
+                    contrato={contract}
+                    esCliente={isClient}
+                    onReclamar={() => navigate(`/disputes/new?contractId=${id}`)}
+                    onIrAPagar={() => {
+                      document
+                        .getElementById('orden-de-pago')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                  />
                 )}
                 {canPayContract && (
                   <button
@@ -615,12 +623,14 @@ export default function ContractDetail() {
             modo del contrato y no aparece en los que tienen protección, que
             son la enorme mayoría.
           */}
-          <OrdenDePago
-            contractId={contract.id}
-            estadoDelContrato={contract.status}
-            esCliente={user?.id === (typeof contract.client === 'string' ? contract.client : contract.client?.id)}
-            className="mb-6"
-          />
+          <div id="orden-de-pago">
+            <OrdenDePago
+              contractId={contract.id}
+              estadoDelContrato={contract.status}
+              esCliente={isClient}
+              className="mb-6"
+            />
+          </div>
 
           {/* Contract Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

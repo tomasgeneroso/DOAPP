@@ -297,7 +297,7 @@ export default function JobApplicationSummary() {
                 aviso va completo y no compacto.
               */}
               {job.paymentMode === "on_completion" && (
-                <AvisoSinProteccion momento="postulacion" className="mb-6" />
+                <AvisoSinProteccion momento="postulacion" rol="trabajador" className="mb-6" />
               )}
 
               {/* Dates Grid */}

@@ -67,6 +67,7 @@ import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
 import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
+import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -1446,7 +1447,13 @@ export default function JobDetail() {
                 primeros segundos, y este dato cambia quién corre el riesgo.
               */}
               {job.paymentMode === "on_completion" && (
-                <AvisoSinProteccion momento="publicacion" className="mt-4" />
+                <>
+                  <AvisoSinProteccion momento="publicacion" className="mt-4" />
+                  {/* El que mira esto suele ser un trabajador decidiendo si
+                      se postula, y la comparacion entre los dos modos es lo
+                      que le falta para decidir. */}
+                  <ComoFuncionaElPago className="mt-3" />
+                </>
               )}
 
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>

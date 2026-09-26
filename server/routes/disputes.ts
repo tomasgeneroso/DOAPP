@@ -100,6 +100,36 @@ router.post(
         return;
       }
 
+      /**
+       * Sin pago confirmado no hay reclamo, en los contratos sin protección.
+       *
+       * No es una restricción arbitraria ni una forma de sacarse gente de
+       * encima: es que un reclamo sobre una operación que DOAPP no vio no se
+       * puede resolver de ninguna manera. No hay fondos para repartir, no hay
+       * constancia de cuánto se pagó, no hay nada sobre lo que decidir. Dejarlo
+       * abrir seria prometer un servicio que despues hay que incumplir a mano,
+       * con alguien enojado del otro lado y con razon.
+       *
+       * La pantalla ya muestra el boton apagado con el motivo y un atajo para
+       * ir a pagar. Esto es la regla: un boton apagado es una cortesia, no un
+       * control.
+       */
+      if (contract.paymentMode === 'on_completion') {
+        const { ordenDelContrato, ordenCubierta } = await import('../services/pagoAlTerminar.js');
+        const { RECLAMO_DESHABILITADO } = await import('../../shared/pagos/modoDePago.js');
+
+        const orden = await ordenDelContrato(contract.id);
+        if (!ordenCubierta(orden)) {
+          res.status(409).json({
+            success: false,
+            code: 'SIN_PAGO_VERIFICADO',
+            message: RECLAMO_DESHABILITADO.motivo,
+            data: { tieneOrden: Boolean(orden), estadoDeLaOrden: orden?.status || null },
+          });
+          return;
+        }
+      }
+
       // Un reclamo a la vez. Y si hubo uno antes, solo se puede abrir otro si
       // aquel se cerro sin que nadie decidiera nada (retirado, o acuerdo de
       // rehacer): lo que resolvio un admin o un acuerdo con plata es final.

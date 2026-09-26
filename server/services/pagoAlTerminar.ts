@@ -278,7 +278,35 @@ export async function confirmarPagoDeOrden(
     },
   });
 
+  await reflejarEnElContrato(orden);
+
   return true;
+}
+
+/**
+ * Deja constancia del pago en el propio contrato.
+ *
+ * Sin esto la orden queda pagada y el contrato sigue diciendo "se paga al
+ * terminar (sin retención)" para siempre, que es falso apenas se paga. Y hace
+ * falta por otra razón más práctica: los listados necesitan saber si un
+ * contrato está cobrado para mostrarlo distinto y para habilitar el reclamo, y
+ * consultar la orden de cada fila serían veinte consultas por pantalla.
+ *
+ * No tumba nada si falla: el estado de la orden es la fuente, esto es el
+ * reflejo.
+ */
+async function reflejarEnElContrato(orden: Payment): Promise<void> {
+  if (!orden.contractId) return;
+  try {
+    await Contract.update(
+      { paymentStatus: 'completed' },
+      { where: { id: orden.contractId } },
+    );
+  } catch (e: any) {
+    console.warn(
+      `⚠️ Orden ${orden.id} confirmada pero no se pudo reflejar en el contrato ${orden.contractId}: ${e?.message}`,
+    );
+  }
 }
 
 /**
@@ -342,6 +370,8 @@ export async function verificarComprobante(
       verificadoPor: adminId,
     },
   });
+
+  await reflejarEnElContrato(orden);
 
   return orden;
 }

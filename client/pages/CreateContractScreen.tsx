@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import ComoFuncionaElPago from "@/components/pagos/ComoFuncionaElPago";
 const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
 import { useTranslation, Trans } from "react-i18next";
@@ -570,17 +571,37 @@ export default function CreateContractScreen() {
                           </p>
                         </div>
                     )}
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label
+                      className={`flex items-center gap-2 text-sm ${
+                        sinProteccion ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={isQuotable}
                         onChange={(e) => setIsQuotable(e.target.checked)}
-                        className="rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 dark:bg-slate-700 dark:border-slate-600"
+                        disabled={sinProteccion}
+                        className="rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 disabled:opacity-60 dark:bg-slate-700 dark:border-slate-600"
                       />
                       <span className="text-gray-700 dark:text-gray-300">
                         {t('jobs.quotable', 'A cotizar (el postulante propone el precio)')}
                       </span>
                     </label>
+                    {sinProteccion && (
+                      /*
+                        Pagar al terminar obliga a cotizar, y conviene decir por
+                        qué en vez de dejar una casilla trabada sin explicación.
+                        Sin plata retenida, lo único que respalda el acuerdo es
+                        el acuerdo: si al final las partes no coinciden en qué
+                        se había pactado, no hay fondos que repartir. Entonces
+                        el pacto tiene que estar escrito y detallado.
+                      */
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        Los trabajos que se pagan al terminar van siempre a cotizar: el precio
+                        tiene que quedar acordado y detallado antes de empezar, porque no hay
+                        dinero retenido que respalde el acuerdo.
+                      </p>
+                    )}
                     {/* La diferencia entre los dos modos no es sólo cuándo se
                         paga: publicar con precio pago compra permanencia en el
                         muro. Conviene decirlo acá y no en los términos. */}
@@ -635,12 +656,20 @@ export default function CreateContractScreen() {
                       validarlo igual cuando llega la publicación.
                     */}
                     {pagoAlTerminarDisponible && (
+                      <ComoFuncionaElPago className="pt-1" />
+                    )}
+                    {pagoAlTerminarDisponible && (
                       <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
                         <label className="flex items-start gap-2 text-sm cursor-pointer">
                           <input
                             type="checkbox"
                             checked={sinProteccion}
-                            onChange={(e) => setSinProteccion(e.target.checked)}
+                            onChange={(e) => {
+                              setSinProteccion(e.target.checked);
+                              // El servidor lo fuerza igual; esto es para que
+                              // la pantalla no muestre un estado que no existe.
+                              if (e.target.checked) setIsQuotable(true);
+                            }}
                             className="mt-0.5 rounded border-amber-400 text-amber-600 shadow-sm focus:ring-amber-500 dark:bg-slate-700"
                           />
                           <span>

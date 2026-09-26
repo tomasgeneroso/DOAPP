@@ -923,7 +923,9 @@ router.post(
        * un formulario viejo en caché o alguien probando la API, y en los dos
        * casos el resultado correcto es el modo seguro.
        */
-      const { esModoValido, MODO_POR_DEFECTO } = await import('../../shared/pagos/modoDePago.js');
+      const { esModoValido, MODO_POR_DEFECTO, REQUIERE_COTIZACION } = await import(
+        '../../shared/pagos/modoDePago.js'
+      );
       const { moduloPagoAlTerminarActivo } = await import('../services/pagoAlTerminar.js');
 
       const modoPedido = req.body.paymentMode;
@@ -967,8 +969,33 @@ router.post(
       // precio real aparece cuando un trabajador cotiza, y se cobra al aceptar
       // esa cotizacion. Publica sin pasar por el pago, pero sigue necesitando
       // identidad verificada como cualquier publicacion.
-      const pricingMode: 'fixed' | 'quote' =
+      let pricingMode: 'fixed' | 'quote' =
         req.body.pricingMode === 'quote' ? 'quote' : 'fixed';
+
+      /**
+       * Pagar al terminar obliga a cotizar.
+       *
+       * Sin protección de pago no hay nada que respalde el acuerdo salvo el
+       * acuerdo mismo, así que el acuerdo tiene que existir de verdad y tiene
+       * que estar detallado: qué incluye el precio, cuánto es cada cosa. Una
+       * cotización aceptada es ese papel.
+       *
+       * La diferencia práctica es grande. Con protección, si al final las dos
+       * partes no coinciden en qué se había acordado, hay plata retenida y un
+       * administrador puede repartirla. Sin protección no hay nada que
+       * repartir: lo único que queda es el papel. Entonces el papel tiene que
+       * ser bueno.
+       *
+       * Se fuerza en vez de rechazar: el formulario ya lo impone, así que un
+       * 'fixed' que llegue acá es un cliente viejo en caché, no alguien
+       * pidiendo otra cosa. Devolverle un error no le explica nada.
+       */
+      if (modoDePago === 'on_completion' && REQUIERE_COTIZACION.on_completion && pricingMode !== 'quote') {
+        console.warn(
+          `⚠️ Trabajo con pago al terminar publicado con precio fijo por ${req.user.id}. Se publica a cotizar.`,
+        );
+        pricingMode = 'quote';
+      }
 
       const willPublish = (canPublishForFree || pricingMode === 'quote') && identityVerified;
 

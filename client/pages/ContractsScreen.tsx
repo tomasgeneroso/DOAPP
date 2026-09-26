@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
+import BotonReclamo from "@/components/pagos/BotonReclamo";
+import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
+import { puedeReclamar } from "../../shared/pagos/modoDePago";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -326,17 +329,42 @@ export default function ContractsScreen() {
                 const isClient = contract.client.id === user?.id;
                 const otherParty = isClient ? contract.doer : contract.client;
 
+                /**
+                 * Los contratos sin pago todavia pesan menos en la lista.
+                 *
+                 * Un contrato pagado es plata que existe; uno que se paga al
+                 * terminar y no se pago todavia es una promesa. Que se vean
+                 * iguales hace que el ojo los cuente igual, y eso lleva a
+                 * planificar sobre plata que puede no llegar. Menos borde,
+                 * fondo hundido y el titulo un tono mas suave alcanzan: no
+                 * esta escondido, esta en segundo plano.
+                 */
+                const sinPagar = !puedeReclamar(contract as any);
+
                 return (
                   <Link
                     key={contract.id}
                     to={`/contracts/${contract.id}`}
-                    className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
+                    className={`block rounded-xl border p-6 transition-shadow ${
+                      sinPagar
+                        ? 'border-dashed border-slate-200 bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800/40'
+                        : 'border-slate-200 bg-white hover:shadow-lg dark:border-slate-700 dark:bg-slate-800'
+                    }`}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        <h3
+                          className={`mb-2 text-lg font-bold ${
+                            sinPagar
+                              ? 'text-slate-600 dark:text-slate-400'
+                              : 'text-slate-900 dark:text-white'
+                          }`}
+                        >
                           {contract.job.title}
                         </h3>
+                        {sinPagar && (
+                          <AvisoSinProteccion momento="publicacion" compacto className="mb-2" />
+                        )}
                         <div className="flex items-center gap-2">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
@@ -385,18 +413,13 @@ export default function ContractsScreen() {
                       </div>
                       {/* Report button - only for active or completed contracts */}
                       {['in_progress', 'completed', 'awaiting_confirmation'].includes(contract.status) && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate(`/disputes/new?contractId=${contract.id}`);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 dark:text-orange-400 rounded-lg transition-colors"
-                          title={t('contracts.reportProblem', 'Reportar un problema con este contrato')}
-                        >
-                          <Flag className="h-3.5 w-3.5" />
-                          {t('contracts.report', 'Reportar')}
-                        </button>
+                        <BotonReclamo
+                          compacto
+                          contrato={contract as any}
+                          esCliente={isClient}
+                          onReclamar={() => navigate(`/disputes/new?contractId=${contract.id}`)}
+                          onIrAPagar={() => navigate(`/contracts/${contract.id}#orden-de-pago`)}
+                        />
                       )}
                     </div>
                   </Link>

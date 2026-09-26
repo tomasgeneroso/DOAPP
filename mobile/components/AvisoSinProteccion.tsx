@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { ShieldOff } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
-import { AVISOS_SIN_PROTECCION } from '../../shared/pagos/modoDePago';
+import { avisoSinProteccion, type Momento, type Rol } from '../../shared/pagos/modoDePago';
 
 /**
  * El aviso de que este trabajo no tiene protección de pago.
@@ -16,17 +16,23 @@ import { AVISOS_SIN_PROTECCION } from '../../shared/pagos/modoDePago';
  * trabajado.
  */
 
-type Momento = keyof typeof AVISOS_SIN_PROTECCION;
-
 export default function AvisoSinProteccion({
   momento,
+  rol,
   compacto = false,
 }: {
   momento: Momento;
+  /**
+   * Quién está mirando. El cliente y el trabajador no corren el mismo riesgo
+   * ni tienen la misma responsabilidad, y un texto neutro termina siendo vago
+   * para los dos. Sin rol va el neutro, que es lo correcto en una publicación
+   * abierta donde no se sabe quién mira.
+   */
+  rol?: Rol | null;
   /** Una línea, para tarjetas donde no entra el párrafo entero. */
   compacto?: boolean;
 }) {
-  const aviso = AVISOS_SIN_PROTECCION[momento];
+  const aviso = avisoSinProteccion(momento, rol);
 
   // Del mismo lugar del que salen los demas avisos de esta pantalla
   // (colors.success para el badge de escrow, por ejemplo). `useTheme()`

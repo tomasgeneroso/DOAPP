@@ -601,7 +601,7 @@ export default function JobDetailScreen() {
             </View>
 
             {job.paymentMode === 'on_completion' ? (
-              <AvisoSinProteccion momento="postulacion" />
+              <AvisoSinProteccion momento="postulacion" rol="trabajador" />
             ) : (
               <View style={[styles.escrowBadge, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]}>
                 <Shield size={14} color={colors.success[600]} />

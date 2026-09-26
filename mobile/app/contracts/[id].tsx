@@ -495,7 +495,7 @@ export default function ContractDetailScreen() {
 
           {/* Al contratar: que quede claro donde esta la plata, o donde no esta. */}
           {contract.paymentMode === 'on_completion' && (
-            <AvisoSinProteccion momento="contratacion" />
+            <AvisoSinProteccion momento="contratacion" rol={isClient ? 'cliente' : 'trabajador'} />
           )}
         </View>
 

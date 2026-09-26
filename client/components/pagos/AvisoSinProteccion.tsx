@@ -1,5 +1,5 @@
 import { ShieldOff } from "lucide-react";
-import { AVISOS_SIN_PROTECCION } from "../../../shared/pagos/modoDePago";
+import { avisoSinProteccion, type Momento, type Rol } from "../../../shared/pagos/modoDePago";
 
 /**
  * El aviso de que este trabajo no tiene protección de pago.
@@ -10,25 +10,32 @@ import { AVISOS_SIN_PROTECCION } from "../../../shared/pagos/modoDePago";
  * misma razón: es la misma promesa dicha tres veces, y si se escribe tres
  * veces, en algún momento dice tres cosas distintas.
  *
+ * El `rol` importa. El cliente y el trabajador no corren el mismo riesgo ni
+ * tienen la misma responsabilidad: al cliente hay que decirle que él es el
+ * responsable de pagar, al trabajador qué le pasa si el cliente no lo hace. Un
+ * texto neutro termina siendo vago para los dos. Cuando no se sabe quién mira
+ * —una publicación abierta, por ejemplo— va el neutro.
+ *
  * Sobre el tono. No es un cartel de peligro: quien publica así suele tener un
  * motivo razonable, hay rubros donde nadie paga por adelantado. Lo que no
  * puede pasar es que el trabajador se entere después de haber trabajado. Por
  * eso es ámbar y no rojo, y por eso describe qué pasa en vez de desaconsejar.
  */
 
-type Momento = keyof typeof AVISOS_SIN_PROTECCION;
-
 export default function AvisoSinProteccion({
   momento,
+  rol,
   className = "",
   compacto = false,
 }: {
   momento: Momento;
+  /** Quién está mirando. Sin esto va el texto neutro. */
+  rol?: Rol | null;
   className?: string;
   /** Una línea, para listados donde no hay lugar para el párrafo entero. */
   compacto?: boolean;
 }) {
-  const aviso = AVISOS_SIN_PROTECCION[momento];
+  const aviso = avisoSinProteccion(momento, rol);
 
   if (compacto) {
     return (
