@@ -43,7 +43,39 @@ export default function ModulesManager() {
     }
   };
 
+  /**
+   * Modulos que piden contrasena propia.
+   *
+   * El pago al terminar cambia quien corre el riesgo en cada trabajo que se
+   * publique despues y agrega clausulas a los terminos, asi que no se prende
+   * con el mismo gesto con que se prende un panel de analytics. El servidor lo
+   * valida igual; esto es para no hacerle apretar dos veces al usuario.
+   */
+  const PIDEN_PASSWORD = ['payment:on_completion'];
+
   const toggleModule = async (moduleId: string, currentState: boolean) => {
+    let password: string | undefined;
+
+    if (PIDEN_PASSWORD.includes(moduleId)) {
+      const respuesta = window.prompt(
+        currentState
+          ? [
+              'Vas a APAGAR el pago al terminar.',
+              'Los trabajos ya publicados con ese modo siguen como estan.',
+              '',
+              'Contrasena de la accion:',
+            ].join(String.fromCharCode(10))
+          : [
+              'Vas a ENCENDER el pago al terminar: los clientes van a poder publicar trabajos',
+              'sin dinero retenido, y se agregan clausulas a los terminos.',
+              '',
+              'Contrasena de la accion:',
+            ].join(String.fromCharCode(10)),
+      );
+      if (respuesta === null) return; // cancelo
+      password = respuesta;
+    }
+
     try {
       setUpdating(moduleId);
       setSuccess(null);
@@ -53,7 +85,7 @@ export default function ModulesManager() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({ isActive: !currentState }),
+        body: JSON.stringify(password === undefined ? { isActive: !currentState } : { isActive: !currentState, password }),
       });
       const data = await res.json();
       if (data.success) {

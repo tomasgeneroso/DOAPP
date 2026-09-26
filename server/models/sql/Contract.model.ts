@@ -11,9 +11,11 @@ import {
   AllowNull,
   Index,
   BeforeValidate,
+  BeforeCreate,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { Job } from './Job.model.js';
+import type { ModoDePago } from '../../../shared/pagos/modoDePago.js';
 
 /**
  * Contract Model - PostgreSQL/Sequelize
@@ -605,6 +607,20 @@ export class Contract extends Model {
   @Column(DataType.DECIMAL(5, 2))
   percentageOfBudget?: number;
 
+  /**
+   * Con protección de pago o sin ella. Se copia del trabajo al crear el
+   * contrato y después no se vuelve a mirar el del trabajo.
+   *
+   * La copia no es redundancia: si el contrato leyera el modo de la
+   * publicación, cambiar esa publicación le cambiaría las reglas a mitad de
+   * camino a dos personas que ya se pusieron de acuerdo sobre otras. Lo que
+   * acordaron es lo que vale, aunque después el trabajo cambie.
+   */
+  @Default('escrow')
+  @AllowNull(false)
+  @Column(DataType.STRING(20))
+  paymentMode!: ModoDePago;
+
   // ============================================
   // TASK CLAIM SYSTEM
   // ============================================
@@ -1086,6 +1102,35 @@ export class Contract extends Model {
       const priceNum = typeof instance.price === 'string' ? parseFloat(instance.price) : instance.price;
       const commissionNum = typeof instance.commission === 'string' ? parseFloat(instance.commission) : instance.commission;
       instance.totalPrice = priceNum + commissionNum;
+    }
+  }
+
+  /**
+   * Heredar el modo de pago del trabajo.
+   *
+   * Está en un hook y no en cada sitio que crea contratos porque esos sitios
+   * son seis —dos en proposals, tres en contracts, uno en quotes— y el séptimo
+   * que alguien escriba no va a acordarse. Un contrato creado sin modo sería
+   * un contrato con protección de pago sobre un trabajo que no la tiene: las
+   * dos partes creerían cosas distintas sobre dónde está la plata.
+   *
+   * Si el campo viene puesto explícitamente, se respeta. Si no hay trabajo o
+   * no se puede leer, queda 'escrow', que es el modo seguro.
+   */
+  @BeforeCreate
+  static async heredarModoDePago(instance: Contract) {
+    if (instance.paymentMode) return;
+    if (!instance.jobId) {
+      instance.paymentMode = 'escrow';
+      return;
+    }
+
+    try {
+      const trabajo = await Job.findByPk(instance.jobId, { attributes: ['id', 'paymentMode'] });
+      instance.paymentMode = (trabajo?.paymentMode as ModoDePago) || 'escrow';
+    } catch (e: any) {
+      console.warn(`⚠️ No se pudo leer el modo de pago del trabajo ${instance.jobId}: ${e?.message}`);
+      instance.paymentMode = 'escrow';
     }
   }
 }

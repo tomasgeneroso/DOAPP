@@ -17,9 +17,14 @@
 import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES } from '../constants/policies.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../pricing/minimums.js';
+import { DIAS_PARA_PAGAR_LA_ORDEN } from '../pagos/modoDePago.js';
 
 const P = POLITICAS;
 const COMISION = COMMISSION_RATES.free;
+// Payment order validity. Interpolated, never written: if the code changes the
+// term and the clause still states another number, the binding one is the one
+// the user read.
+const DIAS_ORDEN = DIAS_PARA_PAGAR_LA_ORDEN;
 const PRO_EUR = MEMBERSHIP_PRICES_EUR.pro;
 const PARTE_TRABAJADOR_PCT = Math.round(P.CANCELACION_TARDIA_PARTE_TRABAJADOR * 100);
 const REVISION_PARTE_PCT = Math.round(P.CANCELACION_EN_REVISION_PARTE_COMISION * 100);
@@ -125,6 +130,20 @@ export const termsEn: Record<string, string> = {
   "s16p": "DOAPP may modify these Terms, which will take effect from their publication.",
   "s17Title": "17. Applicable Law and Jurisdiction",
   "s17p": "These Terms are governed by the laws of the Argentine Republic. For consumers, the court of the User's domicile will have jurisdiction in accordance with Law 24.240.",
+  /**
+   * Section 19 — ONLY when the pay-on-completion module is enabled.
+   * terms.structure.ts adds or removes it. Mirrors terms.es.ts; see the
+   * comment there for why the tone is what it is.
+   */
+  "s19Title": "19. Work without payment protection",
+  "s19p1": `19.1. In addition to the payment-protected arrangement described in section 7, the Platform may enable work under a \"pay on completion\" arrangement. Its availability is at DOAPP’s discretion and is disclosed on each posting before applying and before contracting.`,
+  "s19p2": "19.2. Under this arrangement DOAPP holds no funds at any time. There is no escrow deposit and no amount under the Platform’s custody: the Client pays once the work is completed.",
+  "s19p3": `19.3. <b>Payment order.</b> Once the work is completed, the Platform issues a payment order detailing the price, the commission, the payment processing cost and applicable taxes. The Client pays through that order, by the means the Platform makes available. The ${COMISION}% commission set out in section 7.3 is charged only at that point.`,
+  "s19p4": "19.4. <b>Scope of DOAPP’s involvement.</b> The dispute mediation service described in section 10 is funded by the commission and is therefore available in respect of transactions paid through the Platform’s payment order and effectively verified under section 19.6. In respect of payments made outside that order, DOAPP receives no commission, holds no record of the transaction and holds no funds on which to act, and is therefore unable to intervene in any dispute. This does not affect the validity of the agreement between the parties, who fully retain their rights and remedies against each other.",
+  "s19p5": "19.5. The parties are free to agree on whatever payment method they see fit. The Platform recommends using the payment order, and says so before applying and before contracting, precisely because the possibility of intervening depends on it.",
+  "s19p6": "19.6. <b>Verification.</b> Payment is deemed verified when (i) the payment gateway confirms settlement and reports the transaction as associated with the order, or (ii) the User submits proof of transfer and DOAPP validates it. Until payment is verified, the transaction is not covered by section 19.4, and the Platform states so.",
+  "s19p7": `19.7. <b>Validity of the order.</b> The payment order is valid for ${DIAS_ORDEN} calendar days from issuance. After that period the order lapses and the route described in section 19.4 is no longer available, without extinguishing the Client’s payment obligation towards the Worker.`,
+  "s19note": "None of this section applies to payment-protected work (section 7): there the amount remains held by the Platform until both parties confirm.",
   "s18Title": "18. Acceptance",
   "s18p": "The User declares to have read, understood, and fully accepted these Terms and Conditions.",
   "importantNote": "<b>Important note:</b> By registering and using DOAPP, you confirm that you have read, understood, and accepted these Terms and Conditions in full.",

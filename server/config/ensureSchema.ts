@@ -66,6 +66,45 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'jobs.cancellation_refund_preference', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_refund_preference VARCHAR(20)` },
   // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.
   { label: 'jobs.cancellation_requested_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_requested_at TIMESTAMPTZ` },
+  /**
+   * Modo de pago: 'escrow' (con proteccion, el normal) u 'on_completion' (sin
+   * retencion, se paga al terminar). Va en las dos tablas a proposito: el
+   * contrato copia el modo del trabajo al crearse y no lo mira mas, para que
+   * cambiar el modo de una publicacion no le cambie las reglas a mitad de
+   * camino a un contrato vivo.
+   */
+  { label: 'jobs.payment_mode', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
+  { label: 'contracts.payment_mode', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
+  // Vencimiento de la orden de pago al terminar. Una orden abierta para siempre
+  // es plata que nadie reclama y un contrato que nunca cierra.
+  { label: 'payments.expires_at', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ` },
+  /**
+   * 'on_completion' como tipo de pago: la orden que se crea cuando el trabajo
+   * termina, en el modo sin retencion.
+   *
+   * Se busca el nombre del tipo en vez de escribirlo: segun como haya quedado
+   * la tabla en cada entorno, payment_type puede ser un ENUM de Postgres o un
+   * VARCHAR, y un ALTER TYPE sobre un VARCHAR revienta. Si no es un enum, no
+   * hay nada que agregar y el bloque no hace nada.
+   */
+  {
+    label: "payments.payment_type += 'on_completion'",
+    sql: `
+      DO $$
+      DECLARE nombre_tipo text;
+      BEGIN
+        SELECT t.typname INTO nombre_tipo
+        FROM pg_type t
+        JOIN pg_attribute a ON a.atttypid = t.oid
+        JOIN pg_class c ON c.oid = a.attrelid
+        WHERE c.relname = 'payments' AND a.attname = 'payment_type' AND t.typtype = 'e';
+
+        IF nombre_tipo IS NOT NULL THEN
+          EXECUTE format('ALTER TYPE %I ADD VALUE IF NOT EXISTS %L', nombre_tipo, 'on_completion');
+        END IF;
+      END $$;
+    `,
+  },
   // Reclamo directo antes de la disputa: plazo, propuesta de acuerdo, por que escalo, y a que estado vuelve el contrato.
   { label: 'disputes.negotiation_deadline', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS negotiation_deadline TIMESTAMPTZ` },
   { label: 'disputes.agreement_proposal', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS agreement_proposal JSONB` },
@@ -300,5 +339,23 @@ export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> 
       console.warn(`⚠️  [ensureSchema] "${label}" skipped: ${err?.message}`);
     }
   }
+  /**
+   * Cero exitos con fallos no es "algunos saltados": es la red de seguridad
+   * entera sin correr.
+   *
+   * Hasta acá esto imprimía ✅ igual. Si algún día se llama con la conexión
+   * equivocada —o sin conexión, que es como lo descubrí— el arranque diría que
+   * todo bien mientras ninguna de las columnas propensas a desfasarse existe,
+   * y el error saldría después, en una request, como "column does not exist".
+   * Este archivo existe justamente para que eso no pase.
+   */
+  if (ok === 0 && failed > 0) {
+    console.error(
+      `❌ ensureCriticalSchema NO aplicó nada: los ${failed} enunciados fallaron. ` +
+        'Revisá la conexión a la base antes de seguir: el esquema no está garantizado.',
+    );
+    return;
+  }
+
   console.log(`✅ ensureCriticalSchema: ${ok} ok${failed ? `, ${failed} skipped` : ''}`);
 }

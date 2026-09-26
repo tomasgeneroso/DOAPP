@@ -912,6 +912,32 @@ router.post(
         return;
       }
 
+      /**
+       * Con protección de pago, o sin ella.
+       *
+       * La validación está acá y no en el modelo porque es la única capa que
+       * el navegador no controla: una pantalla que no muestra la opción no es
+       * una restricción, es una cortesía. Con el módulo apagado, cualquier
+       * `paymentMode` que llegue se ignora y el trabajo sale con protección —
+       * se ignora en silencio a propósito: el cliente no pidió esto, lo pidió
+       * un formulario viejo en caché o alguien probando la API, y en los dos
+       * casos el resultado correcto es el modo seguro.
+       */
+      const { esModoValido, MODO_POR_DEFECTO } = await import('../../shared/pagos/modoDePago.js');
+      const { moduloPagoAlTerminarActivo } = await import('../services/pagoAlTerminar.js');
+
+      const modoPedido = req.body.paymentMode;
+      let modoDePago = MODO_POR_DEFECTO;
+      if (esModoValido(modoPedido) && modoPedido === 'on_completion') {
+        if (await moduloPagoAlTerminarActivo()) {
+          modoDePago = 'on_completion';
+        } else {
+          console.warn(
+            `⚠️ Trabajo pedido con pago al terminar por ${req.user.id}, pero el módulo está apagado. Sale con protección.`,
+          );
+        }
+      }
+
       // Get full user data to check free contracts
       const user = await User.findByPk(req.user.id);
       if (!user) {
@@ -1060,6 +1086,7 @@ router.post(
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
         pricingMode,
+        paymentMode: modoDePago,
         status: willPublish ? "open" : "draft", // Publish only if free-eligible AND KYC-verified
         // Un trabajo "a cotizar" publica sin pagar, pero no esta pagado: la
         // liquidacion al aceptar la cotizacion se apoya en este campo para

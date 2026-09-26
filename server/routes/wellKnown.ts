@@ -3,7 +3,7 @@ import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { getPhaseInfo } from '../services/platformPhase.js';
 import { termsEs } from '../../shared/legal/terms.es.js';
 import { privacyEs } from '../../shared/legal/privacy.es.js';
-import { TERMS_BODY_KEYS } from '../../shared/legal/terms.structure.js';
+import { termsBodyKeys } from '../../shared/legal/terms.structure.js';
 import { PRIVACY_KEYS } from '../../shared/legal/privacy.structure.js';
 import { buildLegalBody } from '../../shared/legal/classify.js';
 import { wantsMarkdown, sendMarkdown } from '../middleware/agentDiscovery.js';
@@ -131,8 +131,20 @@ function legalToMarkdown(copy: Record<string, string>, keys: string[], title: st
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-router.get('/md/terminos', (_req: Request, res: Response) => {
-  sendMarkdown(res, legalToMarkdown(termsEs, TERMS_BODY_KEYS, 'Términos y Condiciones de DoApp'));
+/**
+ * Los terminos en markdown, con las clausulas que correspondan.
+ *
+ * La seccion del pago al terminar entra o sale segun el modulo: la version que
+ * lee un buscador -o un modelo- tiene que ser la misma que ve un usuario en la
+ * pantalla, no una copia congelada con una modalidad que quizas no existe.
+ */
+router.get('/md/terminos', async (_req: Request, res: Response) => {
+  const { moduloPagoAlTerminarActivo } = await import('../services/pagoAlTerminar.js');
+  const pagoAlTerminar = await moduloPagoAlTerminarActivo().catch(() => false);
+  sendMarkdown(
+    res,
+    legalToMarkdown(termsEs, termsBodyKeys({ pagoAlTerminar }), 'Términos y Condiciones de DoApp'),
+  );
 });
 
 router.get('/md/privacidad', (_req: Request, res: Response) => {
@@ -179,9 +191,16 @@ export default router;
 /** Mounted separately: content routes that answer markdown when asked. */
 export const markdownNegotiation = Router();
 
-markdownNegotiation.get('/legal/terminos-y-condiciones', (req, res, next) => {
+markdownNegotiation.get('/legal/terminos-y-condiciones', async (req, res, next) => {
   if (!wantsMarkdown(req)) return next();
-  sendMarkdown(res, legalToMarkdown(termsEs, TERMS_BODY_KEYS, 'Términos y Condiciones de DoApp'));
+  // Mismas cláusulas que ve el usuario en la pantalla: la sección del pago al
+  // terminar entra o sale según el módulo.
+  const { moduloPagoAlTerminarActivo } = await import('../services/pagoAlTerminar.js');
+  const pagoAlTerminar = await moduloPagoAlTerminarActivo().catch(() => false);
+  sendMarkdown(
+    res,
+    legalToMarkdown(termsEs, termsBodyKeys({ pagoAlTerminar }), 'Términos y Condiciones de DoApp'),
+  );
 });
 
 markdownNegotiation.get('/legal/privacidad', (req, res, next) => {

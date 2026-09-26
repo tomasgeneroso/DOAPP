@@ -312,6 +312,15 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "staging_promote_start": "high",
   "staging_promote_fail": "high",
   "staging_promote_denied": "high",
+  // Encender el pago al terminar cambia quien corre el riesgo en cada trabajo
+  // que se publique despues, y agrega clausulas a los terminos.
+  "module_enabled": "high",
+  "module_disabled": "high",
+  "module_change_denied": "high",
+  // Dar por bueno un comprobante en el modo sin proteccion: es lo que decide
+  // si la operacion queda cubierta por DOAPP o no.
+  "payment_order_verified": "high",
+  "payment_order_rejected": "medium",
   // Publishing carries the platform's name; both decisions are on the record.
   "blog_agent_draft_approved": "medium",
   "blog_agent_draft_rejected": "low",

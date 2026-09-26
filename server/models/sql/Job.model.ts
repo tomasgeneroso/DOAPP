@@ -13,6 +13,7 @@ import {
   BeforeValidate,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
+import type { ModoDePago } from '../../../shared/pagos/modoDePago.js';
 
 /**
  * Job Model - PostgreSQL/Sequelize
@@ -547,6 +548,23 @@ export class Job extends Model {
    */
   @Column(DataType.STRING(20))
   cancellationRefundPreference?: 'saldo' | 'devolucion' | null;
+
+  /**
+   * Con proteccion de pago o sin ella.
+   *
+   * 'escrow' es el modo normal y el que queda si nadie elige: el cliente paga
+   * al publicar, DOAPP retiene y el dinero se libera cuando el trabajo esta
+   * hecho. 'on_completion' no retiene nada: se paga cuando el trabajo termino.
+   *
+   * Cambia quien corre el riesgo, asi que el modo entero vive detras de un
+   * modulo que arranca apagado. Si el modulo esta apagado, este campo es
+   * siempre 'escrow' por mas que alguien mande otra cosa: la validacion esta en
+   * la ruta, no aca, pero el default del modelo es la segunda red.
+   */
+  @Default('escrow')
+  @AllowNull(false)
+  @Column(DataType.STRING(20))
+  paymentMode!: ModoDePago;
 
   // Estado anterior del job (para restaurar si se cancela el pago)
   @Column(DataType.STRING(50))

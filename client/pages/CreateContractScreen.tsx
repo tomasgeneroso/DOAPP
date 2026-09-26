@@ -89,6 +89,30 @@ export default function CreateContractScreen() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isQuotable, setIsQuotable] = useState(false); // "A cotizar" option
 
+  /**
+   * Pago al terminar. Dos estados: si la opcion existe y si el cliente la
+   * eligio. Lo primero lo decide el servidor -el modulo arranca apagado- y se
+   * consulta en tiempo de ejecucion, no en el build: encenderlo desde el panel
+   * tiene que verse sin esperar un deploy.
+   */
+  const [pagoAlTerminarDisponible, setPagoAlTerminarDisponible] = useState(false);
+  const [sinProteccion, setSinProteccion] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch('/api/payment-orders/estado-del-modulo')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vivo && j?.data) setPagoAlTerminarDisponible(Boolean(j.data.activo));
+      })
+      .catch(() => {
+        /* sin respuesta, la opcion no aparece: el modo seguro es el normal */
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
 
   // Banking prompt modal state
   const [showBankingModal, setShowBankingModal] = useState(false);
@@ -202,6 +226,12 @@ export default function CreateContractScreen() {
     // El backend necesita saber el modo, no deducirlo de un precio vacío: de eso
     // depende si se cobra al publicar o al aceptar la cotización.
     submitData.append("pricingMode", isQuotable ? "quote" : "fixed");
+    // Solo si la opcion estaba disponible: mandar el modo sin que el modulo
+    // este encendido no rompe nada -el servidor lo ignora- pero tampoco tiene
+    // sentido, y ensucia el log de advertencias del servidor.
+    if (pagoAlTerminarDisponible && sinProteccion) {
+      submitData.append('paymentMode', 'on_completion');
+    }
     submitData.append("price", isQuotable ? "0" : ((formDataFromForm.get("budget") as string) || "0"));
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
@@ -596,6 +626,44 @@ export default function CreateContractScreen() {
                           </span>
                         </span>
                       </label>
+                    )}
+
+                    {/*
+                      Pago al terminar. La opción existe sólo si el módulo está
+                      encendido, y se pregunta al servidor: el formulario no
+                      puede decidirlo por su cuenta, y el servidor vuelve a
+                      validarlo igual cuando llega la publicación.
+                    */}
+                    {pagoAlTerminarDisponible && (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
+                        <label className="flex items-start gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sinProteccion}
+                            onChange={(e) => setSinProteccion(e.target.checked)}
+                            className="mt-0.5 rounded border-amber-400 text-amber-600 shadow-sm focus:ring-amber-500 dark:bg-slate-700"
+                          />
+                          <span>
+                            <span className="block font-medium text-amber-900 dark:text-amber-200">
+                              Pagar al terminar, sin protección de pago
+                            </span>
+                            <span className="block text-xs text-amber-800 dark:text-amber-300/90">
+                              No retenemos el dinero: pagás cuando el trabajo esté hecho, por una
+                              orden que genera la app. Si se paga por fuera de esa orden, DOAPP no
+                              puede intervenir en un reclamo.{' '}
+                              <a
+                                href="/legal/terminos-y-condiciones#s19Title"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline"
+                              >
+                                Ver condiciones
+                              </a>
+                              .
+                            </span>
+                          </span>
+                        </label>
+                      </div>
                     )}
                   </div>
                 </FormField>

@@ -1,6 +1,11 @@
-import { TERMS_BODY_KEYS } from '../shared/legal/terms.structure.js';
+import {
+  TERMS_BODY_KEYS,
+  TERMS_PAGO_AL_TERMINAR_KEYS,
+  termsBodyKeys,
+} from '../shared/legal/terms.structure.js';
 import { termsEs } from '../shared/legal/terms.es.js';
 import { termsEn } from '../shared/legal/terms.en.js';
+import { DIAS_PARA_PAGAR_LA_ORDEN } from '../shared/pagos/modoDePago.js';
 
 /**
  * Los terminos se arman recorriendo TERMS_BODY_KEYS y buscando cada clave en el
@@ -11,12 +16,17 @@ import { termsEn } from '../shared/legal/terms.en.js';
 
 describe('terminos y condiciones', () => {
   it('cada clave de la estructura tiene texto en espanol', () => {
-    const faltan = TERMS_BODY_KEYS.filter((k) => !(termsEs as any)[k]);
+    // Las condicionales tambien: una clausula que no se muestra hoy se va a
+    // mostrar el dia que alguien encienda el modulo, y ese no es el momento de
+    // descubrir que falta el texto.
+    const todas = [...TERMS_BODY_KEYS, ...TERMS_PAGO_AL_TERMINAR_KEYS];
+    const faltan = todas.filter((k) => !(termsEs as any)[k]);
     expect(faltan).toEqual([]);
   });
 
   it('cada clave de la estructura tiene texto en ingles', () => {
-    const faltan = TERMS_BODY_KEYS.filter((k) => !(termsEn as any)[k]);
+    const todas = [...TERMS_BODY_KEYS, ...TERMS_PAGO_AL_TERMINAR_KEYS];
+    const faltan = todas.filter((k) => !(termsEn as any)[k]);
     expect(faltan).toEqual([]);
   });
 
@@ -25,6 +35,54 @@ describe('terminos y condiciones', () => {
     // repite en el diccionario hace que la segunda pise a la primera en
     // silencio, que ya paso una vez con s10p6.
     expect(new Set(TERMS_BODY_KEYS).size).toBe(TERMS_BODY_KEYS.length);
+  });
+
+  describe('la seccion que aparece y desaparece con el modulo', () => {
+    it('con el modulo apagado, el documento es el de siempre', () => {
+      expect(termsBodyKeys()).toEqual(TERMS_BODY_KEYS);
+      expect(termsBodyKeys({ pagoAlTerminar: false })).toEqual(TERMS_BODY_KEYS);
+    });
+
+    it('con el modulo encendido entra la seccion 19, entera y sin repetir nada', () => {
+      const con = termsBodyKeys({ pagoAlTerminar: true });
+      for (const k of TERMS_PAGO_AL_TERMINAR_KEYS) expect(con).toContain(k);
+      expect(new Set(con).size).toBe(con.length);
+      expect(con.length).toBe(TERMS_BODY_KEYS.length + TERMS_PAGO_AL_TERMINAR_KEYS.length);
+    });
+
+    it('la aceptacion sigue siendo lo ultimo que se lee', () => {
+      // Si la seccion 19 quedara despues de la 18, el documento terminaria
+      // explicando una modalidad de pago en vez de con la declaracion de que
+      // el usuario leyo y acepto.
+      const con = termsBodyKeys({ pagoAlTerminar: true });
+      expect(con.indexOf('s19Title')).toBeLessThan(con.indexOf('s18Title'));
+      expect(con[con.length - 1]).toBe('importantNote');
+    });
+
+    it('dice cuando interviene DOAPP y cuando no puede', () => {
+      // Es la clausula entera del modulo. Tiene que decir las dos cosas: que
+      // la mediacion esta incluida cuando se paga por la orden, y que fuera de
+      // la orden no hay con que intervenir -sin sonar a que se lava las manos,
+      // porque la razon es que no cobro comision ni tiene fondos-.
+      expect(termsEs.s19p4).toMatch(/orden de pago de la Plataforma/i);
+      expect(termsEs.s19p4).toMatch(/no percibe comisi[oó]n/i);
+      expect(termsEs.s19p4).toMatch(/conservan [ií]ntegramente sus derechos/i);
+      expect(termsEn.s19p4).toMatch(/payment order/i);
+      expect(termsEn.s19p4).toMatch(/no commission/i);
+      expect(termsEn.s19p4).toMatch(/fully retain their rights/i);
+    });
+
+    it('dice que no hay fondos retenidos, que es lo que distingue esta modalidad', () => {
+      expect(termsEs.s19p2).toMatch(/no retiene fondos/i);
+      expect(termsEn.s19p2).toMatch(/holds no funds/i);
+    });
+
+    it('el plazo de la orden sale del codigo, no esta escrito a mano', () => {
+      // La tabla de comisiones estuvo meses diciendo un numero que el codigo
+      // no cobraba. Este plazo se interpola para que no pueda pasar de nuevo.
+      expect(termsEs.s19p7).toContain(String(DIAS_PARA_PAGAR_LA_ORDEN));
+      expect(termsEn.s19p7).toContain(String(DIAS_PARA_PAGAR_LA_ORDEN));
+    });
   });
 
   describe('lo que el usuario tiene que poder leer antes de pagar', () => {

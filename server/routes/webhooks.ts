@@ -722,6 +722,61 @@ async function handleApprovedPayment(payment: any, metadata: any) {
   const { Job } = await import('../models/sql/Job.model.js');
 
   // ============================================
+  // ORDEN DE PAGO AL TERMINAR (modo sin protección)
+  // ============================================
+  /**
+   * Es la única vía por la que una orden queda cubierta por DOAPP: el pago
+   * pasó por la orden de la aplicación, así que se cobró comisión y la
+   * mediación está incluida. La confirmación compara la preferencia, no sólo
+   * el monto — un pago aprobado del mismo cliente por la misma plata podría
+   * ser cualquier otra cosa.
+   *
+   * Sale por return: una orden no es el pago de una publicación ni de un
+   * contrato con escrow, y seguir por las ramas de abajo la trataría como tal.
+   */
+  if (payment.paymentType === 'on_completion') {
+    const { confirmarPagoDeOrden } = await import('../services/pagoAlTerminar.js');
+    const confirmada = await confirmarPagoDeOrden(payment.id, {
+      mercadopagoPaymentId: String(payment.mercadopagoPaymentId || ''),
+      preferenceId: metadata?.preference_id || payment.mercadopagoPreferenceId,
+      estado: 'approved',
+      monto: Number(payment.amount) || 0,
+    });
+
+    logger.payment(confirmada ? 'APPROVED' : 'ERROR',
+      confirmada
+        ? `Orden de pago al terminar confirmada: ${payment.id}`
+        : `Orden de pago al terminar NO confirmada (la preferencia no coincide): ${payment.id}`,
+      { paymentId: payment.id?.toString(), userId: payment.payerId?.toString() },
+    );
+
+    if (!confirmada) {
+      // Plata cobrada sin orden confirmada: eso lo mira una persona, no se
+      // resuelve solo.
+      const admins = await User.findAll({
+        where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+      });
+      for (const admin of admins) {
+        await Notification.create({
+          recipientId: admin.id,
+          type: 'error',
+          category: 'admin',
+          title: 'Pago aprobado sobre una orden que no coincide',
+          message:
+            'Llegó un pago aprobado para una orden de pago al terminar, pero la preferencia no es ' +
+            'la de esa orden. El dinero entró y la orden sigue sin confirmar: revisalo antes de ' +
+            'que el trabajador reclame.',
+          relatedModel: 'Payment',
+          relatedId: payment.id,
+          sentVia: ['in_app'],
+        } as any).catch(() => {});
+      }
+    }
+
+    return;
+  }
+
+  // ============================================
   // ACEPTACIÓN DE COTIZACIÓN
   // ============================================
   // Acá se selecciona al trabajador, y recién acá: la plata ya está acreditada.

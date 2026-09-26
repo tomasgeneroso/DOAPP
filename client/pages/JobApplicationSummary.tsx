@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
+import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
 
 export default function JobApplicationSummary() {
   const { t } = useTranslation();
@@ -288,6 +289,16 @@ export default function JobApplicationSummary() {
                   ofrece el cliente; sin esto el trabajador cotiza sobre un
                   número que no recibe y reclama cuando le llega menos. */}
               <WorkerNetAmount jobId={job.id} className="mb-6" />
+
+              {/*
+                Justo debajo de cuánto va a cobrar, porque es la otra mitad de
+                la misma pregunta: cuánto, y qué pasa si no pagan. Esta es la
+                última pantalla antes de comprometer tiempo, así que acá el
+                aviso va completo y no compacto.
+              */}
+              {(job as any).paymentMode === "on_completion" && (
+                <AvisoSinProteccion momento="postulacion" className="mb-6" />
+              )}
 
               {/* Dates Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

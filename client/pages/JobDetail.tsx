@@ -66,6 +66,7 @@ import useImageViewer from "../hooks/useImageViewer";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
+import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -1438,6 +1439,15 @@ export default function JobDetail() {
                   ${Number(job.price || 0).toLocaleString("es-AR")}
                 </div>
               </div>
+
+              {/*
+                Sin protección de pago: va acá arriba, pegado al precio, y no
+                al final de la página. Quien lee una publicación decide en los
+                primeros segundos, y este dato cambia quién corre el riesgo.
+              */}
+              {(job as any).paymentMode === "on_completion" && (
+                <AvisoSinProteccion momento="publicacion" className="mt-4" />
+              )}
 
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>
 

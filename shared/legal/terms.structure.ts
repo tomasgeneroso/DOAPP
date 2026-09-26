@@ -56,6 +56,49 @@ export const TERMS_BODY: TermsBlock[] = TERMS_BODY_KEYS.map((key) => ({
 }));
 
 /**
+ * La seccion 19, que existe solo mientras el pago al terminar este encendido.
+ *
+ * Por que es condicional y no permanente: un termino que describe una
+ * modalidad que la plataforma no ofrece confunde a quien lo lee y no protege a
+ * nadie. Y al reves, si la modalidad existe y el termino no esta, la
+ * plataforma esta haciendo algo que sus propias condiciones no contemplan.
+ *
+ * Va al final pero ANTES de la aceptacion (seccion 18): lo ultimo que se lee
+ * tiene que seguir siendo "declara haber leido y aceptado".
+ */
+export const TERMS_PAGO_AL_TERMINAR_KEYS: string[] = [
+  's19Title', 's19p1', 's19p2', 's19p3', 's19p4', 's19p5', 's19p6', 's19p7', 's19note',
+];
+
+/**
+ * El cuerpo del documento segun que modulos esten activos.
+ *
+ * @param opciones.pagoAlTerminar Si el modulo esta encendido. Por defecto
+ *   `false`: un documento que promete menos de lo que la plataforma hace es un
+ *   problema; uno que describe algo que no existe, tambien, y este es el que
+ *   corresponde cuando no se sabe.
+ */
+export function termsBodyKeys(opciones: { pagoAlTerminar?: boolean } = {}): string[] {
+  if (!opciones.pagoAlTerminar) return TERMS_BODY_KEYS;
+
+  const corte = TERMS_BODY_KEYS.indexOf('s18Title');
+  if (corte < 0) {
+    // No deberia pasar, pero si la seccion 18 se renombra, la 19 va al final
+    // antes que desaparecer sin que nadie se entere.
+    return [...TERMS_BODY_KEYS, ...TERMS_PAGO_AL_TERMINAR_KEYS];
+  }
+  return [
+    ...TERMS_BODY_KEYS.slice(0, corte),
+    ...TERMS_PAGO_AL_TERMINAR_KEYS,
+    ...TERMS_BODY_KEYS.slice(corte),
+  ];
+}
+
+export function termsBody(opciones: { pagoAlTerminar?: boolean } = {}): TermsBlock[] {
+  return termsBodyKeys(opciones).map((key) => ({ key, kind: classifyTermsKey(key) }));
+}
+
+/**
  * Commission table of clause 7.3.
  *
  * Derived from COMMISSION_RATES, not written here: the table used to say

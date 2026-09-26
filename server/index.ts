@@ -38,6 +38,7 @@ import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
 import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
+import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
 import { startLicenseExpiryReminderJob } from "./jobs/licenseExpiryReminders.js";
 import { startMonotributoRecategorizationReminderJob } from "./jobs/monotributoRecategorizationReminders.js";
@@ -76,6 +77,7 @@ import adminHubsRoutes from "./routes/admin/hubs.js";
 
 // Payment routes
 import paymentsRoutes from "./routes/payments.js";
+import paymentOrderRoutes from "./routes/paymentOrders.js";
 
 // Matching routes
 import matchingRoutes from "./routes/matching.js";
@@ -350,6 +352,8 @@ app.use("/api/users", usersRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/contracts", contractsRoutes);
 app.use("/api/payments", paymentsRoutes);
+// Ordenes de pago del modo sin proteccion (pago al terminar).
+app.use("/api/payment-orders", paymentOrderRoutes);
 app.use("/api/matching", matchingRoutes);
 app.use("/api/negotiation", negotiationRoutes);
 app.use("/api/search", searchRoutes);
@@ -513,6 +517,7 @@ startResetReferralDiscountsJob();
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();
+startVencerOrdenesDePagoJob();
 
 // Initialize confirmation reminders (when job ends, remind both parties to confirm)
 startConfirmationReminderJob();

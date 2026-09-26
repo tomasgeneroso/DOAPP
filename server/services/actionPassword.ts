@@ -25,6 +25,14 @@ export const ACTIONS = {
    * con la misma contraseña, encender la comisión para todo el mundo.
    */
   PROMOTE_TO_PROD: 'deploy:promote',
+  /**
+   * Encender o apagar el pago al terminar (sin retención de fondos).
+   *
+   * Encenderlo cambia quién corre el riesgo en cada trabajo que se publique
+   * después, y agrega cláusulas a los términos y condiciones. No es una
+   * preferencia de interfaz que se toca sin pensar.
+   */
+  PAYMENT_MODE: 'payment:mode',
 } as const;
 
 export type ActionKey = (typeof ACTIONS)[keyof typeof ACTIONS];

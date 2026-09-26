@@ -77,7 +77,14 @@ export type PaymentType =
   | 'job_publication'
   | 'contract'
   | 'budget_increase'
-  | 'quote_payment';
+  | 'quote_payment'
+  /**
+   * La orden de pago del modo sin protección: se crea cuando el trabajo
+   * termina y el cliente la paga ahí. Es una fila de payments como cualquier
+   * otra —así hereda comprobantes, comisión, cargo de procesamiento y
+   * webhook— pero con `isEscrow` en false, porque nunca hubo nada retenido.
+   */
+  | 'on_completion';
 
 export type PaymentMethod = 'paypal' | 'mercadopago' | 'astropay' | 'bank_transfer' | 'binance';
 
@@ -309,6 +316,16 @@ export class Payment extends Model {
    */
   @Column(DataType.DATE)
   moneyReleaseDate?: Date | null;
+
+  /**
+   * Cuándo vence esta fila, si vence.
+   *
+   * Sólo la usan las órdenes de pago al terminar (`paymentType:
+   * 'on_completion'`): una orden abierta para siempre es un contrato que nunca
+   * cierra y plata que nadie reclama. El resto de los pagos la deja en null.
+   */
+  @Column(DataType.DATE)
+  expiresAt?: Date | null;
 
   @ForeignKey(() => User)
   @Column(DataType.UUID)

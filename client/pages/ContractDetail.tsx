@@ -40,6 +40,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import OrdenDePago from "@/components/pagos/OrdenDePago";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -608,6 +609,18 @@ export default function ContractDetail() {
               </div>
             </div>
           </div>
+
+          {/*
+            Pago al terminar. El propio panel decide si dibujarse: consulta el
+            modo del contrato y no aparece en los que tienen protección, que
+            son la enorme mayoría.
+          */}
+          <OrdenDePago
+            contractId={contract.id}
+            estadoDelContrato={contract.status}
+            esCliente={user?.id === (typeof contract.client === 'string' ? contract.client : contract.client?.id)}
+            className="mb-6"
+          />
 
           {/* Contract Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

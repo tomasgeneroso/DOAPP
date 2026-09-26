@@ -18,6 +18,7 @@
 import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES } from '../constants/policies.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../pricing/minimums.js';
+import { DIAS_PARA_PAGAR_LA_ORDEN } from '../pagos/modoDePago.js';
 
 const P = POLITICAS;
 const COMISION = COMMISSION_RATES.free;
@@ -28,6 +29,10 @@ const PARTE_TRABAJADOR_PCT = Math.round(P.CANCELACION_TARDIA_PARTE_TRABAJADOR * 
 const REVISION_PARTE_PCT = Math.round(P.CANCELACION_EN_REVISION_PARTE_COMISION * 100);
 const REVISION_COMISION_PCT = Math.round(COMISION * P.CANCELACION_EN_REVISION_PARTE_COMISION * 1000) / 10;
 const REVISION_PISO_EUR = Math.round(MINIMUM_COMMISSION_EUR * P.CANCELACION_EN_REVISION_PARTE_COMISION * 100) / 100;
+// Vigencia de la orden de pago al terminar. Se interpola, no se escribe: si el
+// plazo cambia en el codigo y el termino sigue diciendo otro numero, el que
+// vale legalmente es el que leyo el usuario.
+const DIAS_ORDEN = DIAS_PARA_PAGAR_LA_ORDEN;
 
 export const termsEs: Record<string, string> = {
   "metaTitle": "Términos y Condiciones - DOAPP",
@@ -128,6 +133,31 @@ export const termsEs: Record<string, string> = {
   "s16p": "DOAPP podrá modificar estos Términos, los cuales entrarán en vigencia desde su publicación.",
   "s17Title": "17. Ley Aplicable y Jurisdicción",
   "s17p": "Los presentes Términos se rigen por las leyes de la República Argentina. Para los consumidores, será competente el tribunal del domicilio del Usuario conforme Ley 24.240.",
+  /**
+   * Seccion 19 — SOLO cuando el modulo de pago al terminar esta encendido.
+   *
+   * No se muestra sola: terms.structure.ts la agrega o la saca segun el estado
+   * del modulo. Un termino que describe una modalidad que no existe confunde
+   * mas de lo que informa, y uno que falta cuando la modalidad si existe deja a
+   * la Plataforma sin respaldo para lo que hace.
+   *
+   * El tono importa tanto como el contenido. Lo que esta seccion dice, en el
+   * fondo, es que DOAPP no responde por lo que no vio; pero decirlo asi suena a
+   * que se lava las manos. Lo que corresponde decir es la razon: DOAPP puede
+   * mediar porque cobra comision, y cobra comision cuando el pago pasa por la
+   * orden. No es una excusa para no responder, es la condicion que hace que
+   * responder sea posible.
+   */
+  "s19Title": "19. Trabajos sin protección de pago",
+  "s19p1": `19.1. Además de la modalidad con protección de pago descripta en el punto 7, la Plataforma puede habilitar trabajos bajo la modalidad "pago al terminar". Su disponibilidad es facultad de DOAPP y se informa en cada publicación antes de postularse y antes de contratar.`,
+  "s19p2": "19.2. En esta modalidad DOAPP no retiene fondos en ningún momento. No existe depósito en garantía ni importe bajo custodia de la Plataforma: el Cliente abona una vez finalizado el trabajo.",
+  "s19p3": `19.3. <b>Orden de pago.</b> Finalizado el trabajo, la Plataforma genera una orden de pago con el detalle del precio, la comisión, el costo de procesamiento y los impuestos aplicables. El Cliente abona a través de dicha orden, por los medios que la Plataforma habilite. La comisión del ${COMISION}% prevista en el punto 7.3 se percibe únicamente en ese momento.`,
+  "s19p4": "19.4. <b>Alcance de la intervención de DOAPP.</b> El servicio de mediación de conflictos previsto en el punto 10 se financia con la comisión y, en consecuencia, se encuentra comprendido respecto de las operaciones abonadas mediante la orden de pago de la Plataforma y efectivamente verificadas conforme al punto 19.6. Respecto de pagos realizados por vías ajenas a dicha orden, DOAPP no percibe comisión, no dispone de constancia de la operación ni de fondos sobre los cuales actuar, por lo que no le resulta posible intervenir en una eventual controversia. Ello no altera la validez del acuerdo celebrado entre las partes, que conservan íntegramente sus derechos y acciones entre sí.",
+  "s19p5": "19.5. Las partes son libres de acordar el medio de pago que estimen conveniente. La Plataforma recomienda utilizar la orden de pago, y así lo informa antes de postularse y antes de contratar, precisamente porque de ello depende la posibilidad de intervenir.",
+  "s19p6": `19.6. <b>Verificación.</b> Se considera verificado el pago cuando (i) la pasarela de pagos confirma la acreditación e informa la operación asociada a la orden, o (ii) el Usuario acompaña el comprobante de la transferencia y DOAPP lo valida. Mientras el pago no se encuentre verificado, la operación no se considera comprendida en el punto 19.4, y así se indica en la Plataforma.`,
+  "s19p7": `19.7. <b>Vigencia de la orden.</b> La orden de pago tiene una vigencia de ${DIAS_ORDEN} días corridos desde su emisión. Vencido ese plazo la orden caduca y deja de estar disponible la vía prevista en el punto 19.4, sin que ello extinga la obligación de pago asumida por el Cliente frente al Trabajador.`,
+  "s19note": "En los trabajos con protección de pago (punto 7) nada de esta sección resulta aplicable: allí el importe permanece retenido por la Plataforma hasta la conformidad de ambas partes.",
+
   "s18Title": "18. Aceptación",
   "s18p": "El Usuario declara haber leído, comprendido y aceptado íntegramente los presentes Términos y Condiciones.",
   "importantNote": "<b>Nota importante:</b> Al registrarte y utilizar DOAPP, confirmas que has leído, entendido y aceptado estos Términos y Condiciones en su totalidad.",

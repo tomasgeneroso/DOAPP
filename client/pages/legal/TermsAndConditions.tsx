@@ -1,10 +1,10 @@
-import { Fragment, ReactNode } from "react";
+import { Fragment, ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, FileText } from "lucide-react";
 import {
-  TERMS_BODY,
+  termsBody,
   TERMS_COMMISSION_AFTER,
   TERMS_COMMISSION_HEADERS,
   TERMS_COMMISSION_ROWS,
@@ -70,7 +70,10 @@ function CommissionTable() {
  * Agrupa los bloques en secciones (un titulo abre una) y, dentro de cada una,
  * junta los items de lista consecutivos en un solo <ul>.
  */
-function renderBody(t: (k: string, d: string) => string): ReactNode[] {
+function renderBody(
+  t: (k: string, d: string) => string,
+  opciones: { pagoAlTerminar: boolean },
+): ReactNode[] {
   const out: ReactNode[] = [];
   let seccion: ReactNode[] | null = null;
   let lista: string[] = [];
@@ -101,7 +104,7 @@ function renderBody(t: (k: string, d: string) => string): ReactNode[] {
     else out.push(nodo);
   };
 
-  for (const bloque of TERMS_BODY as TermsBlock[]) {
+  for (const bloque of termsBody(opciones) as TermsBlock[]) {
     const { key, kind } = bloque;
 
     if (kind === 'title') {
@@ -160,6 +163,34 @@ function renderBody(t: (k: string, d: string) => string): ReactNode[] {
 export default function TermsAndConditions() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  /**
+   * La sección 19 —trabajos sin protección de pago— existe sólo mientras el
+   * módulo esté encendido. Se pregunta al servidor en vez de decidirlo en el
+   * build: si dependiera del build, encender el módulo en el panel dejaría los
+   * términos describiendo una plataforma que ya no es la que está corriendo,
+   * hasta el próximo deploy.
+   *
+   * Arranca en false: si la consulta no llega, se muestra el documento sin la
+   * sección, que es lo que corresponde cuando no se sabe.
+   */
+  const [pagoAlTerminar, setPagoAlTerminar] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch('/api/payment-orders/estado-del-modulo')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vivo && j?.data) setPagoAlTerminar(Boolean(j.data.activo));
+      })
+      .catch(() => {
+        /* sin respuesta, el documento se muestra sin la sección condicional */
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   return (
     <>
       <Helmet>
@@ -200,7 +231,7 @@ export default function TermsAndConditions() {
             </p>
 
             <div className="prose prose-slate dark:prose-invert max-w-none">
-              {renderBody(t)}
+              {renderBody(t, { pagoAlTerminar })}
             </div>
           </div>
 
