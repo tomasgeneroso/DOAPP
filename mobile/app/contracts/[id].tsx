@@ -33,7 +33,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
-import AvisoSinProteccion from '../../components/AvisoSinProteccion';
+import OrdenDePago from '../../components/OrdenDePago';
 import EmergencyButton from '../../components/EmergencyButton';
 import CompartirContrato from '../../components/CompartirContrato';
 import { Contract, Job, User as UserType } from '../../types';
@@ -493,10 +493,17 @@ export default function ContractDetailScreen() {
             </View>
           </View>
 
-          {/* Al contratar: que quede claro donde esta la plata, o donde no esta. */}
-          {contract.paymentMode === 'on_completion' && (
-            <AvisoSinProteccion momento="contratacion" rol={isClient ? 'cliente' : 'trabajador'} />
-          )}
+          {/*
+            El panel de la orden. Se dibuja solo si el contrato es de los que
+            se pagan al terminar -consulta el modo por su cuenta- y adentro ya
+            lleva el aviso con el rol, asi que no va tambien el aviso suelto:
+            seria decir lo mismo dos veces en la misma pantalla.
+          */}
+          <OrdenDePago
+            contractId={contract.id || (contract as any)._id}
+            estadoDelContrato={contract.status}
+            esCliente={isClient}
+          />
         </View>
 
         {/* Parties */}

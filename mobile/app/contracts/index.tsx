@@ -16,6 +16,8 @@ import { useAuth } from '../../context/AuthContext';
 import { getContracts } from '../../services/contracts';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import AvisoSinProteccion from '../../components/AvisoSinProteccion';
+import { puedeReclamar } from '../../../shared/pagos/modoDePago';
 
 type TabType = 'as_client' | 'as_worker';
 
@@ -122,9 +124,27 @@ export default function ContractsScreen() {
     const doer = item.doer as UserType;
     const otherPerson = activeTab === 'as_client' ? doer : client;
 
+    /**
+     * Los contratos sin pago todavía pesan menos en la lista.
+     *
+     * Un contrato pagado es plata que existe; uno que se paga al terminar y no
+     * se pagó todavía es una promesa. Que se vean iguales hace que el ojo los
+     * cuente igual, y eso lleva a planificar sobre plata que puede no llegar.
+     * Igual que en la web.
+     */
+    const sinPagar = !puedeReclamar(item as any);
+
     return (
       <TouchableOpacity
-        style={[styles.contractCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+        style={[
+          styles.contractCard,
+          {
+            backgroundColor: themeColors.card,
+            borderColor: themeColors.border,
+            opacity: sinPagar ? 0.7 : 1,
+            borderStyle: sinPagar ? 'dashed' : 'solid',
+          },
+        ]}
         onPress={() => router.push(`/contracts/${item.id}`)}
       >
         <View style={styles.contractHeader}>
@@ -137,9 +157,17 @@ export default function ContractsScreen() {
           <ChevronRight size={20} color={themeColors.text.muted} />
         </View>
 
-        <Text style={[styles.jobTitle, { color: themeColors.text.primary }]} numberOfLines={2}>
+        <Text
+          style={[
+            styles.jobTitle,
+            { color: sinPagar ? themeColors.text.secondary : themeColors.text.primary },
+          ]}
+          numberOfLines={2}
+        >
           {job?.title || 'Trabajo'}
         </Text>
+
+        {sinPagar && <AvisoSinProteccion momento="publicacion" compacto />}
 
         <View style={styles.contractInfo}>
           <View style={styles.infoRow}>

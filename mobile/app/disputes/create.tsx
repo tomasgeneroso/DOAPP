@@ -15,11 +15,13 @@ import {
   ArrowLeft,
   AlertTriangle,
   AlertCircle,
+  Lock,
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { get, post } from '../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { POLITICAS } from '../../../shared/constants/policies';
+import { puedeReclamar, RECLAMO_DESHABILITADO } from '../../../shared/pagos/modoDePago';
 
 interface Contract {
   id: string;
@@ -196,9 +198,23 @@ export default function CreateDisputeScreen() {
               </View>
             ) : (
               <View style={styles.contractsList}>
-                {contracts.map((contract) => (
+                {contracts.map((contract) => {
+                  /**
+                   * En los contratos que se pagan al terminar, sin pago
+                   * confirmado no hay reclamo: no hay fondos, no hay constancia
+                   * y no hay nada sobre lo que un administrador pueda decidir.
+                   *
+                   * Se muestra apagado y no escondido: si la tarjeta
+                   * desaparece, el usuario cree que la plataforma perdió su
+                   * contrato. Apagado con el motivo dice qué falta, y lo que
+                   * falta es accionable -pagar la orden-.
+                   */
+                  const sePuede = puedeReclamar(contract as any);
+
+                  return (
                   <TouchableOpacity
                     key={contract.id}
+                    disabled={!sePuede}
                     style={[
                       styles.contractCard,
                       {
@@ -207,9 +223,10 @@ export default function CreateDisputeScreen() {
                           ? colors.danger[500]
                           : themeColors.border,
                         borderWidth: selectedContract === contract.id ? 2 : 1,
+                        opacity: sePuede ? 1 : 0.55,
                       },
                     ]}
-                    onPress={() => setSelectedContract(contract.id)}
+                    onPress={() => sePuede && setSelectedContract(contract.id)}
                   >
                     <Text style={[styles.contractTitle, { color: themeColors.text.primary }]}>
                       {contract.job?.title || 'Sin título'}
@@ -244,8 +261,18 @@ export default function CreateDisputeScreen() {
                         ${contract.price?.toLocaleString('es-AR')}
                       </Text>
                     </View>
+
+                    {!sePuede && (
+                      <View style={[styles.sinReclamo, { borderTopColor: themeColors.border }]}>
+                        <Lock size={13} color={colors.warning[600]} />
+                        <Text style={[styles.sinReclamoTexto, { color: colors.warning[600] }]}>
+                          {RECLAMO_DESHABILITADO.motivo}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -364,6 +391,15 @@ export default function CreateDisputeScreen() {
 }
 
 const styles = StyleSheet.create({
+  sinReclamo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 8,
+  },
+  sinReclamoTexto: { flex: 1, fontSize: 12, lineHeight: 16 },
   container: {
     flex: 1,
   },
