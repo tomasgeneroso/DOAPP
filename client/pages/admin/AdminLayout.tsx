@@ -79,6 +79,27 @@ export default function AdminLayout() {
    * cero y el panel sigue estando: nunca bloquea el menú.
    */
   const [urgentes, setUrgentes] = useState(0);
+  /**
+   * Si el modulo de pago al terminar esta encendido. Con el apagado la cola
+   * de ordenes esta siempre vacia, y un item de menu que nunca tiene nada es
+   * ruido que se aprende a ignorar -incluido el dia que si tiene algo-.
+   */
+  const [pagoAlTerminarActivo, setPagoAlTerminarActivo] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch('/api/payment-orders/estado-del-modulo')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vivo && j?.data) setPagoAlTerminarActivo(Boolean(j.data.activo));
+      })
+      .catch(() => {
+        /* sin respuesta el item no aparece, que es el estado normal */
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user?.adminRole) return;
@@ -196,11 +217,17 @@ export default function AdminLayout() {
         { path: "/admin/chargebacks", icon: AlertTriangle, label: t('admin.sidebar.chargebacks', 'Contracargos'), roles: ["owner", "super_admin", "admin"], badge: urgentes > 0 ? String(urgentes) : undefined },
         { path: "/admin/usuarios-marcados", icon: ShieldAlert, label: t('admin.sidebar.flaggedUsers', 'Usuarios con advertencia'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
+        // Solo aparece con el modulo de pago al terminar encendido. Con el
+        // apagado la lista esta siempre vacia y el item seria ruido.
+        ...(pagoAlTerminarActivo
+          ? [{ path: "/admin/ordenes-de-pago", icon: ShieldOff, label: t('admin.sidebar.paymentOrders', 'Órdenes de pago'), roles: ["owner", "super_admin", "admin"] }]
+          : []),
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/auditoria-saldos", icon: Scale, label: t('admin.sidebar.balanceAudit', 'Auditoría de saldos'), roles: ["owner", "super_admin"] },
         { path: "/admin/family-codes", icon: Gift, label: t('admin.sidebar.familyCodes', 'Family Codes'), roles: ["owner"] },
         { path: "/admin/business-plan", icon: Calculator, label: t('admin.sidebar.businessPlan', 'Proyección de gastos'), roles: ["owner"] },
+        { path: "/admin/unit-economics", icon: TrendingUp, label: t('admin.sidebar.unitEconomics', 'Economía unitaria'), roles: ["owner"] },
       ]
     },
     {

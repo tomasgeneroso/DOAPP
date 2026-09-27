@@ -8,6 +8,7 @@ import { protect, requireAdminRole } from '../../middleware/auth.js';
 import { logAudit } from '../../utils/auditLog.js';
 import currencyExchange from '../../services/currencyExchange.js';
 import { getLiveFinancials } from '../../services/liveFinancials.js';
+import { getUnitEconomics } from '../../services/unitEconomics.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -282,6 +283,36 @@ router.get('/live', protect, ownerOnly, async (_req: AuthRequest, res: Response)
     res.json({ success: true, data: live });
   } catch (error: any) {
     console.error('Error calculando el estado financiero real:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+/**
+ * @route   PUT /api/admin/business-plan
+ * @desc    Guardar el plan
+ * @access  Owner only
+ */
+/**
+ * @route   GET /api/admin/business-plan/unit-economics
+ * @desc    CAC, LTV, LTV/CAC, payback, runway y retencion por cohorte
+ * @access  Owner only
+ *
+ * Va aparte de /live porque responde otra pregunta. /live dice cuanto entro
+ * este mes y cuanto falta para cubrir los gastos; esto dice si el negocio
+ * cierra: si conseguir un cliente cuesta menos de lo que ese cliente deja.
+ * Con la primera se opera; con la segunda se decide si poner mas plata en
+ * pauta, que es una decision distinta y mas cara de equivocar.
+ *
+ * Los supuestos salen del mismo plan guardado, asi que corregir el plan
+ * corrige estas metricas sin tocar codigo.
+ */
+router.get('/unit-economics', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
+    const data = mergeDeep(defaultPlan(), plan?.data || {});
+    res.json({ success: true, data: await getUnitEconomics(data) });
+  } catch (error: any) {
+    console.error('Error calculando unit economics:', error);
     res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });

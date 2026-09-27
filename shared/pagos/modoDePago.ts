@@ -123,7 +123,7 @@ export const RECLAMO_DESHABILITADO = {
   titulo: 'No disponible todavía',
   motivo:
     'Este trabajo se paga al terminar y no hay un pago confirmado. El reclamo se habilita ' +
-    'cuando el cliente paga la orden desde la aplicación y el pago queda verificado.',
+    'cuando el cliente paga la orden desde nuestra app y el pago queda verificado.',
   /** Lo que ve el cliente: puede resolverlo él mismo. */
   accionCliente: 'Ir a pagar la orden',
   /** Lo que ve el trabajador: no depende de él, pero puede ver el estado. */
@@ -180,8 +180,8 @@ export const AVISOS_SIN_PROTECCION: Record<
       titulo: 'Antes de postularte, tené esto claro',
       cuerpo:
         'Este trabajo se paga al terminar: no hay dinero retenido. El cliente es el responsable ' +
-        'de hacer el pago cuando el trabajo esté hecho. Si lo hace por Mercado Pago desde la ' +
-        'aplicación, tenés el respaldo de DOAPP para abrir un reclamo desde el momento en que ' +
+        'de hacer el pago cuando el trabajo esté hecho. Si lo hace por Mercado Pago desde ' +
+        'nuestra app, tenés el respaldo de DOAPP para abrir un reclamo desde el momento en que ' +
         'ese pago se confirma. Si te paga por fuera, no podemos intervenir: no vimos la ' +
         'operación y no hay fondos que retener.',
     },
@@ -192,7 +192,7 @@ export const AVISOS_SIN_PROTECCION: Record<
     general: {
       titulo: 'Contrato sin protección de pago',
       cuerpo:
-        'El pago se hace al terminar, por la orden que genera la aplicación. Mientras tanto no ' +
+        'El pago se hace al terminar, por la orden que genera nuestra app. Mientras tanto no ' +
         'hay dinero retenido. El reclamo con intervención de DOAPP se habilita desde que ese ' +
         'pago se confirma; si se paga por fuera de la orden, no podemos intervenir.',
     },
@@ -200,7 +200,7 @@ export const AVISOS_SIN_PROTECCION: Record<
       titulo: 'Vos sos responsable del pago',
       cuerpo:
         'Al aceptar te comprometés a pagar el precio cotizado cuando el trabajo esté hecho. Vas ' +
-        'a recibir una orden de pago en la aplicación. Si pagás por ahí, las dos partes quedan ' +
+        'a recibir una orden de pago en nuestra app. Si pagás por ahí, las dos partes quedan ' +
         'con el respaldo de DOAPP para un reclamo desde que el pago se confirma. Si pagás por ' +
         'fuera de la orden, ni vos ni el trabajador pueden reclamar acá.',
     },
@@ -209,7 +209,7 @@ export const AVISOS_SIN_PROTECCION: Record<
       cuerpo:
         'Al aceptar acordás que el pago se hace al terminar. Mientras tanto no hay dinero ' +
         'retenido y el cliente es el responsable de pagarlo. Vas a poder abrir un reclamo sólo ' +
-        'si el pago se hizo por la orden de la aplicación y quedó confirmado.',
+        'si el pago se hizo por la orden de nuestra app y quedó confirmado.',
     },
   },
 };
@@ -265,13 +265,13 @@ export const COMO_FUNCIONA: Record<ModoDePago, ComoFunciona> = {
       'El trabajador cotiza con el detalle de qué incluye.',
       'Aceptás la cotización: ese es el precio acordado. No pagás nada todavía.',
       'Se hace el trabajo.',
-      'Al terminar, la aplicación genera la orden de pago y la abonás ahí.',
+      'Al terminar, nuestra app genera la orden de pago y la abonás ahí.',
     ],
     riesgo:
       'Si el cliente no paga, DOAPP no tiene fondos para liberarle al trabajador. El riesgo ' +
       'lo corre el trabajador, que ya hizo el trabajo.',
     reclamo:
-      'Sólo desde que el pago se hace por la orden de la aplicación y queda confirmado. Un pago ' +
+      'Sólo desde que el pago se hace por la orden de nuestra app y queda confirmado. Un pago ' +
       'por fuera no se puede reclamar acá.',
   },
 };

@@ -119,6 +119,8 @@ const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
 const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
 const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
 const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
+const AdminOrdenesDePago = lazy(() => import("./pages/admin/OrdenesDePago"));
+const AdminUnitEconomics = lazy(() => import("./pages/admin/UnitEconomics"));
 const ModerationHub = lazy(() => import("./pages/admin/ModerationHub"));
 const FinancialHub = lazy(() => import("./pages/admin/FinancialHub"));
 const GrowthHub = lazy(() => import("./pages/admin/GrowthHub"));
@@ -667,6 +669,9 @@ export default function App() {
               <Route path="disputes/:id" element={<AdminDisputeDetail />} />
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="pending-payments" element={<PendingPayments />} />
+              {/* Cola del camino manual del pago al terminar: las de Mercado
+                  Pago las confirma el webhook y no pasan por acá. */}
+              <Route path="ordenes-de-pago" element={<AdminOrdenesDePago />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               {/* Legacy/hub links without a dedicated page → redirect to where that
@@ -689,6 +694,9 @@ export default function App() {
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="business-plan" element={<AdminBusinessPlan />} />
+              {/* La proyección dice "si pasa X, cuánto gano"; esto dice si el
+                  negocio cierra. Dos preguntas, dos pantallas. */}
+              <Route path="unit-economics" element={<AdminUnitEconomics />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />
               <Route path="search" element={<AdminSearch />} />
               <Route path="database" element={<DatabaseDiagram />} />
