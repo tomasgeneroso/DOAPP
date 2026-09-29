@@ -1,6 +1,6 @@
 # Especificación 002 — Filtrar publicaciones por rubro
 
-- **Estado**: en clarificación
+- **Estado**: clarificada — plan pendiente de confirmación
 - **Fecha**: 2026-09-29
 - **Confirmada por**: _(pendiente)_
 
@@ -35,10 +35,12 @@ sigue viendo mudanzas, cuidado de mascotas y diseño web en su feed.
 
 **Entra:**
 
-- Que cada persona elija si quiere ver todas las publicaciones o sólo las
-  de los rubros que seleccionó.
-- Que esa preferencia se aplique al listado de publicaciones.
-- Que se pueda cambiar y desactivar desde donde hoy se eligen los rubros.
+- Que cada persona elija **todos, algunos o un solo rubro**, con "todos"
+  como opción explícita y no como ausencia de elección.
+- Que esa elección se pueda hacer **en el onboarding y en el perfil**, con
+  el mismo selector.
+- Que la pantalla **diga que la elección afecta al feed siempre**.
+- Que la elección se aplique al listado de publicaciones.
 - Que el filtro sea evidente cuando está activo: nadie debería creer que
   no hay trabajo cuando en realidad lo está ocultando su propio filtro.
 
@@ -58,7 +60,8 @@ sigue viendo mudanzas, cuidado de mascotas y diseño web en su feed.
 | 3 | El filtro se activa, desactiva y edita sin salir de Ajustes | Recorrido manual |
 | 4 | Con el filtro activo y ningún resultado, la pantalla lo explica y ofrece quitarlo | Recorrido manual con un rubro sin publicaciones |
 | 5 | Quien nunca configuró nada sigue viendo lo mismo que antes | Sesión sin rubros elegidos; el listado no cambia |
-| 6 | El filtro no se puede evadir ni forzar desde el cliente | Llamada manipulando el parámetro; el servidor manda |
+| 6 | El filtro se aplica en la consulta, no sobre la página ya traída | Con filtro activo y muchas publicaciones, una página devuelve el tamaño completo, no un resto |
+| 7 | La pantalla de elección dice que afecta al feed | Revisión visual del onboarding y del perfil |
 
 ## Restricciones
 
@@ -69,9 +72,22 @@ sigue viendo mudanzas, cuidado de mascotas y diseño web en su feed.
   publicaciones que la persona no va a ver: gasta datos y no es el filtro
   real.
 - **Sin romper la paginación.** El filtro se aplica en la consulta, no
-  sobre la página ya traída.
+  sobre la página ya traída. Hoy el filtro por ubicación se aplica en
+  memoria después de traer las filas y recorta la página (`jobs.ts:249`);
+  el de rubros no debe repetir ese error.
 
 ## Preguntas abiertas
 
-C1 a C5 en `clarify.md`. La más importante es qué significa exactamente
-"en su perfil", porque cambia qué se construye.
+Ninguna: C1 a C5 respondidas en `clarify.md` el 2026-09-29.
+
+## Corrección sobre el borrador anterior
+
+El criterio 6 decía *"el filtro no se puede evadir ni forzar desde el
+cliente"*. Estaba mal planteado: esto no es un control de seguridad. Las
+publicaciones son públicas, y alguien que "evada" su propio filtro
+simplemente ve más avisos que ya podía ver. Tratarlo como un problema de
+seguridad agregaba trabajo sin proteger nada.
+
+Lo que sí importa —y reemplaza a ese criterio— es que el filtro se aplique
+en la consulta: por paginación y por no mandar datos que no se van a
+mostrar.

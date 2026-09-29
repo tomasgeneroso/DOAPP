@@ -19,7 +19,14 @@ la pestaña de Ajustes, el onboarding— y la que resuelve el problema de
 quien entra a buscar trabajo. B es una función razonable pero distinta, y
 mezclarlas ahora obliga a decidir dos veces cada cosa.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A**, con este detalle del dueño (2026-09-29):
+
+- Se puede elegir **todos, algunos o uno** de los rubros. "Todos" es una
+  opción explícita, no la ausencia de elección.
+- Se elige **tanto en el onboarding como en el perfil**, con el mismo
+  selector.
+- La pantalla **dice que la elección afecta al feed siempre**. No hay un
+  interruptor aparte: elegir rubros *es* filtrar.
 
 ---
 
@@ -41,7 +48,19 @@ B rompe la restricción de no cambiarle el feed a nadie de un día para el
 otro. C consigue las dos cosas; el costo es una preferencia más para saber
 si el aviso ya se mostró.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: la pregunta cambia de forma.** Con "todos" como opción
+explícita, no hace falta un interruptor: la elección *es* el filtro, como
+pidió el dueño.
+
+Queda un solo caso sin resolver, y es real: **quien ya eligió rubros en el
+onboarding lo hizo bajo otra promesa**. Si su elección empieza a filtrar,
+mañana ve menos trabajo sin haber tocado nada.
+
+**Decisión (a confirmar): C adaptada.** La elección manda siempre, pero a
+quien ya tenía rubros cargados se le muestra **una sola vez** qué tiene
+elegido y qué va a pasar, con la opción de dejarlo así o pasar a "todos".
+Después de esa pantalla, la regla es la que pidió el dueño, sin
+excepciones.
 
 ---
 
@@ -60,7 +79,10 @@ algunos sí y otros no puede resultar confuso.
 a la preferencia — quien escribe "mudanza" quiere ver mudanzas. Las
 notificaciones sí son el mismo problema que el feed: llegan sin pedirlas.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A por ahora.** El dueño dijo "afectará al feed", y el feed es
+lo que se construye en esta tanda. Las notificaciones quedan anotadas como
+pendiente —el argumento de B sigue siendo válido— pero no entran acá para
+no mezclar dos sistemas en un mismo cambio.
 
 ---
 
@@ -80,7 +102,9 @@ no existe —no hay recomendaciones— a cambio de duplicar la interfaz hoy.
 Si algún día se necesita, `visibleCategories` se agrega copiando
 `interests`.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A.** Se desprende de lo que pidió el dueño: el mismo selector
+en el onboarding y en el perfil, y una sola elección que afecta al feed.
+Dos listas separadas contradirían eso.
 
 ---
 
@@ -100,7 +124,9 @@ DoApp no hay trabajo y se vaya.
 B rompe la promesa del filtro sin pedir permiso, que es el mismo error que
 arrastramos con `interests`.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A.** Coherente con "la elección afecta al feed siempre": si
+el filtro deja la pantalla vacía, se dice que hay un filtro y se ofrece
+quitarlo, pero no se lo desobedece por atrás.
 
 ---
 
@@ -108,4 +134,8 @@ arrastramos con `interests`.
 
 | # | Decisión | Fecha |
 |---|---|---|
-| — | _(ninguna todavía)_ | |
+| C1 | Filtro sobre lo que ve la propia persona. Todos / algunos / uno, elegible en onboarding y perfil, con aviso de que afecta al feed siempre | 2026-09-29 |
+| C2 | "Todos" es una opción explícita, no un interruptor aparte. A quien ya tenía rubros se le avisa una vez antes de aplicarlo | 2026-09-29 |
+| C3 | Sólo el feed en esta tanda; notificaciones anotadas como pendiente | 2026-09-29 |
+| C4 | Se reusa `User.interests` | 2026-09-29 |
+| C5 | Vacío explica el filtro y ofrece quitarlo | 2026-09-29 |
