@@ -50,6 +50,7 @@ correr algo, se dice qué quedó sin verificar y por qué.
 | Spec | Tema | Etapa | Confirmada |
 |---|---|---|---|
 | [001](001-seguridad-modelos/spec.md) | Seguridad de los modelos de datos | Clarificación | ⏳ esperando respuestas |
+| [002](002-filtro-rubros/spec.md) | Filtrar publicaciones por rubro | Clarificación | ⏳ esperando respuestas |
 
 ## Verificadores
 
