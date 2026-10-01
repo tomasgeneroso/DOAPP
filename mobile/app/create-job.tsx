@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,10 +29,12 @@ import {
   Plus,
   Trash2,
   ChevronDown,
+  Check,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { createJob, createJobPaymentOrder, getCategories } from '../services/jobs';
+import { get as apiGet } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
 
@@ -55,6 +57,39 @@ export default function CreateJobScreen() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+  /**
+   * "A cotizar": se publica sin precio y lo propone el trabajador.
+   *
+   * Faltaba en mobile y estaba en la web desde hace rato, asi que un cliente
+   * que entraba por el telefono no tenia como publicar un trabajo cuyo precio
+   * no sabia -que en oficios es el caso normal: nadie sabe cuanto sale
+   * arreglar algo hasta que alguien lo mira-.
+   *
+   * No paga nada al publicar: el cobro ocurre al aceptar una cotizacion.
+   */
+  const [aCotizar, setACotizar] = useState(false);
+
+  /**
+   * Pagar al terminar, sin retencion. Solo aparece si el modulo esta
+   * encendido, y obliga a cotizar: sin plata retenida lo unico que respalda el
+   * acuerdo es el acuerdo, asi que tiene que estar escrito y detallado.
+   */
+  const [pagoAlTerminarDisponible, setPagoAlTerminarDisponible] = useState(false);
+  const [sinProteccion, setSinProteccion] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    apiGet<{ activo: boolean }>('/payment-orders/estado-del-modulo', false)
+      .then((r: any) => {
+        if (vivo && r?.data) setPagoAlTerminarDisponible(Boolean(r.data.activo));
+      })
+      .catch(() => {
+        /* sin respuesta la opcion no aparece: el modo seguro es el normal */
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
   const [location, setLocation] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
   const [postalCode, setPostalCode] = useState('');
@@ -152,9 +187,13 @@ export default function CreateJobScreen() {
     if (!title.trim()) newErrors.title = 'El título es requerido';
     if (!description.trim()) newErrors.description = 'La descripción es requerida';
     if (!category) newErrors.category = 'Selecciona una categoría';
-    if (!price || isNaN(parseFloat(price))) newErrors.price = 'Ingresa un precio válido';
-    else if (parseFloat(price) < 1000) newErrors.price = 'El precio mínimo es $1,000 ARS';
-    else if (parseFloat(price) > 999999999) newErrors.price = 'El precio máximo es $999,999,999 ARS';
+    // A cotizar se publica sin precio: validarlo seria pedir justo lo que el
+    // cliente dijo que no sabe.
+    if (!aCotizar) {
+      if (!price || isNaN(parseFloat(price))) newErrors.price = 'Ingresa un precio válido';
+      else if (parseFloat(price) < 1000) newErrors.price = 'El precio mínimo es $1,000 ARS';
+      else if (parseFloat(price) > 999999999) newErrors.price = 'El precio máximo es $999,999,999 ARS';
+    }
     if (!location.trim()) newErrors.location = 'La ubicación es requerida';
     if (!startDate.trim()) newErrors.startDate = 'La fecha de inicio es requerida';
     else if (!isValidDate(startDate)) newErrors.startDate = 'Fecha inválida. Usá formato DD/MM/AAAA (ej: 25/03/2026)';
@@ -191,8 +230,12 @@ export default function CreateJobScreen() {
         summary: desc.length > 150 ? desc.substring(0, 150) + '...' : desc,
         description: desc,
         category,
-        price: parseFloat(price),
-        budget: parseFloat(price),
+        // El backend necesita saber el modo, no deducirlo de un precio vacio:
+        // de eso depende si se cobra al publicar o al aceptar la cotizacion.
+        pricingMode: aCotizar ? 'quote' : 'fixed',
+        price: aCotizar ? 0 : parseFloat(price),
+        budget: aCotizar ? 0 : parseFloat(price),
+        ...(pagoAlTerminarDisponible && sinProteccion ? { paymentMode: 'on_completion' } : {}),
         location: location.trim(),
         neighborhood: neighborhood.trim() || undefined,
         postalCode: postalCode.trim() || undefined,
@@ -203,7 +246,7 @@ export default function CreateJobScreen() {
         completionRequirements: requirements.filter(r => r.trim()),
       };
 
-      const response = await createJob(jobData);
+      const response = await createJob(jobData as any);
 
       // Backend returns job at root level, not under data
       const job = response.data?.job || (response as any).job;
@@ -429,30 +472,109 @@ export default function CreateJobScreen() {
               {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
             </View>
 
-            {/* Price */}
+            {/* Precio, o a cotizar */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                <DollarSign size={16} color={themeColors.text.secondary} /> Precio (ARS) *
+                <DollarSign size={16} color={themeColors.text.secondary} /> Precio (ARS){' '}
+                {aCotizar ? '' : '*'}
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.slate[50],
-                    borderColor: errors.price ? colors.danger[500] : themeColors.border,
-                    color: themeColors.text.primary,
-                  },
-                ]}
-                placeholder="Ej: 15000"
-                placeholderTextColor={themeColors.text.muted}
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="numeric"
-              />
-              <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
-                Precio mínimo: $1,000 ARS
-              </Text>
-              {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+
+              {!aCotizar && (
+                <>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: themeColors.slate[50],
+                        borderColor: errors.price ? colors.danger[500] : themeColors.border,
+                        color: themeColors.text.primary,
+                      },
+                    ]}
+                    placeholder="Ej: 15000"
+                    placeholderTextColor={themeColors.text.muted}
+                    value={price}
+                    onChangeText={setPrice}
+                    keyboardType="numeric"
+                  />
+                  <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
+                    Precio mínimo: $1,000 ARS
+                  </Text>
+                  {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+                </>
+              )}
+
+              {/* A cotizar. Deshabilitado si el pago es al terminar: ese modo lo exige. */}
+              <TouchableOpacity
+                style={[styles.casilla, sinProteccion && styles.casillaTrabada]}
+                onPress={() => !sinProteccion && setACotizar((v) => !v)}
+                disabled={sinProteccion}
+              >
+                <View
+                  style={[
+                    styles.caja,
+                    {
+                      borderColor: aCotizar ? colors.primary[500] : themeColors.border,
+                      backgroundColor: aCotizar ? colors.primary[500] : 'transparent',
+                    },
+                  ]}
+                >
+                  {aCotizar && <Check size={13} color="#fff" />}
+                </View>
+                <View style={styles.casillaTexto}>
+                  <Text style={[styles.casillaTitulo, { color: themeColors.text.primary }]}>
+                    A cotizar
+                  </Text>
+                  <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
+                    Publicás sin precio y el trabajador propone cuánto sale. No pagás nada ahora:
+                    se cobra al aceptar una cotización.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Pago al terminar, si el módulo está encendido. */}
+              {pagoAlTerminarDisponible && (
+                <TouchableOpacity
+                  style={[
+                    styles.casilla,
+                    {
+                      backgroundColor: colors.warning[50],
+                      borderWidth: 1,
+                      borderColor: colors.warning[100],
+                      borderRadius: borderRadius.md,
+                      padding: spacing.sm,
+                    },
+                  ]}
+                  onPress={() => {
+                    const nuevo = !sinProteccion;
+                    setSinProteccion(nuevo);
+                    // El servidor lo fuerza igual; esto es para que la pantalla
+                    // no muestre un estado que no existe.
+                    if (nuevo) setACotizar(true);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.caja,
+                      {
+                        borderColor: sinProteccion ? colors.warning[600] : colors.warning[100],
+                        backgroundColor: sinProteccion ? colors.warning[600] : 'transparent',
+                      },
+                    ]}
+                  >
+                    {sinProteccion && <Check size={13} color="#fff" />}
+                  </View>
+                  <View style={styles.casillaTexto}>
+                    <Text style={[styles.casillaTitulo, { color: colors.warning[600] }]}>
+                      Pagar al terminar, sin protección de pago
+                    </Text>
+                    <Text style={[styles.helperText, { color: colors.warning[600] }]}>
+                      No retenemos el dinero: pagás cuando el trabajo esté hecho, por una orden que
+                      genera nuestra app. Va siempre a cotizar, porque sin dinero retenido el
+                      precio tiene que quedar acordado y detallado antes de empezar.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Location */}
@@ -804,6 +926,19 @@ export default function CreateJobScreen() {
 }
 
 const styles = StyleSheet.create({
+  casilla: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
+  casillaTrabada: { opacity: 0.6 },
+  casillaTexto: { flex: 1 },
+  casillaTitulo: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  caja: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
   container: {
     flex: 1,
   },

@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename);
 // Cargar variables de entorno
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
-const VALID_ROLES = ["owner", "super_admin", "admin", "support", "marketing", "dpo", "moderator"];
+const VALID_ROLES = ["owner", "super_admin", "admin", "support", "marketing", "dpo", "moderator", "analista"];
 
 async function assignAdminRole(email: string, role: string) {
   try {
@@ -52,6 +52,15 @@ async function assignAdminRole(email: string, role: string) {
     // Asignar permisos por defecto según el rol
     const rolePermissions: Record<string, string[]> = {
       owner: ["*"],
+      /**
+       * El analista no lleva NINGUN permiso de panel.
+       *
+       * Su acceso es una sola pantalla -/analisis- y lo decide el rol, no un
+       * permiso. Es a proposito: un permiso suelto como "analytics:read" se
+       * usa en varios lados y abre mas de lo que uno cree; un rol que no
+       * concede nada no puede filtrarse por ningun lado.
+       */
+      analista: [],
       super_admin: [
         "users:read", "users:write", "users:delete", "users:ban",
         "contracts:read", "contracts:write", "contracts:delete",
@@ -127,11 +136,13 @@ Roles disponibles:
   - marketing    : Contenido, marketing y analytics
   - dpo          : Oficial de protección de datos
   - moderator    : Moderación de contenido
+  - analista     : SOLO /analisis (presupuesto y economía unitaria). Sin panel de admin.
 
 Ejemplos:
   npx tsx server/scripts/assignAdminRoleSQL.ts admin@doapp.com owner
   npx tsx server/scripts/assignAdminRoleSQL.ts support@doapp.com support
   npx tsx server/scripts/assignAdminRoleSQL.ts marketing@doapp.com marketing
+  npx tsx server/scripts/assignAdminRoleSQL.ts contador@estudio.com analista
   `);
   process.exit(1);
 }

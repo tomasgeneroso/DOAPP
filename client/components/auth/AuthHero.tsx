@@ -33,8 +33,19 @@ interface Mensaje {
 }
 
 const INTERVALO_MS = 6000;
-/** Lo que tarda el desvanecido; tiene que coincidir con la clase `duration-300`. */
-const FUNDIDO_MS = 350;
+/**
+ * El desvanecido, asimétrico a propósito.
+ *
+ * Salir rápido y entrar despacio es lo que hace que un cambio se lea como un
+ * movimiento y no como un corte. Cuando las dos mitades duran lo mismo —y
+ * sobre todo cuando duran poco— el texto "aparece" de golpe aunque
+ * técnicamente haya una transición: el ojo registra el salto, no el camino.
+ *
+ * SALIDA_MS tiene que coincidir con la clase `duration-[380ms]` de abajo: es
+ * lo que espera el temporizador antes de cambiar el texto, y si se adelanta,
+ * se ve el cambio a mitad del desvanecido.
+ */
+const SALIDA_MS = 380;
 
 export default function AuthHero({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
@@ -90,7 +101,12 @@ export default function AuthHero({ className = "" }: { className?: string }) {
   const cantidad = mensajes.length;
 
   const [i, setI] = useState(0);
-  const [visible, setVisible] = useState(true);
+  /**
+   * Arranca invisible y se enciende en el primer efecto, para que el mensaje
+   * inicial también entre con la animación en vez de aparecer ya puesto. Es un
+   * cuadro de diferencia, pero es el que ve todo el mundo.
+   */
+  const [visible, setVisible] = useState(false);
   const [pausado, setPausado] = useState(false);
   const [sinMovimiento, setSinMovimiento] = useState(false);
 
@@ -110,7 +126,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
 
   /** Va a un mensaje: con desvanecido, o de golpe si se pidió menos movimiento. */
   const ir = useCallback(
-    (destino: number | ((n: number) => number), demora = FUNDIDO_MS) => {
+    (destino: number | ((n: number) => number), demora = SALIDA_MS) => {
       if (fundido.current) clearTimeout(fundido.current);
       if (sinMovimiento) {
         setI(destino);
@@ -126,6 +142,12 @@ export default function AuthHero({ className = "" }: { className?: string }) {
     },
     [sinMovimiento],
   );
+
+  // Encender el primer mensaje después del primer pintado.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   useEffect(() => {
     if (pausado || cantidad < 2) return;
@@ -177,9 +199,22 @@ export default function AuthHero({ className = "" }: { className?: string }) {
       */}
       <div className="relative" aria-live="polite">
         <div
-          className={`transition-all ${sinMovimiento ? "duration-0" : "duration-300"} ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-          }`}
+          className={
+            sinMovimiento
+              ? "transition-none"
+              : [
+                  "transition-all will-change-[opacity,transform,filter]",
+                  visible
+                    // Entrada: lenta y con desaceleración, desde un poco más
+                    // abajo y desenfocado. El desenfoque es lo que más aporta:
+                    // sin él, la opacidad sola sigue leyéndose como un parpadeo.
+                    ? "duration-[700ms] ease-out opacity-100 translate-y-0 blur-0"
+                    // Salida: más corta y acelerando, hacia arriba. Va en
+                    // sentido contrario a la entrada para que las dos mitades
+                    // se lean como un solo movimiento y no como ida y vuelta.
+                    : "duration-[380ms] ease-in opacity-0 -translate-y-3 blur-[2px]",
+                ].join(" ")
+          }
         >
           <Icono className="mb-5 h-7 w-7 text-sky-600 dark:text-sky-400" aria-hidden="true" />
           <h2 className="text-3xl font-bold leading-tight xl:text-4xl">
@@ -201,7 +236,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
               onClick={() => ir(n, 200)}
               aria-label={`${msg.titulo} ${msg.resaltado}`}
               aria-current={n === i}
-              className={`h-1.5 rounded-full transition-all ${
+              className={`h-1.5 rounded-full transition-all duration-500 ease-out ${
                 n === i
                   ? "w-8 bg-sky-600 dark:bg-sky-400"
                   : "w-1.5 bg-slate-900/20 hover:bg-slate-900/40 dark:bg-white/25 dark:hover:bg-white/50"

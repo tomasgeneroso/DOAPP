@@ -14,7 +14,16 @@ import type { AuthRequest } from '../../types/index.js';
 const router = express.Router();
 
 /** Sólo el owner ve y edita la proyección de gastos */
-const ownerOnly = requireAdminRole('owner');
+/**
+ * Quién ve y edita los números del negocio.
+ *
+ * El owner, y el rol 'analista' —gente que colabora en proyectar el
+ * presupuesto y no tiene por qué ver usuarios, pagos ni documentación de
+ * identidad—. Darles 'admin' para que entren a dos pantallas sería darles
+ * acceso a treinta, y el acceso se concede por lo que la persona necesita
+ * hacer, no por comodidad de quien lo concede.
+ */
+const analisisOnly = requireAdminRole('owner', 'analista');
 
 const PLAN_SLUG = 'constitucion';
 
@@ -69,7 +78,34 @@ const defaultPlan = () => ({
     { h: 'Serie A ready (3 países)', d: '', s: 'Pendiente' },
   ],
   ueCurrency: 'USD',
-  ue: { comision: 12, ticket: 85, contratos: 0.8, disputas: 2.5, soporte: 8, fijos: 18000, fraude: 0.8, mauActual: 0 },
+  /**
+   * Unidad economica, POR USUARIO ACTIVO Y POR MES.
+   *
+   * `soporte` es un importe fijo; `disputas` y `fraude` son porcentajes del
+   * volumen (ticket x contratos), porque escalan con la plata que pasa y no
+   * con la cantidad de gente. La cuenta vive en
+   * shared/pricing/unidadEconomica.ts, una sola vez.
+   *
+   * Los valores de arranque, y por que:
+   *
+   *  comision 10  Es la del codigo (COMMISSION_RATES.free). Estuvo en 12 y eso
+   *               sobreestimaba el ingreso un 20% en toda proyeccion hecha con
+   *               este plan.
+   *  ticket 21    ~ARS 34.700 al cambio, que es el precio donde el piso de
+   *               comision deja de morder (precioDondeElPisoDejaDeMorder en
+   *               shared/pricing/minimums.ts). Por debajo de ese numero la
+   *               comision minima se come una proporcion grande del trabajo,
+   *               asi que es el ticket mas chico que tiene sentido modelar.
+   *               Estuvo en 85 (ARS 132.600), que es un trabajo grande y no el
+   *               tipico.
+   *  soporte 1    Lo que cuesta atender a un usuario en el mes. Estuvo en 8 sin
+   *               ninguna medicion detras.
+   *
+   * Con estos valores el costo por contrato queda cerca de
+   * MARGINAL_COST_PER_CONTRACT_ARS, que es lo que el codigo ya usa para
+   * calcular el minimo de ampliacion. Antes daba 39 veces mas.
+   */
+  ue: { comision: 10, ticket: 21, contratos: 0.8, disputas: 2.5, soporte: 1, fijos: 18000, fraude: 0.8, mauActual: 0 },
 
   // Proyección mes a mes: crecimiento, monetización, costos e impuestos.
   // Las alícuotas son las de una SAS argentina inscripta en IVA.
@@ -223,7 +259,7 @@ async function platformActuals() {
  * @desc    Plan guardado + números reales de la plataforma
  * @access  Owner only
  */
-router.get('/', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const plan = await BusinessPlan.findOne({
       where: { slug: PLAN_SLUG },
@@ -275,7 +311,7 @@ router.get('/', protect, ownerOnly, async (_req: AuthRequest, res: Response): Pr
  * Separarlas ademas permite refrescar los numeros reales sin recargar toda la
  * hoja de supuestos.
  */
-router.get('/live', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/live', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
     const data = mergeDeep(defaultPlan(), plan?.data || {});
@@ -306,7 +342,7 @@ router.get('/live', protect, ownerOnly, async (_req: AuthRequest, res: Response)
  * Los supuestos salen del mismo plan guardado, asi que corregir el plan
  * corrige estas metricas sin tocar codigo.
  */
-router.get('/unit-economics', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/unit-economics', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
     const data = mergeDeep(defaultPlan(), plan?.data || {});
@@ -322,7 +358,7 @@ router.get('/unit-economics', protect, ownerOnly, async (_req: AuthRequest, res:
  * @desc    Guardar el plan
  * @access  Owner only
  */
-router.put('/', protect, ownerOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put('/', protect, analisisOnly, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { data } = req.body;
 
@@ -373,7 +409,7 @@ router.put('/', protect, ownerOnly, async (req: AuthRequest, res: Response): Pro
  * @desc    Cotización del día para no cargarla a mano
  * @access  Owner only
  */
-router.get('/rates', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/rates', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const [usdArs, eurArs] = await Promise.all([
       currencyExchange.getUSDtoARSRate(),

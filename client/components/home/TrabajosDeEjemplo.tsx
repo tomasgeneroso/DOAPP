@@ -156,7 +156,7 @@ interface TrabajoDeEjemplo {
   horaInicio: string;
   fechaFin: string;
   horaFin: string;
-  partes: string;
+  trabajadores: string;
   pago: string;
   ubicacion: string;
   iniciales: string;
@@ -183,7 +183,7 @@ export default function TrabajosDeEjemplo() {
       horaInicio: "09:00 hs",
       fechaFin: t("home.demoDate1", "15 Feb 2025"),
       horaFin: "14:00 hs",
-      partes: t("home.demoPartiesValue", "1 cliente · 1 profesional"),
+      trabajadores: t("home.demoWorkersOne", "1 profesional"),
       pago: t("home.demoPaymentValue", "Garantizado en escrow"),
       ubicacion: "Palermo, CABA",
       iniciales: "MC",
@@ -205,7 +205,7 @@ export default function TrabajosDeEjemplo() {
       horaInicio: "08:00 hs",
       fechaFin: t("home.demoDate2", "22 Feb 2025"),
       horaFin: "13:00 hs",
-      partes: t("home.demoPartiesValue2", "1 cliente · 2 profesionales"),
+      trabajadores: t("home.demoWorkersTwo", "2 profesionales"),
       pago: t("home.demoPaymentValue", "Garantizado en escrow"),
       ubicacion: "Villa Crespo, CABA",
       iniciales: "JR",
@@ -227,7 +227,7 @@ export default function TrabajosDeEjemplo() {
       horaInicio: t("home.demoRemote", "A convenir"),
       fechaFin: t("home.demoDate4", "17 Mar 2025"),
       horaFin: t("home.demoRemote", "A convenir"),
-      partes: t("home.demoPartiesValue", "1 cliente · 1 profesional"),
+      trabajadores: t("home.demoWorkersOne", "1 profesional"),
       pago: t("home.demoPaymentValue", "Garantizado en escrow"),
       ubicacion: t("home.demoRemoteLocation", "Remoto · toda Argentina"),
       iniciales: "LF",
@@ -242,7 +242,7 @@ export default function TrabajosDeEjemplo() {
     horaInicio: t("home.demoStartTime", "Hora inicio"),
     fechaFin: t("home.demoEndDate", "Fecha fin"),
     horaFin: t("home.demoEndTime", "Hora fin"),
-    partes: t("home.demoParties", "Partes"),
+    trabajadores: t("home.demoWorkers", "Trabajadores"),
     pago: t("home.demoPayment", "Pago"),
     ubicacion: t("home.demoLocation", "Ubicación"),
     publicadoPor: t("home.demoPostedBy", "Publicado por"),
@@ -309,13 +309,12 @@ export default function TrabajosDeEjemplo() {
               </div>
 
               {/*
-                Estos tres van apilados y no en columnas como en la card
-                original: a un tercio del ancho, "1 cliente · 1 profesional"
-                entraba cortado o en tres renglones.
+                Apilados y no en columnas como en la card grande: a un tercio
+                del ancho, estos valores entraban cortados o en tres renglones.
               */}
               <dl className="bg-slate-900 border border-slate-700 rounded-xl divide-y divide-slate-800 mb-4">
                 {[
-                  { label: etiquetas.partes, value: j.partes },
+                  { label: etiquetas.trabajadores, value: j.trabajadores },
                   { label: etiquetas.pago, value: j.pago },
                   { label: etiquetas.ubicacion, value: j.ubicacion },
                 ].map(({ label, value }) => (

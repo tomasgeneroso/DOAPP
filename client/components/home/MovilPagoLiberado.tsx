@@ -34,11 +34,33 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
   const { t } = useTranslation();
   const [paso, setPaso] = useState<Paso>("en_curso");
   const [tocado, setTocado] = useState(false);
+  /**
+   * Un teléfono quieto se lee como una captura de pantalla pegada.
+   *
+   * `montado` es la entrada: sube y aparece una vez, en el primer cuadro
+   * después de pintar. `vueltas` cuenta los ciclos y sirve de `key` en los
+   * elementos que tienen que volver a animarse cada vez que el pago se libera
+   * —sin cambiar la key, React reusa el nodo y la animación no se repite—.
+   */
+  const [montado, setMontado] = useState(false);
+  const [vueltas, setVueltas] = useState(0);
 
   const sinMovimiento =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  useEffect(() => {
+    if (sinMovimiento) return;
+    const id = requestAnimationFrame(() => setMontado(true));
+    return () => cancelAnimationFrame(id);
+  }, [sinMovimiento]);
+
+  // Cada vez que se libera el pago, se renueva la llave de los elementos que
+  // celebran, para que la animación corra de nuevo en la vuelta siguiente.
+  useEffect(() => {
+    if (paso === "liberado") setVueltas((v) => v + 1);
+  }, [paso]);
 
   useEffect(() => {
     if (sinMovimiento) {
@@ -81,8 +103,18 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
       />
 
       <div
-        className="relative w-[280px] rounded-[2.5rem] border-[10px] border-slate-950 bg-slate-950 shadow-2xl shadow-black/60 ring-1 ring-white/10"
-        style={{ transform: "rotate(-4deg)" }}
+        className={`relative w-[280px] rounded-[2.5rem] border-[10px] border-slate-950 bg-slate-950 shadow-2xl shadow-black/60 ring-1 ring-white/10 ${
+          sinMovimiento
+            ? ""
+            : `transition-[opacity,transform] duration-[900ms] ease-out ${
+                montado ? "opacity-100" : "opacity-0"
+              } motion-safe:animate-[flotar_7s_ease-in-out_infinite]`
+        }`}
+        style={{
+          // La inclinación convive con la flotación: el keyframe la repite en
+          // cada paso para no pelearse con este transform.
+          transform: sinMovimiento || montado ? "rotate(-4deg)" : "rotate(-4deg) translateY(28px)",
+        }}
       >
         {/* Isla dinámica */}
         <div className="absolute left-1/2 top-2 z-20 h-5 w-20 -translate-x-1/2 rounded-full bg-black" />
@@ -134,10 +166,15 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
 
             {/* Estado del dinero */}
             <div
+              key={`dinero-${vueltas}`}
               className={`mt-4 rounded-xl border px-3 py-2.5 transition-colors duration-500 ${
                 paso === "liberado"
                   ? "border-emerald-500/40 bg-emerald-500/10"
                   : "border-sky-500/30 bg-sky-500/10"
+              } ${
+                paso === "liberado" && !sinMovimiento
+                  ? "motion-safe:animate-[celebrar_900ms_ease-out]"
+                  : ""
               }`}
             >
               <p
@@ -150,7 +187,15 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
                   ? t("home.movilPagoLiberado", "Pago liberado")
                   : t("home.movilPagoProtegido", "Pago protegido")}
               </p>
-              <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
+              {/*
+                Con `key` el nodo se reemplaza y el fundido corre de nuevo. Sin
+                ella React reusa el mismo <p> y el texto cambia de golpe, que es
+                justo lo que rompe la ilusión.
+              */}
+              <p
+                key={paso === "liberado" ? `liberado-${vueltas}` : "protegido"}
+                className="mt-0.5 text-[10px] leading-snug text-slate-400 motion-safe:animate-[entrarTexto_520ms_ease-out]"
+              >
                 {paso === "liberado"
                   ? t("home.movilPagoLiberadoTexto", "Se acreditaron $96.000 en el saldo de Matías.")
                   : t(

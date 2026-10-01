@@ -121,6 +121,7 @@ const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
 const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
 const AdminOrdenesDePago = lazy(() => import("./pages/admin/OrdenesDePago"));
 const AdminUnitEconomics = lazy(() => import("./pages/admin/UnitEconomics"));
+const Analisis = lazy(() => import("./pages/Analisis"));
 const ModerationHub = lazy(() => import("./pages/admin/ModerationHub"));
 const FinancialHub = lazy(() => import("./pages/admin/FinancialHub"));
 const GrowthHub = lazy(() => import("./pages/admin/GrowthHub"));
@@ -160,6 +161,14 @@ export default function App() {
                   </div>
                 }>
                 <Routes>
+            {/*
+              Los números del negocio, sin el panel de admin.
+              Para el rol "analista", que colabora proyectando el presupuesto
+              y no tiene por qué ver usuarios, pagos ni documentación. El
+              owner también entra, y además lo tiene adentro del panel.
+              La pantalla verifica el rol por su cuenta y redirige si no va.
+            */}
+            <Route path="/analisis" element={<Analisis />} />
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/jobs/:id" element={<JobDetail />} />

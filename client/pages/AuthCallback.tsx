@@ -41,6 +41,16 @@ export default function AuthCallback() {
             if (needsDni || data.user.needsDni) {
               // Redirect to complete registration page
               window.location.href = "/complete-registration";
+            } else if (data.user.adminRole === "analista") {
+              /**
+               * El analista entra directo a lo único que puede ver.
+               *
+               * No es una comodidad: su cuenta no tiene panel ni razón para
+               * usar la app como cliente o trabajador, así que dejarlo en la
+               * portada lo obliga a saber de memoria una URL que nadie le
+               * mostró. Entra con Google y aterriza donde trabaja.
+               */
+              window.location.href = "/analisis";
             } else {
               // Redirect to home and reload to update auth context
               window.location.href = "/";

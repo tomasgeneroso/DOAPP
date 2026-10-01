@@ -156,7 +156,8 @@ export interface User {
   ratingBreakdown?: RatingBreakdown;
   completedJobs: number;
   role: 'user' | 'admin' | 'client' | 'doer' | 'both';
-  adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';
+  /** 'analista' colabora en los números y NO ve el panel de administración. */
+  adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo' | 'analista';
   permissions?: string[];
   isVerified: boolean;
   interests?: string[];

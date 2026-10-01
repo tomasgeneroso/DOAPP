@@ -145,7 +145,7 @@ export const authorize = (...roles: string[]) => {
     }
 
     // Define admin roles that should check adminRole field
-    const adminRoles = ['owner', 'super_admin', 'admin', 'support', 'marketing', 'dpo', 'moderator'];
+    const adminRoles = ['owner', 'super_admin', 'admin', 'support', 'marketing', 'dpo', 'moderator', 'analista'];
 
     // Check if all requested roles are admin roles
     const isAdminRoleCheck = roles.every(r => adminRoles.includes(r));

@@ -5,6 +5,7 @@ import { User } from '../models/sql/User.model.js';
 import currencyExchange from './currencyExchange.js';
 import { getPlatformPhase } from './platformPhase.js';
 import { COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
+import { calcularUnidad, discrepanciaDeCosto } from '../../shared/pricing/unidadEconomica.js';
 
 /**
  * Las métricas de adquisición y retención: CAC, LTV, LTV/CAC, payback, runway.
@@ -68,6 +69,12 @@ export interface UnitEconomics {
     comisionPostBetaPct: number;
     /** Lo que impide medir de verdad, en una frase. */
     advertencia: string | null;
+    /**
+     * Cuando los supuestos de costo del plan se alejaron del costo que el
+     * codigo usa de verdad para calcular el minimo de ampliacion. Son dos
+     * numeros que describen lo mismo y tienen que parecerse.
+     */
+    costoFueraDeRango: string | null;
     /**
      * Cuando el plan se contradice consigo mismo. No se corrige por nuestra
      * cuenta ni se elige en silencio: se dice cuál se usó y cuál quedó afuera,
@@ -181,7 +188,11 @@ interface EntradasDelPlan {
    */
   ticketUeArs: number;
   contratosPorUsuarioUe: number;
-  costoVariablePorContratoArs: number;
+  /** Importe fijo por usuario y por mes. */
+  soporteArs: number;
+  /** Porcentajes del volumen, no importes. */
+  disputasPct: number;
+  fraudePct: number;
   /** El ticket del otro bloque, sólo para poder avisar si difieren. */
   ticketProyeccionArs: number;
 }
@@ -239,13 +250,21 @@ async function leerPlan(plan: any, eurArs: number): Promise<EntradasDelPlan> {
     // Ticket, frecuencia y costos: los tres del MISMO bloque y la MISMA moneda.
     ticketUeArs: Math.round(aArs(Number(ue?.ticket) || 0, ueCurrency)),
     contratosPorUsuarioUe: Number(ue?.contratos) || 0,
-    // Soporte + disputas + fraude, por contrato.
-    costoVariablePorContratoArs: Math.round(
-      aArs(
-        (Number(ue?.soporte) || 0) + (Number(ue?.disputas) || 0) + (Number(ue?.fraude) || 0),
-        ueCurrency,
-      ),
-    ),
+    /**
+     * Los supuestos de costo, crudos.
+     *
+     * Antes acá se sumaban los tres como si fueran importes en dólares. Está
+     * mal: `soporte` es un importe fijo por usuario y por mes, pero
+     * `disputas` y `fraude` son PORCENTAJES del volumen —así los usa la
+     * pantalla de la proyección desde siempre—. Sumarlos daba un costo por
+     * contrato de $17.628 donde el real era otro, y el error se mostraba como
+     * un dato.
+     *
+     * Ahora se pasan crudos a `calcularUnidad`, que es la única fórmula.
+     */
+    soporteArs: Math.round(aArs(Number(ue?.soporte) || 0, ueCurrency)),
+    disputasPct: Number(ue?.disputas) || 0,
+    fraudePct: Number(ue?.fraude) || 0,
 
     ticketProyeccionArs: Math.round(aArs(Number(revenue?.ticket) || 0, projectionCurrency)),
   };
@@ -395,6 +414,31 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
    * menos el costo variable de atender ese contrato (soporte, disputas, fraude)
    * por la cantidad de contratos que hace un usuario en un mes.
    */
+  /**
+   * La cuenta la hace `calcularUnidad`, que es la misma que usa la pantalla de
+   * la proyección. Antes estaba escrita acá otra vez, y las dos versiones no
+   * coincidían: ésta sumaba `disputas` y `fraude` como importes cuando son
+   * porcentajes del volumen.
+   */
+  const supuestos =
+    ticket.valor !== null && contratosPorUsuario.valor !== null
+      ? {
+          ticket: ticket.valor,
+          contratos: contratosPorUsuario.valor,
+          soporte: entradas.soporteArs,
+          disputasPct: entradas.disputasPct,
+          fraudePct: entradas.fraudePct,
+        }
+      : null;
+
+  /** Con la comisión que rige hoy (0% en beta). */
+  const unidadHoy = supuestos ? calcularUnidad({ ...supuestos, comisionPct: comisionVigentePct }) : null;
+
+  /** Con la comisión post-beta: es la pregunta que importa hoy. */
+  const unidadPostBeta = supuestos
+    ? calcularUnidad({ ...supuestos, comisionPct: COMMISSION_RATES.free })
+    : null;
+
   let contribucion: Metrica;
   if (enBeta) {
     contribucion = sinDatos(
@@ -402,33 +446,24 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
         'definición. No es un problema del negocio: es la fase. Abajo se modela cuánto sería ' +
         `con la comisión del ${COMMISSION_RATES.free}% que rige al cerrarla.`,
     );
-  } else if (ticket.valor && contratosPorUsuario.valor) {
-    const porContrato = ticket.valor * (comisionVigentePct / 100) - entradas.costoVariablePorContratoArs;
-    contribucion = mixto(Math.round(porContrato * contratosPorUsuario.valor));
+  } else if (unidadHoy) {
+    contribucion = mixto(Math.round(unidadHoy.margen));
   } else {
     contribucion = sinDatos('Falta el ticket o la frecuencia de contratación.');
   }
 
-  /** Lo mismo pero con la comisión post-beta: es la pregunta que importa hoy. */
-  const margenPorContrato =
-    ticket.valor !== null
-      ? Math.round(ticket.valor * (COMMISSION_RATES.free / 100) - entradas.costoVariablePorContratoArs)
-      : null;
+  const margenPorContrato = unidadPostBeta ? Math.round(unidadPostBeta.porContrato.margen) : null;
 
-  const desglosePorContrato =
-    ticket.valor !== null
-      ? {
-          ticket: ticket.valor,
-          comisionGanada: Math.round(ticket.valor * (COMMISSION_RATES.free / 100)),
-          costoVariable: entradas.costoVariablePorContratoArs,
-          margen: margenPorContrato!,
-        }
-      : null;
+  const desglosePorContrato = unidadPostBeta
+    ? {
+        ticket: ticket.valor as number,
+        comisionGanada: Math.round(unidadPostBeta.porContrato.ingreso),
+        costoVariable: Math.round(unidadPostBeta.porContrato.costo),
+        margen: margenPorContrato as number,
+      }
+    : null;
 
-  const contribucionPostBeta =
-    margenPorContrato !== null && contratosPorUsuario.valor
-      ? Math.round(margenPorContrato * contratosPorUsuario.valor)
-      : null;
+  const contribucionPostBeta = unidadPostBeta ? Math.round(unidadPostBeta.margen) : null;
 
   const churnEscenarios = churnDeEscenarios(entradas.churnPlanPct || 12);
 
@@ -553,7 +588,7 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
     veredicto =
       `Con los supuestos del plan, cada contrato deja margen NEGATIVO: la comisión del ` +
       `${COMMISSION_RATES.free}% sobre el ticket da ${(desglosePorContrato!.comisionGanada).toLocaleString('es-AR')} ` +
-      `y atenderlo cuesta ${entradas.costoVariablePorContratoArs.toLocaleString('es-AR')} entre soporte, ` +
+      `y atenderlo cuesta ${desglosePorContrato!.costoVariable.toLocaleString('es-AR')} entre soporte, ` +
       `disputas y fraude. Son ${Math.abs(margenPorContrato).toLocaleString('es-AR')} de pérdida por contrato, ` +
       'y no lo arregla tener más usuarios: cada uno nuevo la agranda. Las tres salidas son subir el ' +
       'ticket mínimo, bajar el costo de atención (automatizar disputas y soporte) o subir la comisión. ' +
@@ -598,6 +633,9 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
           'cliente cuando empecemos a cobrar", no "cuánto vale hoy", que es cero.'
         : null,
       inconsistenciaDelPlan,
+      costoFueraDeRango: desglosePorContrato
+        ? discrepanciaDeCosto(desglosePorContrato.costoVariable)
+        : null,
     },
 
     adquisicion: {

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
+import { calcularUnidad } from '../../../shared/pricing/unidadEconomica';
 import {
   Calculator,
   Lock,
@@ -332,13 +333,27 @@ export default function BusinessPlan() {
     // meses de operación que no existen.
     const runway = totBudgetBase > 0 && restanteBase > 0 ? restanteBase / totBudgetBase : 0;
 
+    /**
+     * La cuenta sale de shared/pricing/unidadEconomica.ts, no de acá.
+     *
+     * Estaba escrita en este archivo y otra vez en el servicio de métricas, y
+     * las dos versiones no coincidían: aquélla sumaba `disputas` y `fraude`
+     * como importes cuando acá siempre fueron porcentajes del volumen. Dos
+     * pantallas mostrando la misma cuenta con resultados distintos es como
+     * terminó la tabla de comisiones diciendo 8/3/1.
+     */
     const ue = plan.ue;
-    const ingreso = ue.ticket * ue.contratos * (ue.comision / 100);
-    const costoVar =
-      ue.soporte +
-      ue.ticket * ue.contratos * (ue.disputas / 100) +
-      ue.ticket * ue.contratos * (ue.fraude / 100);
-    const margen = ingreso - costoVar;
+    const unidad = calcularUnidad({
+      ticket: ue.ticket,
+      contratos: ue.contratos,
+      comisionPct: ue.comision,
+      soporte: ue.soporte,
+      disputasPct: ue.disputas,
+      fraudePct: ue.fraude,
+    });
+    const ingreso = unidad.ingreso;
+    const costoVar = unidad.costoTotal;
+    const margen = unidad.margen;
     const beMau = margen > 0 ? Math.ceil(ue.fijos / margen) : null;
     const faltan = beMau === null ? null : Math.max(0, beMau - ue.mauActual);
 

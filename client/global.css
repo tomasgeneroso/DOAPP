@@ -522,3 +522,34 @@ select:focus {
   from { opacity: 0; transform: scale(0.95) translateY(-6px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ---------------------------------------------------------------------------
+   El teléfono del hero (client/components/home/MovilPagoLiberado.tsx)
+
+   Tres animaciones y una razón cada una. Un mockup quieto se lee como una
+   captura pegada sobre el fondo; lo que lo convierte en un objeto es que se
+   mueva un poco todo el tiempo y que reaccione cuando pasa algo.
+
+   Las tres repiten el `rotate(-4deg)` del equipo en cada paso: un keyframe que
+   toque `transform` pisa el del elemento, así que la inclinación tiene que
+   viajar adentro de la animación o el teléfono se endereza al arrancar.
+   --------------------------------------------------------------------------- */
+
+/* Flotación: lenta y de pocos píxeles. Si se nota, está mal. */
+@keyframes flotar {
+  0%,  100% { transform: rotate(-4deg) translateY(0); }
+  50%       { transform: rotate(-4deg) translateY(-10px); }
+}
+
+/* Celebración al liberar el pago: un envión corto, sin rebote de juguete. */
+@keyframes celebrar {
+  0%   { transform: scale(1);     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  35%  { transform: scale(1.035); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0.12); }
+  100% { transform: scale(1);     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* El texto que cambia: entra desde abajo y desenfocado en vez de parpadear. */
+@keyframes entrarTexto {
+  from { opacity: 0; transform: translateY(5px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}

@@ -408,7 +408,18 @@ export class User extends Model {
   role!: 'user' | 'client' | 'doer' | 'both';
 
   @Column(DataType.STRING(50))
-  adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';
+  /**
+   * 'analista': colabora en el presupuesto y el análisis del negocio, y NO ve
+   * el panel de administración.
+   *
+   * Existe porque hay gente que ayuda a proyectar los números y no tiene por
+   * qué poder ver usuarios, pagos, disputas ni documentación de identidad.
+   * Darle 'admin' para que entre a dos pantallas sería darle acceso a treinta,
+   * y el principio acá es el mismo que en el resto de la app: el acceso se
+   * concede por lo que la persona necesita hacer, no por comodidad de quien lo
+   * concede.
+   */
+  adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo' | 'analista';
 
   @Default([])
   @AllowNull(false)
