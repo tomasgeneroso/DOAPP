@@ -7,6 +7,8 @@ import { cookiesEs } from '../../shared/legal/cookies.es.js';
 import { cookiesEn } from '../../shared/legal/cookies.en.js';
 import { disputesEs } from '../../shared/legal/disputes.es.js';
 import { disputesEn } from '../../shared/legal/disputes.en.js';
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 import { DOMINIO, SOPORTE, CORREOS, esDelDominio } from '../../shared/constants/contacto.js';
 
 /**
@@ -97,5 +99,104 @@ describe('los correos de los documentos legales', () => {
     expect(privacyEs.s5contact).toContain(CORREOS.privacidad);
     expect(privacyEs.emailLine).toContain(CORREOS.privacidad);
     expect(privacyEs.dpoLine).toContain(CORREOS.dpo);
+  });
+});
+
+/**
+ * Lo mismo, pero sobre el código entero y no sólo los documentos.
+ *
+ * El test de arriba mira los ocho documentos legales. No alcanzó: al corregir
+ * las direcciones con un reemplazo global quedaron cuatro escritas como
+ * `support@doapparg.com.ar` — en la pantalla de usuario baneado (web y mobile)
+ * y en las facturas. Venían de `support@doapp.com.ar`, y el patrón tomó el
+ * `@doapp.com` y dejó el `.ar` pegado atrás, produciendo un dominio distinto
+ * que tampoco es nuestro.
+ *
+ * Es el riesgo de un reemplazo global sobre texto: no falla, produce algo
+ * plausible. Ninguna de esas cuatro estaba en un documento legal, así que el
+ * test anterior no las vio — y una factura con el correo del emisor mal es un
+ * documento que alguien archiva para siempre.
+ */
+describe('las direcciones del código, no sólo las de los documentos', () => {
+  /**
+   * La raíz del repo. `process.cwd()` y no `__dirname` porque este proyecto de
+   * jest corre como ESM, donde `__dirname` no existe; jest siempre arranca
+   * desde la raíz, así que el cwd es el mismo.
+   */
+  const RAIZ = process.cwd();
+
+  /** Dónde mirar. Los seeds y los fixtures de tests quedan afuera a propósito. */
+  const CARPETAS = ['client', 'server', 'shared', 'mobile'];
+  const SALTEAR = /node_modules|\.test\.|[\\/]scripts[\\/]|__tests__|run-scenarios|seed/i;
+
+  function archivos(dir: string, acc: string[] = []): string[] {
+    // `Dirent<string>` explícito: sin esto TypeScript infiere la variante con
+    // `Buffer` del overload de readdirSync y `e.name` deja de ser un string.
+    let entradas: import('fs').Dirent<string>[];
+    try {
+      entradas = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return acc;
+    }
+    for (const e of entradas) {
+      const completo = join(dir, e.name);
+      if (SALTEAR.test(completo)) continue;
+      if (e.isDirectory()) archivos(completo, acc);
+      else if (/\.(ts|tsx)$/.test(e.name)) acc.push(completo);
+    }
+    return acc;
+  }
+
+  it('ninguna dirección de DOAPP apunta a un dominio ajeno', () => {
+    // Las que aparecen dentro de un comentario se permiten: justamente
+    // explican el error que se corrigió.
+    const EN_COMENTARIO = /^\s*(\*|\/\/)/;
+    const CORREO = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+    const malas: string[] = [];
+
+    for (const carpeta of CARPETAS) {
+      for (const archivo of archivos(join(RAIZ, carpeta))) {
+        readFileSync(archivo, 'utf8')
+          .split('\n')
+          .forEach((linea, i) => {
+            if (EN_COMENTARIO.test(linea)) return;
+            // Los UID de iCalendar llevan un dominio y no son direcciones.
+            if (linea.includes('UID:')) return;
+            /**
+             * Lo que sale por consola no lo lee un usuario de la plataforma.
+             *
+             * El caso concreto son las credenciales de desarrollo que
+             * `server/index.ts` imprime al arrancar: usan `admin@doapp.com`
+             * igual que los scripts de seed, y cambiarlas sólo en el log las
+             * dejaría inconsistentes con las cuentas que esos scripts crean.
+             *
+             * Una dirección publicada siempre aparece en otro lado además de
+             * un log —una pantalla, una plantilla de correo, un documento, un
+             * valor por defecto de configuración—, así que esta excepción no
+             * abre un agujero.
+             */
+            if (linea.includes('console.log') || linea.includes('console.warn')) return;
+
+            for (const c of linea.match(CORREO) || []) {
+              // Sólo interesan las de DOAPP: un ejemplo con gmail no es
+              // nuestro problema, y una casilla de un proveedor tampoco.
+              if (!/doapp/i.test(c)) continue;
+              if (!esDelDominio(c)) {
+                malas.push(`${archivo.slice(RAIZ.length + 1)}:${i + 1}  ${c}`);
+              }
+            }
+          });
+      }
+    }
+
+    expect(malas).toEqual([]);
+  });
+
+  it('el barrido encuentra archivos de verdad', () => {
+    // Un recorrido que no lee nada pasa el test de arriba sin probar nada. Es
+    // la forma más fácil de que una verificación se vuelva decorativa.
+    const total = CARPETAS.reduce((n, c) => n + archivos(join(RAIZ, c)).length, 0);
+    expect(total).toBeGreaterThan(200);
   });
 });

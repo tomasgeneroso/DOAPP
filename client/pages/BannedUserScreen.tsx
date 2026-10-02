@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { Ban, Mail, Send, AlertCircle } from "lucide-react";
 
-const SUPPORT_EMAIL = "support@doapparg.com.ar";
+const SUPPORT_EMAIL = "support@doapparg.com";
 
 export default function BannedUserScreen() {
   const { t } = useTranslation();
