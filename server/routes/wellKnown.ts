@@ -21,6 +21,85 @@ const router = Router();
 
 const ORIGIN = process.env.CLIENT_URL || 'https://doapparg.com';
 
+/**
+ * RFC 9116: por dónde avisar un problema de seguridad.
+ *
+ * Qué resuelve: hoy alguien que encuentra un agujero no tiene a quién
+ * escribirle. Las dos salidas que le quedan son publicarlo o venderlo, y las
+ * dos son peores que un correo. Un archivo de seis líneas convierte eso en un
+ * aviso privado.
+ *
+ * Tres decisiones que no son obvias:
+ *
+ * 1. `Expires` sale de una fecha de revisión, no está escrita a futuro.
+ *    El error clásico de este archivo es poner 2030 y olvidarse: queda
+ *    "vigente" para siempre y describe contactos que ya no existen. Acá se
+ *    deriva de REVISADO_EL + un año, así que cuando venza hay que mirarlo de
+ *    verdad. Si ya venció igual se sirve algo válido —un archivo expirado es
+ *    peor que uno viejo— pero se avisa en el log.
+ *
+ * 2. El contacto viene del entorno. Escribirlo acá significaría que cambiar la
+ *    casilla pide un deploy, y que si está mal, está mal en el código.
+ *
+ * 3. Se sirve también en la raíz. El lugar que manda el RFC es
+ *    /.well-known/security.txt, pero muchos escáneres —incluido el de
+ *    Cloudflare— miran /security.txt primero. Dos rutas, un solo contenido.
+ */
+const REVISADO_EL = '2026-10-02';
+
+/** A dónde escribir. Que no esté configurado es un problema que hay que ver. */
+const CONTACTO_DE_SEGURIDAD =
+  process.env.SECURITY_CONTACT_EMAIL || 'seguridad@doapparg.com';
+
+function securityTxt(): string {
+  const revisado = new Date(REVISADO_EL + 'T00:00:00Z');
+  const unAnioDespues = new Date(revisado);
+  unAnioDespues.setUTCFullYear(unAnioDespues.getUTCFullYear() + 1);
+
+  let expira = unAnioDespues;
+  if (expira.getTime() < Date.now()) {
+    // Vencido. Se sirve algo válido igual, pero esto tiene que doler un poco.
+    console.warn(
+      `⚠️ security.txt venció (revisado el ${REVISADO_EL}). Revisá el contacto y movelo en server/routes/wellKnown.ts.`,
+    );
+    expira = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  return [
+    '# Si encontraste un problema de seguridad en DOAPP, escribinos.',
+    '# Preferimos enterarnos por acá antes que por un titular.',
+    '',
+    `Contact: mailto:${CONTACTO_DE_SEGURIDAD}`,
+    `Expires: ${expira.toISOString().replace(/[.][0-9]{3}Z$/, 'Z')}`,
+    'Preferred-Languages: es, en',
+    `Canonical: ${ORIGIN}/.well-known/security.txt`,
+    `Policy: ${ORIGIN}/legal/terminos-y-condiciones`,
+    '',
+    '# Qué ayuda a que lo arreglemos rápido:',
+    '#  - qué URL o endpoint, y qué pasa exactamente',
+    '#  - los pasos para reproducirlo',
+    '#  - si tocaste datos de alguien, decilo: cambia a quién hay que avisar',
+    '#',
+    '# Lo que pedimos: no uses datos de terceros más de lo necesario para',
+    '# demostrar el problema, y dejanos un tiempo razonable para corregirlo',
+    '# antes de publicarlo.',
+    '',
+  ].join(String.fromCharCode(10));
+}
+
+function enviarSecurityTxt(_req: Request, res: Response) {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  // Un día de caché: es un archivo que casi no cambia, pero cuando cambia
+  // -porque cambió la casilla- no puede tardar una semana en propagarse.
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(securityTxt());
+}
+
+router.get('/security.txt', enviarSecurityTxt);
+
+/** La ruta de la raíz, para los escáneres que no miran en /.well-known. */
+export const securityTxtEnLaRaiz = enviarSecurityTxt;
+
 // ── RFC 9727: API catalog ───────────────────────────────────────────────────
 router.get('/api-catalog', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/linkset+json');

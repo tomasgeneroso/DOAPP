@@ -70,7 +70,7 @@ import { esStaging } from "./services/deployInfo.js";
 import adminContentAgentRoutes from "./routes/admin/contentAgent.js";
 import adminArcaRoutes from "./routes/admin/arca.js";
 import adminFlaggedMessagesRoutes from "./routes/admin/flaggedMessages.js";
-import wellKnownRoutes, { markdownNegotiation } from "./routes/wellKnown.js";
+import wellKnownRoutes, { markdownNegotiation, securityTxtEnLaRaiz } from "./routes/wellKnown.js";
 import { agentLinkHeaders } from "./middleware/agentDiscovery.js";
 import adminModulesRoutes from "./routes/admin/modules.js";
 import adminHubsRoutes from "./routes/admin/hubs.js";
@@ -326,6 +326,9 @@ app.use("/api", apiLimiter);
 
 // Servir archivos estáticos (documentos legales)
 app.use("/.well-known", wellKnownRoutes);
+// RFC 9116 dice /.well-known/security.txt, pero muchos escaneres -- el de
+// Cloudflare incluido -- miran la raiz primero. Mismo contenido, dos rutas.
+app.get("/security.txt", securityTxtEnLaRaiz);
 app.use(markdownNegotiation);
 app.use("/legal", express.static(path.join(__dirname, "../public/legal")));
 
