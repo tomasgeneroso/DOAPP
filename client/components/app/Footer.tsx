@@ -186,8 +186,8 @@ export default function Footer() {
               </li>
               <li className="flex items-start gap-2 text-slate-500 dark:text-slate-400 text-sm">
                 <Mail className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <a href="mailto:support@doapp.com" className="hover:text-sky-600 dark:hover:text-sky-400 transition">
-                  support@doapp.com
+                <a href="mailto:support@doapparg.com" className="hover:text-sky-600 dark:hover:text-sky-400 transition">
+                  support@doapparg.com
                 </a>
               </li>
               <li className="flex items-start gap-2 text-slate-500 dark:text-slate-400 text-sm">

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { post } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
-const SUPPORT_EMAIL = 'support@doapp.com.ar';
+const SUPPORT_EMAIL = 'support@doapparg.com.ar';
 
 export default function BannedScreen() {
   const { colors: themeColors } = useTheme();

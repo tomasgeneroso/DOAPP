@@ -350,10 +350,10 @@ const ContactPage: React.FC = () => {
           <p>
             {t('contact.alsoEmail', 'You can also send us an email at')}{' '}
             <a
-              href="mailto:support@doapp.com"
+              href="mailto:support@doapparg.com"
               className="text-orange-500 hover:text-orange-600 font-medium"
             >
-              support@doapp.com
+              support@doapparg.com
             </a>
           </p>
         </div>

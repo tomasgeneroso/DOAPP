@@ -213,7 +213,7 @@ class PDFGenerator {
 
       // Footer
       doc.fontSize(8).text(
-        'Este documento fue generado automáticamente por DOAPP. Para consultas: soporte@doapp.com',
+        'Este documento fue generado automáticamente por DOAPP. Para consultas: support@doapparg.com',
         50,
         doc.page.height - 50,
         { align: 'center', width: 500 }

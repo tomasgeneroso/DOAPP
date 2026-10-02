@@ -157,7 +157,7 @@ export default function PrivacyPolicy() {
                   <li><Trans i18nKey="privacy.s5li5" components={{ b: <strong /> }} defaults="<b>Portabilidad:</b> Recibir tus datos en un formato estructurado y transferible" /></li>
                 </ul>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  {t('privacy.s5contact', 'Para ejercer estos derechos, contáctanos en privacy@doapp.com')}
+                  {t('privacy.s5contact', 'Para ejercer estos derechos, contáctanos en support@doapparg.com')}
                 </p>
               </section>
 
@@ -228,8 +228,8 @@ export default function PrivacyPolicy() {
                   {t('privacy.s10p', 'Para preguntas sobre esta política de privacidad o el manejo de tus datos:')}
                 </p>
                 <ul className="text-slate-600 dark:text-slate-300 space-y-2">
-                  <li><Trans i18nKey="privacy.emailLine" components={{ b: <strong /> }} defaults="<b>Email:</b> privacy@doapp.com" /></li>
-                  <li><Trans i18nKey="privacy.dpoLine" components={{ b: <strong /> }} defaults="<b>Responsable de Protección de Datos:</b> dpo@doapp.com" /></li>
+                  <li><Trans i18nKey="privacy.emailLine" components={{ b: <strong /> }} defaults="<b>Email:</b> support@doapparg.com" /></li>
+                  <li><Trans i18nKey="privacy.dpoLine" components={{ b: <strong /> }} defaults="<b>Responsable de Protección de Datos:</b> support@doapparg.com" /></li>
                   <li><Trans i18nKey="privacy.addressLine" components={{ b: <strong /> }} defaults="<b>Dirección:</b> Buenos Aires, Argentina" /></li>
                 </ul>
                 <p className="text-slate-600 dark:text-slate-300 mt-4">

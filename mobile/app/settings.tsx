@@ -212,7 +212,7 @@ export default function SettingsScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: () => {
-            Alert.alert('Contactar soporte', 'Para eliminar tu cuenta, contacta a soporte@doapp.com');
+            Alert.alert('Contactar soporte', 'Para eliminar tu cuenta, contacta a support@doapparg.com');
           },
         },
       ]

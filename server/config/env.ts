@@ -72,10 +72,10 @@ export const config = {
   // Email (SendGrid/Mailgun)
   emailProvider: process.env.EMAIL_PROVIDER || "sendgrid", // 'sendgrid' or 'mailgun'
   sendgridApiKey: process.env.SENDGRID_API_KEY || "",
-  sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL || "noreply@doapp.com",
+  sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL || "support@doapparg.com",
   mailgunApiKey: process.env.MAILGUN_API_KEY || "",
   mailgunDomain: process.env.MAILGUN_DOMAIN || "",
-  mailgunFromEmail: process.env.MAILGUN_FROM_EMAIL || "noreply@doapp.com",
+  mailgunFromEmail: process.env.MAILGUN_FROM_EMAIL || "support@doapparg.com",
 
   // Analytics
   googleAnalyticsId: process.env.GOOGLE_ANALYTICS_ID || "",

@@ -70,7 +70,7 @@ export async function generateClientPaymentInvoice(paymentId: string): Promise<I
       invoiceNumber,
       date: new Date(),
       sellerName: 'DOAPP S.R.L.',
-      sellerEmail: 'facturacion@doapp.com.ar',
+      sellerEmail: 'support@doapparg.com.ar',
       sellerAddress: 'Argentina',
       sellerCuit: process.env.COMPANY_CUIT || '30-12345678-9',
       buyerName: payer?.name || 'Cliente',
@@ -164,7 +164,7 @@ export async function generateWorkerPaymentInvoice(contractId: string): Promise<
       sellerAddress: doer?.address?.city || '',
       sellerCuit: doer?.legalInfo?.vatNumber || doer?.legalInfo?.idNumber || '',
       buyerName: 'DOAPP S.R.L.',
-      buyerEmail: 'pagos@doapp.com.ar',
+      buyerEmail: 'support@doapparg.com.ar',
       buyerAddress: 'Argentina',
       buyerCuit: process.env.COMPANY_CUIT || '30-12345678-9',
       items: [{

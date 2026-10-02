@@ -48,8 +48,18 @@ const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
  * and worker that DOAPP is explicitly not a party to (Terms, clause 2). A
  * registered worker invoices their own IVA separately.
  *
- * Consequence worth keeping in mind: with a zero commission the IVA is zero
- * too, so during the beta the client pays exactly the contract price.
+ * Consequence worth keeping in mind: with a zero commission the IVA on the
+ * commission is zero too.
+ *
+ * Pero el cliente NO paga exactamente el precio del trabajo durante la beta, y
+ * este comentario decia que si. Lo que no se cobra en la beta es la comision;
+ * el costo de procesamiento del pago se cobra igual, porque Mercado Pago lo
+ * cobra igual. Si se lo perdonara, cada operacion de la beta le costaria plata
+ * a DOAPP -- y el proposito de la beta es no cobrar comision, no subsidiar a la
+ * pasarela.
+ *
+ * Esta escrito en los terminos (clausula 7.3: "se cobra tambien durante la
+ * beta") y lo fija tests/procesamientoEnBeta.test.ts.
  */
 const VAT_RATE = 21;
 
@@ -119,7 +129,9 @@ export async function getUserMonthlyVolume(userId: string): Promise<number> {
  * Get the commission rate for free users (flat 8%)
  */
 export function getCommissionRateByVolume(_monthlyVolume: number): { rate: number; tierDescription: string } {
-  return { rate: FREE_COMMISSION_RATE, tierDescription: 'FREE (8% fijo)' };
+  // El porcentaje sale de la constante, no del texto: decia 8% mientras el
+  // codigo cobraba 10%, y ese texto se le muestra al usuario.
+  return { rate: FREE_COMMISSION_RATE, tierDescription: `FREE (${FREE_COMMISSION_RATE}% fijo)` };
 }
 
 /**
@@ -191,7 +203,8 @@ async function computeCommissionBase(
   // Get user to check for membership, family plan, etc.
   const user = await User.findByPk(userId);
   if (!user) {
-    // Default to 8% if user not found
+    // Sin usuario, la tasa del plan FREE. No es un numero suelto: sale de
+    // COMMISSION_RATES, asi que no puede quedar atras si la comision cambia.
     const calculatedCommission = contractPrice * (FREE_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
     return {

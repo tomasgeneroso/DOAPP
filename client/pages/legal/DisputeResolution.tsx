@@ -322,7 +322,7 @@ export default function DisputeResolution() {
                 </p>
                 <ul className="text-slate-600 dark:text-slate-300 space-y-2">
                   <li><Trans i18nKey="disputeRes.s10li1" components={{ b: <strong /> }} defaults="<b>Desde la plataforma:</b> Botón &quot;Abrir Disputa&quot; en la página del contrato" /></li>
-                  <li><Trans i18nKey="disputeRes.s10li2" components={{ b: <strong /> }} defaults="<b>Email:</b> disputes@doapp.com" /></li>
+                  <li><Trans i18nKey="disputeRes.s10li2" components={{ b: <strong /> }} defaults="<b>Email:</b> support@doapparg.com" /></li>
                   <li><Trans i18nKey="disputeRes.s10li3" components={{ b: <strong /> }} defaults="<b>Soporte:</b> Centro de ayuda en la plataforma" /></li>
                 </ul>
               </section>

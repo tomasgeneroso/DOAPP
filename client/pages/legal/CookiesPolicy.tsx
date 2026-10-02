@@ -257,8 +257,8 @@ export default function CookiesPolicy() {
                   {t('cookies.s8p', 'Si tienes preguntas sobre nuestra Política de Cookies, contáctanos en:')}
                 </p>
                 <ul className="text-slate-600 dark:text-slate-300 space-y-2">
-                  <li><Trans i18nKey="cookies.emailLine" components={{ b: <strong /> }} defaults="<b>Email:</b> privacy@doapp.com" /></li>
-                  <li><Trans i18nKey="cookies.supportLine" components={{ b: <strong /> }} defaults="<b>Soporte:</b> support@doapp.com" /></li>
+                  <li><Trans i18nKey="cookies.emailLine" components={{ b: <strong /> }} defaults="<b>Email:</b> support@doapparg.com" /></li>
+                  <li><Trans i18nKey="cookies.supportLine" components={{ b: <strong /> }} defaults="<b>Soporte:</b> support@doapparg.com" /></li>
                 </ul>
               </section>
 

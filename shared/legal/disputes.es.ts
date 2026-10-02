@@ -119,7 +119,7 @@ export const disputesEs: Record<string, string> = {
   "s10Title": "10. Contacto para Disputas",
   "s10p": "Para iniciar una disputa o consultas sobre el proceso:",
   "s10li1": "<b>Desde la plataforma:</b> Botón &quot;Abrir Disputa&quot; en la página del contrato",
-  "s10li2": "<b>Email:</b> disputes@doapp.com",
+  "s10li2": "<b>Email:</b> support@doapparg.com",
   "s10li3": "<b>Soporte:</b> Centro de ayuda en la plataforma",
   "commitment": "<b>Compromiso de DOAPP:</b> Nos comprometemos a resolver todas las disputas de manera justa, imparcial y transparente. Nuestro objetivo es proteger los intereses legítimos de ambas partes y mantener la confianza en nuestra plataforma.",
   "remember": "Recuerda: La mejor disputa es la que se evita mediante buena comunicación y profesionalismo.",

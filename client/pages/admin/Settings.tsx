@@ -10,7 +10,7 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState({
     siteName: "DOAPP",
     siteUrl: "https://doapp.com",
-    supportEmail: "support@doapp.com",
+    supportEmail: "support@doapparg.com",
     maintenanceMode: false,
     allowRegistration: true,
     requireEmailVerification: true,
