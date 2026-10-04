@@ -1322,16 +1322,48 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
     // Find user by Facebook ID
     const user = await User.findOne({ where: { facebookId: userId } });
 
+    // Generate confirmation code for Facebook
+    const confirmationCode = `DOAPP_DEL_${Date.now()}_${userId.slice(-6)}`;
+
     if (user) {
       // Clear Facebook-related data (but keep user for audit trail)
       user.facebookId = undefined;
       await user.save();
 
       console.log(`[GDPR] Facebook data deleted for user: ${user.id}`);
-    }
 
-    // Generate confirmation code for Facebook
-    const confirmationCode = `DOAPP_DEL_${Date.now()}_${userId.slice(-6)}`;
+      try {
+        await createAuditLog({
+          userId: user.id as string,
+          action: "data_deletion_request",
+          entity: "user",
+          entityId: user.id as string,
+          metadata: {
+            facebookId: userId,
+            confirmationCode,
+            timestamp: new Date().toISOString(),
+            source: "facebook",
+          },
+          ipAddress: getClientIp(req),
+          userAgent: getUserAgent(req),
+        } as any);
+      } catch (auditError) {
+        // La auditoría no debe impedir que Facebook reciba su confirmación.
+        console.error("[GDPR] No se pudo registrar la auditoría:", auditError);
+      }
+
+      if (user.email) {
+        try {
+          await emailService.sendEmail({
+            to: user.email,
+            subject: "Tu cuenta de Facebook fue desvinculada - DOAPP",
+            html: `<p>Hola ${user.name}, procesamos tu solicitud de eliminación de datos de Facebook. Código de confirmación: <strong>${confirmationCode}</strong></p><p>Fecha: ${new Date().toLocaleDateString("es-AR")}</p>`,
+          });
+        } catch (emailError) {
+          console.error("[GDPR] No se pudo enviar el correo de confirmación:", emailError);
+        }
+      }
+    }
 
     // Facebook expects this specific response format
     res.json({
@@ -2005,90 +2037,6 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
     res.status(500).json({
       success: false,
       message: error.message || "Error processing deauthorization",
-    });
-  }
-});
-
-// @route   POST /api/auth/facebook/data-deletion
-// @desc    Handle Facebook data deletion request
-// @access  Public
-router.post("/facebook/data-deletion", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { signed_request } = req.body;
-
-    if (!signed_request) {
-      res.status(400).json({
-        success: false,
-        message: "signed_request is required",
-      });
-      return;
-    }
-
-    // Parse the signed request
-    const [encodedSig, payload] = signed_request.split(".");
-    const data = JSON.parse(Buffer.from(payload, "base64").toString("utf-8"));
-
-    const facebookUserId = data.user_id;
-
-    if (facebookUserId) {
-      // Find user by Facebook ID
-      const user = await User.findOne({ where: { facebookId: facebookUserId } });
-
-      if (user) {
-        // Create audit log for data deletion request
-        await (createAuditLog as any)({
-          userId: user.id as string,
-          action: "data_deletion_request",
-          entity: "user",
-          entityId: user.id as string,
-          metadata: {
-            facebookId: facebookUserId,
-            timestamp: new Date().toISOString(),
-            source: "facebook",
-          },
-          ipAddress: getClientIp(req),
-          userAgent: getUserAgent(req),
-          // severity: "high" (not in AuditLog type)
-        });
-
-        // Generate a unique confirmation code
-        const confirmationCode = `${facebookUserId}_${Date.now()}`;
-
-        console.log(
-          `📋 Data deletion request for user ${user.id} (Facebook ID: ${facebookUserId})`
-        );
-        console.log(`Confirmation code: ${confirmationCode}`);
-
-        // Send notification email to user
-        try {
-          await (emailService as any).sendEmail({
-            to: user.email || "",
-            subject: "Solicitud de Eliminación de Datos - DOAPP",
-            html: `<p>Hola ${user.name}, tu código de confirmación es: <strong>${confirmationCode}</strong></p><p>Fecha: ${new Date().toLocaleDateString("es-AR")}</p>`,
-          });
-        } catch (emailError) {
-          console.error("Failed to send data deletion email:", emailError);
-        }
-
-        // Return the confirmation response to Facebook
-        res.json({
-          url: `${config.serverUrl}/data-deletion/status?id=${confirmationCode}`,
-          confirmation_code: confirmationCode,
-        });
-        return;
-      }
-    }
-
-    // User not found
-    res.json({
-      url: `${config.serverUrl}/data-deletion/not-found`,
-      confirmation_code: `not_found_${Date.now()}`,
-    });
-  } catch (error: any) {
-    console.error("❌ Facebook data deletion error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error processing data deletion request",
     });
   }
 });

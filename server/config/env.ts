@@ -27,7 +27,10 @@ export const config = {
     (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:5173"),
 
   // Server URL (para logs y callbacks)
-  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:5000"),
+  // El puerto del respaldo de desarrollo es 3001, que es el que usa PORT. Decía
+  // 5000, así que si SERVER_URL no estuviera definida el callback de Google
+  // apuntaría a un puerto donde no escucha nadie.
+  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:3001"),
 
   /**
    * Orígenes extra permitidos por CORS, además de clientUrl.

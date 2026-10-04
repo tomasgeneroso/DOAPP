@@ -68,6 +68,7 @@ const TermsAndConditions = lazy(() => import("./pages/legal/TermsAndConditions")
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const CookiesPolicy = lazy(() => import("./pages/legal/CookiesPolicy"));
 const DisputeResolution = lazy(() => import("./pages/legal/DisputeResolution"));
+const DataDeletionStatus = lazy(() => import("./pages/legal/DataDeletionStatus"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const PaymentCancel = lazy(() => import("./pages/PaymentCancel"));
 const MembershipPaymentSuccess = lazy(() => import("./pages/MembershipPaymentSuccess"));
@@ -523,6 +524,7 @@ export default function App() {
             <Route path="/register" element={<LoginScreen />} />
             <Route path="/banned" element={<BannedUserScreen />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/data-deletion" element={<DataDeletionStatus />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
