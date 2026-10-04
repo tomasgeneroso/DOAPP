@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { SITIO } from "../../shared/constants/contacto.js";
 
 // Cargar variables de entorno
 dotenv.config();
@@ -14,11 +15,19 @@ export const config = {
   // Entorno
   nodeEnv: process.env.NODE_ENV || "development",
 
-  // Frontend URL (para CORS)
-  clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  // Frontend URL (para CORS y para los enlaces que salen por correo)
+  //
+  // En producción el respaldo es el dominio real y no localhost. Parece un
+  // detalle y no lo es: cuando la variable no está puesta, el respaldo ES el
+  // valor, y un enlace a localhost dentro de un correo apunta a la máquina de
+  // quien lo recibe. Pasaba con FRONTEND_URL, que no estaba definida en ningún
+  // archivo de entorno.
+  clientUrl:
+    process.env.CLIENT_URL ||
+    (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:5173"),
 
   // Server URL (para logs y callbacks)
-  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "https://doapparg.com" : "http://localhost:5000"),
+  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:5000"),
 
   // OAuth - Google (use TEST credentials in development)
   googleClientId: process.env.NODE_ENV === "development"

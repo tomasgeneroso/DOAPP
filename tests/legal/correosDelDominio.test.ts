@@ -193,6 +193,74 @@ describe('las direcciones del código, no sólo las de los documentos', () => {
     expect(malas).toEqual([]);
   });
 
+  /**
+   * Los enlaces, que es la forma que se le escapó al test de los correos.
+   *
+   * El patrón de arriba busca algo con una arroba. Un enlace no tiene arroba,
+   * así que `https://doapp.com` pasó entero por los dos barridos anteriores.
+   * Había tres escritos a mano, y el peor no era un respaldo inerte:
+   * `FRONTEND_URL` no está definida en NINGÚN archivo de entorno, así que el
+   * valor por defecto era el valor de verdad y el correo de reclamo de tareas
+   * mandaba al trabajador a un dominio de un tercero.
+   */
+  it('ningún enlace escrito a mano apunta a un dominio ajeno', () => {
+    const EN_COMENTARIO = /^\s*(\*|\/\/)/;
+    const URL_LITERAL = /https?:\/\/([a-zA-Z0-9.-]+)/g;
+    /** doapparg.site es nuestro: nginx lo redirige con 301 a doapparg.com. */
+    const NUESTROS = new Set([DOMINIO, `www.${DOMINIO}`, 'doapparg.site', 'www.doapparg.site']);
+
+    const malos: string[] = [];
+
+    for (const carpeta of CARPETAS) {
+      for (const archivo of archivos(join(RAIZ, carpeta))) {
+        readFileSync(archivo, 'utf8')
+          .split('\n')
+          .forEach((linea, i) => {
+            if (EN_COMENTARIO.test(linea)) return;
+            for (const m of linea.matchAll(URL_LITERAL)) {
+              const host = m[1].toLowerCase();
+              // Sólo los dominios que pretenden ser DOAPP. Un enlace a
+              // mercadopago.com o a un CDN no es asunto de este test.
+              if (!/doapp/i.test(host)) continue;
+              if (!NUESTROS.has(host)) {
+                malos.push(`${archivo.slice(RAIZ.length + 1)}:${i + 1}  ${m[0]}`);
+              }
+            }
+          });
+      }
+    }
+
+    expect(malos).toEqual([]);
+  });
+
+  it('nadie usa FRONTEND_URL, que no existe en ningún entorno', () => {
+    /**
+     * La variable no está definida en .env, .env.production ni .env.example.
+     * Leerla siempre devuelve undefined, así que lo que se publica es el
+     * respaldo: en un caso doapp.com, en el otro localhost:5173 dentro de un
+     * correo que recibe un usuario. La URL del frontend es `config.clientUrl`.
+     *
+     * Si algún día se define FRONTEND_URL de verdad, borrar este test — pero
+     * entonces hay que definirla en los tres archivos, no en uno.
+     */
+    const usos: string[] = [];
+
+    for (const carpeta of CARPETAS) {
+      for (const archivo of archivos(join(RAIZ, carpeta))) {
+        readFileSync(archivo, 'utf8')
+          .split('\n')
+          .forEach((linea, i) => {
+            if (/^\s*(\*|\/\/)/.test(linea)) return;
+            if (linea.includes('FRONTEND_URL')) {
+              usos.push(`${archivo.slice(RAIZ.length + 1)}:${i + 1}`);
+            }
+          });
+      }
+    }
+
+    expect(usos).toEqual([]);
+  });
+
   it('el barrido encuentra archivos de verdad', () => {
     // Un recorrido que no lee nada pasa el test de arriba sin probar nada. Es
     // la forma más fácil de que una verificación se vuelva decorativa.

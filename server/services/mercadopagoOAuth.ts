@@ -18,11 +18,17 @@
  */
 
 import { User } from '../models/sql/User.model.js';
+import { SITIO } from '../../shared/constants/contacto.js';
 
 // OAuth Configuration
 const MERCADOPAGO_CLIENT_ID = process.env.MERCADOPAGO_CLIENT_ID;
 const MERCADOPAGO_CLIENT_SECRET = process.env.MERCADOPAGO_CLIENT_SECRET;
-const MERCADOPAGO_REDIRECT_URI = process.env.MERCADOPAGO_OAUTH_REDIRECT_URI || 'https://doapp.com.ar/api/mercadopago/oauth/callback';
+// El respaldo apuntaba a doapp.com.ar, que no es nuestro dominio. Mercado Pago
+// valida esta URI contra la registrada en la aplicación, así que el efecto era
+// que el OAuth fallara y no que el trabajador terminara en otro sitio — pero el
+// valor estaba mal igual.
+const MERCADOPAGO_REDIRECT_URI =
+  process.env.MERCADOPAGO_OAUTH_REDIRECT_URI || `${SITIO}/api/mercadopago/oauth/callback`;
 
 // Feature flag - disabled by default until marketplace account is ready
 const SPLIT_PAYMENTS_ENABLED = process.env.MERCADOPAGO_SPLIT_PAYMENTS_ENABLED === 'true';

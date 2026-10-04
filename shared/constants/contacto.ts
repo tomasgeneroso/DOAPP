@@ -32,6 +32,32 @@
 export const DOMINIO = 'doapparg.com';
 
 /**
+ * La dirección del sitio, para los enlaces que viajan fuera de la aplicación.
+ *
+ * ── Por qué también hace falta esto ─────────────────────────────────────────
+ *
+ * El test que verifica los correos busca cosas con forma de correo: algo con
+ * una arroba. Los enlaces no tienen arroba, así que pasaron enteros — y había
+ * tres escritos a mano sobre dominios que no son nuestros:
+ *
+ *   - `https://doapp.com` como valor por defecto de FRONTEND_URL en el correo
+ *     de reclamo de tareas. FRONTEND_URL no está definida en ningún archivo de
+ *     entorno, así que no era un respaldo que no se usa: era el valor real, y
+ *     ese correo mandaba al trabajador al dominio de un tercero.
+ *   - `http://localhost:5173` en el correo que pide completar la profesión.
+ *     Misma variable sin definir: un enlace a la máquina del destinatario.
+ *   - `https://doapp.com.ar/...` como URI de retorno del OAuth de Mercado Pago.
+ *
+ * Es el mismo error que las direcciones de correo, con otra forma. Por eso vive
+ * en la misma constante, y el test ahora mira las dos formas.
+ *
+ * `doapparg.site` es nuestro y también existe, pero nginx lo redirige con 301 a
+ * doapparg.com: sirve para enlaces viejos que todavía circulan, no para
+ * construir enlaces nuevos.
+ */
+export const SITIO = `https://${DOMINIO}`;
+
+/**
  * La casilla de soporte. Hoy es la única que existe, así que es la que
  * aparece en todos lados: soporte, privacidad, disputas y datos personales.
  */

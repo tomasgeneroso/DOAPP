@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import { config } from "../config/env";
 import { User } from "../models/sql/User.model.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
+import { DOMINIO, CORREOS, esDelDominio } from "../../shared/constants/contacto.js";
 
 interface EmailOptions {
   to: string;
@@ -112,6 +113,32 @@ class EmailService {
       const smtpSecure = process.env.SMTP_SECURE === "true";
       const smtpUser = process.env.SMTP_USER;
       const smtpPass = process.env.SMTP_PASS;
+
+      /**
+       * El remitente tiene que ser del dominio de la plataforma.
+       *
+       * No es cosmético. SPF autoriza servidores por dominio y DKIM firma con
+       * la clave del dominio: si los correos salen desde otro dominio, las dos
+       * validaciones se hacen contra ESE dominio, no contra el nuestro. Cuando
+       * no cuadran, el correo no rebota —sería mejor que rebotara— sino que
+       * cae en spam. Y los que más importan son justamente los que el usuario
+       * está esperando: verificación de cuenta, recupero de contraseña, aviso
+       * de pago.
+       *
+       * Aparte, el destinatario ve un remitente de un dominio distinto al del
+       * sitio donde se registró, que es exactamente la forma de un phishing.
+       *
+       * Se avisa y no se corta: un remitente mal puesto hace que los correos
+       * lleguen peor, no que el servidor no pueda arrancar.
+       */
+      const remitente = process.env.SMTP_FROM_EMAIL || smtpUser;
+      if (remitente && !esDelDominio(remitente)) {
+        console.error(
+          `❌ SMTP_FROM_EMAIL (${remitente}) no es del dominio ${DOMINIO}. ` +
+            `Los correos van a fallar SPF/DKIM y terminar en spam. ` +
+            `Esperado: algo como ${CORREOS.remitente}`,
+        );
+      }
 
       if (smtpHost && smtpUser && smtpPass) {
         this.smtpTransporter = nodemailer.createTransport({

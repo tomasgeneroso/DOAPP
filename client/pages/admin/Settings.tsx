@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { Settings as SettingsIcon, Save, Database, Mail, Shield, Bell } from "lucide-react";
+import { SITIO } from "../../../shared/constants/contacto";
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(false);
@@ -9,7 +10,7 @@ export default function AdminSettings() {
 
   const [settings, setSettings] = useState({
     siteName: "DOAPP",
-    siteUrl: "https://doapp.com",
+    siteUrl: SITIO,
     supportEmail: "support@doapparg.com",
     maintenanceMode: false,
     allowRegistration: true,

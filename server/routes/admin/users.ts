@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { User } from "../../models/sql/User.model.js";
+import { config } from "../../config/env.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
@@ -942,7 +943,7 @@ router.post(
                 <strong>Motivo:</strong> ${reason.trim()}
               </div>
               <p>Por favor, actualizá los documentos en tu perfil y volvé a enviarlos para revisión.</p>
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/settings?tab=profession"
+              <a href="${config.clientUrl}/settings?tab=profession"
                  style="display: inline-block; background: #0ea5e9; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 8px;">
                 Ir a configuración de profesión
               </a>

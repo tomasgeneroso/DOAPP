@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { config } from '../config/env.js';
 import { paraQuienMira, puedeVerDireccion } from '../services/privacidadTrabajo.js';
 import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { body, validationResult } from "express-validator";
@@ -3803,7 +3804,10 @@ router.post("/:id/claim-tasks", protect, async (req: AuthRequest, res: Response)
           taskNames: tasks.map(t => t.title).join(', '),
           newEndDate: new Date(newEndDate).toLocaleDateString('es-AR'),
           reason: reason || 'No especificado',
-          contractUrl: `${process.env.FRONTEND_URL || 'https://doapp.com'}/contracts/${contract.id}`
+          // FRONTEND_URL no existe en ningún archivo de entorno, así que el
+          // respaldo era el valor real: este correo mandaba al trabajador a
+          // doapp.com, que no es nuestro dominio.
+          contractUrl: `${config.clientUrl}/contracts/${contract.id}`
         }
       );
     }
