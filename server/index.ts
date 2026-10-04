@@ -225,12 +225,26 @@ app.use(
       // Allow requests with no origin (mobile apps, curl, etc)
       if (!origin) return callback(null, true);
 
+      /**
+       * Los localhost sólo en desarrollo.
+       *
+       * Estaban en la lista sin condición, también en producción, y con
+       * `credentials: true` al lado: la API de producción aceptaba pedidos con
+       * credenciales desde un origen local. En desarrollo no hacen falta,
+       * porque abajo se permite cualquier origen igual.
+       *
+       * Los orígenes adicionales salen de CORS_ORIGINS, que es donde va
+       * staging.doapparg.com.
+       */
+      const origenesDeDesarrollo =
+        config.nodeEnv === 'development'
+          ? ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:5173']
+          : [];
+
       const allowedOrigins = [
         config.clientUrl,
-        // Development origins for Expo web
-        'http://localhost:8081',
-        'http://localhost:19006',
-        'http://localhost:5173',
+        ...config.corsOrigins,
+        ...origenesDeDesarrollo,
       ].filter(Boolean);
 
       if (allowedOrigins.includes(origin)) {

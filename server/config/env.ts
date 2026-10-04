@@ -29,6 +29,27 @@ export const config = {
   // Server URL (para logs y callbacks)
   serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? SITIO : "http://localhost:5000"),
 
+  /**
+   * Orígenes extra permitidos por CORS, además de clientUrl.
+   *
+   * `.env.example` documentaba `CORS_ORIGINS` con un comentario que decía
+   * "comma-separated origins" desde siempre, y no había una sola línea de
+   * código que la leyera. O sea: se podía configurar con todo cuidado y no
+   * hacía nada, sin ningún aviso. La lista real era `clientUrl` y tres
+   * localhost escritos a mano.
+   *
+   * Eso importa ahora que existe staging: staging.doapparg.com es un origen
+   * distinto de doapparg.com y necesita entrar acá.
+   *
+   * Se acepta `CORS_ORIGIN` en singular como alias porque es el nombre que uno
+   * escribe de memoria, y una variable de CORS mal nombrada falla en silencio
+   * hasta que un navegador bloquea un pedido en producción.
+   */
+  corsOrigins: (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+
   // OAuth - Google (use TEST credentials in development)
   googleClientId: process.env.NODE_ENV === "development"
     ? (process.env.GOOGLE_CLOUD_AUTH_ID_TEST || process.env.GOOGLE_CLOUD_AUTH_ID || "")
