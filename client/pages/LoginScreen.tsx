@@ -15,6 +15,7 @@ import MembershipOfferModal from "../components/MembershipOfferModal";
 import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import AuthHero from "../components/auth/AuthHero";
+import { rutaInternaSegura } from "../../shared/auth/rutaInterna";
 
 type FormMode = "login" | "register";
 
@@ -24,13 +25,20 @@ export default function LoginScreen() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get redirect path from URL query params or location state
+  // Get redirect path from URL query params or location state.
+  //
+  // `?redirect=` lo escribe quien arma el enlace, no nosotros: pasa por
+  // `rutaInternaSegura`, que sólo deja rutas de esta aplicación. Antes se
+  // navegaba a lo que viniera, y `/login?redirect=//sitio-malo.com` mandaba a la
+  // víctima a otro sitio justo después de iniciar sesión en el verdadero.
   const searchParams = new URLSearchParams(location.search);
   const redirectParam = searchParams.get("redirect");
-  const from = redirectParam ||
-    (typeof location.state?.from === "string"
-      ? location.state.from
-      : location.state?.from?.pathname) || "/";
+  const from = rutaInternaSegura(
+    redirectParam ||
+      (typeof location.state?.from === "string"
+        ? location.state.from
+        : location.state?.from?.pathname),
+  );
 
   // Automatically set mode to register if coming from /register route
   const initialMode: FormMode = location.pathname === '/register' ? 'register' : 'login';
