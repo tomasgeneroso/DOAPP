@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
 import { initDatabase } from "./config/database.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { crearVerificadorDeOrigen } from "./middleware/corsOrigen.js";
 import passport from "./config/passport.js";
 import SocketService, { setSocketServiceInstance } from "./services/socket.js";
 import {
@@ -221,41 +222,13 @@ app.use(helmet({
 // CORS
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, etc)
-      if (!origin) return callback(null, true);
-
-      /**
-       * Los localhost sólo en desarrollo.
-       *
-       * Estaban en la lista sin condición, también en producción, y con
-       * `credentials: true` al lado: la API de producción aceptaba pedidos con
-       * credenciales desde un origen local. En desarrollo no hacen falta,
-       * porque abajo se permite cualquier origen igual.
-       *
-       * Los orígenes adicionales salen de CORS_ORIGINS, que es donde va
-       * staging.doapparg.com.
-       */
-      const origenesDeDesarrollo =
-        config.nodeEnv === 'development'
-          ? ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:5173']
-          : [];
-
-      const allowedOrigins = [
-        config.clientUrl,
-        ...config.corsOrigins,
-        ...origenesDeDesarrollo,
-      ].filter(Boolean);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else if (config.nodeEnv === 'development') {
-        // In development, allow all origins
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    // Los orígenes adicionales (staging) salen de CORS_ORIGINS. Los localhost
+    // ya no se listan: sólo se permiten en desarrollo, donde entra cualquiera.
+    origin: crearVerificadorDeOrigen({
+      clientUrl: config.clientUrl,
+      corsOrigins: config.corsOrigins,
+      esDesarrollo: config.nodeEnv === 'development',
+    }),
     credentials: true,
   })
 );
