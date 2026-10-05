@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "kill-ports": "tsx server/scripts/killPort.ts",
     "kill-all": "tsx server/scripts/killPort.ts --all",
@@ -87,7 +90,7 @@
     "mercadopago": "^2.10.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.9",
+    "nodemailer": "^10.0.15",
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
@@ -109,7 +112,7 @@
     "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.7",
     "sequelize-typescript": "^2.1.6",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "speakeasy": "^2.0.0",

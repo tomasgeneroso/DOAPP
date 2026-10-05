@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import sharp, { type Metadata } from "sharp";
 import path from "path";
 import fs from "fs/promises";
 import fsSync from "fs";
@@ -163,7 +163,9 @@ class ImageOptimizationService {
           quality: this.quality,
           compressionLevel: 9,
         });
-      } else if (metadata.format === "jpeg" || metadata.format === "jpg") {
+      } else if (metadata.format === "jpeg") {
+        // libvips informa "jpeg", nunca "jpg": la comparación con "jpg" que había
+        // acá era inalcanzable, y sharp 0.35 la saca del tipo de formatos.
         pipeline = pipeline.jpeg({
           quality: this.quality,
           progressive: true,
@@ -262,7 +264,7 @@ class ImageOptimizationService {
   /**
    * Get image metadata
    */
-  async getMetadata(filePath: string): Promise<sharp.Metadata> {
+  async getMetadata(filePath: string): Promise<Metadata> {
     try {
       return await sharp(filePath).metadata();
     } catch (error: any) {
@@ -419,7 +421,7 @@ class ImageOptimizationService {
       }
 
       // Apply format-specific optimization
-      if (metadata.format === 'jpeg' || metadata.format === 'jpg') {
+      if (metadata.format === 'jpeg') {
         pipeline = pipeline.jpeg({
           quality: quality.jpeg,
           progressive: true,
