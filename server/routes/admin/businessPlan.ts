@@ -9,6 +9,7 @@ import { logAudit } from '../../utils/auditLog.js';
 import currencyExchange from '../../services/currencyExchange.js';
 import { getLiveFinancials } from '../../services/liveFinancials.js';
 import { getUnitEconomics } from '../../services/unitEconomics.js';
+import { ROLES_DE_ANALISIS } from '../../../shared/auth/accesoAnalisis.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -23,7 +24,7 @@ const router = express.Router();
  * acceso a treinta, y el acceso se concede por lo que la persona necesita
  * hacer, no por comodidad de quien lo concede.
  */
-const analisisOnly = requireAdminRole('owner', 'analista');
+const analisisOnly = requireAdminRole(...ROLES_DE_ANALISIS);
 
 const PLAN_SLUG = 'constitucion';
 

@@ -1,8 +1,9 @@
 import { Suspense, lazy, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Loader2, Calculator, TrendingUp, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { decidirAccesoAnalisis } from "../../shared/auth/accesoAnalisis";
 
 /**
  * Los números del negocio, en una sola pantalla y sin el panel de admin.
@@ -26,9 +27,6 @@ import { useAuth } from "../hooks/useAuth";
 const UnitEconomics = lazy(() => import("./admin/UnitEconomics"));
 const BusinessPlan = lazy(() => import("./admin/BusinessPlan"));
 
-/** Quién puede entrar acá. El resto, ni la ve. */
-const ROLES_PERMITIDOS = ["owner", "analista"];
-
 type Pestana = "unidad" | "proyeccion";
 
 const PESTANAS: Array<{ id: Pestana; icono: typeof Calculator; texto: string; ayuda: string }> = [
@@ -47,13 +45,15 @@ const PESTANAS: Array<{ id: Pestana; icono: typeof Calculator; texto: string; ay
 ];
 
 export default function Analisis() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
+  const location = useLocation();
   const [pestana, setPestana] = useState<Pestana>("unidad");
 
-  // `isAuthenticated` todavía puede estar resolviéndose: sin usuario y sin
-  // sesión no se decide nada, porque mandar al login a alguien que sí tiene
-  // permiso es peor que esperar un cuadro más.
-  if (!isAuthenticated && !user) {
+  const acceso = decidirAccesoAnalisis({ isLoading, user });
+
+  // Esperar mientras se resuelve la sesión: mandar al login a alguien que sí
+  // tiene permiso es peor que esperar un cuadro más.
+  if (acceso === "cargando") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <Loader2 className="h-8 w-8 animate-spin text-sky-500" aria-hidden="true" />
@@ -61,7 +61,13 @@ export default function Analisis() {
     );
   }
 
-  if (!user || !ROLES_PERMITIDOS.includes(user.adminRole || "")) {
+  // Sin sesión: al login. Antes esto caía en el spinner y no salía nunca.
+  if (acceso === "login") {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Con sesión pero sin rol: ni la ve.
+  if (acceso === "inicio" || !user) {
     return <Navigate to="/" replace />;
   }
 
