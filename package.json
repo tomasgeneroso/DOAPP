@@ -107,7 +107,7 @@
     "react-i18next": "^16.6.6",
     "react-leaflet": "^5.0.0",
     "react-quill": "^2.0.0",
-    "react-router-dom": "^6.30.1",
+    "react-router-dom": "^7.18.4",
     "recharts": "^3.3.0",
     "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.7",

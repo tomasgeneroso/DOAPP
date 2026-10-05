@@ -145,7 +145,13 @@ export default function App() {
       <HelmetProvider>
         <AuthProvider>
           <ToastProvider>
-            <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+            {/*
+              Sin `future`: en react-router 7 los dos flags que había acá
+              (v7_relativeSplatPath y v7_startTransition) son el comportamiento
+              por defecto, así que quitarlos no cambia nada. Estaban activados
+              desde la 6, que es lo que hacía este salto de versión casi directo.
+            */}
+            <BrowserRouter>
               <GoogleAnalytics />
               <OnboardingProvider>
                 <OnboardingTooltip />
