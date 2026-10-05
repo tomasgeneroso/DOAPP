@@ -59,6 +59,22 @@ export interface UnidadEconomica {
     costo: number;
     margen: number;
   };
+  /**
+   * Los mismos importes SIN redondear: para dividir, no para mostrar.
+   *
+   * Los campos de arriba se redondean a centavos porque son lo que se muestra.
+   * Pero con el margen no alcanza con eso para hacer cuentas: el punto de
+   * equilibrio es `costos fijos ÷ margen`, y en dólares un margen real de 0,1256
+   * se redondea a 0,13. Es un 3,5% de error que va derecho al denominador, y
+   * además hace que el resultado dependa de la moneda en que se mire: en pesos el
+   * mismo margen es 181,43 y el redondeo ya no pesa. Un punto de equilibrio que
+   * cambia al cambiar de moneda es un número que nadie debería creer.
+   */
+  exacto: {
+    ingreso: number;
+    costo: number;
+    margen: number;
+  };
   comisionPct: number;
 }
 
@@ -114,8 +130,27 @@ export function calcularUnidad(s: SupuestosUnidad): UnidadEconomica {
       costo: r2(contratos > 0 ? costoTotal / contratos : 0),
       margen: r2(contratos > 0 ? (ingreso - costoTotal) / contratos : 0),
     },
+    exacto: {
+      ingreso,
+      costo: costoTotal,
+      margen: ingreso - costoTotal,
+    },
     comisionPct,
   };
+}
+
+/**
+ * Cuántos usuarios activos por mes hacen falta para cubrir los costos fijos.
+ *
+ * Recibe el margen EXACTO (`unidad.exacto.margen`), nunca el redondeado: ver el
+ * comentario de `exacto`. Devuelve `null` cuando el margen no es positivo, porque
+ * entonces no hay cantidad de usuarios que alcance —cada usuario nuevo agrega
+ * pérdida—, y un número negativo o infinito mostrado como "usuarios necesarios"
+ * es peor que decir que no hay.
+ */
+export function mauDeEquilibrio(fijos: number, margenExacto: number): number | null {
+  if (!Number.isFinite(margenExacto) || margenExacto <= 0) return null;
+  return Math.ceil(num(fijos) / margenExacto);
 }
 
 /**

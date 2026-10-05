@@ -3,7 +3,8 @@ import { useAuth } from '@/hooks/useAuth';
 import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
-import { calcularUnidad } from '../../../shared/pricing/unidadEconomica';
+import { calcularUnidad, mauDeEquilibrio } from '../../../shared/pricing/unidadEconomica';
+import { aEuros, convertirImportesUe } from '../../../shared/pricing/conversionMoneda';
 import {
   Calculator,
   Lock,
@@ -87,12 +88,9 @@ const token = () => localStorage.getItem('token');
  * a la moneda de referencia que elija el owner.
  * ------------------------------------------------------------------ */
 
-const toEur = (amount: number, from: Currency, plan: Plan) => {
-  const value = Number(amount) || 0;
-  if (from === 'EUR') return value;
-  if (from === 'ARS') return value / (plan.rateArs || 1);
-  return value / (plan.rateUsd || 1);
-};
+// La conversión vive en shared/pricing/conversionMoneda.ts: la usa también el
+// cambio de moneda de la sección de unit economics, y ahí tiene tests.
+const toEur = (amount: number, from: Currency, plan: Plan) => aEuros(amount, from, plan);
 
 const eurToBase = (plan: Plan) => {
   if (plan.baseCurrency === 'EUR') return 1;
@@ -102,6 +100,16 @@ const eurToBase = (plan: Plan) => {
 
 const toBase = (amount: number, from: Currency, plan: Plan) =>
   toEur(amount, from, plan) * eurToBase(plan);
+
+/**
+ * Cuántos decimales mostrar para un importe por usuario.
+ *
+ * Con dos no alcanza cuando el importe es chico: un margen de 0,1256 dólares se
+ * ve "US$0,13", y quien divide los costos fijos por ese 0,13 llega a un punto de
+ * equilibrio distinto del que muestra la pantalla. Por debajo de 10 se muestran
+ * cuatro.
+ */
+const decimalesDe = (n: number) => (Math.abs(n) < 10 ? 4 : 2);
 
 const fmt = (n: number, currency: Currency, decimals = 0) =>
   SYMBOLS[currency] +
@@ -351,10 +359,15 @@ export default function BusinessPlan() {
       disputasPct: ue.disputas,
       fraudePct: ue.fraude,
     });
-    const ingreso = unidad.ingreso;
-    const costoVar = unidad.costoTotal;
-    const margen = unidad.margen;
-    const beMau = margen > 0 ? Math.ceil(ue.fijos / margen) : null;
+    // Los tres, SIN redondear. Se muestran con los decimales que haga falta
+    // (ver `decimalesDe`) y el equilibrio se calcula con el margen exacto: dividir
+    // por el redondeado a centavos daba 138.462 en dólares donde en pesos daba
+    // 143.312. Con un margen de 0,1256, redondearlo a 0,13 es un 3,5% de error en
+    // el denominador, y el resultado dependía de la moneda con que se mirara.
+    const ingreso = unidad.exacto.ingreso;
+    const costoVar = unidad.exacto.costo;
+    const margen = unidad.exacto.margen;
+    const beMau = mauDeEquilibrio(ue.fijos, margen);
     const faltan = beMau === null ? null : Math.max(0, beMau - ue.mauActual);
 
     const totalWeight = plan.checklist.reduce((s, i) => s + i.w, 0) || 1;
@@ -408,6 +421,16 @@ export default function BusinessPlan() {
 
   const base = plan.baseCurrency;
   const capitalNegativo = calc.restanteBase < 0;
+
+  // Lo que pondría el botón "Costos fijos = gasto de Fase 1", en la moneda de la
+  // sección. Se calcula acá para que el botón pueda decir qué va a hacer y
+  // apagarse cuando los costos fijos ya coinciden.
+  const fijosDeFase1 = Math.round(calc.totBudgetBase / (toBase(1, plan.ueCurrency, plan) || 1));
+  // Con tolerancia: al cambiar de moneda los importes se redondean a siete cifras
+  // significativas, así que 10.977.780 y 10.977.778 son el mismo costo.
+  const fijosYaCoinciden =
+    Math.abs(plan.ue.fijos - fijosDeFase1) <= Math.max(1, Math.abs(fijosDeFase1) * 1e-6);
+  const fase1Vacia = fijosDeFase1 <= 0;
 
   // La proyección se carga en su propia moneda; el capital que la alimenta
   // es el que queda después de constituir.
@@ -864,7 +887,14 @@ export default function BusinessPlan() {
               <CurrencyPicker
                 label="Moneda de la sección"
                 value={plan.ueCurrency}
-                onChange={c => edit(d => { d.ueCurrency = c; })}
+                // Se CONVIERTEN los importes (ticket, soporte, costos fijos); los
+                // porcentajes y las cantidades no cambian con la moneda. Antes sólo
+                // cambiaba la etiqueta y "US$21" pasaba a "$21": un ticket de
+                // veintiún pesos.
+                onChange={c => edit(d => {
+                  d.ue = convertirImportesUe(d.ue, d.ueCurrency, c, d);
+                  d.ueCurrency = c;
+                })}
               />
             }
           />
@@ -889,7 +919,21 @@ export default function BusinessPlan() {
                 <Database className="h-3.5 w-3.5" /> Usar datos reales
               </button>
             )}
+            {/*
+              El botón dice qué va a hacer y se apaga cuando ya lo hizo. Antes no
+              daba ninguna señal: tocarlo dos veces seguidas no hacía nada visible
+              la segunda vez, y desde afuera es idéntico a un botón roto.
+            */}
             <button
+              type="button"
+              disabled={fijosYaCoinciden || fase1Vacia}
+              title={
+                fase1Vacia
+                  ? 'El presupuesto de la Fase 1 está vacío: no hay nada que copiar'
+                  : fijosYaCoinciden
+                    ? 'Los costos fijos ya son iguales al gasto mensual de la Fase 1'
+                    : `Pone los costos fijos en ${fmt(fijosDeFase1, plan.ueCurrency)}, el total mensual del presupuesto de la Fase 1`
+              }
               onClick={() =>
                 edit(d => {
                   // Evita cargar dos veces el mismo gasto: los costos fijos
@@ -899,9 +943,12 @@ export default function BusinessPlan() {
                   d.ue.fijos = Math.round(budgetInUe);
                 })
               }
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
             >
-              <Check className="h-3.5 w-3.5" /> Costos fijos = gasto de Fase 1
+              <Check className="h-3.5 w-3.5" />
+              {fijosYaCoinciden
+                ? `Costos fijos ya coinciden con la Fase 1 (${fmt(fijosDeFase1, plan.ueCurrency)})`
+                : `Costos fijos = gasto de Fase 1${fase1Vacia ? '' : ` (${fmt(fijosDeFase1, plan.ueCurrency)})`}`}
             </button>
           </div>
 
@@ -942,9 +989,9 @@ export default function BusinessPlan() {
             <p className="mt-1 text-sm text-slate-300">necesarios para llegar a EBITDA = 0</p>
             <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-700 pt-4 md:grid-cols-3">
               {[
-                { l: 'Ingreso / usuario / mes', v: fmt(calc.ingreso, plan.ueCurrency, 2), e: `≈ ${fmt(toBase(calc.ingreso, plan.ueCurrency, plan), base, 2)}` },
-                { l: 'Costo variable / usuario', v: fmt(calc.costoVar, plan.ueCurrency, 2), e: `≈ ${fmt(toBase(calc.costoVar, plan.ueCurrency, plan), base, 2)}` },
-                { l: 'Margen de contribución', v: fmt(calc.margen, plan.ueCurrency, 2), e: `≈ ${fmt(toBase(calc.margen, plan.ueCurrency, plan), base, 2)}` },
+                { l: 'Ingreso / usuario / mes', v: fmt(calc.ingreso, plan.ueCurrency, decimalesDe(calc.ingreso)), e: `≈ ${fmt(toBase(calc.ingreso, plan.ueCurrency, plan), base, decimalesDe(toBase(calc.ingreso, plan.ueCurrency, plan)))}` },
+                { l: 'Costo variable / usuario', v: fmt(calc.costoVar, plan.ueCurrency, decimalesDe(calc.costoVar)), e: `≈ ${fmt(toBase(calc.costoVar, plan.ueCurrency, plan), base, decimalesDe(toBase(calc.costoVar, plan.ueCurrency, plan)))}` },
+                { l: 'Margen de contribución', v: fmt(calc.margen, plan.ueCurrency, decimalesDe(calc.margen)), e: `≈ ${fmt(toBase(calc.margen, plan.ueCurrency, plan), base, decimalesDe(toBase(calc.margen, plan.ueCurrency, plan)))}` },
                 { l: 'MAU actuales', v: plan.ue.mauActual.toLocaleString('es-AR'), e: '' },
                 { l: 'Faltan (MAU)', v: calc.faltan === null ? '—' : calc.faltan.toLocaleString('es-AR'), e: '' },
                 {
