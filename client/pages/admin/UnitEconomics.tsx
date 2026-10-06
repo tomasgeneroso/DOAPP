@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import AyudaDePantalla from "../../components/admin/AyudaDePantalla";
 import {
   Loader2,
   TrendingUp,
@@ -213,6 +214,8 @@ export default function UnitEconomics() {
           : corregirlos ahí corrige esto.
         </p>
       </header>
+
+      <AyudaDePantalla pantalla="economia-unitaria" />
 
       {/* Lo primero que hay que leer, antes que cualquier número. */}
       <div

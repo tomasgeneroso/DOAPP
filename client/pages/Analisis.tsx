@@ -1,7 +1,7 @@
-import { Suspense, lazy, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Suspense, lazy } from "react";
+import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { Loader2, Calculator, TrendingUp, LogOut, ShieldCheck } from "lucide-react";
+import { Loader2, Calculator, TrendingUp, LogOut, ShieldCheck, BookOpen } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { decidirAccesoAnalisis } from "../../shared/auth/accesoAnalisis";
 
@@ -26,8 +26,9 @@ import { decidirAccesoAnalisis } from "../../shared/auth/accesoAnalisis";
 
 const UnitEconomics = lazy(() => import("./admin/UnitEconomics"));
 const BusinessPlan = lazy(() => import("./admin/BusinessPlan"));
+const GuiaDelAnalisis = lazy(() => import("../components/admin/GuiaDelAnalisis"));
 
-type Pestana = "unidad" | "proyeccion";
+type Pestana = "unidad" | "proyeccion" | "guia";
 
 const PESTANAS: Array<{ id: Pestana; icono: typeof Calculator; texto: string; ayuda: string }> = [
   {
@@ -42,12 +43,23 @@ const PESTANAS: Array<{ id: Pestana; icono: typeof Calculator; texto: string; ay
     texto: "Proyección",
     ayuda: "Costos, runway y punto de equilibrio",
   },
+  {
+    id: "guia",
+    icono: BookOpen,
+    texto: "Guía",
+    ayuda: "Qué es este análisis y cómo se lee",
+  },
 ];
+
+/** La pestaña vive en la URL (?tab=guia): se puede enlazar y sobrevive a recargar. */
+const pestanaDe = (valor: string | null): Pestana =>
+  PESTANAS.some((p) => p.id === valor) ? (valor as Pestana) : "unidad";
 
 export default function Analisis() {
   const { user, isLoading, logout } = useAuth();
   const location = useLocation();
-  const [pestana, setPestana] = useState<Pestana>("unidad");
+  const [params, setParams] = useSearchParams();
+  const pestana = pestanaDe(params.get("tab"));
 
   const acceso = decidirAccesoAnalisis({ isLoading, user });
 
@@ -120,7 +132,7 @@ export default function Analisis() {
             <button
               key={id}
               type="button"
-              onClick={() => setPestana(id)}
+              onClick={() => setParams({ tab: id }, { replace: true })}
               title={ayuda}
               aria-current={pestana === id}
               className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -161,7 +173,9 @@ export default function Analisis() {
             </div>
           }
         >
-          {pestana === "unidad" ? <UnitEconomics /> : <BusinessPlan />}
+          {pestana === "unidad" && <UnitEconomics />}
+          {pestana === "proyeccion" && <BusinessPlan />}
+          {pestana === "guia" && <GuiaDelAnalisis />}
         </Suspense>
       </main>
     </div>

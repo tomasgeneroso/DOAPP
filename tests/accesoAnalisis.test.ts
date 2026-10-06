@@ -92,12 +92,29 @@ describe('una sola lista de roles', () => {
   });
 
   it('ni la página ni la API la repiten a mano', () => {
-    for (const archivo of ['client/pages/Analisis.tsx', 'server/routes/admin/businessPlan.ts']) {
+    for (const archivo of [
+      'client/pages/Analisis.tsx',
+      'client/pages/admin/BusinessPlan.tsx',
+      'server/routes/admin/businessPlan.ts',
+    ]) {
       expect({ archivo, repite: /['"]analista['"]/.test(sinComentarios(archivo)) }).toEqual({
         archivo,
         repite: false,
       });
     }
+  });
+
+  it('la pantalla de la proyección deja entrar a los mismos roles que la API', () => {
+    /**
+     * Decidía con `adminRole === "owner"`, así que el analista —que existe
+     * justamente para colaborar con estos números y al que el servidor sí deja
+     * pasar— veía "Acceso restringido" en la pestaña Proyección. La mitad de lo que
+     * su rol debía mostrarle estaba cerrada, y nadie lo notó porque nunca se probó
+     * la pantalla con ese rol.
+     */
+    const fuente = sinComentarios('client/pages/admin/BusinessPlan.tsx');
+    expect(fuente).toContain('ROLES_DE_ANALISIS');
+    expect(fuente).not.toMatch(/adminRole\s*===\s*['"]owner['"]/);
   });
 
   it('la API lee la lista compartida', () => {

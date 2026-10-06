@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
+import AyudaDePantalla from '@/components/admin/AyudaDePantalla';
+import { ROLES_DE_ANALISIS } from '../../../shared/auth/accesoAnalisis';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
-import { calcularUnidad, mauDeEquilibrio } from '../../../shared/pricing/unidadEconomica';
+import { calcularUnidad, mauDeEquilibrio, META_RUNWAY_FASE1_MESES } from '../../../shared/pricing/unidadEconomica';
 import {
   aEuros,
   convertirMoneda,
@@ -230,7 +232,11 @@ function Kpi({
 
 export default function BusinessPlan() {
   const { user } = useAuth();
-  const isOwner = user?.adminRole === 'owner';
+  // Quién puede ver y editar el plan: el owner y el analista, que es el rol que
+  // existe justamente para colaborar con estos números. Antes decía `=== 'owner'`
+  // y el analista veía "Acceso restringido" en esta pantalla aunque el servidor lo
+  // dejaba pasar: la mitad de lo que su rol debía mostrarle estaba cerrada.
+  const puedeVerElPlan = (ROLES_DE_ANALISIS as readonly string[]).includes(user?.adminRole || '');
 
   const [plan, setPlan] = useState<Plan | null>(null);
   const [actuals, setActuals] = useState<Actuals | null>(null);
@@ -266,9 +272,9 @@ export default function BusinessPlan() {
   }, []);
 
   useEffect(() => {
-    if (isOwner) void load();
+    if (puedeVerElPlan) void load();
     else setLoading(false);
-  }, [load, isOwner]);
+  }, [load, puedeVerElPlan]);
 
   /* ---- guardado con debounce ---- */
   const save = useCallback(async (next: Plan) => {
@@ -415,15 +421,15 @@ export default function BusinessPlan() {
   }, [plan]);
 
   // El backend también lo bloquea; acá evitamos mostrar una pantalla rota
-  // a un admin que no es owner.
-  if (!isOwner) {
+  // a un admin que no es owner ni analista.
+  if (!puedeVerElPlan) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <div className={`${CARD} max-w-md p-8 text-center`}>
           <Lock className="mx-auto mb-3 h-8 w-8 text-slate-400" />
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">Acceso restringido</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            La proyección de gastos sólo está disponible para el owner de la plataforma.
+            La proyección de gastos sólo está disponible para el owner y los analistas de la plataforma.
           </p>
         </div>
       </div>
@@ -461,7 +467,7 @@ export default function BusinessPlan() {
     ...plan.projection,
     cajaInicial: cajaInicialProyeccion,
   };
-  const runwayCorto = calc.runway > 0 && calc.runway < 4;
+  const runwayCorto = calc.runway > 0 && calc.runway < META_RUNWAY_FASE1_MESES;
 
   const saveLabel =
     saveState === 'saving' ? 'Guardando…'
@@ -479,7 +485,7 @@ export default function BusinessPlan() {
               <Calculator className="h-7 w-7" /> Proyección de gastos
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Costos de constitución, runway de validación y punto de equilibrio. Sólo visible para el owner.
+              Costos de constitución, runway de validación y punto de equilibrio. Visible para el owner y los analistas.
             </p>
             <p className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span
@@ -558,6 +564,8 @@ export default function BusinessPlan() {
           </div>
         </div>
 
+        <AyudaDePantalla pantalla="proyeccion" />
+
         {/* KPIs */}
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Kpi
@@ -578,8 +586,8 @@ export default function BusinessPlan() {
             icon={CalendarClock}
             label="Runway Fase 1"
             value={calc.runway > 0 ? `${calc.runway.toFixed(1)} meses` : '—'}
-            sub={runwayCorto ? 'meta: 4 meses' : 'de operación'}
-            tone={calc.runway >= 4 ? 'emerald' : runwayCorto ? 'amber' : 'rose'}
+            sub={runwayCorto ? `meta: ${META_RUNWAY_FASE1_MESES} meses` : 'de operación'}
+            tone={calc.runway >= META_RUNWAY_FASE1_MESES ? 'emerald' : runwayCorto ? 'amber' : 'rose'}
           />
           <Kpi
             icon={ClipboardCheck}
@@ -885,7 +893,7 @@ export default function BusinessPlan() {
             </p>
             <p className="mt-1 text-sm text-slate-300">
               {calc.runway > 0
-                ? `de runway al ritmo de gasto actual — meta de Fase 1: 4 meses`
+                ? `de runway al ritmo de gasto actual — meta de Fase 1: ${META_RUNWAY_FASE1_MESES} meses`
                 : capitalNegativo
                   ? 'sin capital disponible tras la constitución'
                   : 'cargá el gasto mensual para calcular el runway'}

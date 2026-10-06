@@ -154,6 +154,56 @@ export function mauDeEquilibrio(fijos: number, margenExacto: number): number | n
 }
 
 /**
+ * LTV/CAC a partir del cual se considera sano un cliente adquirido.
+ *
+ * Es la referencia habitual en software: cada cliente tiene que devolver al
+ * menos tres veces lo que costó conseguirlo. La usa el diagnóstico del servidor,
+ * la tabla de escenarios de la pantalla y la guía del análisis, y por eso vive
+ * acá: una cifra que aparece en tres lugares termina siendo tres cifras.
+ */
+export const REFERENCIA_LTV_CAC = 3;
+
+/**
+ * Cuánto se aparta el churn de los escenarios pesimista y optimista del churn
+ * del plan, y entre qué valores se lo acota.
+ *
+ * El moderado ES el del plan; los otros dos se derivan de él para que corregir
+ * el supuesto los mueva juntos. Los factores son anchos a propósito: en un
+ * marketplace de oficios la frecuencia de uso es baja por naturaleza, así que el
+ * rango honesto de churn es amplio.
+ */
+export const FACTORES_DE_CHURN = {
+  pesimista: 1.5,
+  optimista: 0.6,
+  /** Churn máximo, en %. */
+  tope: 95,
+  /** Churn mínimo, en %: con 0 el LTV sería infinito. */
+  piso: 0.5,
+} as const;
+
+/** Meses de runway que se pide tener antes de lanzar la Fase 1. */
+export const META_RUNWAY_FASE1_MESES = 4;
+
+/**
+ * Los supuestos con que arranca la sección de unit economics de un plan nuevo.
+ *
+ * Los usa el plan por defecto del servidor y los usa la guía para armar su
+ * ejemplo, así que el ejemplo que se lee es siempre la cuenta de verdad con los
+ * números de verdad. El porqué de cada valor está en el plan por defecto
+ * (`server/routes/admin/businessPlan.ts`).
+ */
+export const SUPUESTOS_UE_DE_ARRANQUE = {
+  comision: COMMISSION_RATES.free,
+  ticket: 21,
+  contratos: 0.8,
+  disputas: 2.5,
+  soporte: 1,
+  fijos: 18000,
+  fraude: 0.8,
+  mauActual: 0,
+} as const;
+
+/**
  * Lo que el código cree que cuesta procesar un contrato más.
  *
  * Vive en `minimums.ts` y lo usa el mínimo de ampliación, así que no es un

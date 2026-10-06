@@ -5,7 +5,12 @@ import { User } from '../models/sql/User.model.js';
 import currencyExchange from './currencyExchange.js';
 import { getPlatformPhase } from './platformPhase.js';
 import { COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
-import { calcularUnidad, discrepanciaDeCosto } from '../../shared/pricing/unidadEconomica.js';
+import {
+  calcularUnidad,
+  discrepanciaDeCosto,
+  FACTORES_DE_CHURN,
+  REFERENCIA_LTV_CAC,
+} from '../../shared/pricing/unidadEconomica.js';
 
 /**
  * Las métricas de adquisición y retención: CAC, LTV, LTV/CAC, payback, runway.
@@ -163,11 +168,12 @@ export interface UnitEconomics {
  * sería peor que declarar la incertidumbre.
  */
 function churnDeEscenarios(churnBase: number): Record<Escenario, number> {
-  const base = Math.min(Math.max(churnBase, 0.5), 95);
+  const { pesimista, optimista, tope, piso } = FACTORES_DE_CHURN;
+  const base = Math.min(Math.max(churnBase, piso), tope);
   return {
-    pesimista: redondear(Math.min(base * 1.5, 95), 1),
+    pesimista: redondear(Math.min(base * pesimista, tope), 1),
     moderado: redondear(base, 1),
-    optimista: redondear(Math.max(base * 0.6, 0.5), 1),
+    optimista: redondear(Math.max(base * optimista, piso), 1),
   };
 }
 
@@ -568,7 +574,7 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
       : null;
 
   // ── Veredicto ───────────────────────────────────────────────────────────
-  const REFERENCIA = 3;
+  const REFERENCIA = REFERENCIA_LTV_CAC;
   let veredicto: string;
   const ratioModerado = ltvSobreCac.moderado.valor;
 

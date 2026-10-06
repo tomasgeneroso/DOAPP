@@ -10,6 +10,10 @@ import currencyExchange from '../../services/currencyExchange.js';
 import { getLiveFinancials } from '../../services/liveFinancials.js';
 import { getUnitEconomics } from '../../services/unitEconomics.js';
 import { ROLES_DE_ANALISIS } from '../../../shared/auth/accesoAnalisis.js';
+import {
+  META_RUNWAY_FASE1_MESES,
+  SUPUESTOS_UE_DE_ARRANQUE,
+} from '../../../shared/pricing/unidadEconomica.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -66,7 +70,7 @@ const defaultPlan = () => ({
     { t: 'Conseguiste compromiso de 20-50 Doers verificados para el barrio piloto', w: 15, on: false },
     { t: 'Diseñaste el flujo de disputas (meta: 80% resuelto sin humano en <72hs)', w: 10, on: false },
     { t: 'Validaste la integración con MercadoPago como PSP para la sociedad', w: 10, on: false },
-    { t: 'Tenés capital para cubrir 4+ meses de runway de Fase 1', w: 5, on: false },
+    { t: `Tenés capital para cubrir ${META_RUNWAY_FASE1_MESES}+ meses de runway de Fase 1`, w: 5, on: false },
     { t: 'Tenés al menos un socio/cofundador comprometido full-time', w: 5, on: false },
   ],
   timeline: [
@@ -106,7 +110,9 @@ const defaultPlan = () => ({
    * MARGINAL_COST_PER_CONTRACT_ARS, que es lo que el codigo ya usa para
    * calcular el minimo de ampliacion. Antes daba 39 veces mas.
    */
-  ue: { comision: 10, ticket: 21, contratos: 0.8, disputas: 2.5, soporte: 1, fijos: 18000, fraude: 0.8, mauActual: 0 },
+  // Los valores viven en shared/pricing/unidadEconomica.ts (SUPUESTOS_UE_DE_ARRANQUE)
+  // para que la guía del análisis arme su ejemplo con los mismos números.
+  ue: { ...SUPUESTOS_UE_DE_ARRANQUE },
 
   // Proyección mes a mes: crecimiento, monetización, costos e impuestos.
   // Las alícuotas son las de una SAS argentina inscripta en IVA.
