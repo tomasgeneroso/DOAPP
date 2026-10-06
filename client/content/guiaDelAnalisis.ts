@@ -107,6 +107,34 @@ const equilibrioDelEjemplo = mauDeEquilibrio(A.fijos, unidad.exacto.margen);
 const costoVariableDelEjemplo = unidad.exacto.costo - A.soporte;
 const margenSobreIngresoPct = (unidad.exacto.margen / unidad.exacto.ingreso) * 100;
 
+/**
+ * Un caso que da margen NEGATIVO, calculado con la misma función.
+ *
+ * Es el que más se pregunta —"¿por qué me da margen negativo?"— y se explica
+ * mejor con la cuenta delante. Se arma con `calcularUnidad` y no se escribe a
+ * mano: un ejemplo que dijera un número y la pantalla otro sería peor que no
+ * tenerlo.
+ */
+const NEGATIVO = { ticket: 21, contratos: 0.55, comision: 10, soporte: 1, disputas: 1, fraude: 0.5 };
+const unidadNegativa = calcularUnidad({
+  ticket: NEGATIVO.ticket,
+  contratos: NEGATIVO.contratos,
+  comisionPct: NEGATIVO.comision,
+  soporte: NEGATIVO.soporte,
+  disputasPct: NEGATIVO.disputas,
+  fraudePct: NEGATIVO.fraude,
+});
+
+/** Lo que calcula el ejemplo de margen negativo, para que el test lo contraste. */
+export const EJEMPLO_NEGATIVO = {
+  ingreso: unidadNegativa.exacto.ingreso,
+  costo: unidadNegativa.exacto.costo,
+  margen: unidadNegativa.exacto.margen,
+};
+
+/** Con el signo menos de verdad (−), no el guion, y delante del símbolo. */
+const usdConSigno = (n: number, decimales = 3) => `${n < 0 ? '−' : ''}${usd(Math.abs(n), decimales)}`;
+
 /** Lo que el ejemplo calcula, para que el test lo contraste con la función. */
 export const EJEMPLO_RESUELTO = {
   ingreso: unidad.exacto.ingreso,
@@ -151,7 +179,7 @@ const GLOSARIO: Termino[] = [
   {
     termino: 'Margen de contribución',
     definicion:
-      'Lo que deja un usuario activo en un mes después de pagar lo que cuesta atenderlo. Es lo que "contribuye" a cubrir los costos fijos.',
+      'Lo que deja un usuario activo en un mes después de pagar lo que cuesta atenderlo: soporte, disputas y fraude. No cuenta los costos fijos ni la publicidad. Se llama "de contribución" porque es lo que cada usuario aporta para pagar esos costos fijos. Si es positivo, cada usuario ayuda a cubrirlos. Si es cero o negativo, cada usuario nuevo agrega pérdida y no existe punto de equilibrio: ninguna cantidad de usuarios alcanza.',
     formula: 'ingreso − (soporte + volumen × (disputas % + fraude %))',
   },
   {
@@ -313,7 +341,7 @@ const PANTALLAS_PROYECCION: PantallaExplicada[] = [
     muestra:
       'Los supuestos del modelo mes a mes, en cuatro grupos: crecimiento, ingresos, costos e impuestos, y el selector de escenario.',
     comoLeerla:
-      'De acá salen todos los gráficos y el informe. Los impuestos están modelados para una SAS argentina inscripta en IVA; las alícuotas son las habituales pero Ingresos Brutos depende de la provincia y Ganancias tiene tramos, así que se confirman con un contador.',
+      'De acá salen todos los gráficos y el informe. Cada campo trae debajo su explicación, y en esta guía están todos juntos en "Los supuestos de la Proyección". Los impuestos están modelados para una SAS argentina inscripta en IVA; las alícuotas son las habituales pero Ingresos Brutos depende de la provincia y Ganancias tiene tramos, así que se confirman con un contador.',
   },
   {
     nombre: '07 · Resultado',
@@ -336,6 +364,210 @@ const PANTALLAS_PROYECCION: PantallaExplicada[] = [
       'Está separado de la proyección a propósito: un número supuesto y uno medido se ven iguales en pantalla y no conviene confundirlos. Si todavía no hay comisiones cobradas, los dos últimos números salen de los supuestos del plan y la pantalla lo avisa.',
   },
 ];
+
+/* ------------------------------------------------------------------ *
+ * Los supuestos de la Proyección (sección 06), uno por uno
+ * ------------------------------------------------------------------ */
+
+export interface SupuestoExplicado {
+  /** El texto del campo, tal como aparece en la pantalla. */
+  etiqueta: string;
+  explicacion: string;
+}
+
+export interface GrupoDeSupuestos {
+  grupo: string;
+  intro: string;
+  items: SupuestoExplicado[];
+}
+
+/**
+ * Qué es cada campo de la sección 06 y qué hace el motor con él.
+ *
+ * Cada explicación sale de leer `projectFinancials` (client/utils/financialProjection.ts),
+ * no de la intuición: varias cosas que parecen obvias no lo son. "Crecimiento
+ * mensual" es sólo lo que ENTRA (el crecimiento neto es ése menos el churn), y es
+ * de usuarios, no de la caja ni de los contratos —éstos se calculan después a
+ * partir de los usuarios—. Y el crecimiento en porcentaje arrancando de cero
+ * usuarios nunca arranca, porque el 10% de cero es cero. Un test fija esas
+ * afirmaciones contra el motor.
+ *
+ * Los textos se muestran DEBAJO de cada campo en la pantalla y, juntos, en la
+ * guía: es la misma fuente, así que no pueden decir cosas distintas.
+ */
+export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
+  {
+    grupo: 'Crecimiento: cuántos usuarios hay cada mes',
+    intro:
+      'Estos supuestos definen la base de usuarios activos mes a mes. Todo lo demás —contratos, ingresos, costo de soporte— se calcula a partir de esa base. Cada mes, usuarios al cierre = usuarios + altas − bajas.',
+    items: [
+      {
+        etiqueta: 'Mes de inicio',
+        explicacion:
+          'El mes en que arranca la proyección (el mes 1). Sólo cambia las etiquetas de los gráficos y de la tabla.',
+      },
+      {
+        etiqueta: 'Usuarios activos al arrancar',
+        explicacion:
+          'Cuántos usuarios activos hay el día que empieza la proyección. En el lanzamiento son cero. Si ya hay datos reales, el botón "Arrancar de los datos reales" lo completa.',
+      },
+      {
+        etiqueta: 'Cómo crece la base',
+        explicacion:
+          'Cómo se suman los usuarios nuevos: "% sobre la base" (cada mes entra un porcentaje de los que ya hay) o "altas fijas" (entra la misma cantidad cada mes). Con cero usuarios iniciales el porcentaje no sirve: el 10% de cero es cero y la base nunca arranca. En ese caso usá altas fijas.',
+      },
+      {
+        etiqueta: 'Crecimiento mensual de usuarios',
+        explicacion:
+          'Usuarios nuevos que se suman cada mes, como porcentaje de los usuarios activos que ya hay. Es sólo lo que entra: lo que se va lo define el churn, así que el crecimiento neto es este número menos el churn. No es crecimiento de la caja ni de los contratos: ésos se calculan después, a partir de los usuarios.',
+      },
+      {
+        etiqueta: 'Altas por mes',
+        explicacion:
+          'Usuarios nuevos que se suman cada mes, siempre la misma cantidad. Se relaciona con la publicidad: altas ≈ presupuesto de publicidad ÷ costo de adquirir un usuario (CAC).',
+      },
+      {
+        etiqueta: 'Churn mensual',
+        explicacion:
+          'Porcentaje de los usuarios activos que dejan de serlo cada mes. Con 10%, de cada 100 usuarios se van 10 por mes. Cuanto más alto, menos dura un usuario y más hay que gastar para reponerlo. En oficios es alto porque a un plomero no se lo llama todos los meses.',
+      },
+      {
+        etiqueta: 'Techo de mercado (0 = sin techo)',
+        explicacion:
+          'Cantidad máxima de usuarios activos que el mercado puede dar. A medida que la base se acerca al techo las altas se frenan: con la base en la mitad del techo entra la mitad de las altas. En 0 no hay límite, y con crecimiento porcentual eso proyecta una curva exponencial irreal.',
+      },
+      {
+        etiqueta: 'Horizonte a proyectar',
+        explicacion: 'Cuántos meses hacia adelante calcula el modelo (hasta 120).',
+      },
+    ],
+  },
+  {
+    grupo: 'Ingresos: cuánta plata entra',
+    intro:
+      'Los contratos del mes salen de multiplicar los usuarios por los contratos por usuario; el volumen es contratos × ticket; y DOAPP se queda con un porcentaje de ese volumen.',
+    items: [
+      {
+        etiqueta: 'Ticket promedio por contrato',
+        explicacion:
+          'Valor medio de un trabajo contratado. Es el monto del trabajo, no lo que cobra DOAPP: la comisión se calcula sobre este monto.',
+      },
+      {
+        etiqueta: 'Contratos por usuario / mes',
+        explicacion:
+          'Cuántos contratos cierra, en promedio, cada usuario de la base en un mes. Contratos del mes = usuarios × este número. Ojo con quién cuenta como usuario: en la sección 03 es sólo quien contrató en los últimos 30 días (y por eso el mínimo es 0,5); si acá la base incluye gente que no contrató, el número es menor.',
+      },
+      {
+        etiqueta: 'Comisión de la plataforma',
+        explicacion:
+          'Porcentaje del valor de cada contrato que se queda DOAPP. Ingreso por comisión = volumen × este porcentaje. Durante la beta es 0%.',
+      },
+      {
+        etiqueta: 'Usuarios con membresía',
+        explicacion: 'Porcentaje de los usuarios de la base que paga una membresía mensual.',
+      },
+      {
+        etiqueta: 'Precio de la membresía / mes',
+        explicacion:
+          'Lo que paga por mes cada usuario con membresía. Ingreso por membresías = usuarios × % con membresía × este precio.',
+      },
+      {
+        etiqueta: 'Publicidad / mes',
+        explicacion:
+          'Ingreso mensual fijo por publicidad de terceros dentro de la plataforma. No es lo que DOAPP gasta en publicidad: eso es el costo de adquirir un usuario.',
+      },
+      {
+        etiqueta: 'La comisión se cobra con IVA incluido',
+        explicacion:
+          'Si está marcada, los ingresos cargados ya traen el IVA adentro, así que se lo descuenta (se divide por 1 más la alícuota) para quedarse con el ingreso real. El IVA no es de DOAPP: es del fisco.',
+      },
+    ],
+  },
+  {
+    grupo: 'Costos: cuánta plata sale',
+    intro:
+      'Hay costos que crecen con cada usuario (soporte, infraestructura), costos que crecen con la plata que se mueve (medio de pago, disputas, fraude), costos que no dependen de nada (los fijos) y el costo de conseguir usuarios nuevos.',
+    items: [
+      {
+        etiqueta: 'Soporte por usuario / mes',
+        explicacion:
+          'Costo de atender a un usuario de la base en un mes. Costo de soporte = usuarios × este número. Se estima como horas de soporte × costo de la hora ÷ usuarios.',
+      },
+      {
+        etiqueta: 'Infraestructura por usuario / mes',
+        explicacion:
+          'Costo de servidores y servicios que crece con cada usuario (almacenamiento, mensajes). El servidor base, que se paga igual haya o no usuarios, va en "Costos fijos".',
+      },
+      {
+        etiqueta: 'Comisión del medio de pago',
+        explicacion:
+          'Porcentaje del volumen que se lleva el medio de pago (Mercado Pago). Dejalo en 0 si ese costo se le traslada al cliente como línea aparte, como hace hoy la plataforma con el cargo de procesamiento.',
+      },
+      {
+        etiqueta: 'Disputas (% del volumen)',
+        explicacion:
+          'Plata que se pierde en disputas, como porcentaje del volumen total de los contratos: la plata que mueven, no la cantidad de contratos.',
+      },
+      {
+        etiqueta: 'Fraude y contracargos (% del volumen)',
+        explicacion:
+          'Plata que se pierde por fraude y contracargos, como porcentaje del volumen total. Con escrow sólo se pierde lo que ya se le pagó al profesional antes de que el banco reclame.',
+      },
+      {
+        etiqueta: 'Costo de adquirir un usuario (CAC)',
+        explicacion:
+          'Cuánto cuesta conseguir un usuario nuevo. Costo de adquisición del mes = altas × CAC. Es el gasto en publicidad dividido por las altas que consigue.',
+      },
+      {
+        etiqueta: 'Costos fijos del primer mes',
+        explicacion:
+          'Lo que se paga por mes aunque no haya ni un usuario: equipo, servidor, servicios, honorarios. No incluyas la publicidad: ya se cuenta como altas × CAC, y sumarla acá la cuenta dos veces.',
+      },
+      {
+        etiqueta: 'Crecimiento mensual de los fijos',
+        explicacion:
+          'Cuánto suben los costos fijos cada mes, en porcentaje compuesto. Sirve para modelar contrataciones y aumentos. En 0 los fijos no cambian durante toda la proyección.',
+      },
+      {
+        etiqueta: 'Costos con IVA computable',
+        explicacion:
+          'Qué porcentaje de los costos incluye IVA que se puede descontar (crédito fiscal). Servidores y servicios lo tienen; sueldos y tasas, no.',
+      },
+    ],
+  },
+  {
+    grupo: 'Impuestos: cuánto se lleva el fisco',
+    intro:
+      'Están modelados para una SAS argentina inscripta en IVA. Las alícuotas son las habituales: se confirman con un contador.',
+    items: [
+      {
+        etiqueta: 'IVA',
+        explicacion:
+          'Alícuota del IVA. DOAPP cobra IVA por sus ingresos (débito) y descuenta el de sus gastos (crédito): paga la diferencia, y si le sobra crédito se arrastra al mes siguiente.',
+      },
+      {
+        etiqueta: 'Ingresos Brutos',
+        explicacion:
+          'Porcentaje sobre la facturación neta que se paga a la provincia. Depende de la provincia y de la actividad.',
+      },
+      {
+        etiqueta: 'Débitos y créditos bancarios',
+        explicacion:
+          'Impuesto sobre cada peso que entra y sale de la cuenta bancaria: se calcula sobre los ingresos más los egresos del mes.',
+      },
+      {
+        etiqueta: 'Impuesto a las Ganancias',
+        explicacion:
+          'Porcentaje sobre la utilidad del mes, después de Ingresos Brutos y del impuesto bancario. Las pérdidas de meses anteriores se descuentan antes de calcularlo.',
+      },
+    ],
+  },
+];
+
+/** Para buscar la explicación de un campo por su texto. */
+export const EXPLICACION_DE_SUPUESTO: Record<string, string> = Object.fromEntries(
+  SUPUESTOS_DE_LA_PROYECCION.flatMap((g) => g.items.map((i) => [i.etiqueta, i.explicacion])),
+);
 
 export const GUIA: Seccion[] = [
   {
@@ -478,6 +710,52 @@ export const GUIA: Seccion[] = [
     ],
   },
   {
+    id: 'supuestos',
+    titulo: 'Los supuestos de la Proyección (sección 06), uno por uno',
+    resumen: 'Qué significa cada campo y qué hace el modelo con él.',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto:
+          'La sección 06 tiene unos treinta supuestos. Acá están todos, agrupados como en la pantalla y en el orden en que el modelo los usa. Cada uno también trae su explicación debajo del campo.',
+      },
+      { tipo: 'subtitulo', texto: 'El orden en que el modelo hace la cuenta, mes a mes' },
+      {
+        tipo: 'formula',
+        lineas: [
+          'altas = usuarios × crecimiento %   (o las altas fijas por mes), frenadas por el techo',
+          'bajas = usuarios × churn %',
+          'usuarios al cierre = usuarios + altas − bajas',
+          'contratos = usuarios promedio del mes × contratos por usuario',
+          'volumen = contratos × ticket',
+          'ingreso = volumen × comisión % + usuarios × % con membresía × precio + publicidad',
+          'costos = (soporte + infraestructura) × usuarios + (medio de pago + disputas + fraude) % × volumen + CAC × altas + costos fijos',
+          'EBITDA = ingreso neto − costos  →  impuestos  →  resultado neto  →  caja',
+        ],
+      },
+      {
+        tipo: 'aviso',
+        tono: 'cuidado',
+        texto:
+          'Una trampa: si se arranca con cero usuarios y se elige crecimiento en porcentaje, la base nunca arranca, porque el 10% de cero es cero. Con cero usuarios iniciales hay que usar altas fijas.',
+      },
+      {
+        tipo: 'aviso',
+        tono: 'info',
+        texto:
+          'La caja con la que arranca la proyección no es un supuesto de esta sección: es el capital que queda después de pagar la constitución de la sociedad (secciones 01 y 02).',
+      },
+      ...SUPUESTOS_DE_LA_PROYECCION.flatMap((g): Bloque[] => [
+        { tipo: 'subtitulo', texto: g.grupo },
+        { tipo: 'parrafo', texto: g.intro },
+        {
+          tipo: 'terminos',
+          items: g.items.map((i) => ({ termino: i.etiqueta, definicion: i.explicacion })),
+        },
+      ]),
+    ],
+  },
+  {
     id: 'monedas',
     titulo: 'Monedas y cotizaciones',
     resumen: 'Cómo se cambia de moneda y de dónde sale la cotización.',
@@ -579,9 +857,8 @@ export const GUIA: Seccion[] = [
               'Sólo los que dicen "medido". Todo lo marcado como "supuesto" es una hipótesis cargada por una persona, y se puede corregir en la Proyección.',
           },
           {
-            pregunta: '¿Qué hago con "Margen negativo"?',
-            respuesta:
-              'Es la advertencia más importante. Significa que atender un contrato cuesta más que la comisión que deja. Hay que resolverlo antes de gastar en conseguir usuarios; las salidas están en la sección "Cómo usarlo para decidir".',
+            pregunta: '¿Por qué me da "Margen negativo"? ¿Qué hago?',
+            respuesta: `Es la advertencia más importante. Significa que cada usuario activo cuesta más de lo que deja: lo que deja en un mes es ticket × contratos × comisión, y lo que cuesta atenderlo es el soporte más un porcentaje del volumen por disputas y fraude. Por ejemplo, con un ticket de ${usd(NEGATIVO.ticket, 0)}, ${num(NEGATIVO.contratos, 2)} contratos por usuario, ${num(NEGATIVO.comision)}% de comisión, soporte de ${usd(NEGATIVO.soporte)}, disputas de ${num(NEGATIVO.disputas, 1)}% y fraude de ${num(NEGATIVO.fraude, 1)}%, el usuario deja ${usd(unidadNegativa.exacto.ingreso, 3)} y cuesta ${usd(unidadNegativa.exacto.costo, 3)}: margen de ${usdConSigno(unidadNegativa.exacto.margen)}. Casi siempre lo da vuelta uno de cuatro supuestos: pocos contratos por usuario, un soporte alto frente a lo que deja cada usuario, disputas y fraude altos, o un ticket chico (la comisión es un porcentaje del ticket). Los costos fijos no influyen en el signo: sólo deciden cuántos usuarios hacen falta cuando el margen ya es positivo. Antes de buscar otra causa, revisá que los importes estén bien cargados y en la moneda de la sección. Hay que resolverlo antes de gastar en conseguir usuarios; las salidas están en "Cómo usarlo para decidir".`,
           },
         ],
       },

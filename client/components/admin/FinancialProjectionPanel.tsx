@@ -36,6 +36,7 @@ import {
   type ScenarioKey,
 } from '@/utils/financialProjection';
 import { buildReport, projectionToCsv } from '@/utils/financialReport';
+import { EXPLICACION_DE_SUPUESTO } from '../../content/guiaDelAnalisis';
 
 /* ------------------------------------------------------------------ *
  * Paleta de series
@@ -56,6 +57,21 @@ const FIELD =
   'w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-sm text-right tabular-nums text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none';
 const SELECT =
   'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none';
+
+/**
+ * Qué es un campo y qué hace el modelo con él, debajo de su nombre.
+ *
+ * Antes los campos sólo tenían un rótulo, y rótulos como "Crecimiento mensual"
+ * dejaban sin responder lo más básico: ¿de usuarios, de la caja, de los
+ * contratos? El texto sale de `client/content/guiaDelAnalisis.ts`, la misma
+ * fuente que la guía, y un test exige que cada campo de esta pantalla tenga el
+ * suyo.
+ */
+function Explicacion({ etiqueta }: { etiqueta: string }) {
+  const texto = EXPLICACION_DE_SUPUESTO[etiqueta];
+  if (!texto) return null;
+  return <p className="mt-0.5 text-xs leading-snug text-slate-400 dark:text-slate-500">{texto}</p>;
+}
 
 /** Números reales de la plataforma, en ARS */
 export interface PlatformActuals {
@@ -251,8 +267,11 @@ export default function FinancialProjectionPanel({
     step = 1,
     suffix?: string
   ) => (
-    <div key={label} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
-      <label className="flex-1 text-sm text-slate-600 dark:text-slate-400">{label}</label>
+    <div key={label} className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
+      <div className="flex-1">
+        <label className="text-sm text-slate-600 dark:text-slate-400">{label}</label>
+        <Explicacion etiqueta={label} />
+      </div>
       <div className="flex items-center gap-1">
         <input
           type="number"
@@ -277,7 +296,7 @@ export default function FinancialProjectionPanel({
             </p>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Supuestos del modelo</h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-              De acá salen todos los gráficos y el informe. Cargá los supuestos en una sola moneda; los
+              De acá salen todos los gráficos y el informe. Debajo de cada campo está qué es y qué hace el modelo con él. Cargá los supuestos en una sola moneda; los
               impuestos están modelados para una SAS argentina inscripta en IVA.
             </p>
           </div>
@@ -321,18 +340,28 @@ export default function FinancialProjectionPanel({
             <h3 className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Crecimiento
             </h3>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
-              <label className="flex-1 text-sm text-slate-600 dark:text-slate-400">Mes de inicio</label>
-              <input
-                type="month"
-                className={`${FIELD} w-36 text-left`}
-                value={g.mesInicio}
-                onChange={e => onEdit(a => { a.growth.mesInicio = e.target.value; })}
-              />
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
+              <div className="flex-1">
+                <label className="text-sm text-slate-600 dark:text-slate-400">Mes de inicio</label>
+                <Explicacion etiqueta="Mes de inicio" />
+              </div>
+              {/* En un contenedor de ancho fijo: `FIELD` trae w-full, que le ganaba a
+                  w-36 y dejaba la etiqueta y su explicación aplastadas en una columna. */}
+              <div className="w-36 shrink-0">
+                <input
+                  type="month"
+                  className={`${FIELD} text-left`}
+                  value={g.mesInicio}
+                  onChange={e => onEdit(a => { a.growth.mesInicio = e.target.value; })}
+                />
+              </div>
             </div>
             {numField('Usuarios activos al arrancar', g.usuariosIniciales, (a, v) => { a.growth.usuariosIniciales = v; })}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
-              <label className="flex-1 text-sm text-slate-600 dark:text-slate-400">Cómo crece la base</label>
+              <div className="flex-1">
+                <label className="text-sm text-slate-600 dark:text-slate-400">Cómo crece la base</label>
+                <Explicacion etiqueta="Cómo crece la base" />
+              </div>
               <select
                 className={SELECT}
                 value={g.modoCrecimiento}
@@ -343,7 +372,7 @@ export default function FinancialProjectionPanel({
               </select>
             </div>
             {g.modoCrecimiento === 'porcentaje'
-              ? numField('Crecimiento mensual', g.crecimientoPct, (a, v) => { a.growth.crecimientoPct = v; }, 0.5, '%')
+              ? numField('Crecimiento mensual de usuarios', g.crecimientoPct, (a, v) => { a.growth.crecimientoPct = v; }, 0.5, '%')
               : numField('Altas por mes', g.altasPorMes, (a, v) => { a.growth.altasPorMes = v; })}
             {numField('Churn mensual', g.churnPct, (a, v) => { a.growth.churnPct = v; }, 0.5, '%')}
             {numField('Techo de mercado (0 = sin techo)', g.techoUsuarios, (a, v) => { a.growth.techoUsuarios = v; }, 1000)}
@@ -359,7 +388,10 @@ export default function FinancialProjectionPanel({
             {numField('Precio de la membresía / mes', rev.membresiaPrecio, (a, v) => { a.revenue.membresiaPrecio = v; })}
             {numField('Publicidad / mes', rev.publicidadMensual, (a, v) => { a.revenue.publicidadMensual = v; })}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
-              <label className="flex-1 text-sm text-slate-600 dark:text-slate-400">La comisión se cobra con IVA incluido</label>
+              <div className="flex-1">
+                <label className="text-sm text-slate-600 dark:text-slate-400">La comisión se cobra con IVA incluido</label>
+                <Explicacion etiqueta="La comisión se cobra con IVA incluido" />
+              </div>
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-sky-600"

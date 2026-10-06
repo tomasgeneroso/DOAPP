@@ -5,6 +5,9 @@ import {
   GUIA,
   AYUDA_DE_PANTALLA,
   EJEMPLO_RESUELTO,
+  EJEMPLO_NEGATIVO,
+  EXPLICACION_DE_SUPUESTO,
+  SUPUESTOS_DE_LA_PROYECCION,
   type Bloque,
   type PantallaExplicada,
 } from '../client/content/guiaDelAnalisis.js';
@@ -17,7 +20,11 @@ import {
   REFERENCIA_LTV_CAC,
   SUPUESTOS_UE_DE_ARRANQUE,
 } from '../shared/pricing/unidadEconomica.js';
-import { SCENARIOS } from '../client/utils/financialProjection.js';
+import {
+  SCENARIOS,
+  projectFinancials,
+  type ProjectionAssumptions,
+} from '../client/utils/financialProjection.js';
 
 /**
  * La guía del análisis no puede quedar desactualizada en silencio.
@@ -96,7 +103,7 @@ describe('la estructura de la guía', () => {
 
   it('está todo lo que se promete: objetivo, partes, lectura y límites', () => {
     const ids = GUIA.map((s) => s.id);
-    for (const esperado of ['objetivo', 'pestanas', 'procedencia', 'cuenta', 'glosario', 'pantallas', 'monedas', 'decidir', 'preguntas', 'limites']) {
+    for (const esperado of ['objetivo', 'pestanas', 'procedencia', 'cuenta', 'glosario', 'pantallas', 'supuestos', 'monedas', 'decidir', 'preguntas', 'limites']) {
       expect(ids).toContain(esperado);
     }
   });
@@ -331,5 +338,284 @@ describe('lo que la guía dice sobre las monedas es lo que hace el código', () 
     expect(TEXTO_GUIA).toContain('"Traer"');
     expect(TEXTO_GUIA).toContain('Mostrar todo en');
     expect(leer('client/pages/admin/BusinessPlan.tsx')).toContain('Mostrar todo en');
+  });
+});
+
+describe('cada supuesto de la sección 06 tiene su explicación', () => {
+  const PANEL = leer('client/components/admin/FinancialProjectionPanel.tsx');
+
+  /** Los campos numéricos, tal como se llaman en el código de la pantalla. */
+  const camposNumericos = Array.from(PANEL.matchAll(/numField\(\s*'([^']+)'/g)).map((m) => m[1]);
+  /** Los tres controles que no son numéricos y también llevan explicación. */
+  const camposEspeciales = ['Mes de inicio', 'Cómo crece la base', 'La comisión se cobra con IVA incluido'];
+  const todos = [...camposNumericos, ...camposEspeciales];
+
+  it('la pantalla tiene los campos que se esperaban (si no, el análisis del código falló)', () => {
+    expect(camposNumericos.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it.each(todos.map((c) => [c] as const))('"%s" tiene explicación', (etiqueta) => {
+    /**
+     * Antes los campos sólo tenían un rótulo, y rótulos como "Crecimiento
+     * mensual" dejaban sin responder lo más básico: ¿de usuarios, de la caja, de
+     * los contratos? Un campo nuevo sin explicación hace fallar esto.
+     */
+    expect({ etiqueta, explicado: etiqueta in EXPLICACION_DE_SUPUESTO }).toEqual({
+      etiqueta,
+      explicado: true,
+    });
+    expect(EXPLICACION_DE_SUPUESTO[etiqueta].length).toBeGreaterThan(30);
+  });
+
+  it('no sobran explicaciones de campos que ya no existen', () => {
+    for (const etiqueta of Object.keys(EXPLICACION_DE_SUPUESTO)) {
+      expect({ etiqueta, enLaPantalla: todos.includes(etiqueta) }).toEqual({
+        etiqueta,
+        enLaPantalla: true,
+      });
+    }
+  });
+
+  it('la pantalla dibuja la explicación debajo de cada campo', () => {
+    expect(PANEL).toContain('<Explicacion etiqueta={label} />');
+    for (const etiqueta of camposEspeciales) {
+      expect(PANEL).toContain(`<Explicacion etiqueta="${etiqueta}" />`);
+    }
+  });
+
+  it('el rótulo ambiguo "Crecimiento mensual" ahora dice de qué es', () => {
+    expect(PANEL).not.toMatch(/numField\(\s*'Crecimiento mensual'/);
+    expect(PANEL).toContain("numField('Crecimiento mensual de usuarios'");
+    expect(EXPLICACION_DE_SUPUESTO['Crecimiento mensual de usuarios']).toMatch(/no es crecimiento de la caja ni de los contratos/i);
+  });
+
+  it('la guía los muestra todos juntos', () => {
+    const texto = GUIA.find((s) => s.id === 'supuestos')!
+      .bloques.flatMap(textoDe)
+      .join('\n');
+    for (const g of SUPUESTOS_DE_LA_PROYECCION) {
+      expect(texto).toContain(g.grupo);
+      for (const i of g.items) {
+        expect(texto).toContain(i.etiqueta);
+        expect(texto).toContain(i.explicacion);
+      }
+    }
+  });
+});
+
+describe('lo que dicen las explicaciones es lo que hace el motor', () => {
+  /**
+   * Cada explicación afirma algo del modelo. Se contrasta con `projectFinancials`
+   * con cuentas hechas aparte, porque una explicación que dice algo distinto de lo
+   * que calcula el código es peor que ninguna: se lee con autoridad.
+   */
+  const base = (): ProjectionAssumptions => ({
+    growth: {
+      usuariosIniciales: 1000, modoCrecimiento: 'porcentaje', crecimientoPct: 10, altasPorMes: 0,
+      churnPct: 4, techoUsuarios: 0, horizonteMeses: 3, mesInicio: '2026-01',
+    },
+    revenue: {
+      ticket: 100, contratosPorUsuario: 0.2, comisionPct: 10, membresiaPct: 0,
+      membresiaPrecio: 0, publicidadMensual: 0, ingresosConIva: false,
+    },
+    costs: {
+      soportePorUsuario: 2, infraPorUsuario: 1, pspPct: 3, disputasPct: 1, fraudePct: 0.5,
+      cac: 10, fijosMensuales: 5000, fijosCrecimientoPct: 0, costosConIvaPct: 0,
+    },
+    taxes: { ivaPct: 21, iibbPct: 0, chequePct: 0, gananciasPct: 0 },
+    cajaInicial: 100_000,
+  });
+
+  it('el orden de la cuenta: altas, bajas, contratos, volumen, ingreso y costos del primer mes', () => {
+    const m = projectFinancials(base()).meses[0];
+
+    const altas = 1000 * 0.1; // usuarios × crecimiento %
+    const bajas = 1000 * 0.04; // usuarios × churn %
+    const alCierre = 1000 + altas - bajas; // usuarios + altas − bajas
+    const promedio = (1000 + alCierre) / 2;
+    const contratos = promedio * 0.2; // usuarios promedio × contratos por usuario
+    const volumen = contratos * 100; // contratos × ticket
+    const ingreso = volumen * 0.1; // volumen × comisión
+    const variables = (2 + 1) * promedio + (0.03 + 0.01 + 0.005) * volumen;
+    const costos = variables + altas * 10 + 5000; // + CAC × altas + fijos
+
+    expect(m.altas).toBe(Math.round(altas));
+    expect(m.bajas).toBe(Math.round(bajas));
+    expect(m.usuarios).toBe(Math.round(alCierre));
+    expect(m.contratos).toBe(Math.round(contratos));
+    expect(m.gmv).toBeCloseTo(volumen, 6);
+    expect(m.ingresoNeto).toBeCloseTo(ingreso, 6);
+    expect(m.costosTotales).toBeCloseTo(costos, 6);
+    expect(m.ebitda).toBeCloseTo(ingreso - costos, 6);
+  });
+
+  it('el crecimiento mensual es sólo lo que entra: el neto es crecimiento menos churn', () => {
+    const a = base();
+    a.growth.crecimientoPct = 10;
+    a.growth.churnPct = 4;
+    expect(projectFinancials(a).meses[0].usuarios).toBe(1060); // 1000 + 10% − 4%
+  });
+
+  it('NO es crecimiento de la caja: la caja inicial no cambia los usuarios', () => {
+    const pobre = base();
+    pobre.cajaInicial = 0;
+    const rico = base();
+    rico.cajaInicial = 1_000_000_000;
+    expect(projectFinancials(pobre).meses.map((m) => m.usuarios)).toEqual(
+      projectFinancials(rico).meses.map((m) => m.usuarios),
+    );
+  });
+
+  it('NO es crecimiento de los contratos: los contratos salen de los usuarios', () => {
+    const a = base();
+    a.revenue.contratosPorUsuario = 0.5;
+    const b = base();
+    b.revenue.contratosPorUsuario = 0.1;
+    // Mismos usuarios, distintos contratos.
+    expect(projectFinancials(a).meses[0].usuarios).toBe(projectFinancials(b).meses[0].usuarios);
+    expect(projectFinancials(a).meses[0].contratos).toBeGreaterThan(projectFinancials(b).meses[0].contratos);
+  });
+
+  it('LA TRAMPA: en porcentaje, arrancando de cero usuarios la base nunca arranca', () => {
+    /**
+     * El 10% de cero es cero. Con el modo por defecto del modelo en porcentaje y
+     * cero usuarios iniciales, la proyección entera queda en cero y parece un
+     * negocio que no funciona cuando en realidad nunca se encendió.
+     */
+    const a = base();
+    a.growth.usuariosIniciales = 0;
+    a.growth.modoCrecimiento = 'porcentaje';
+    a.growth.crecimientoPct = 10;
+    a.growth.horizonteMeses = 12;
+    const meses = projectFinancials(a).meses;
+    expect(meses.every((m) => m.usuarios === 0 && m.altas === 0)).toBe(true);
+
+    // Con altas fijas sí arranca.
+    a.growth.modoCrecimiento = 'absoluto';
+    a.growth.altasPorMes = 100;
+    expect(projectFinancials(a).meses[0].usuarios).toBeGreaterThan(0);
+  });
+
+  it('el techo frena las altas: con la base en la mitad del techo entra la mitad', () => {
+    const a = base();
+    a.growth.modoCrecimiento = 'absoluto';
+    a.growth.altasPorMes = 100;
+    a.growth.usuariosIniciales = 500;
+    a.growth.churnPct = 0;
+    a.growth.techoUsuarios = 1000;
+    const m = projectFinancials(a).meses[0];
+    expect(m.altas).toBe(50);
+    expect(m.usuarios).toBe(550);
+  });
+
+  it('sin techo (0) no hay freno', () => {
+    const a = base();
+    a.growth.modoCrecimiento = 'absoluto';
+    a.growth.altasPorMes = 100;
+    a.growth.usuariosIniciales = 500;
+    a.growth.churnPct = 0;
+    a.growth.techoUsuarios = 0;
+    expect(projectFinancials(a).meses[0].altas).toBe(100);
+  });
+
+  it('los costos fijos crecen en porcentaje compuesto', () => {
+    const a = base();
+    a.costs.fijosCrecimientoPct = 2;
+    const [m1, m2, m3] = projectFinancials(a).meses;
+    expect(m1.costosFijos).toBeCloseTo(5000, 6);
+    expect(m2.costosFijos).toBeCloseTo(5000 * 1.02, 6);
+    expect(m3.costosFijos).toBeCloseTo(5000 * 1.02 * 1.02, 6);
+
+    a.costs.fijosCrecimientoPct = 0;
+    const sinCrecer = projectFinancials(a).meses;
+    expect(sinCrecer.every((m) => m.costosFijos === 5000)).toBe(true);
+  });
+
+  it('la publicidad se cuenta DOS veces si va en los fijos y además en el CAC', () => {
+    /**
+     * La explicación de "Costos fijos del primer mes" dice que no incluya la
+     * publicidad porque ya se cuenta como altas × CAC. Esto fija que es verdad:
+     * el costo de adquisición y los fijos se SUMAN en los costos totales.
+     */
+    const a = base();
+    const sinPauta = projectFinancials(a).meses[0];
+
+    a.costs.fijosMensuales += 1000; // alguien suma la pauta también a los fijos
+    const conPautaDoble = projectFinancials(a).meses[0];
+
+    expect(sinPauta.costoAdquisicion).toBeGreaterThan(0);
+    expect(conPautaDoble.costosTotales - sinPauta.costosTotales).toBeCloseTo(1000, 6);
+    expect(sinPauta.costosTotales).toBeCloseTo(
+      sinPauta.costosVariables + sinPauta.costoAdquisicion + sinPauta.costosFijos,
+      6,
+    );
+  });
+
+  it('el costo de adquisición es altas × CAC', () => {
+    const a = base();
+    a.costs.cac = 25;
+    const m = projectFinancials(a).meses[0];
+    expect(m.costoAdquisicion).toBeCloseTo(m.altas * 25, 0);
+  });
+
+  it('con IVA incluido, el ingreso real es el cargado dividido por 1 más la alícuota', () => {
+    const a = base();
+    a.revenue.ingresosConIva = false;
+    const sin = projectFinancials(a).meses[0];
+    a.revenue.ingresosConIva = true;
+    const con = projectFinancials(a).meses[0];
+    expect(con.ingresoNeto).toBeCloseTo(sin.ingresoBruto / 1.21, 6);
+  });
+
+  it('el soporte, la infraestructura y la pasarela son costos por usuario y por volumen', () => {
+    const a = base();
+    a.costs = { ...a.costs, soportePorUsuario: 0, infraPorUsuario: 0, pspPct: 0, disputasPct: 0, fraudePct: 0 };
+    expect(projectFinancials(a).meses[0].costosVariables).toBe(0);
+
+    a.costs.soportePorUsuario = 2;
+    const m = projectFinancials(a).meses[0];
+    const promedio = (1000 + m.usuarios) / 2;
+    expect(m.costosVariables).toBeCloseTo(2 * promedio, 3);
+  });
+});
+
+describe('por qué el margen de contribución da negativo', () => {
+  it('el ejemplo de la guía es la cuenta de verdad, con signo negativo', () => {
+    const u = calcularUnidad({ ticket: 21, contratos: 0.55, comisionPct: 10, soporte: 1, disputasPct: 1, fraudePct: 0.5 });
+    // Independiente: ingreso = 21 × 0,55 × 10%; costo = soporte + volumen × 1,5%.
+    expect(EJEMPLO_NEGATIVO.ingreso).toBeCloseTo(21 * 0.55 * 0.1, 9);
+    expect(EJEMPLO_NEGATIVO.costo).toBeCloseTo(1 + 21 * 0.55 * 0.015, 9);
+    expect(EJEMPLO_NEGATIVO.margen).toBeCloseTo(u.exacto.margen, 12);
+    expect(EJEMPLO_NEGATIVO.margen).toBeLessThan(0);
+
+    const faq = GUIA.find((s) => s.id === 'preguntas')!.bloques.flatMap(textoDe).join('\n');
+    expect(faq).toContain('−US$0,018');
+    // Y la cuenta tiene que CERRAR a la vista: los tres números con los mismos decimales,
+    // de modo que ingreso − costo = margen se pueda verificar a mano. Antes el ingreso y el
+    // costo salían con dos decimales (1,16 y 1,17) y el margen con tres: 1,16 − 1,17 no daba −0,018.
+    expect(faq).toContain('US$1,155');
+    expect(faq).toContain('US$1,173');
+    expect(1.155 - 1.173).toBeCloseTo(-0.018, 6);
+  });
+
+  it('los costos fijos no cambian el signo: con margen negativo no hay equilibrio, sean cuales sean', () => {
+    for (const fijos of [0, 1, 1000, 18000, 1e9]) {
+      expect(mauDeEquilibrio(fijos, EJEMPLO_NEGATIVO.margen)).toBeNull();
+    }
+  });
+
+  it('lo que lo da vuelta son los cuatro supuestos que dice la guía', () => {
+    const con = (cambio: Partial<{ ticket: number; contratos: number; soporte: number; disputas: number; fraude: number }>) => {
+      const p = { ticket: 21, contratos: 0.55, soporte: 1, disputas: 1, fraude: 0.5, ...cambio };
+      return calcularUnidad({
+        ticket: p.ticket, contratos: p.contratos, comisionPct: 10,
+        soporte: p.soporte, disputasPct: p.disputas, fraudePct: p.fraude,
+      }).exacto.margen;
+    };
+    expect(con({})).toBeLessThan(0);
+    expect(con({ contratos: 0.8 })).toBeGreaterThan(0); // más contratos por usuario
+    expect(con({ soporte: 0.5 })).toBeGreaterThan(0); // menos soporte
+    expect(con({ disputas: 0.5 })).toBeGreaterThan(0); // menos disputas
+    expect(con({ ticket: 40 })).toBeGreaterThan(0); // ticket más grande
   });
 });
