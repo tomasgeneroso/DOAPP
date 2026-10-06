@@ -4,6 +4,12 @@ import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPane
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import AyudaDePantalla from '@/components/admin/AyudaDePantalla';
 import { ROLES_DE_ANALISIS } from '../../../shared/auth/accesoAnalisis';
+import {
+  crearGuardador,
+  motivoDeFallo,
+  type Guardador,
+  type EstadoDeGuardado,
+} from '@/utils/guardadoAutomatico';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
 import { calcularUnidad, mauDeEquilibrio, META_RUNWAY_FASE1_MESES } from '../../../shared/pricing/unidadEconomica';
 import {
@@ -245,11 +251,11 @@ export default function BusinessPlan() {
     updatedBy: null,
   });
   const [loading, setLoading] = useState(true);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveState, setSaveState] = useState<EstadoDeGuardado>({ tipo: 'ocioso' });
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState('');
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dirty = useRef(false);
+  // El plan que se está editando, siempre al día: de ahí sale cada cambio y lo que se guarda.
+  const planRef = useRef<Plan | null>(null);
 
   /* ---- carga ---- */
   const load = useCallback(async () => {
@@ -260,6 +266,7 @@ export default function BusinessPlan() {
       });
       const data = await res.json();
       if (data.success) {
+        planRef.current = data.data;
         setPlan(data.data);
         setActuals(data.actuals || null);
         setMeta({ updatedAt: data.updatedAt, updatedBy: data.updatedBy });
@@ -276,53 +283,78 @@ export default function BusinessPlan() {
     else setLoading(false);
   }, [load, puedeVerElPlan]);
 
-  /* ---- guardado con debounce ---- */
-  const save = useCallback(async (next: Plan) => {
-    setSaveState('saving');
+  /* ---- guardado automático ---- */
+
+  /**
+   * Manda el plan al servidor; rechaza con el MOTIVO si no se guardó.
+   *
+   * Lo gobierna `crearGuardador` (client/utils/guardadoAutomatico.ts), que
+   * garantiza un solo pedido a la vez y siempre del valor más nuevo. Antes cada
+   * cambio armaba su propio temporizador y los guardados podían pisarse: con el
+   * servidor lento, el viejo llegaba después del nuevo y lo revertía.
+   */
+  const enviarPlan = useCallback(async (siguiente: Plan, { alSalir }: { alSalir: boolean }) => {
+    let res: Response;
     try {
-      const res = await fetch('/api/admin/business-plan', {
+      res = await fetch('/api/admin/business-plan', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ data: next }),
+        body: JSON.stringify({ data: siguiente }),
+        // Al cerrar o recargar, el pedido tiene que sobrevivir a la página.
+        keepalive: alSalir,
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Error al guardar');
-      setSaveState('saved');
-      setMeta(m => ({ ...m, updatedAt: data.updatedAt }));
-      dirty.current = false;
-    } catch (err) {
-      console.error('Error guardando el plan:', err);
-      setSaveState('error');
+    } catch {
+      throw new Error('sin conexión con el servidor');
     }
+    // Si no vino JSON, contestó algo DELANTE de la aplicación (Cloudflare, nginx).
+    const esJson = (res.headers.get('content-type') || '').includes('json');
+    const data = esJson ? await res.json().catch(() => null) : null;
+    if (!res.ok || !data?.success) throw new Error(motivoDeFallo(res.status, data?.message, esJson));
+    setMeta(m => ({ ...m, updatedAt: data.updatedAt }));
   }, []);
 
-  /** Toda edición pasa por acá: actualiza el estado y agenda el guardado */
-  const edit = useCallback((mutate: (draft: Plan) => void) => {
-    setPlan(prev => {
-      if (!prev) return prev;
-      const next: Plan = JSON.parse(JSON.stringify(prev));
-      mutate(next);
-      // Lo que se ve de la unidad económica sale siempre de su origen. Acá, y no
-      // en cada lugar que toca las tasas, para que un cambio de cotización —a
-      // mano o con "Actualizar"— se refleje sin que nadie tenga que acordarse.
-      sincronizarImportesUe(next);
-      dirty.current = true;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => void save(next), 800);
-      return next;
-    });
-  }, [save]);
+  const guardador = useRef<Guardador<Plan> | null>(null);
+  if (guardador.current === null) {
+    guardador.current = crearGuardador<Plan>({ enviar: enviarPlan, alCambiar: setSaveState });
+  }
 
-  // Si el owner cierra la pestaña con cambios sin guardar, avisamos
+  /** Toda edición pasa por acá: actualiza el estado y deja el cambio pendiente de guardar */
+  const edit = useCallback((mutate: (draft: Plan) => void) => {
+    const anterior = planRef.current;
+    if (!anterior) return;
+    const siguiente: Plan = JSON.parse(JSON.stringify(anterior));
+    mutate(siguiente);
+    // Lo que se ve de la unidad económica sale siempre de su origen. Acá, y no
+    // en cada lugar que toca las tasas, para que un cambio de cotización —a
+    // mano o con "Traer"— se refleje sin que nadie tenga que acordarse.
+    sincronizarImportesUe(siguiente);
+    planRef.current = siguiente;
+    setPlan(siguiente);
+    guardador.current!.programar(siguiente);
+  }, []);
+
+  // Lo que se tipeó justo antes de salir no se pierde: al ocultarse la página
+  // (cerrar, recargar, cambiar de pestaña) y al pasar a otra pantalla de la app,
+  // se envía ya, sin esperar. Y si queda algo sin guardar, el navegador avisa.
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (dirty.current) {
+    const g = guardador.current!;
+    const salir = () => { void g.vaciar({ alSalir: true }); };
+    const alOcultar = () => { if (document.visibilityState === 'hidden') salir(); };
+    const avisar = (e: BeforeUnloadEvent) => {
+      if (g.hayCambiosSinGuardar()) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
+    window.addEventListener('pagehide', salir);
+    document.addEventListener('visibilitychange', alOcultar);
+    window.addEventListener('beforeunload', avisar);
+    return () => {
+      window.removeEventListener('pagehide', salir);
+      document.removeEventListener('visibilitychange', alOcultar);
+      window.removeEventListener('beforeunload', avisar);
+      void g.vaciar();
+    };
   }, []);
 
   const fetchRates = async () => {
@@ -469,11 +501,16 @@ export default function BusinessPlan() {
   };
   const runwayCorto = calc.runway > 0 && calc.runway < META_RUNWAY_FASE1_MESES;
 
+  // Honesto: "sin guardar" desde el instante del cambio y no recién cuando sale el
+  // pedido; antes seguía diciendo "Guardado" en verde durante ese lapso, y quien
+  // recargaba ahí perdía el cambio sin saber que había algo pendiente.
   const saveLabel =
-    saveState === 'saving' ? 'Guardando…'
-    : saveState === 'error' ? 'Error al guardar'
-    : saveState === 'saved' ? 'Guardado'
+    saveState.tipo === 'pendiente' ? 'Cambios sin guardar…'
+    : saveState.tipo === 'guardando' ? 'Guardando…'
+    : saveState.tipo === 'error' ? `No se pudo guardar: ${saveState.motivo}`
+    : saveState.tipo === 'guardado' ? 'Guardado'
     : meta.updatedAt ? `Editado ${new Date(meta.updatedAt).toLocaleString('es-AR')}` : 'Sin cambios';
+  const sinGuardar = saveState.tipo === 'pendiente' || saveState.tipo === 'guardando';
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-900 md:p-8">
@@ -487,18 +524,18 @@ export default function BusinessPlan() {
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Costos de constitución, runway de validación y punto de equilibrio. Visible para el owner y los analistas.
             </p>
-            <p className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
-                  saveState === 'saving' ? 'bg-amber-500'
-                  : saveState === 'error' ? 'bg-rose-500'
+                  sinGuardar ? 'bg-amber-500'
+                  : saveState.tipo === 'error' ? 'bg-rose-500'
                   : 'bg-emerald-500'
                 }`}
               />
               {saveLabel}
-              {meta.updatedBy && saveState !== 'saving' && ` · por ${meta.updatedBy}`}
-              {saveState === 'error' && (
-                <button onClick={() => void save(plan)} className="ml-1 underline hover:text-sky-500">
+              {meta.updatedBy && !sinGuardar && saveState.tipo !== 'error' && ` · por ${meta.updatedBy}`}
+              {saveState.tipo === 'error' && (
+                <button onClick={() => void guardador.current?.reintentar()} className="ml-1 underline hover:text-sky-500">
                   Reintentar
                 </button>
               )}
