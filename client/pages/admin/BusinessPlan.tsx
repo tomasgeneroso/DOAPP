@@ -4,7 +4,16 @@ import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPane
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
 import { calcularUnidad, mauDeEquilibrio } from '../../../shared/pricing/unidadEconomica';
-import { aEuros, convertirImportesUe } from '../../../shared/pricing/conversionMoneda';
+import {
+  aEuros,
+  convertirMoneda,
+  cambiarMonedaUe,
+  editarImporteUe,
+  sincronizarImportesUe,
+  CAMPOS_IMPORTE_UE,
+  type CampoImporteUe,
+  type OrigenImportes,
+} from '../../../shared/pricing/conversionMoneda';
 import {
   Calculator,
   Lock,
@@ -59,6 +68,12 @@ interface Plan {
   timeline: TimelineRow[];
   ueCurrency: Currency;
   ue: UnitEconomics;
+  /**
+   * El ticket, el soporte y los costos fijos tal como se escribieron, y en qué
+   * moneda. Lo que se ve en `ue` es una derivación de esto. Ausente en los planes
+   * guardados antes de que existiera; ver shared/pricing/conversionMoneda.ts.
+   */
+  ueOrigen?: OrigenImportes;
   projectionCurrency: Currency;
   /** Supuestos del modelo mes a mes; la caja inicial se calcula acá */
   projection: Omit<ProjectionAssumptions, 'cajaInicial'>;
@@ -281,6 +296,10 @@ export default function BusinessPlan() {
       if (!prev) return prev;
       const next: Plan = JSON.parse(JSON.stringify(prev));
       mutate(next);
+      // Lo que se ve de la unidad económica sale siempre de su origen. Acá, y no
+      // en cada lugar que toca las tasas, para que un cambio de cotización —a
+      // mano o con "Actualizar"— se refleje sin que nadie tenga que acordarse.
+      sincronizarImportesUe(next);
       dirty.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void save(next), 800);
@@ -425,7 +444,7 @@ export default function BusinessPlan() {
   // Lo que pondría el botón "Costos fijos = gasto de Fase 1", en la moneda de la
   // sección. Se calcula acá para que el botón pueda decir qué va a hacer y
   // apagarse cuando los costos fijos ya coinciden.
-  const fijosDeFase1 = Math.round(calc.totBudgetBase / (toBase(1, plan.ueCurrency, plan) || 1));
+  const fijosDeFase1 = convertirMoneda(calc.totBudget, plan.budgetCurrency, plan.ueCurrency, plan);
   // Con tolerancia: al cambiar de moneda los importes se redondean a siete cifras
   // significativas, así que 10.977.780 y 10.977.778 son el mismo costo.
   const fijosYaCoinciden =
@@ -887,14 +906,12 @@ export default function BusinessPlan() {
               <CurrencyPicker
                 label="Moneda de la sección"
                 value={plan.ueCurrency}
-                // Se CONVIERTEN los importes (ticket, soporte, costos fijos); los
-                // porcentajes y las cantidades no cambian con la moneda. Antes sólo
+                // Cualquier moneda a cualquier otra, siempre al valor equivalente.
+                // Se recuerda cada importe tal como se escribió y se deriva desde
+                // ahí, así que no depende del camino ni acumula error. Antes sólo
                 // cambiaba la etiqueta y "US$21" pasaba a "$21": un ticket de
-                // veintiún pesos.
-                onChange={c => edit(d => {
-                  d.ue = convertirImportesUe(d.ue, d.ueCurrency, c, d);
-                  d.ueCurrency = c;
-                })}
+                // veintiún pesos. Ver shared/pricing/conversionMoneda.ts.
+                onChange={c => edit(d => cambiarMonedaUe(d, c))}
               />
             }
           />
@@ -904,13 +921,14 @@ export default function BusinessPlan() {
               <button
                 onClick={() =>
                   edit(d => {
-                    // Los reales vienen en ARS: se pasan a la moneda de la sección
-                    const factor = toBase(1, 'ARS', d) / (toBase(1, d.ueCurrency, d) || 1);
                     d.ue.mauActual = actuals.mau;
                     d.ue.contratos = actuals.contratosPorUsuario || d.ue.contratos;
                     if (actuals.comisionPromedio > 0) d.ue.comision = actuals.comisionPromedio;
+                    // Los reales vienen en pesos: se registran EN PESOS como origen,
+                    // no convertidos a la moneda de la sección. Al ver la sección en
+                    // pesos aparece el número real, no una ida y vuelta por dólares.
                     if (actuals.ticketPromedio > 0) {
-                      d.ue.ticket = Math.round(actuals.ticketPromedio * factor * 100) / 100;
+                      editarImporteUe(d, 'ticket', actuals.ticketPromedio, 'ARS');
                     }
                   })
                 }
@@ -937,10 +955,9 @@ export default function BusinessPlan() {
               onClick={() =>
                 edit(d => {
                   // Evita cargar dos veces el mismo gasto: los costos fijos
-                  // salen del presupuesto de la Fase 1.
-                  const budgetInUe =
-                    calc.totBudgetBase / (toBase(1, d.ueCurrency, d) || 1);
-                  d.ue.fijos = Math.round(budgetInUe);
+                  // salen del presupuesto de la Fase 1. Se registra en la moneda
+                  // del presupuesto, que es en la que está escrito.
+                  editarImporteUe(d, 'fijos', calc.totBudget, d.budgetCurrency);
                 })
               }
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -976,7 +993,16 @@ export default function BusinessPlan() {
                   step={step}
                   className={`${FIELD} w-28`}
                   value={plan.ue[key]}
-                  onChange={e => edit(d => { d.ue[key] = Math.max(0, +e.target.value) || 0; })}
+                  onChange={e => edit(d => {
+                    const valor = Math.max(0, +e.target.value) || 0;
+                    // Los importes registran en qué moneda se escribieron; los
+                    // porcentajes y las cantidades no tienen moneda.
+                    if ((CAMPOS_IMPORTE_UE as readonly string[]).includes(key)) {
+                      editarImporteUe(d, key as CampoImporteUe, valor);
+                    } else {
+                      d.ue[key] = valor;
+                    }
+                  })}
                 />
               </div>
             ))}

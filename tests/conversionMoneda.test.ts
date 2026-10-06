@@ -2,8 +2,12 @@ import { describe, it, expect } from '@jest/globals';
 import {
   aEuros,
   convertirMoneda,
-  convertirImportesUe,
+  cambiarMonedaUe,
+  editarImporteUe,
+  sincronizarImportesUe,
   CAMPOS_IMPORTE_UE,
+  type Moneda,
+  type PlanConImportesUe,
   type Tasas,
 } from '../shared/pricing/conversionMoneda.js';
 import { calcularUnidad, mauDeEquilibrio } from '../shared/pricing/unidadEconomica.js';
@@ -16,6 +20,13 @@ import { calcularUnidad, mauDeEquilibrio } from '../shared/pricing/unidadEconomi
  * pantalla afirmaba un ticket de veintiún pesos y los equivalentes en euros
  * caían a cero.
  *
+ * Lo que se pide es que se pueda ir de cualquier moneda a cualquier otra, en
+ * cualquier orden, y que siempre dé el valor equivalente. La primera solución
+ * —convertir lo que hubiera en pantalla— acumulaba error: dólares → pesos →
+ * euros → dólares devolvía el soporte como 0,9999996. Lo que lo resuelve es
+ * recordar el importe tal como se escribió y derivar todo lo demás desde ahí;
+ * estos tests fijan que el resultado no dependa del camino.
+ *
  * Y al arreglarlo apareció un segundo error, que estaba tapado: el punto de
  * equilibrio se calculaba con el margen REDONDEADO a centavos. En dólares, un
  * margen real de 0,1256 se redondeaba a 0,13 y el resultado salía 3,5% bajo; en
@@ -25,6 +36,7 @@ import { calcularUnidad, mauDeEquilibrio } from '../shared/pricing/unidadEconomi
 
 const TASAS: Tasas = { rateArs: 1560, rateUsd: 1.08 };
 const OTRAS: Tasas = { rateArs: 1432.57, rateUsd: 1.1632 };
+const MONEDAS: Moneda[] = ['ARS', 'USD', 'EUR'];
 
 /** Los valores por defecto del plan (server/routes/admin/businessPlan.ts). */
 const UE_POR_DEFECTO = {
@@ -37,6 +49,19 @@ const UE_POR_DEFECTO = {
   fraude: 0.8,
   mauActual: 0,
 };
+
+type PlanDePrueba = PlanConImportesUe & { ue: typeof UE_POR_DEFECTO };
+
+/** Un plan cuyos importes están escritos en `moneda`. */
+const plan = (moneda: Moneda, tasas: Tasas = TASAS, ue = UE_POR_DEFECTO): PlanDePrueba => ({
+  ...tasas,
+  ueCurrency: moneda,
+  ue: { ...ue },
+});
+
+/** Lo que tiene que verse en `hasta` para un importe escrito en `desde`. */
+const esperado = (monto: number, desde: Moneda, hasta: Moneda, tasas: Tasas) =>
+  desde === hasta ? monto : Number(convertirMoneda(monto, desde, hasta, tasas).toPrecision(9));
 
 const equilibrio = (ue: typeof UE_POR_DEFECTO) => {
   const u = calcularUnidad({
@@ -63,15 +88,15 @@ describe('convertirMoneda', () => {
   });
 
   it('la misma moneda devuelve el mismo monto', () => {
-    for (const m of ['ARS', 'USD', 'EUR'] as const) {
-      expect(convertirMoneda(123.45, m, m, TASAS)).toBe(123.45);
-    }
+    for (const m of MONEDAS) expect(convertirMoneda(123.45, m, m, TASAS)).toBe(123.45);
   });
 
   it('ir y volver no cambia el monto', () => {
-    for (const [a, b] of [['USD', 'ARS'], ['ARS', 'EUR'], ['EUR', 'USD']] as const) {
-      const ida = convertirMoneda(1000, a, b, OTRAS);
-      expect(convertirMoneda(ida, b, a, OTRAS)).toBeCloseTo(1000, 8);
+    for (const a of MONEDAS) {
+      for (const b of MONEDAS) {
+        const ida = convertirMoneda(1000, a, b, OTRAS);
+        expect(convertirMoneda(ida, b, a, OTRAS)).toBeCloseTo(1000, 8);
+      }
     }
   });
 
@@ -82,13 +107,50 @@ describe('convertirMoneda', () => {
   });
 });
 
-describe('convertirImportesUe', () => {
-  it('convierte los tres importes', () => {
-    const r = convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', TASAS);
-    // 21 USD = 21 × 1560 ÷ 1,08 = 30.333,33 ARS
-    expect(r.ticket).toBe(30333.3333);
-    expect(r.soporte).toBe(1444.4444);
-    expect(r.fijos).toBe(26000000);
+describe('cambiarMonedaUe: de cualquier moneda a cualquier otra', () => {
+  const PARES = MONEDAS.flatMap((desde) => MONEDAS.map((hasta) => [desde, hasta] as const));
+
+  it.each(PARES.map(([d, h]) => [`${d} -> ${h}`, d, h] as const))(
+    '%s da el valor equivalente',
+    (_nombre, desde, hasta) => {
+      for (const tasas of [TASAS, OTRAS]) {
+        const p = plan(desde, tasas);
+        cambiarMonedaUe(p, hasta);
+
+        expect(p.ueCurrency).toBe(hasta);
+        for (const campo of CAMPOS_IMPORTE_UE) {
+          expect(p.ue[campo]).toBe(esperado(UE_POR_DEFECTO[campo], desde, hasta, tasas));
+        }
+      }
+    },
+  );
+
+  it('los valores de ejemplo: 21 USD = 30.333,33 ARS = 19,44 EUR', () => {
+    const enArs = plan('USD');
+    cambiarMonedaUe(enArs, 'ARS');
+    expect(enArs.ue.ticket).toBeCloseTo(30333.3333333, 3);
+    expect(enArs.ue.soporte).toBeCloseTo(1444.4444444, 3);
+    expect(enArs.ue.fijos).toBe(26000000);
+
+    const enEur = plan('USD');
+    cambiarMonedaUe(enEur, 'EUR');
+    expect(enEur.ue.ticket).toBeCloseTo(19.4444444, 5);
+    expect(enEur.ue.soporte).toBeCloseTo(0.9259259, 5);
+    expect(enEur.ue.fijos).toBeCloseTo(16666.6666667, 3);
+  });
+
+  it('lo que se ve vale lo mismo que lo que se escribió', () => {
+    // El "equivalente" tiene un significado: convertir de vuelta da el original.
+    for (const desde of MONEDAS) {
+      for (const hasta of MONEDAS) {
+        const p = plan(desde);
+        cambiarMonedaUe(p, hasta);
+        for (const campo of CAMPOS_IMPORTE_UE) {
+          const deVuelta = convertirMoneda(p.ue[campo], hasta, desde, TASAS);
+          expect(Math.abs(deVuelta - UE_POR_DEFECTO[campo]) / UE_POR_DEFECTO[campo]).toBeLessThan(1e-6);
+        }
+      }
+    }
   });
 
   it('NO toca los porcentajes ni las cantidades', () => {
@@ -97,57 +159,223 @@ describe('convertirImportesUe', () => {
      * `mauActual` son cantidades. Convertirlos los rompería: un 10% de comisión
      * no pasa a ser 14.444% por cambiar de dólares a pesos.
      */
-    const r = convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', TASAS);
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'ARS');
     for (const campo of ['comision', 'disputas', 'fraude', 'contratos', 'mauActual'] as const) {
-      expect(r[campo]).toBe(UE_POR_DEFECTO[campo]);
+      expect(p.ue[campo]).toBe(UE_POR_DEFECTO[campo]);
     }
   });
 
-  it('los campos convertidos son exactamente los declarados como importes', () => {
-    const r = convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', TASAS);
+  it('los campos que cambian son exactamente los declarados como importes', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'ARS');
     const cambiaron = Object.keys(UE_POR_DEFECTO).filter(
-      (k) => (r as Record<string, number>)[k] !== (UE_POR_DEFECTO as Record<string, number>)[k],
+      (k) => (p.ue as unknown as Record<string, number>)[k] !== (UE_POR_DEFECTO as Record<string, number>)[k],
     );
     expect(cambiaron.sort()).toEqual([...CAMPOS_IMPORTE_UE].sort());
   });
 
-  it('la misma moneda devuelve el mismo objeto, sin copiarlo', () => {
-    expect(convertirImportesUe(UE_POR_DEFECTO, 'USD', 'USD', TASAS)).toBe(UE_POR_DEFECTO);
+  it('cambiar a la misma moneda no hace nada', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'USD');
+    expect(p.ue).toEqual(UE_POR_DEFECTO);
+    expect(p.ueOrigen).toBeUndefined();
   });
+});
 
-  it('no muta el original', () => {
-    const copia = { ...UE_POR_DEFECTO };
-    convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', TASAS);
-    expect(UE_POR_DEFECTO).toEqual(copia);
-  });
+describe('en cualquier orden, sin acumular error', () => {
+  /**
+   * LA propiedad. Se recorren TODAS las secuencias de hasta cinco cambios entre
+   * las tres monedas (363 secuencias, desde cada moneda inicial, con dos juegos
+   * de tasas). En cada paso lo que se ve tiene que ser la conversión DIRECTA del
+   * importe escrito, sin importar por dónde se pasó; y cada vez que se vuelve a
+   * la moneda original tiene que verse el número original, exacto.
+   */
+  function secuencias(largoMaximo: number): Moneda[][] {
+    let actuales: Moneda[][] = [[]];
+    const todas: Moneda[][] = [];
+    for (let largo = 1; largo <= largoMaximo; largo++) {
+      actuales = actuales.flatMap((s) => MONEDAS.map((m) => [...s, m]));
+      todas.push(...actuales);
+    }
+    return todas;
+  }
+  const SECUENCIAS = secuencias(5);
 
-  it('dólares -> pesos -> dólares vuelve EXACTAMENTE al valor original', () => {
-    // El viaje que importa en Argentina. Con cualquier tasa.
+  it(`el resultado no depende del camino (${SECUENCIAS.length} secuencias x 3 monedas x 2 tasas)`, () => {
+    let pasosVerificados = 0;
     for (const tasas of [TASAS, OTRAS]) {
-      const ida = convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', tasas);
-      const vuelta = convertirImportesUe(ida, 'ARS', 'USD', tasas);
-      expect(vuelta.ticket).toBe(UE_POR_DEFECTO.ticket);
-      expect(vuelta.soporte).toBe(UE_POR_DEFECTO.soporte);
-      expect(vuelta.fijos).toBe(UE_POR_DEFECTO.fijos);
+      for (const inicial of MONEDAS) {
+        for (const secuencia of SECUENCIAS) {
+          const p = plan(inicial, tasas);
+          for (const moneda of secuencia) {
+            cambiarMonedaUe(p, moneda);
+            for (const campo of CAMPOS_IMPORTE_UE) {
+              const directo = esperado(UE_POR_DEFECTO[campo], inicial, moneda, tasas);
+              if (p.ue[campo] !== directo) {
+                throw new Error(
+                  `${inicial} -> ${secuencia.join(' -> ')} (hasta ${moneda}): ${campo} = ${p.ue[campo]}, ` +
+                    `la conversión directa daría ${directo}`,
+                );
+              }
+              pasosVerificados++;
+            }
+          }
+        }
+      }
+    }
+    expect(pasosVerificados).toBeGreaterThan(10000);
+  });
+
+  it('el caso que fallaba: dólares -> pesos -> euros -> dólares vuelve a 21 / 1 / 18000', () => {
+    for (const tasas of [TASAS, OTRAS]) {
+      const p = plan('USD', tasas);
+      cambiarMonedaUe(p, 'ARS');
+      cambiarMonedaUe(p, 'EUR');
+      cambiarMonedaUe(p, 'USD');
+      expect(p.ue.ticket).toBe(21);
+      expect(p.ue.soporte).toBe(1);
+      expect(p.ue.fijos).toBe(18000);
     }
   });
 
-  it('dando la vuelta por euros vuelve hasta la última cifra, no necesariamente exacto', () => {
+  it('y también empezando en pesos o en euros', () => {
+    for (const inicial of ['ARS', 'EUR'] as const) {
+      const p = plan(inicial, OTRAS);
+      for (const m of ['USD', 'EUR', 'ARS', 'USD', 'ARS', 'EUR'] as const) cambiarMonedaUe(p, m);
+      cambiarMonedaUe(p, inicial);
+      for (const campo of CAMPOS_IMPORTE_UE) expect(p.ue[campo]).toBe(UE_POR_DEFECTO[campo]);
+    }
+  });
+});
+
+describe('editar un importe después de cambiar de moneda', () => {
+  it('lo escrito en euros pasa a ser el origen de ese campo', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'EUR');
+    editarImporteUe(p, 'ticket', 20); // escribo 20 euros
+
+    cambiarMonedaUe(p, 'USD');
+    expect(p.ue.ticket).toBe(21.6); // 20 × 1,08
+    cambiarMonedaUe(p, 'ARS');
+    expect(p.ue.ticket).toBe(31200); // 20 × 1560
+    cambiarMonedaUe(p, 'EUR');
+    expect(p.ue.ticket).toBe(20); // exacto: era lo escrito
+  });
+
+  it('los otros campos conservan su propio origen', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'EUR');
+    editarImporteUe(p, 'ticket', 20);
+    cambiarMonedaUe(p, 'USD');
+    // El soporte y los costos fijos se escribieron en dólares y vuelven exactos.
+    expect(p.ue.soporte).toBe(1);
+    expect(p.ue.fijos).toBe(18000);
+  });
+
+  it('un dato con su propia moneda se registra en ESA moneda (datos reales, Fase 1)', () => {
     /**
-     * Esto es lo que NO se promete, dicho en un test para que nadie lo prometa
-     * por error. Al volver de euros a dólares el error de redondeo se multiplica
-     * por la tasa (1,08 o 1,16), así que puede pasar de media unidad de la última
-     * cifra y devolver 20,9999 en vez de 21. Con cifras significativas era peor:
-     * 0,9999996 en vez de 1. Ningún redondeo fijo lo evita del todo.
+     * Los datos reales de la plataforma vienen en pesos y el presupuesto de la
+     * Fase 1 en la moneda del presupuesto. Si la sección está en dólares, el
+     * botón no debe convertirlos a dólares y guardar eso como origen: debe
+     * guardar los pesos, para que al volver a pesos se vea el número real.
      */
-    for (const tasas of [TASAS, OTRAS]) {
-      const enArs = convertirImportesUe(UE_POR_DEFECTO, 'USD', 'ARS', tasas);
-      const enEur = convertirImportesUe(enArs, 'ARS', 'EUR', tasas);
-      const vuelta = convertirImportesUe(enEur, 'EUR', 'USD', tasas);
-      expect(Math.abs(vuelta.ticket - UE_POR_DEFECTO.ticket)).toBeLessThan(2e-4);
-      expect(Math.abs(vuelta.soporte - UE_POR_DEFECTO.soporte)).toBeLessThan(2e-4);
-      expect(Math.abs(vuelta.fijos - UE_POR_DEFECTO.fijos)).toBeLessThan(0.01);
-    }
+    const p = plan('USD');
+    editarImporteUe(p, 'ticket', 34700, 'ARS');
+
+    expect(p.ue.ticket).toBeCloseTo((34700 * 1.08) / 1560, 6); // se ve en dólares
+    cambiarMonedaUe(p, 'ARS');
+    expect(p.ue.ticket).toBe(34700); // y en pesos es exactamente el dato
+    cambiarMonedaUe(p, 'EUR');
+    cambiarMonedaUe(p, 'ARS');
+    expect(p.ue.ticket).toBe(34700);
+  });
+
+  it('un valor inválido queda en cero en vez de romper', () => {
+    const p = plan('USD');
+    editarImporteUe(p, 'soporte', NaN);
+    expect(p.ue.soporte).toBe(0);
+    editarImporteUe(p, 'soporte', -5);
+    expect(p.ue.soporte).toBe(0);
+  });
+});
+
+describe('cuando cambia la cotización', () => {
+  it('lo escrito en dólares sigue valiendo lo mismo, y los pesos se recalculan', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'ARS');
+    expect(p.ue.ticket).toBeCloseTo((21 * 1560) / 1.08, 3);
+
+    // El dólar sube respecto del peso: más pesos por euro, menos dólares por euro.
+    p.rateArs = 1800;
+    p.rateUsd = 1.1;
+    sincronizarImportesUe(p);
+    expect(p.ue.ticket).toBeCloseTo((21 * 1800) / 1.1, 3);
+
+    cambiarMonedaUe(p, 'USD');
+    expect(p.ue.ticket).toBe(21); // los US$21 no cambiaron
+  });
+
+  it('si la sección está en la moneda en que se escribió, la cotización no la toca', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'ARS');
+    cambiarMonedaUe(p, 'USD');
+    p.rateArs = 9999;
+    p.rateUsd = 3;
+    sincronizarImportesUe(p);
+    expect(p.ue.ticket).toBe(21);
+    expect(p.ue.fijos).toBe(18000);
+  });
+
+  it('sincronizar es idempotente', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'EUR');
+    const antes = JSON.stringify(p);
+    sincronizarImportesUe(p);
+    sincronizarImportesUe(p);
+    expect(JSON.stringify(p)).toBe(antes);
+  });
+
+  it('sin origen (un plan viejo) sincronizar no hace nada', () => {
+    const p = plan('USD');
+    sincronizarImportesUe(p);
+    expect(p.ue).toEqual(UE_POR_DEFECTO);
+  });
+});
+
+describe('planes guardados antes de que existiera el origen', () => {
+  it('el primer cambio toma lo que hay en pantalla como lo escrito', () => {
+    const viejo = plan('USD'); // sin ueOrigen
+    expect(viejo.ueOrigen).toBeUndefined();
+    cambiarMonedaUe(viejo, 'ARS');
+    cambiarMonedaUe(viejo, 'USD');
+    expect(viejo.ue.ticket).toBe(21);
+    expect(viejo.ue.fijos).toBe(18000);
+  });
+
+  it('sobrevive a guardarse y volver a cargarse (es JSON común)', () => {
+    const p = plan('USD');
+    cambiarMonedaUe(p, 'EUR');
+    const recargado: PlanDePrueba = JSON.parse(JSON.stringify(p));
+
+    cambiarMonedaUe(recargado, 'ARS');
+    cambiarMonedaUe(recargado, 'USD');
+    expect(recargado.ue.ticket).toBe(21);
+    expect(recargado.ue.soporte).toBe(1);
+  });
+
+  it('un origen corrupto se ignora y se toma lo que hay en pantalla', () => {
+    const p = plan('USD');
+    p.ueOrigen = {
+      ticket: { moneda: 'JPY' as Moneda, monto: 5 },
+      soporte: { moneda: 'USD', monto: NaN },
+      fijos: { moneda: 'USD', monto: -100 },
+    };
+    cambiarMonedaUe(p, 'ARS');
+    cambiarMonedaUe(p, 'USD');
+    expect(p.ue.ticket).toBe(21);
+    expect(p.ue.soporte).toBe(1);
+    expect(p.ue.fijos).toBe(18000);
   });
 });
 
@@ -164,11 +392,22 @@ describe('el punto de equilibrio no depende de la moneda', () => {
   ])('USD, ARS y EUR dan el mismo equilibrio (%s)', (_nombre, tasas) => {
     const enUsd = equilibrio(UE_POR_DEFECTO)!;
     for (const moneda of ['ARS', 'EUR'] as const) {
-      const convertido = convertirImportesUe(UE_POR_DEFECTO, 'USD', moneda, tasas);
-      const mau = equilibrio(convertido)!;
-      // Menos de 0,05% sobre ~143 mil usuarios: es el redondeo a cuatro decimales
-      // de los campos convertidos, no una diferencia de método.
-      expect(Math.abs(mau - enUsd) / enUsd).toBeLessThan(0.0005);
+      const p = plan('USD', tasas);
+      cambiarMonedaUe(p, moneda);
+      const mau = equilibrio(p.ue)!;
+      // Nueve cifras significativas en lo derivado: la diferencia es de unidades
+      // sobre ~143 mil usuarios.
+      expect(Math.abs(mau - enUsd) / enUsd).toBeLessThan(1e-4);
+    }
+  });
+
+  it('y no cambia dando vueltas: el mismo equilibrio pase lo que pase', () => {
+    const enUsd = equilibrio(UE_POR_DEFECTO)!;
+    const p = plan('USD');
+    for (const m of ['ARS', 'EUR', 'USD', 'EUR', 'ARS', 'USD'] as const) {
+      cambiarMonedaUe(p, m);
+      const mau = equilibrio(p.ue)!;
+      expect(Math.abs(mau - enUsd) / enUsd).toBeLessThan(1e-4);
     }
   });
 
