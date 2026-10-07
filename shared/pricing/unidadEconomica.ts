@@ -1,5 +1,6 @@
 import { COMMISSION_RATES } from '../constants/membershipPricing.js';
 import { MARGINAL_COST_PER_CONTRACT_ARS } from './minimums.js';
+import { FIJOS_DE_ARRANQUE_USD } from './gastos.js';
 
 /**
  * La cuenta de la unidad económica, una sola vez.
@@ -189,18 +190,76 @@ export const META_RUNWAY_FASE1_MESES = 4;
  *
  * Los usa el plan por defecto del servidor y los usa la guía para armar su
  * ejemplo, así que el ejemplo que se lee es siempre la cuenta de verdad con los
- * números de verdad. El porqué de cada valor está en el plan por defecto
- * (`server/routes/admin/businessPlan.ts`).
+ * números de verdad.
+ *
+ * ── Soporte, disputas y fraude son SUPUESTOS MÍNIMOS, no mediciones ──────────
+ *
+ * Sin volumen no hay con qué medirlos. Se calculan desde una base explícita
+ * (`BASE_DE_LOS_SUPUESTOS_MINIMOS`) elegida para que el costo por contrato quede en
+ * el mismo orden que el que ya usa el código para fijar el mínimo de una ampliación
+ * (`MARGINAL_COST_PER_CONTRACT_ARS`, $450), y se reemplazan por lo medido apenas haya
+ * datos. Ninguno de los números de la base está medido: son el punto de partida
+ * más chico que se puede defender, y por eso se muestran, para poder discutirlos.
+ *
+ *  soporte        pedidos por usuario y mes × horas por pedido × costo de la hora.
+ *                 NO incluye la verificación de identidad (Didit, €1,50): se paga
+ *                 una vez por alta y no todos los meses, así que va en el CAC.
+ *                 Estuvo en 1, con ella adentro y contada cada mes.
+ *  disputas       % de contratos disputados × horas por disputa × costo de la hora,
+ *                 sobre el ticket: dice cuánto del volumen se va en atenderlas.
+ *                 Estuvo en 2,5.
+ *  fraude         Contracargos de tarjeta sobre el volumen. Es el más incierto de
+ *                 los tres: un solo contracargo después de liberar el pago se come
+ *                 el contrato entero. Con el pago retenido hasta que el cliente
+ *                 confirma y la identidad verificada se supone por debajo del 0,5%
+ *                 que se suele tomar de referencia para pagos online. Estuvo en 0,8.
+ *
+ * Con esto el costo por contrato da ~US$0,59 (≈ $850), 1,9 veces el del código:
+ * dentro de lo que `discrepanciaDeCosto` acepta sin avisar. Con los valores
+ * anteriores daba ~$2.800, 6,2 veces, y saltaba el aviso.
+ *
+ * `fijos` no es un supuesto: es la suma de los costos fijos del presupuesto de
+ * arranque, que es de donde sale en el plan (ver `planCoordinado.ts`).
  */
+export const BASE_DE_LOS_SUPUESTOS_MINIMOS = {
+  /** Lo que cuesta una hora de una persona atendiendo, en dólares. */
+  costoDeLaHoraUsd: 6,
+  /** Pedidos de soporte por usuario activo y por mes: uno cada cinco meses. */
+  pedidosDeSoportePorUsuarioYMes: 0.2,
+  minutosPorPedidoDeSoporte: 12,
+  /** De cada 100 contratos, cuántos terminan en disputa. */
+  disputasCada100Contratos: 3,
+  horasPorDisputa: 1.5,
+  /** Contracargos y fraude, en % del volumen. Se supone, no se calcula. */
+  fraudePct: 0.3,
+} as const;
+
+const TICKET_DE_ARRANQUE = 21;
+const redondearA = (n: number, paso: number) => Math.round(n / paso) * paso;
+const B = BASE_DE_LOS_SUPUESTOS_MINIMOS;
+
+/** US$ por usuario activo y mes: 0,2 × (12 ÷ 60) × 6 = 0,24, a múltiplos de 5 centavos. */
+const SOPORTE_CALCULADO =
+  B.pedidosDeSoportePorUsuarioYMes * (B.minutosPorPedidoDeSoporte / 60) * B.costoDeLaHoraUsd;
+/** % del volumen: (3% × 1,5 h × US$6) ÷ ticket = 1,29%, redondeado al punto. */
+const DISPUTAS_CALCULADO =
+  ((B.disputasCada100Contratos / 100) * B.horasPorDisputa * B.costoDeLaHoraUsd * 100) / TICKET_DE_ARRANQUE;
+
 export const SUPUESTOS_UE_DE_ARRANQUE = {
   comision: COMMISSION_RATES.free,
-  ticket: 21,
+  ticket: TICKET_DE_ARRANQUE,
   contratos: 0.8,
-  disputas: 2.5,
-  soporte: 1,
-  fijos: 18000,
-  fraude: 0.8,
+  disputas: redondearA(DISPUTAS_CALCULADO, 1),
+  soporte: redondearA(SOPORTE_CALCULADO, 0.05),
+  fijos: FIJOS_DE_ARRANQUE_USD,
+  fraude: B.fraudePct,
   mauActual: 0,
+} as const;
+
+/** Sin redondear, para mostrar la cuenta completa en la guía. */
+export const SUPUESTOS_MINIMOS_SIN_REDONDEAR = {
+  soporte: SOPORTE_CALCULADO,
+  disputas: DISPUTAS_CALCULADO,
 } as const;
 
 /**

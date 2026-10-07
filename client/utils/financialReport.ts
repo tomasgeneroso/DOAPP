@@ -75,7 +75,10 @@ export function buildReport(
 
   const resumen = [
     `Proyección a ${horizonte} meses desde ${etiquetaMes(1)}.`,
-    `Se parte de ${n0(a.growth.usuariosIniciales)} usuarios activos y se llega a ${n0(r.usuariosFinales)}.`,
+    `Se parte de ${n0(a.growth.usuariosIniciales)} usuarios registrados y se llega a ${n0(r.usuariosFinales)}.`,
+    r.mesesDeBeta > 0
+      ? `Los primeros ${r.mesesDeBeta} meses son de beta, sin comisión; después empieza la etapa real.`
+      : 'No hay beta en este tramo: se cobra comisión desde el primer mes.',
     llegaAEbitda
       ? `El resultado operativo se da vuelta en el mes ${r.mesEbitdaPositivo} y el resultado neto en el mes ${r.mesResultadoPositivo ?? '—'}.`
       : `El resultado operativo sigue negativo al final del horizonte (${fmt(ultimo.ebitda)} en el último mes).`,
@@ -92,15 +95,20 @@ export function buildReport(
     a.growth.modoCrecimiento === 'porcentaje'
       ? `altas del ${pctStr(a.growth.crecimientoPct)} mensual sobre la base`
       : `${n0(a.growth.altasPorMes)} altas nuevas por mes`;
+  const enBeta = r.mesesDeBeta > 0 && a.beta;
   const vidaMeses = a.growth.churnPct > 0 ? 100 / a.growth.churnPct : Infinity;
 
   secciones.push({
     titulo: 'Crecimiento de la base',
     parrafos: [
-      `El modelo asume ${crecimientoTexto} y un churn del ${pctStr(a.growth.churnPct)}, es decir una permanencia promedio de ${Number.isFinite(vidaMeses) ? `${vidaMeses.toFixed(1)} meses` : 'indefinida'} por usuario.`,
+      enBeta
+        ? `Durante la beta (${r.mesesDeBeta} meses) entran ${n0(a.beta!.altasPorMes)} altas por mes, lo que compra la publicidad de esa etapa. Desde el mes ${r.mesesDeBeta + 1} el modelo asume ${crecimientoTexto}.`
+        : `El modelo asume ${crecimientoTexto}.`,
+      `El churn es del ${pctStr(a.growth.churnPct)}: una permanencia promedio de ${Number.isFinite(vidaMeses) ? `${vidaMeses.toFixed(1)} meses` : 'indefinida'} por usuario.`,
       a.growth.techoUsuarios > 0
         ? `El techo de mercado está fijado en ${n0(a.growth.techoUsuarios)} usuarios; al mes ${horizonte} la base llega a ${n0(r.usuariosFinales)}, un ${pctStr((r.usuariosFinales / a.growth.techoUsuarios) * 100)} de ese techo.`
         : `No hay techo de mercado configurado, así que el crecimiento se proyecta sin saturación. Conviene fijar uno: sin él la curva se vuelve optimista rápido.`,
+      `De cada 100 usuarios registrados, ${pctStr(a.growth.activosPct ?? 0)} están activos en el mes.`,
       `En el último mes se procesan ${n0(ultimo.contratos)} contratos por un volumen de ${fmt(ultimo.gmv)}.`,
     ],
   });
@@ -128,6 +136,9 @@ export function buildReport(
       capitalNecesario > 0
         ? `El punto más bajo de la caja es ${fmt(r.pisoCaja)} en el mes ${r.mesPisoCaja} (${etiquetaMes(r.mesPisoCaja!)}). Ése es el capital que hay que tener asegurado antes de arrancar, además de lo que cuesta constituir la sociedad.`
         : `La caja nunca baja de cero: el piso es ${fmt(r.pisoCaja)} en el mes ${r.mesPisoCaja ?? 1}. El capital inicial alcanza para todo el horizonte.`,
+      r.cajaAlTerminarLaBeta !== null
+        ? `Al terminar la beta (mes ${r.mesesDeBeta}) quedan ${fmt(r.cajaAlTerminarLaBeta)} en caja: es con lo que arranca la etapa real.`
+        : 'No hay beta en este tramo, así que no hay una caja de transición para mirar.',
       seQuedaSinCaja
         ? `Con el capital cargado (${fmt(a.cajaInicial)}), la caja entra en rojo en el mes ${r.mesSinCaja} (${etiquetaMes(r.mesSinCaja!)}). ${r.mesPaybackCaja ? `Se recupera en el mes ${r.mesPaybackCaja}.` : 'No se recupera dentro del horizonte.'}`
         : `Con el capital cargado (${fmt(a.cajaInicial)}) la operación se sostiene sin financiamiento adicional.`,
@@ -154,7 +165,7 @@ export function buildReport(
   secciones.push({
     titulo: 'Economía por usuario',
     parrafos: [
-      `Cada usuario activo deja ${fmtU(r.margenContribucionUsuario)} de margen por mes después de costos variables, y cuesta ${fmtU(r.cac)} adquirirlo.`,
+      `Cada usuario registrado deja ${fmtU(r.margenContribucionUsuario)} de margen por mes después de costos variables (ya contando que no todos están activos), y cuesta ${fmtU(r.cac)} adquirirlo.`,
       r.mesesRecuperoCac !== null
         ? `El costo de adquisición se recupera en ${r.mesesRecuperoCac.toFixed(1)} meses, contra una permanencia promedio de ${Number.isFinite(vidaMeses) ? vidaMeses.toFixed(1) : '∞'} meses.`
         : `Con margen de contribución negativo, el costo de adquisición no se recupera nunca: cada usuario nuevo agranda la pérdida.`,
@@ -203,11 +214,11 @@ export function buildReport(
     md.push('');
   }
   md.push('## Detalle mensual', '');
-  md.push('| Mes | Usuarios | Ingresos | Costos | EBITDA | Impuestos | Neto | Caja |');
-  md.push('|---|---:|---:|---:|---:|---:|---:|---:|');
+  md.push('| Mes | Etapa | Usuarios | Ingresos | Costos | EBITDA | Impuestos | Neto | Caja |');
+  md.push('|---|---|---:|---:|---:|---:|---:|---:|---:|');
   for (const m of meses) {
     md.push(
-      `| ${m.etiqueta} | ${n0(m.usuarios)} | ${fmt(m.ingresoNeto)} | ${fmt(m.costosTotales)} | ${fmt(m.ebitda)} | ${fmt(m.impuestosTotales)} | ${fmt(m.resultadoNeto)} | ${fmt(m.cajaAcumulada)} |`
+      `| ${m.etiqueta} | ${m.etapa === 'beta' ? 'Beta' : 'Real'} | ${n0(m.usuarios)} | ${fmt(m.ingresoNeto)} | ${fmt(m.costosTotales)} | ${fmt(m.ebitda)} | ${fmt(m.impuestosTotales)} | ${fmt(m.resultadoNeto)} | ${fmt(m.cajaAcumulada)} |`
     );
   }
   md.push('', '_Los montos son proyecciones sobre supuestos cargados a mano, no una previsión contable. Validá las alícuotas con un contador._');
@@ -218,7 +229,7 @@ export function buildReport(
 /** Detalle mensual en CSV, para abrirlo en una planilla */
 export function projectionToCsv(projection: Projection): string {
   const headers = [
-    'Mes', 'Etiqueta', 'Usuarios', 'Altas', 'Bajas', 'Contratos', 'GMV',
+    'Mes', 'Etiqueta', 'Etapa', 'Usuarios', 'Altas', 'Bajas', 'Contratos', 'GMV',
     'Ingreso bruto', 'Ingreso neto', 'Comision', 'Membresias', 'Publicidad',
     'Costos variables', 'Adquisicion', 'Costos fijos', 'Costos totales',
     'EBITDA', 'IVA', 'IIBB', 'Cheque', 'Ganancias', 'Impuestos totales',
@@ -226,7 +237,7 @@ export function projectionToCsv(projection: Projection): string {
   ];
   const round = (n: number) => Math.round(n * 100) / 100;
   const rows = projection.meses.map(m => [
-    m.mes, m.etiqueta, m.usuarios, m.altas, m.bajas, m.contratos, round(m.gmv),
+    m.mes, m.etiqueta, m.etapa, m.usuarios, m.altas, m.bajas, m.contratos, round(m.gmv),
     round(m.ingresoBruto), round(m.ingresoNeto), round(m.ingresoComision),
     round(m.ingresoMembresias), round(m.ingresoPublicidad),
     round(m.costosVariables), round(m.costoAdquisicion), round(m.costosFijos),

@@ -5,6 +5,7 @@ import { User } from '../models/sql/User.model.js';
 import currencyExchange from './currencyExchange.js';
 import { getPlatformPhase } from './platformPhase.js';
 import { COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
+import { totalesPorTipo, type FilaDeGasto } from '../../shared/pricing/gastos.js';
 import {
   calcularUnidad,
   discrepanciaDeCosto,
@@ -211,7 +212,7 @@ interface EntradasDelPlan {
  * dividir nada. Dividir un gasto en dólares por usuarios y comparar contra un
  * ticket en pesos es la clase de error que da un resultado plausible.
  */
-async function leerPlan(plan: any, eurArs: number): Promise<EntradasDelPlan> {
+async function leerPlan(plan: any, eurArs: number, enBeta: boolean): Promise<EntradasDelPlan> {
   const usdArs = await currencyExchange.getUSDtoARSRate().catch(() => eurArs / 1.08);
 
   const aArs = (monto: number, moneda: string): number => {
@@ -222,23 +223,32 @@ async function leerPlan(plan: any, eurArs: number): Promise<EntradasDelPlan> {
     return n;
   };
 
-  const budget: Array<{ c?: string; m?: number }> = Array.isArray(plan?.budget) ? plan.budget : [];
-  const budgetCurrency = plan?.budgetCurrency || 'USD';
+  /**
+   * El presupuesto de la etapa en la que está la plataforma: la beta mientras
+   * dura y la etapa real después. Son dos tablas distintas y la plata que se
+   * está quemando hoy es la de una sola.
+   */
+  const budget: FilaDeGasto[] = enBeta
+    ? Array.isArray(plan?.budget) ? plan.budget : []
+    : Array.isArray(plan?.budgetReal) ? plan.budgetReal : Array.isArray(plan?.budget) ? plan.budget : [];
+  const budgetCurrency = (enBeta ? plan?.budgetCurrency : plan?.budgetRealCurrency ?? plan?.budgetCurrency) || 'USD';
 
   /**
-   * Qué cuenta como gasto de adquisición.
+   * Qué cuenta como gasto de adquisición: sólo las líneas que compran clientes,
+   * clasificadas por `tipoDeGasto` (shared/pricing/gastos.ts).
    *
-   * Sólo las líneas que compran clientes. Meter la infraestructura o el
-   * abogado adentro del CAC infla el costo de adquirir y hace parecer que la
-   * pauta no rinde, cuando lo que pasa es que se está contando el alquiler
-   * como si fuera publicidad.
+   * Acá había una expresión regular, `/ads?|adquisi|marketing|…/i`, que coincide
+   * con cualquier texto que CONTENGA "ad": "Retainer abogado laboral" y
+   * "Honorarios gestor/contador" contaban como publicidad. Con el presupuesto de
+   * arranque la adquisición salía US$4.800 en vez de US$3.000: un CAC inflado
+   * un 60% y, de ahí, un LTV/CAC y un payback peores de lo que son.
    */
-  const ES_ADQUISICION = /ads?|adquisi|marketing|pauta|publicidad|ventas/i;
-  const gastoMarketing = budget
-    .filter((b) => ES_ADQUISICION.test(String(b.c || '')))
-    .reduce((acc, b) => acc + aArs(Number(b.m) || 0, budgetCurrency), 0);
+  const gastos = totalesPorTipo(budget);
+  const gastoMarketing = aArs(gastos.adquisicion, budgetCurrency);
 
-  const costosFijos = budget.reduce((acc, b) => acc + aArs(Number(b.m) || 0, budgetCurrency), 0);
+  // Lo que se quema por mes en la etapa actual: TODO lo que sale, no sólo lo fijo.
+  // (Se llama "costos fijos" por historia; es la quema que usa el runway.)
+  const costosFijos = aArs(gastos.total, budgetCurrency);
 
   const ue = plan?.ue || {};
   const growth = plan?.projection?.growth || {};
@@ -323,9 +333,9 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
     .getEURtoARSRate()
     .catch(() => 1700);
 
-  const entradas = await leerPlan(plan, eurArs);
   const fase = await getPlatformPhase().catch(() => 'beta' as const);
   const enBeta = fase === 'beta';
+  const entradas = await leerPlan(plan, eurArs, enBeta);
 
   const desde30 = diasAtras(30);
 
@@ -556,9 +566,12 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
   }
 
   /**
-   * El plan tiene dos tickets y pueden no coincidir. Se avisa en vez de
-   * elegir uno en silencio: la diferencia entre EUR 22 y USD 85 no es un
-   * redondeo, son dos negocios distintos, y cuál es el real lo sabe el owner.
+   * El plan tenía dos tickets y podían no coincidir. Desde que los bloques se
+   * coordinan (`coordinarPlan`, que la ruta aplica antes de llamar acá) el de la
+   * proyección ES el de la economía unitaria, así que con un plan que pasó por la
+   * ruta esto no puede disparar. Se conserva como defensa: un plan que llegue sin
+   * coordinar tiene que avisar en vez de elegir uno en silencio, porque la
+   * diferencia entre EUR 22 y USD 85 no es un redondeo, son dos negocios.
    */
   const inconsistenciaDelPlan =
     entradas.ticketUeArs > 0 &&

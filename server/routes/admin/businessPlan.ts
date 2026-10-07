@@ -14,6 +14,14 @@ import {
   META_RUNWAY_FASE1_MESES,
   SUPUESTOS_UE_DE_ARRANQUE,
 } from '../../../shared/pricing/unidadEconomica.js';
+import {
+  ACTIVOS_PCT_POR_DEFECTO,
+  coordinarPlan,
+  mesesHastaFinDeBeta,
+  type PlanCoordinable,
+} from '../../../shared/pricing/planCoordinado.js';
+import { PRESUPUESTO_DE_ARRANQUE_USD } from '../../../shared/pricing/gastos.js';
+import { fechasDeFase } from '../../services/platformPhase.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -54,15 +62,14 @@ const defaultPlan = () => ({
     { c: 'Apertura cuenta bancaria de la sociedad', d: 'Cuenta corriente a nombre de la SAS para operar y recibir el capital integrado.', m: 0, f: '', e: 'Pendiente' },
     { c: 'Asesoría legal laboral — retainer 1er mes', d: 'Abogado especializado en gig economy para blindar contratos con Doers desde el día 1.', m: 200000, f: '', e: 'Pendiente' },
   ],
+  // Gastos de la BETA. Los de la etapa real (`budgetReal`, `budgetRealCurrency`)
+  // NO tienen valor por defecto a propósito: nacen como copia de estos, tal como
+  // los dejó el owner, en `coordinarPlan`. Un valor por defecto acá le habría
+  // puesto a un plan viejo los rubros de fábrica en lugar de los suyos.
   budgetCurrency: 'USD',
-  budget: [
-    { c: 'Meta Ads / adquisición', m: 3000, n: 'Fase 1: 500 MAU meta' },
-    { c: 'Retainer abogado laboral', m: 1800, n: 'gig economy' },
-    { c: 'Infraestructura tech (hosting, dominio, APIs)', m: 900, n: '' },
-    { c: 'Soporte y resolución de disputas (manual)', m: 1200, n: 'antes de automatizar' },
-    { c: 'Sueldos / founders', m: 0, n: '' },
-    { c: 'Contingencia (10%)', m: 700, n: '' },
-  ],
+  budget: PRESUPUESTO_DE_ARRANQUE_USD.map((fila) => ({ ...fila })),
+  // Cuántos meses dura la beta: los que faltan hasta la fecha de cierre publicada.
+  betaMeses: mesesHastaFinDeBeta(new Date(), fechasDeFase().betaEndsAt),
   checklist: [
     { t: 'Validaste el problema con 20+ entrevistas reales a Doers y Clientes', w: 15, on: false },
     { t: 'Tenés abogado laboral especializado en gig economy consultado', w: 20, on: false },
@@ -103,10 +110,11 @@ const defaultPlan = () => ({
    *               asi que es el ticket mas chico que tiene sentido modelar.
    *               Estuvo en 85 (ARS 132.600), que es un trabajo grande y no el
    *               tipico.
-   *  soporte 1    Lo que cuesta atender a un usuario en el mes. Estuvo en 8 sin
-   *               ninguna medicion detras.
+   *  soporte, disputas y fraude: supuestos MINIMOS, no mediciones (no hay
+   *               volumen para medirlos). El porque de cada valor esta en
+   *               SUPUESTOS_UE_DE_ARRANQUE (shared/pricing/unidadEconomica.ts).
    *
-   * Con estos valores el costo por contrato queda cerca de
+   * Con estos valores el costo por contrato queda en el mismo orden que
    * MARGINAL_COST_PER_CONTRACT_ARS, que es lo que el codigo ya usa para
    * calcular el minimo de ampliacion. Antes daba 39 veces mas.
    */
@@ -119,6 +127,15 @@ const defaultPlan = () => ({
   // Caso base deliberadamente pesimista: la idea es que si se cumple ESTO, los
   // gastos igual se cubren. Los costos son los reales contratados; los
   // supuestos de demanda son los conservadores.
+  //
+  // OJO: varios de estos campos NO son entradas. `coordinarPlan` (shared/pricing/
+  // planCoordinado.ts) los pisa cada vez que se lee el plan con lo que viene de
+  // los otros bloques: ticket, comisión, contratos por usuario, soporte, disputas,
+  // fraude y costos fijos salen de la economía unitaria y de los gastos de la
+  // etapa real; las altas, de la publicidad ÷ CAC; la beta, de los gastos de la
+  // beta. Los valores de abajo sólo importan si esa derivación falla. Lo que sí es
+  // una entrada: churn, techo, CAC, % de usuarios activos, infraestructura,
+  // membresía, publicidad cobrada, crecimiento de los fijos e impuestos.
   projectionCurrency: 'EUR',
   projection: {
     growth: {
@@ -132,7 +149,11 @@ const defaultPlan = () => ({
       // así que mucha gente se registra, usa una vez y no vuelve.
       churnPct: 12,
       techoUsuarios: 20000,
-      horizonteMeses: 36,
+      // De cada 100 usuarios registrados, cuántos contratan en un mes. Pasa de la
+      // economía unitaria (por usuario ACTIVO) a la proyección (por registrado).
+      activosPct: ACTIVOS_PCT_POR_DEFECTO,
+      // La proyección corre 120 meses y la pantalla muestra 1, 3, 5 o 10 años.
+      horizonteMeses: 120,
       mesInicio: new Date().toISOString().slice(0, 7),
     },
     revenue: {
@@ -174,7 +195,12 @@ const defaultPlan = () => ({
       // el volumen supere lo que una persona sola puede atender (ver el techo
       // de capacidad mas abajo).
       fijosMensuales: 430.5,
-      fijosCrecimientoPct: 2,
+      // Compuesto: 2% por mes son +27% por año y x10,8 a los diez años, que con la
+      // proyección a 5 y 10 años convertía un supuesto de "alguna contratación" en
+      // una estructura once veces más grande que no se decidió contratar. 0,5% por
+      // mes (~6% anual) deja los fijos creciendo sin inventar un equipo. Un plan ya
+      // guardado conserva el valor que tenga.
+      fijosCrecimientoPct: 0.5,
       costosConIvaPct: 70,
     },
     // Alícuotas de una SAS inscripta en Corrientes. Ganancias al 35%, el tramo
@@ -196,6 +222,27 @@ function mergeDeep(defaults: any, saved: any): any {
     }
   }
   return out;
+}
+
+/**
+ * El plan guardado, completo y con los bloques coordinados.
+ *
+ * TODO lo que lee el plan —la pantalla, el estado real, la economía unitaria— lo
+ * recibe por acá. Antes cada uno leía lo que había en la base, y la base tenía
+ * dos tickets y dos costos fijos distintos que cada lector resolvía a su manera.
+ *
+ * Si la coordinación falla se devuelve el plan sin coordinar, y se registra: una
+ * pantalla con números a medio derivar es mejor que una pantalla que no abre,
+ * pero no puede pasar callado.
+ */
+function planCompleto(guardado: unknown): any {
+  const data = mergeDeep(defaultPlan(), guardado || {});
+  try {
+    coordinarPlan(data as PlanCoordinable);
+  } catch (error) {
+    console.error('No se pudieron coordinar los bloques del plan:', error);
+  }
+  return data;
 }
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -280,19 +327,7 @@ router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response):
 
     // Un plan guardado antes de agregar una sección no tiene esa clave:
     // se completa con el valor por defecto en vez de romper la pantalla.
-    const defaults = defaultPlan();
-    const saved = plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {};
-    const data: Record<string, any> = { ...defaults, ...saved };
-    for (const [key, value] of Object.entries(defaults)) {
-      if (data[key] === undefined || data[key] === null) data[key] = value;
-      // Los bloques de supuestos se completan campo por campo
-      else if (
-        value && typeof value === 'object' && !Array.isArray(value) &&
-        data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])
-      ) {
-        data[key] = mergeDeep(value, data[key]);
-      }
-    }
+    const data = planCompleto(plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {});
 
     res.json({
       success: true,
@@ -321,7 +356,7 @@ router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response):
 router.get('/live', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
-    const data = mergeDeep(defaultPlan(), plan?.data || {});
+    const data = planCompleto(plan?.data);
     const live = await getLiveFinancials(data);
     res.json({ success: true, data: live });
   } catch (error: any) {
@@ -352,7 +387,7 @@ router.get('/live', protect, analisisOnly, async (_req: AuthRequest, res: Respon
 router.get('/unit-economics', protect, analisisOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
-    const data = mergeDeep(defaultPlan(), plan?.data || {});
+    const data = planCompleto(plan?.data);
     res.json({ success: true, data: await getUnitEconomics(data) });
   } catch (error: any) {
     console.error('Error calculando unit economics:', error);

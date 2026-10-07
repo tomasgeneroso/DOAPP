@@ -119,6 +119,28 @@ describe('economía unitaria: nada se inventa', () => {
     );
   });
 
+  it('un abogado o un contador NO cuentan como publicidad (la expresión vieja los contaba)', async () => {
+    /**
+     * La clasificación era `/ads?|adquisi|marketing|…/i`, que coincide con cualquier
+     * texto que CONTENGA "ad": "Retainer abogado laboral" y "Honorarios
+     * gestor/contador" entraban al gasto de adquisición. Con este presupuesto la
+     * pauta es US$3.000 de US$5.300 (57%); con la expresión vieja salía el 100%, y
+     * el CAC un 77% más alto.
+     */
+    const plan = {
+      ...PLAN_CARGADO,
+      budget: [
+        { c: 'Meta Ads / adquisición', m: 3000 },
+        { c: 'Retainer abogado laboral', m: 1800 },
+        { c: 'Honorarios gestor/contador', m: 500 },
+      ],
+    };
+    const ue = await getUnitEconomics(plan);
+    const marketing = ue.adquisicion.gastoMarketingMensual.valor as number;
+    const quema = ue.caja.quemaMensual.valor as number;
+    expect(marketing / quema).toBeCloseTo(3000 / 5300, 2);
+  });
+
   it('los tres escenarios de churn salen del mismo supuesto y están ordenados', async () => {
     // Derivados y no escritos aparte: si alguien corrige el plan, los tres se
     // mueven juntos. Tres números sueltos terminan contradiciendose.

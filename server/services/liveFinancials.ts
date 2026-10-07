@@ -139,10 +139,18 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
   // tiene que abrir igual, con un numero aproximado, y no quedarse en blanco.
   const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
 
+  // Los importes del plan vienen en la moneda de la proyección, que no siempre es
+  // el euro: se pasan a pesos con la moneda que corresponda. (Esto asumía euros, y
+  // con la proyección en dólares los costos salían un 8% corridos.)
+  const monedaPlan: string = plan?.projectionCurrency || 'EUR';
+  const arsPorUsd = eurArs / (Number(plan?.rateUsd) || 1.08);
+  const arsPorMonedaPlan = monedaPlan === 'ARS' ? 1 : monedaPlan === 'USD' ? arsPorUsd : eurArs;
+
   // El objetivo sale del plan guardado, no de una constante: si el owner
-  // cambia sus costos, la meta se mueve con ellos.
-  const fijosEur = Number(plan?.projection?.costs?.fijosMensuales) || 0;
-  const costoFijoMensualArs = Math.round(fijosEur * eurArs);
+  // cambia sus costos, la meta se mueve con ellos. Son los costos fijos de la
+  // etapa real, que es la que tiene que quedar cubierta cuando se cobre comisión.
+  const fijosPlan = Number(plan?.projection?.costs?.fijosMensuales) || 0;
+  const costoFijoMensualArs = Math.round(fijosPlan * arsPorMonedaPlan);
 
   const comisionGanada30 = Math.round(Number(brutoRow?.comision) || 0);
   const ticketPromedio = Math.round(Number(ticketRow?.avg) || 0);
@@ -157,11 +165,11 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
   // contratos", que se lee como objetivo cumplido cuando es exactamente lo
   // contrario. Se cae a los supuestos del plan y se avisa cual se uso.
   const pctPlan = Number(plan?.projection?.revenue?.comisionPct) || 0;
-  const ticketPlanEur = Number(plan?.projection?.revenue?.ticket) || 0;
+  const ticketPlanArs = (Number(plan?.projection?.revenue?.ticket) || 0) * arsPorMonedaPlan;
   const usandoPlan = comisionPromedioPct <= 0 || ticketPromedio <= 0;
 
   const pctBase = usandoPlan ? pctPlan : comisionPromedioPct;
-  const ticketBase = ticketPromedio > 0 ? ticketPromedio : ticketPlanEur * eurArs;
+  const ticketBase = ticketPromedio > 0 ? ticketPromedio : ticketPlanArs;
   const comisionPorContrato = ticketBase * (pctBase / 100);
 
   const contratosFaltantes =
@@ -169,7 +177,11 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
 
   const contratosPorUsuario =
     activos30 > 0 ? Math.round((contratosCompletados / activos30) * 100) / 100 : 0;
-  const cpuPlan = Number(plan?.projection?.revenue?.contratosPorUsuario) || 0;
+  // `contratosPorUsuario` medido es por usuario ACTIVO (contrató en los últimos 30
+  // días). El del plan que le corresponde es el de la economía unitaria, que es de
+  // la misma clase; el de la proyección es por usuario REGISTRADO y daría cinco
+  // veces más usuarios faltantes de los que hacen falta.
+  const cpuPlan = Number(plan?.ue?.contratos) || 0;
   const cpuBase = contratosPorUsuario > 0 ? contratosPorUsuario : cpuPlan;
   const usuariosFaltantes = cpuBase > 0 ? Math.ceil(contratosFaltantes / cpuBase) : 0;
 
