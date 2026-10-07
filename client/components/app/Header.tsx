@@ -28,6 +28,7 @@ import NotificationDropdown from "../NotificationDropdown";
 import AttentionDot from "../AttentionDot";
 import { usePendingTasks } from "../../hooks/usePendingTasks";
 import analytics from "../../utils/analytics";
+import { COMMISSION_RATES } from "../../../shared/constants/membershipPricing";
 
 export default function Header() {
   const { t, i18n } = useTranslation();
@@ -147,10 +148,13 @@ export default function Header() {
       };
     }
 
-    let commissionRate = 8;
+    // La tasa sale de COMMISSION_RATES, la misma que cobra el servidor. Estaba
+    // escrita acá como 8 / 3 / 1 (la tabla vieja), así que fuera de la beta la
+    // pantalla le mostraba a la gente una comisión menor a la que se cobra.
+    let commissionRate: number = COMMISSION_RATES.free;
     if (user.hasFamilyPlan) commissionRate = 0;
-    else if (user.membershipTier === "super_pro") commissionRate = 1;
-    else if (user.membershipTier === "pro") commissionRate = 3;
+    else if (user.membershipTier === "super_pro") commissionRate = COMMISSION_RATES.super_pro;
+    else if (user.membershipTier === "pro") commissionRate = COMMISSION_RATES.pro;
 
     if (user.hasFamilyPlan) {
       return { type: "family" as const };

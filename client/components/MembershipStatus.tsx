@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Crown, Loader2, Rocket, ShieldCheck } from "lucide-react";
+import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 
 interface Usage {
   membershipTier?: string | null;
@@ -119,7 +120,7 @@ export default function MembershipStatus() {
               is not stated here — it would be out of date by the time anyone
               read it. The checkout shows the exact figure. */}
           <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
-            PRO €5/mes · SUPER PRO €8/mes. Se cobran en pesos al cambio del día, así que el importe puede
+            PRO €{MEMBERSHIP_PRICES_EUR.pro}/mes. Se cobra en pesos al cambio del día, así que el importe puede
             variar entre meses.
           </p>
 
