@@ -12,6 +12,7 @@ import {
   type PantallaExplicada,
 } from '../client/content/guiaDelAnalisis.js';
 import { COMMISSION_RATES } from '../shared/constants/membershipPricing.js';
+import { SECCIONES_DEL_PLAN, N, type ClaveDeSeccion } from '../client/content/seccionesDelPlan.js';
 import {
   calcularUnidad,
   mauDeEquilibrio,
@@ -228,14 +229,6 @@ describe('cada panel que muestran las pantallas está explicado', () => {
     // Proyección
     ['client/pages/admin/BusinessPlan.tsx', 'Cotización del día'],
     ['client/pages/admin/BusinessPlan.tsx', 'Datos reales de la plataforma'],
-    ['client/pages/admin/BusinessPlan.tsx', '01 · Trámite'],
-    ['client/pages/admin/BusinessPlan.tsx', '02 · Runway'],
-    ['client/pages/admin/BusinessPlan.tsx', '03 · Unit economics'],
-    ['client/pages/admin/BusinessPlan.tsx', '04 · Decisión'],
-    ['client/pages/admin/BusinessPlan.tsx', '05 · Cronograma'],
-    ['client/components/admin/FinancialProjectionPanel.tsx', '06 · Proyección'],
-    ['client/components/admin/FinancialProjectionPanel.tsx', '07 · Resultado'],
-    ['client/components/admin/FinancialProjectionPanel.tsx', '08 · Informe'],
     ['client/components/admin/LiveFinancialsPanel.tsx', 'Estado real'],
   ];
 
@@ -247,25 +240,64 @@ describe('cada panel que muestran las pantallas está explicado', () => {
     },
   );
 
-  it('no quedan secciones numeradas en la proyección sin explicar', () => {
-    /**
-     * Toma TODAS las secciones "NN · Nombre" que aparecen en el código de la
-     * proyección y exige que cada una esté en la guía. Cubre el caso de que
-     * alguien agregue la 08 sin acordarse de este archivo. (El lookahead incluye
-     * \r porque algunos de estos archivos tienen finales de línea CRLF.)
-     */
+  /**
+   * Las secciones del plan (client/content/seccionesDelPlan.ts).
+   *
+   * Cuando el orden era 01 a 08 y alguien movió una, los textos de la guía que
+   * decían "la sección 03" quedaron apuntando a otra cosa sin que nada avisara.
+   * Ahora las pantallas, la guía y la ayuda leen los nombres de un solo lugar, y
+   * estos tests cubren cada eslabón.
+   */
+  const DONDE_SE_MUESTRA: Array<[ClaveDeSeccion, string]> = [
+    ['tramite', 'client/pages/admin/BusinessPlan.tsx'],
+    ['gastosBeta', 'client/pages/admin/BusinessPlan.tsx'],
+    ['gastosReal', 'client/pages/admin/BusinessPlan.tsx'],
+    ['unitEconomics', 'client/pages/admin/BusinessPlan.tsx'],
+    ['supuestos', 'client/components/admin/FinancialProjectionPanel.tsx'],
+    ['resultado', 'client/components/admin/FinancialProjectionPanel.tsx'],
+    ['informe', 'client/components/admin/FinancialProjectionPanel.tsx'],
+    ['decision', 'client/pages/admin/BusinessPlan.tsx'],
+    ['cronograma', 'client/pages/admin/BusinessPlan.tsx'],
+  ];
+
+  it.each(DONDE_SE_MUESTRA)('la sección "%s" se muestra con su nombre compartido y la guía la explica', (clave, archivo) => {
+    expect(leer(archivo)).toContain(`SECCIONES_DEL_PLAN.${clave}`);
+    expect(nombresExplicados.some((n) => n.startsWith(SECCIONES_DEL_PLAN[clave]))).toBe(true);
+  });
+
+  it('todas las secciones están en alguna pantalla: no sobra ni falta ninguna', () => {
+    expect(DONDE_SE_MUESTRA.map(([c]) => c).sort()).toEqual(Object.keys(SECCIONES_DEL_PLAN).sort());
+  });
+
+  it('el orden es el del negocio: beta, etapa real, proyección; numeradas 01 a 09 sin saltos', () => {
+    const numeros = Object.values(SECCIONES_DEL_PLAN).map((s) => Number(s.slice(0, 2)));
+    expect(numeros).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const clave = (c: ClaveDeSeccion) => Number(N[c]);
+    expect(clave('gastosBeta')).toBeLessThan(clave('gastosReal'));
+    expect(clave('gastosReal')).toBeLessThan(clave('unitEconomics'));
+    expect(clave('unitEconomics')).toBeLessThan(clave('supuestos'));
+    expect(clave('supuestos')).toBeLessThan(clave('resultado'));
+  });
+
+  it('en el código las secciones aparecen en ese mismo orden', () => {
+    const plan = leer('client/pages/admin/BusinessPlan.tsx');
+    const posicion = (c: ClaveDeSeccion) => plan.indexOf(`num={SECCIONES_DEL_PLAN.${c}}`);
+    const orden: ClaveDeSeccion[] = ['tramite', 'gastosBeta', 'gastosReal', 'unitEconomics'];
+    for (let i = 1; i < orden.length; i++) {
+      expect({ c: orden[i], despues: posicion(orden[i]) > posicion(orden[i - 1]) }).toEqual({ c: orden[i], despues: true });
+    }
+    // La proyección va después de Unit economics, y decisión y cronograma después de la proyección.
+    const iProyeccion = plan.indexOf('<FinancialProjectionPanel');
+    expect(iProyeccion).toBeGreaterThan(posicion('unitEconomics'));
+    expect(posicion('decision')).toBeGreaterThan(iProyeccion);
+    expect(posicion('cronograma')).toBeGreaterThan(posicion('decision'));
+  });
+
+  it('las pantallas no tienen números de sección escritos a mano', () => {
     const fuente =
       leer('client/pages/admin/BusinessPlan.tsx') +
       leer('client/components/admin/FinancialProjectionPanel.tsx');
-    const numeradas = Array.from(new Set(fuente.match(/\b0\d · [A-ZÁÉÍÓÚ][\wÁÉÍÓÚáéíóúñ ]+?(?=["'`<\r\n])/g) ?? []));
-
-    expect(numeradas.length).toBeGreaterThanOrEqual(8);
-    for (const n of numeradas) {
-      expect({ seccion: n, explicada: TEXTO_GUIA.includes(n.split(' · ')[0] + ' · ') }).toEqual({
-        seccion: n,
-        explicada: true,
-      });
-    }
+    expect(fuente.match(/["'`]0\d · /g)).toBeNull();
   });
 
   it('cada métrica de Economía unitaria tiene su término en la guía', () => {
@@ -315,22 +347,27 @@ describe('la guía está conectada a las pantallas', () => {
 });
 
 describe('lo que la guía dice sobre las monedas es lo que hace el código', () => {
-  it('sólo la sección 03 convierte: las otras tres sólo declaran', () => {
+  it('sólo Unit economics y la proyección convierten: las tablas de gastos sólo declaran', () => {
     /**
-     * La guía afirma que cambiar la moneda convierte en la 03 y NO convierte en
-     * la 01, 02 y 06. Si alguien hace que otra sección convierta, esa afirmación
-     * pasa a ser falsa, y este test lo avisa para que se actualice el texto.
+     * La guía afirma que cambiar la moneda convierte en Unit economics (con origen)
+     * y en los importes que se cargan en la proyección, y que NO convierte en el
+     * trámite ni en las dos tablas de gastos. Si alguien hace que otra sección
+     * convierta, esa afirmación pasa a ser falsa, y este test lo avisa para que se
+     * actualice el texto.
      */
     const plan = leer('client/pages/admin/BusinessPlan.tsx');
 
-    // La 03 usa la conversión con origen.
+    // Unit economics usa la conversión con origen.
     expect(plan).toContain('onChange={c => edit(d => cambiarMonedaUe(d, c))}');
+    // La proyección convierte lo que se carga en ella (CAC, infraestructura, membresía, publicidad).
+    expect(plan).toContain('edit(d => cambiarMonedaDeLaProyeccion(d, c as Currency))');
+    expect(plan).not.toContain('d.projectionCurrency = c as Currency;');
 
-    // Las demás sólo escriben la etiqueta de la moneda.
+    // El trámite y las tablas de gastos sólo escriben la etiqueta de la moneda.
     expect(plan).toContain('d.constCurrency = c;');
     expect(plan).toContain('d.budgetCurrency = c;');
-    expect(plan).toContain('d.projectionCurrency = c as Currency;');
-    expect(plan).not.toMatch(/d\.constCurrency = c;[\s\S]{0,80}cambiarMonedaUe/);
+    expect(plan).toContain('d.budgetRealCurrency = c;');
+    expect(plan).not.toMatch(/d\.(constCurrency|budgetCurrency|budgetRealCurrency) = c;[\s\S]{0,80}(cambiarMonedaUe|cambiarMonedaDeLaProyeccion)/);
   });
 
   it('el botón de la cotización se llama como dice la guía', () => {
@@ -345,7 +382,7 @@ describe('cada supuesto de la sección 06 tiene su explicación', () => {
   const PANEL = leer('client/components/admin/FinancialProjectionPanel.tsx');
 
   /** Los campos numéricos, tal como se llaman en el código de la pantalla. */
-  const camposNumericos = Array.from(PANEL.matchAll(/numField\(\s*'([^']+)'/g)).map((m) => m[1]);
+  const camposNumericos = Array.from(PANEL.matchAll(/(?:numField|campoDerivado)\(\s*'([^']+)'/g)).map((m) => m[1]);
   /** Los tres controles que no son numéricos y también llevan explicación. */
   const camposEspeciales = ['Mes de inicio', 'Cómo crece la base', 'La comisión se cobra con IVA incluido'];
   const todos = [...camposNumericos, ...camposEspeciales];
@@ -376,10 +413,35 @@ describe('cada supuesto de la sección 06 tiene su explicación', () => {
     }
   });
 
-  it('la pantalla dibuja la explicación debajo de cada campo', () => {
-    expect(PANEL).toContain('<Explicacion etiqueta={label} />');
+  it('la pantalla muestra la explicación de cada campo al pasar el mouse', () => {
+    // Los campos numéricos y los derivados reciben su etiqueta y la envuelven.
+    expect(PANEL).toContain('<Concepto c={label} />');
     for (const etiqueta of camposEspeciales) {
-      expect(PANEL).toContain(`<Explicacion etiqueta="${etiqueta}" />`);
+      expect(PANEL).toContain(`<Concepto c="${etiqueta}" />`);
+    }
+  });
+
+  it('los supuestos que vienen de otra sección se muestran con su origen y sin campo para editarlos', () => {
+    const derivados = SUPUESTOS_DE_LA_PROYECCION.flatMap((g) => g.items).filter((i) => i.viene);
+    expect(derivados.length).toBeGreaterThanOrEqual(9);
+    for (const i of derivados) {
+      // Se dibuja con campoDerivado (que no tiene input) y no con numField...
+      expect({ etiqueta: i.etiqueta, derivado: PANEL.includes(`campoDerivado('${i.etiqueta}'`) }).toEqual({
+        etiqueta: i.etiqueta,
+        derivado: true,
+      });
+      expect({ etiqueta: i.etiqueta, editable: PANEL.includes(`numField('${i.etiqueta}'`) }).toEqual({
+        etiqueta: i.etiqueta,
+        editable: false,
+      });
+      // ...y la explicación larga dice que no se carga ahí.
+      expect(i.explicacion).toMatch(/no se carga acá|viene de/i);
+    }
+  });
+
+  it('lo que se carga en la proyección sigue siendo editable', () => {
+    for (const etiqueta of ['Usuarios registrados al arrancar', 'Usuarios activos del mes (% de los registrados)', 'Churn mensual', 'Techo de mercado (0 = sin techo)', 'Costo de adquirir un usuario (CAC)', 'IVA']) {
+      expect({ etiqueta, editable: PANEL.includes(`numField('${etiqueta}'`) }).toEqual({ etiqueta, editable: true });
     }
   });
 

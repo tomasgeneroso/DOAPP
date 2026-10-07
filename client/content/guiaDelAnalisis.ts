@@ -6,8 +6,13 @@ import {
   META_RUNWAY_FASE1_MESES,
   REFERENCIA_LTV_CAC,
   SUPUESTOS_UE_DE_ARRANQUE,
+  BASE_DE_LOS_SUPUESTOS_MINIMOS,
+  SUPUESTOS_MINIMOS_SIN_REDONDEAR,
 } from '../../shared/pricing/unidadEconomica';
+import { ROTULO_DE_TIPO } from '../../shared/pricing/gastos';
 import { SCENARIOS } from '../utils/financialProjection';
+import { N, SECCIONES_DEL_PLAN } from './seccionesDelPlan';
+import { ACTIVOS_PCT_POR_DEFECTO } from '../../shared/pricing/planCoordinado';
 
 /**
  * La guía del análisis: qué es, de qué partes se compone y cómo se lee.
@@ -158,6 +163,11 @@ const GLOSARIO: Termino[] = [
       'Persona distinta que tuvo al menos un contrato en los últimos 30 días, ya sea como cliente o como profesional. No cuenta a quien sólo entró a mirar: la medida es contratar, que es lo que genera ingreso.',
   },
   {
+    termino: 'Usuario registrado',
+    definicion:
+      'Persona que se dio de alta y no se fue, haya contratado este mes o no. La proyección cuenta usuarios registrados; la economía unitaria cuenta usuarios activos. Un porcentaje (usuarios activos del mes) pasa de uno a otro.',
+  },
+  {
     termino: 'Ticket promedio',
     definicion:
       'Lo que vale, en promedio, un trabajo contratado en la plataforma. Es el monto del trabajo, no lo que cobra DOAPP.',
@@ -185,7 +195,7 @@ const GLOSARIO: Termino[] = [
   {
     termino: 'Costos fijos',
     definicion:
-      'Lo que se paga por mes aunque no haya ni un usuario: equipo, infraestructura, herramientas. También se llama quema mensual.',
+      'Lo que se paga por mes aunque no haya ni un usuario: equipo, infraestructura, herramientas, honorarios. En el plan son los rubros de tipo Fijo de la tabla de gastos de la etapa real: la publicidad (que compra usuarios) y el soporte (que se calcula por usuario) no entran. No es lo mismo que la quema mensual, que es todo lo que se gasta en el mes.',
   },
   {
     termino: 'Punto de equilibrio',
@@ -248,12 +258,17 @@ const GLOSARIO: Termino[] = [
   {
     termino: 'Beta',
     definicion:
-      'El período de lanzamiento, durante el cual la comisión es 0%. Mientras dure, no hay ingresos por comisión que medir, y por eso muchas celdas dicen "sin datos".',
+      `El período de lanzamiento, durante el cual la comisión es 0%. Mientras dure, no hay ingresos por comisión que medir, y por eso muchas celdas dicen "sin datos". En la proyección es una etapa propia: dura los meses que se cargan en la sección ${N.gastosBeta}, con sus propios gastos y sus propias altas.`,
+  },
+  {
+    termino: 'Etapa real',
+    definicion:
+      'Lo que viene después de la beta: se cobra comisión, y los gastos y el crecimiento son los que se cargan en la sección de gastos de la etapa real.',
   },
   {
     termino: 'SAS y Go / No-Go',
     definicion:
-      'La SAS (Sociedad por Acciones Simplificada) es la figura legal que se está constituyendo; sus costos están en la sección 01. El Go / No-Go es la lista de la sección 04: lo que tiene que estar resuelto antes de pagar el primer trámite.',
+      `La SAS (Sociedad por Acciones Simplificada) es la figura legal que se está constituyendo; sus costos están en la sección ${N.tramite}. El Go / No-Go es la lista de la sección ${N.decision}: lo que tiene que estar resuelto antes de pagar el primer trámite.`,
   },
 ];
 
@@ -305,57 +320,65 @@ const PANTALLAS_PROYECCION: PantallaExplicada[] = [
     nombre: 'Datos reales de la plataforma',
     muestra: 'Usuarios activos, contratos, contratos por usuario, ticket promedio y comisión promedio de los últimos 30 días.',
     comoLeerla:
-      'Son mediciones, no supuestos. El botón "Usar datos reales" de la sección 03 los copia como punto de partida, y vale la pena usarlo apenas haya datos.',
+      `Son mediciones, no supuestos. El botón "Usar datos reales" de la sección ${N.unitEconomics} los copia como punto de partida, y vale la pena usarlo apenas haya datos.`,
   },
   {
-    nombre: '01 · Trámite',
+    nombre: SECCIONES_DEL_PLAN.tramite,
     muestra: 'Los costos de constituir la SAS (honorarios, tasas, publicación, capital social) con su estado: pendiente, en trámite o pagado.',
     comoLeerla:
-      'Son valores orientativos: confirmalos con un contador antes de pagar. Lo que queda del capital después de constituir es lo que alimenta el runway.',
+      'Son valores orientativos: confirmalos con un contador antes de pagar. Lo que queda del capital después de constituir es con lo que arranca la beta.',
   },
   {
-    nombre: '02 · Runway',
-    muestra: 'El presupuesto mensual de lanzamiento en un solo barrio (publicidad, abogado, infraestructura, soporte, contingencia) y cuántos meses dura el capital.',
-    comoLeerla: `Mirá los meses de runway contra la meta de la Fase 1: ${META_RUNWAY_FASE1_MESES}. Si los costos de constitución superan el capital, la pantalla lo avisa: no queda nada para validar.`,
-  },
-  {
-    nombre: '03 · Unit economics',
+    nombre: SECCIONES_DEL_PLAN.gastosBeta,
     muestra:
-      'El punto de equilibrio: cuántos usuarios activos por mes hacen falta para cubrir los costos fijos, a partir del ticket, la comisión, los contratos por usuario y los costos de atender.',
-    comoLeerla:
-      'Es la cuenta del ejemplo de la sección "La cuenta de fondo". Si el estado dice "Margen negativo" no hay equilibrio posible. El número es una cantidad de usuarios: no cambia con la moneda.',
+      'Lo que se gasta por mes mientras no se cobra comisión: publicidad, abogado, infraestructura, soporte, contingencia. Cada rubro tiene su tipo (fijo, publicidad o soporte) y arriba se carga cuántos meses dura la beta. Abajo, cuánta plata queda al terminar la beta.',
+    comoLeerla: `Mirá primero el capital al terminar la beta: es con lo que arranca la etapa real, y si es negativo la beta no se puede sostener. Después los meses de runway contra la meta de la Fase 1 (${META_RUNWAY_FASE1_MESES}). El tipo importa: la publicidad no es un costo fijo, es lo que compra usuarios (altas = publicidad ÷ CAC).`,
   },
   {
-    nombre: '04 · Decisión (Go / No-Go)',
+    nombre: SECCIONES_DEL_PLAN.gastosReal,
+    muestra:
+      'Lo que se gasta por mes cuando ya se cobra comisión, con la misma tabla y los mismos tipos que la beta. Arrancó como copia de la tabla de la beta. Debajo, lo que el modelo toma de ella: los costos fijos, las altas que compra la publicidad y, en amarillo, lo que no encaja.',
+    comoLeerla:
+      'Es la única sección donde se cargan los costos fijos y la publicidad de la etapa real: la economía unitaria y la proyección los toman de acá. Sólo suman a los costos fijos los rubros de tipo Fijo; el soporte no se suma porque se calcula por usuario.',
+  },
+  {
+    nombre: SECCIONES_DEL_PLAN.unitEconomics,
+    muestra:
+      'El punto de equilibrio: cuántos usuarios activos por mes hacen falta para cubrir los costos fijos de la etapa real, a partir del ticket, la comisión, los contratos por usuario y los costos de atender.',
+    comoLeerla:
+      'Es la cuenta del ejemplo de la sección "La cuenta de fondo". Los costos fijos no se editan acá: vienen de los gastos de la etapa real. Si el estado dice "Margen negativo" no hay equilibrio posible. El número es una cantidad de usuarios: no cambia con la moneda. No incluye la publicidad ni reponer a los que se van: eso lo suma la proyección.',
+  },
+  {
+    nombre: SECCIONES_DEL_PLAN.supuestos,
+    muestra:
+      'Los supuestos del modelo mes a mes, en cuatro grupos: usuarios, ingresos, costos e impuestos, y el selector de escenario. Los que vienen de otra sección se muestran con su valor y de dónde vienen, y no se editan acá.',
+    comoLeerla:
+      'De acá salen todos los gráficos y el informe. Pasá el mouse por un concepto para ver qué es; en esta guía están todos juntos en "Los supuestos de la Proyección". Los impuestos están modelados para una SAS argentina inscripta en IVA; las alícuotas son las habituales pero Ingresos Brutos depende de la provincia y Ganancias tiene tramos, así que se confirman con un contador.',
+  },
+  {
+    nombre: SECCIONES_DEL_PLAN.resultado,
+    muestra:
+      'Una tabla con los cuatro horizontes juntos (1, 3, 5 y 10 años), un selector para ver uno en detalle, cuatro hitos (en qué mes cubre sus costos, en qué mes el resultado neto es positivo, capital mínimo necesario y caja acumulada), cuatro gráficos con la beta sombreada (caja acumulada, ingresos / costos / impuestos, en qué se va la plata y base de usuarios) y, bajo el botón "Ver detalle mensual", la tabla mes a mes con su etapa.',
+    comoLeerla:
+      'Empezá por la tabla de horizontes: dice si el negocio se sostiene y cuánto capital pide en cada plazo. Los ingresos y el EBITDA son de los últimos 12 meses de cada horizonte y no del acumulado, porque un mes suelto no dice si se sostiene y el acumulado mezcla la beta con el régimen. El "capital mínimo necesario" es lo que hay que tener para no quedarse sin caja en el peor momento del camino.',
+  },
+  {
+    nombre: SECCIONES_DEL_PLAN.informe,
+    muestra:
+      'La lectura escrita del horizonte y el escenario elegidos: un titular y un resumen, el análisis por temas y un recuadro de alertas cuando hay algo que atender. Debajo, la comparación de los tres escenarios lado a lado (cuándo cubre costos, capital mínimo, caja, usuarios y LTV / CAC). Se puede copiar el informe o bajarlo como archivo .md, y el detalle mes a mes como .csv.',
+    comoLeerla:
+      'Es el resumen para compartir: dice con palabras lo que muestran los gráficos. Empezá por las alertas, si las hay, y mirá la fila del escenario conservador de la comparación: es el que responde "¿y si sale peor de lo que pensamos?".',
+  },
+  {
+    nombre: `${SECCIONES_DEL_PLAN.decision} (Go / No-Go)`,
     muestra: 'Una lista de condiciones que tienen que estar resueltas antes de pagar el primer trámite, con un porcentaje de avance.',
     comoLeerla:
       'Los tres primeros pesan más: son los riesgos que pueden convertir la inversión en capital quemado. Se marca lo que ya está resuelto, no lo que se piensa resolver.',
   },
   {
-    nombre: '05 · Cronograma',
+    nombre: SECCIONES_DEL_PLAN.cronograma,
     muestra: 'Los hitos hacia una ronda Serie A, con fecha objetivo y estado.',
     comoLeerla: 'Es una hoja de seguimiento: las fechas son objetivos editables y se actualiza el estado a medida que se cumple cada hito.',
-  },
-  {
-    nombre: '06 · Proyección',
-    muestra:
-      'Los supuestos del modelo mes a mes, en cuatro grupos: crecimiento, ingresos, costos e impuestos, y el selector de escenario.',
-    comoLeerla:
-      'De acá salen todos los gráficos y el informe. Cada campo trae debajo su explicación, y en esta guía están todos juntos en "Los supuestos de la Proyección". Los impuestos están modelados para una SAS argentina inscripta en IVA; las alícuotas son las habituales pero Ingresos Brutos depende de la provincia y Ganancias tiene tramos, así que se confirman con un contador.',
-  },
-  {
-    nombre: '07 · Resultado',
-    muestra:
-      'Cuatro hitos (en qué mes cubre sus costos, en qué mes el resultado neto es positivo, capital mínimo necesario y caja al final), cuatro gráficos (caja acumulada, ingresos / costos / impuestos, en qué se va la plata y base de usuarios) y, bajo el botón "Ver detalle mensual", la tabla mes a mes con usuarios, contratos, ingresos, costos, EBITDA, impuestos, resultado neto y caja.',
-    comoLeerla:
-      'El mes en que la línea de ingresos cruza la de costos es el punto de equilibrio operativo. El "capital mínimo necesario" es lo que hay que tener para no quedarse sin caja en el peor momento del camino. La tabla mensual sirve para ver en qué mes exacto cambia cada número.',
-  },
-  {
-    nombre: '08 · Informe',
-    muestra:
-      'La lectura escrita del escenario elegido: un titular y un resumen, el análisis por temas y un recuadro de alertas cuando hay algo que atender. Debajo, la comparación de los tres escenarios lado a lado (cuándo cubre costos, capital mínimo, caja final, usuarios y LTV / CAC). Se puede copiar el informe o bajarlo como archivo .md, y el detalle mes a mes como .csv.',
-    comoLeerla:
-      'Es el resumen para compartir: dice con palabras lo que muestran los gráficos. Empezá por las alertas, si las hay, y mirá la fila del escenario conservador de la comparación: es el que responde "¿y si sale peor de lo que pensamos?".',
   },
   {
     nombre: 'Estado real',
@@ -373,6 +396,12 @@ export interface SupuestoExplicado {
   /** El texto del campo, tal como aparece en la pantalla. */
   etiqueta: string;
   explicacion: string;
+  /**
+   * Si NO se carga en esta sección: de qué sección lo toma. La pantalla lo muestra
+   * como "viene de …" y no lo deja editar, para que no haya dos versiones del
+   * mismo número.
+   */
+  viene?: string;
 }
 
 export interface GrupoDeSupuestos {
@@ -382,7 +411,7 @@ export interface GrupoDeSupuestos {
 }
 
 /**
- * Qué es cada campo de la sección 06 y qué hace el motor con él.
+ * Qué es cada campo de la sección 05 y qué hace el motor con él.
  *
  * Cada explicación sale de leer `projectFinancials` (client/utils/financialProjection.ts),
  * no de la intuición: varias cosas que parecen obvias no lo son. "Crecimiento
@@ -392,14 +421,14 @@ export interface GrupoDeSupuestos {
  * usuarios nunca arranca, porque el 10% de cero es cero. Un test fija esas
  * afirmaciones contra el motor.
  *
- * Los textos se muestran DEBAJO de cada campo en la pantalla y, juntos, en la
- * guía: es la misma fuente, así que no pueden decir cosas distintas.
+ * La explicación LARGA vive acá y se muestra en la guía. Al pasar el mouse por el
+ * campo se ve una versión breve (client/content/conceptos.ts).
  */
 export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
   {
-    grupo: 'Crecimiento: cuántos usuarios hay cada mes',
+    grupo: 'Usuarios: cuántos hay cada mes',
     intro:
-      'Estos supuestos definen la base de usuarios activos mes a mes. Todo lo demás —contratos, ingresos, costo de soporte— se calcula a partir de esa base. Cada mes, usuarios al cierre = usuarios + altas − bajas.',
+      'Estos supuestos definen la base de usuarios REGISTRADOS mes a mes: los que se dieron de alta y no se fueron. Todo lo demás —contratos, ingresos, costo de soporte— se calcula a partir de esa base. Cada mes, usuarios al cierre = usuarios + altas − bajas. Durante la beta las altas son las de la beta; desde la etapa real, las de la etapa real.',
     items: [
       {
         etiqueta: 'Mes de inicio',
@@ -407,60 +436,77 @@ export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
           'El mes en que arranca la proyección (el mes 1). Sólo cambia las etiquetas de los gráficos y de la tabla.',
       },
       {
-        etiqueta: 'Usuarios activos al arrancar',
+        etiqueta: 'Usuarios registrados al arrancar',
         explicacion:
-          'Cuántos usuarios activos hay el día que empieza la proyección. En el lanzamiento son cero. Si ya hay datos reales, el botón "Arrancar de los datos reales" lo completa.',
+          'Cuántos usuarios registrados hay el día que empieza la proyección. En el lanzamiento son cero. Si ya hay datos reales, el botón "Arrancar de los datos reales" lo completa con los usuarios registrados de hoy.',
+      },
+      {
+        etiqueta: 'Usuarios activos del mes (% de los registrados)',
+        explicacion:
+          'De cada 100 usuarios registrados, cuántos usan la plataforma en un mes (contratan al menos una vez). La economía unitaria habla de usuarios ACTIVOS —por eso sus contratos por usuario no bajan de 0,5— y la proyección cuenta usuarios REGISTRADOS, incluidos los que se dieron de alta y no volvieron. Este porcentaje pasa de uno a otro: contratos por usuario registrado = contratos por usuario activo × este porcentaje, y lo mismo con el soporte. Sin él, la proyección multiplicaba toda la base por el ritmo de los activos y sobreestimaba los ingresos. El botón "Arrancar de los datos reales" lo completa con lo que mide hoy la plataforma.',
       },
       {
         etiqueta: 'Cómo crece la base',
         explicacion:
-          'Cómo se suman los usuarios nuevos: "% sobre la base" (cada mes entra un porcentaje de los que ya hay) o "altas fijas" (entra la misma cantidad cada mes). Con cero usuarios iniciales el porcentaje no sirve: el 10% de cero es cero y la base nunca arranca. En ese caso usá altas fijas.',
+          'Cómo se suman usuarios nuevos en la etapa real: "altas fijas" (entra la misma cantidad cada mes, la que compra la publicidad de la etapa real) o "% sobre la base" (cada mes entra un porcentaje de los que ya hay). Con cero usuarios el porcentaje no sirve: el 10% de cero es cero y la base nunca arranca. En ese caso usá altas fijas. En la beta las altas son siempre fijas.',
       },
       {
         etiqueta: 'Crecimiento mensual de usuarios',
         explicacion:
-          'Usuarios nuevos que se suman cada mes, como porcentaje de los usuarios activos que ya hay. Es sólo lo que entra: lo que se va lo define el churn, así que el crecimiento neto es este número menos el churn. No es crecimiento de la caja ni de los contratos: ésos se calculan después, a partir de los usuarios.',
+          'Usuarios nuevos que se suman cada mes, como porcentaje de los usuarios registrados que ya hay. Es sólo lo que entra: lo que se va lo define el churn, así que el crecimiento neto es este número menos el churn. No es crecimiento de la caja ni de los contratos: ésos se calculan después, a partir de los usuarios.',
       },
       {
-        etiqueta: 'Altas por mes',
+        etiqueta: 'Altas por mes en la etapa real',
         explicacion:
-          'Usuarios nuevos que se suman cada mes, siempre la misma cantidad. Se relaciona con la publicidad: altas ≈ presupuesto de publicidad ÷ costo de adquirir un usuario (CAC).',
+          'Usuarios nuevos que se suman cada mes en la etapa real, siempre la misma cantidad. No se carga acá: es la publicidad de la tabla de gastos de la etapa real dividida por el costo de adquirir un usuario (CAC). Para tener más altas hay que subir la publicidad o bajar el CAC.',
+        viene: SECCIONES_DEL_PLAN.gastosReal,
+      },
+      {
+        etiqueta: 'Altas por mes en la beta',
+        explicacion:
+          'Usuarios nuevos que se suman cada mes durante la beta. No se carga acá: es la publicidad de la tabla de gastos de la beta dividida por el costo de adquirir un usuario (CAC).',
+        viene: SECCIONES_DEL_PLAN.gastosBeta,
+      },
+      {
+        etiqueta: 'Duración de la beta',
+        explicacion:
+          'Cuántos meses dura la beta, contados desde el mes 1 de la proyección. Mientras dura no se cobra comisión, las altas son las de la beta y los costos fijos son los de la tabla de la beta. No se carga acá: está en la sección de gastos de la beta.',
+        viene: SECCIONES_DEL_PLAN.gastosBeta,
       },
       {
         etiqueta: 'Churn mensual',
         explicacion:
-          'Porcentaje de los usuarios activos que dejan de serlo cada mes. Con 10%, de cada 100 usuarios se van 10 por mes. Cuanto más alto, menos dura un usuario y más hay que gastar para reponerlo. En oficios es alto porque a un plomero no se lo llama todos los meses.',
+          'Porcentaje de los usuarios registrados que dejan de usar la plataforma cada mes. Con 10%, de cada 100 usuarios se van 10 por mes. Cuanto más alto, menos dura un usuario y más hay que gastar para reponerlo. En oficios es alto porque a un plomero no se lo llama todos los meses.',
       },
       {
         etiqueta: 'Techo de mercado (0 = sin techo)',
         explicacion:
-          'Cantidad máxima de usuarios activos que el mercado puede dar. A medida que la base se acerca al techo las altas se frenan: con la base en la mitad del techo entra la mitad de las altas. En 0 no hay límite, y con crecimiento porcentual eso proyecta una curva exponencial irreal.',
-      },
-      {
-        etiqueta: 'Horizonte a proyectar',
-        explicacion: 'Cuántos meses hacia adelante calcula el modelo (hasta 120).',
+          'Cantidad máxima de usuarios registrados que el mercado puede dar. A medida que la base se acerca al techo las altas se frenan, las de la beta también: con la base en la mitad del techo entra la mitad de las altas. En 0 no hay límite, y con crecimiento porcentual eso proyecta una curva exponencial irreal.',
       },
     ],
   },
   {
     grupo: 'Ingresos: cuánta plata entra',
     intro:
-      'Los contratos del mes salen de multiplicar los usuarios por los contratos por usuario; el volumen es contratos × ticket; y DOAPP se queda con un porcentaje de ese volumen.',
+      'Los contratos del mes salen de multiplicar los usuarios por los contratos por usuario; el volumen es contratos × ticket; y DOAPP se queda con un porcentaje de ese volumen. Durante la beta ese porcentaje es 0.',
     items: [
       {
         etiqueta: 'Ticket promedio por contrato',
         explicacion:
-          'Valor medio de un trabajo contratado. Es el monto del trabajo, no lo que cobra DOAPP: la comisión se calcula sobre este monto.',
+          'Valor medio de un trabajo contratado. Es el monto del trabajo, no lo que cobra DOAPP: la comisión se calcula sobre este monto. No se carga acá: es el de Unit economics, expresado en la moneda de esta sección.',
+        viene: SECCIONES_DEL_PLAN.unitEconomics,
       },
       {
-        etiqueta: 'Contratos por usuario / mes',
+        etiqueta: 'Contratos por usuario registrado / mes',
         explicacion:
-          'Cuántos contratos cierra, en promedio, cada usuario de la base en un mes. Contratos del mes = usuarios × este número. Ojo con quién cuenta como usuario: en la sección 03 es sólo quien contrató en los últimos 30 días (y por eso el mínimo es 0,5); si acá la base incluye gente que no contrató, el número es menor.',
+          'Cuántos contratos cierra, en promedio, cada usuario registrado en un mes. Contratos del mes = usuarios × este número. No se carga acá: es el de Unit economics (por usuario ACTIVO, y por eso no baja de 0,5) multiplicado por el porcentaje de usuarios activos.',
+        viene: `${SECCIONES_DEL_PLAN.unitEconomics} × % de activos`,
       },
       {
         etiqueta: 'Comisión de la plataforma',
         explicacion:
-          'Porcentaje del valor de cada contrato que se queda DOAPP. Ingreso por comisión = volumen × este porcentaje. Durante la beta es 0%.',
+          'Porcentaje del valor de cada contrato que se queda DOAPP. Ingreso por comisión = volumen × este porcentaje. Viene de Unit economics. Durante la beta es 0% sin importar este valor.',
+        viene: SECCIONES_DEL_PLAN.unitEconomics,
       },
       {
         etiqueta: 'Usuarios con membresía',
@@ -472,9 +518,9 @@ export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
           'Lo que paga por mes cada usuario con membresía. Ingreso por membresías = usuarios × % con membresía × este precio.',
       },
       {
-        etiqueta: 'Publicidad / mes',
+        etiqueta: 'Publicidad de terceros (ingreso) / mes',
         explicacion:
-          'Ingreso mensual fijo por publicidad de terceros dentro de la plataforma. No es lo que DOAPP gasta en publicidad: eso es el costo de adquirir un usuario.',
+          'Ingreso mensual fijo por publicidad de terceros dentro de la plataforma. No es lo que DOAPP gasta en publicidad propia: eso está en las tablas de gastos y es lo que compra usuarios.',
       },
       {
         etiqueta: 'La comisión se cobra con IVA incluido',
@@ -489,14 +535,15 @@ export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
       'Hay costos que crecen con cada usuario (soporte, infraestructura), costos que crecen con la plata que se mueve (medio de pago, disputas, fraude), costos que no dependen de nada (los fijos) y el costo de conseguir usuarios nuevos.',
     items: [
       {
-        etiqueta: 'Soporte por usuario / mes',
+        etiqueta: 'Soporte por usuario registrado / mes',
         explicacion:
-          'Costo de atender a un usuario de la base en un mes. Costo de soporte = usuarios × este número. Se estima como horas de soporte × costo de la hora ÷ usuarios.',
+          'Costo de atender a un usuario registrado en un mes. Costo de soporte = usuarios × este número. No se carga acá: es el de Unit economics (por usuario activo) multiplicado por el porcentaje de usuarios activos. En la beta el soporte se cuenta como monto fijo en la tabla de gastos de la beta y este valor no se aplica.',
+        viene: `${SECCIONES_DEL_PLAN.unitEconomics} × % de activos`,
       },
       {
         etiqueta: 'Infraestructura por usuario / mes',
         explicacion:
-          'Costo de servidores y servicios que crece con cada usuario (almacenamiento, mensajes). El servidor base, que se paga igual haya o no usuarios, va en "Costos fijos".',
+          'Costo de servidores y servicios que crece con cada usuario (almacenamiento, mensajes). El servidor base, que se paga igual haya o no usuarios, va en la tabla de gastos como "Fijo".',
       },
       {
         etiqueta: 'Comisión del medio de pago',
@@ -506,27 +553,30 @@ export const SUPUESTOS_DE_LA_PROYECCION: GrupoDeSupuestos[] = [
       {
         etiqueta: 'Disputas (% del volumen)',
         explicacion:
-          'Plata que se pierde en disputas, como porcentaje del volumen total de los contratos: la plata que mueven, no la cantidad de contratos.',
+          'Plata que se pierde en disputas, como porcentaje del volumen total de los contratos: la plata que mueven, no la cantidad de contratos. Viene de Unit economics.',
+        viene: SECCIONES_DEL_PLAN.unitEconomics,
       },
       {
         etiqueta: 'Fraude y contracargos (% del volumen)',
         explicacion:
-          'Plata que se pierde por fraude y contracargos, como porcentaje del volumen total. Con escrow sólo se pierde lo que ya se le pagó al profesional antes de que el banco reclame.',
+          'Plata que se pierde por fraude y contracargos, como porcentaje del volumen total. Con escrow sólo se pierde lo que ya se le pagó al profesional antes de que el banco reclame. Viene de Unit economics.',
+        viene: SECCIONES_DEL_PLAN.unitEconomics,
       },
       {
         etiqueta: 'Costo de adquirir un usuario (CAC)',
         explicacion:
-          'Cuánto cuesta conseguir un usuario nuevo. Costo de adquisición del mes = altas × CAC. Es el gasto en publicidad dividido por las altas que consigue.',
+          'Cuánto cuesta conseguir un usuario nuevo. Costo de adquisición del mes = altas × CAC. Es el gasto en publicidad dividido por las altas que consigue, y es MEZCLADO: cuenta también a los que llegan solos, sin anuncio. Cuanto más alto, menos usuarios compra la misma publicidad: las altas de las dos etapas son publicidad ÷ CAC. La verificación de identidad se paga una vez por alta, no todos los meses: va acá y no en el soporte.',
       },
       {
-        etiqueta: 'Costos fijos del primer mes',
+        etiqueta: 'Costos fijos de la etapa real',
         explicacion:
-          'Lo que se paga por mes aunque no haya ni un usuario: equipo, servidor, servicios, honorarios. No incluyas la publicidad: ya se cuenta como altas × CAC, y sumarla acá la cuenta dos veces.',
+          'Lo que se paga por mes aunque no haya ni un usuario: equipo, servidor, servicios, honorarios. No se carga acá: es la suma de los rubros de tipo Fijo de la tabla de gastos de la etapa real. La publicidad no entra (ya se cuenta como altas × CAC, y sumarla acá la cuenta dos veces) ni el soporte (se calcula por usuario).',
+        viene: SECCIONES_DEL_PLAN.gastosReal,
       },
       {
         etiqueta: 'Crecimiento mensual de los fijos',
         explicacion:
-          'Cuánto suben los costos fijos cada mes, en porcentaje compuesto. Sirve para modelar contrataciones y aumentos. En 0 los fijos no cambian durante toda la proyección.',
+          'Cuánto suben los costos fijos cada mes, en porcentaje compuesto. Sirve para modelar contrataciones y aumentos. Sólo corre en la etapa real: durante la beta no se contrata. En 0 los fijos no cambian durante toda la proyección.',
       },
       {
         etiqueta: 'Costos con IVA computable',
@@ -585,14 +635,14 @@ export const GUIA: Seccion[] = [
         tipo: 'lista',
         items: [
           '¿Cada cliente deja más de lo que cuesta conseguirlo y atenderlo? Lo responde la pestaña Economía unitaria.',
-          '¿Cuánta plata hace falta para llegar al lanzamiento y cuánto dura? Lo responden las secciones 01 y 02 de la pestaña Proyección.',
-          '¿Cuántos usuarios hacen falta para que el negocio se sostenga solo, y en qué mes ocurre? Lo responden las secciones 03, 06 y 07.',
+          `¿Cuánta plata hace falta para llegar al lanzamiento y cuánto dura? Lo responden las secciones ${N.tramite}, ${N.gastosBeta} y ${N.gastosReal} de la pestaña Proyección.`,
+          `¿Cuántos usuarios hacen falta para que el negocio se sostenga solo, y en qué mes ocurre, a 1, 3, 5 y 10 años? Lo responden las secciones ${N.unitEconomics}, ${N.supuestos} y ${N.resultado}.`,
         ],
       },
       {
         tipo: 'parrafo',
         texto:
-          'Con esas respuestas se toman tres decisiones: si conviene gastar en publicidad para conseguir usuarios, si conviene pagar ya los trámites de constitución de la sociedad (el Go / No-Go de la sección 04) y cuánto capital hay que conseguir.',
+          `Con esas respuestas se toman tres decisiones: si conviene gastar en publicidad para conseguir usuarios, si conviene pagar ya los trámites de constitución de la sociedad (el Go / No-Go de la sección ${N.decision}) y cuánto capital hay que conseguir.`,
       },
       {
         tipo: 'aviso',
@@ -618,12 +668,110 @@ export const GUIA: Seccion[] = [
       {
         tipo: 'parrafo',
         texto:
-          'Se conectan en un solo sentido: los supuestos de Economía unitaria (ticket, soporte, costos fijos, churn) salen de la Proyección. Corregir un supuesto ahí corrige las dos pestañas, y no hay que tocarlos por separado.',
+          `Comparten los mismos supuestos: el ticket, el soporte y los costos fijos de Economía unitaria son los de la Proyección, no una copia. Corregir un supuesto corrige las dos pestañas, y no hay que tocarlos por separado. Dentro de la Proyección, cada número se carga en una sola sección y las demás lo toman de ahí: está explicado en "Las etapas del plan y qué se carga dónde".`,
       },
       {
         tipo: 'parrafo',
         texto:
           'Una manera de recordarlo: la Proyección sirve para operar ("si pasa tal cosa, cuánto gano") y Economía unitaria sirve para decidir ("conviene poner más plata en conseguir clientes").',
+      },
+    ],
+  },
+  {
+    id: 'etapas',
+    titulo: 'Las etapas del plan y qué se carga dónde',
+    resumen: 'Beta, etapa real y proyección: cada número se carga una sola vez.',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto:
+          'La pestaña Proyección sigue el orden en que se piensa el negocio: primero lo que se gasta en la beta, después lo que se gasta cuando ya se cobra comisión, y de ahí la proyección a 1, 3, 5 y 10 años. Las secciones están agrupadas en esas etapas.',
+      },
+      {
+        tipo: 'terminos',
+        items: [
+          {
+            termino: `Etapa 1 · Beta (${N.gastosBeta})`,
+            definicion:
+              'No se cobra comisión. Se cargan los gastos mensuales de la beta y cuántos meses dura. La publicidad de esta etapa compra los usuarios de la beta. Abajo se ve cuánta plata queda al terminar.',
+          },
+          {
+            termino: `Etapa 2 · Etapa real (${N.gastosReal} y ${N.unitEconomics})`,
+            definicion:
+              'Se cobra comisión. Se cargan los gastos de esta etapa y lo que deja cada usuario: ticket, comisión, contratos por usuario, soporte, disputas y fraude.',
+          },
+          {
+            termino: `Etapa 3 · Proyección (${N.supuestos} a ${N.informe})`,
+            definicion:
+              'Junta las dos etapas mes a mes, con impuestos, hasta 10 años, y lo resume a 1, 3, 5 y 10 años. Lo que viene de otra sección no se carga acá: se muestra con "viene de…".',
+          },
+        ],
+      },
+      { tipo: 'subtitulo', texto: 'Cada número se carga una sola vez' },
+      {
+        tipo: 'terminos',
+        items: [
+          {
+            termino: 'Costos fijos de la etapa real',
+            definicion: `Se cargan en la sección ${N.gastosReal}, en los rubros de tipo Fijo. Unit economics y la proyección los toman de ahí.`,
+          },
+          {
+            termino: 'Publicidad → usuarios nuevos',
+            definicion:
+              'La publicidad de cada tabla de gastos dividida por el costo de adquirir un usuario (CAC) da los usuarios nuevos por mes de esa etapa. No hay un campo de altas aparte.',
+            formula: 'altas por mes = publicidad por mes ÷ CAC',
+          },
+          {
+            termino: 'Ticket, comisión, soporte, disputas y fraude',
+            definicion: `Se cargan en la sección ${N.unitEconomics}, por usuario ACTIVO. La proyección los toma de ahí.`,
+          },
+          {
+            termino: 'Duración de la beta',
+            definicion: `Se carga en la sección ${N.gastosBeta}. Por defecto son los meses que faltan hasta la fecha de cierre de la beta.`,
+          },
+          {
+            termino: 'Lo que se carga en la proyección',
+            definicion:
+              'El churn, el techo de mercado, el CAC, el porcentaje de usuarios activos, la infraestructura por usuario, las membresías, la publicidad que se cobra a terceros, el crecimiento de los fijos y los impuestos.',
+          },
+        ],
+      },
+      {
+        tipo: 'aviso',
+        tono: 'info',
+        texto:
+          'Por qué: antes la proyección tenía su propio ticket, sus propios costos fijos y sus propias altas, que no coincidían con los de Unit economics, y el informe contradecía a la pantalla de al lado sin que nada avisara. Ahora lo que viene de otra sección no se puede editar donde se lo ve.',
+      },
+      { tipo: 'subtitulo', texto: 'Qué es cada tipo de gasto' },
+      {
+        tipo: 'terminos',
+        items: [
+          {
+            termino: ROTULO_DE_TIPO.fijo,
+            definicion:
+              'Se paga igual haya o no usuarios: abogado, servidores, sueldos, contingencia. Entra a los costos fijos del modelo.',
+          },
+          {
+            termino: ROTULO_DE_TIPO.adquisicion,
+            definicion:
+              'Plata para conseguir usuarios. NO es un costo fijo: el modelo la convierte en altas dividiéndola por el CAC, y el costo de adquisición del mes sale de esas altas. Contarla también como fija la cuenta dos veces.',
+          },
+          {
+            termino: ROTULO_DE_TIPO.soporte,
+            definicion:
+              'Atención y disputas. En la beta, con pocos usuarios, se hace a mano y cuenta como monto fijo. En la etapa real se calcula por usuario (con los supuestos de Unit economics), así que un rubro de soporte en esa tabla no se suma y la pantalla avisa. Si es un sueldo o un servicio que se paga igual, cambiale el tipo a Fijo.',
+          },
+        ],
+      },
+      {
+        tipo: 'parrafo',
+        texto:
+          'El tipo se deduce del nombre del rubro (por ejemplo, "Meta Ads" es publicidad) y se puede cambiar a mano; lo que se elige a mano manda sobre el nombre.',
+      },
+      { tipo: 'subtitulo', texto: 'Usuarios registrados y usuarios activos' },
+      {
+        tipo: 'parrafo',
+        texto: `Unit economics cuenta usuarios ACTIVOS: personas que contrataron en los últimos 30 días, y por eso los contratos por usuario no bajan de 0,5 (cada contrato involucra a dos personas). La proyección cuenta usuarios REGISTRADOS, incluidos los que se dieron de alta y no volvieron. Para pasar de uno a otro hay un porcentaje (usuarios activos del mes, ${num(ACTIVOS_PCT_POR_DEFECTO)}% de arranque): contratos por usuario registrado = contratos por usuario activo × ese porcentaje, y lo mismo con el soporte.`,
       },
     ],
   },
@@ -711,24 +859,24 @@ export const GUIA: Seccion[] = [
   },
   {
     id: 'supuestos',
-    titulo: 'Los supuestos de la Proyección (sección 06), uno por uno',
+    titulo: `Los supuestos de la Proyección (sección ${N.supuestos}), uno por uno`,
     resumen: 'Qué significa cada campo y qué hace el modelo con él.',
     bloques: [
       {
         tipo: 'parrafo',
         texto:
-          'La sección 06 tiene unos treinta supuestos. Acá están todos, agrupados como en la pantalla y en el orden en que el modelo los usa. Cada uno también trae su explicación debajo del campo.',
+          `La sección ${N.supuestos} tiene unos treinta supuestos. Acá están todos, agrupados como en la pantalla y en el orden en que el modelo los usa. En la pantalla cada concepto trae una explicación breve al pasar el mouse; acá está la completa. Los que dicen "viene de" no se cargan en esa sección: los toma de otra.`,
       },
       { tipo: 'subtitulo', texto: 'El orden en que el modelo hace la cuenta, mes a mes' },
       {
         tipo: 'formula',
         lineas: [
-          'altas = usuarios × crecimiento %   (o las altas fijas por mes), frenadas por el techo',
+          'altas = publicidad del mes ÷ CAC   (o usuarios × crecimiento %, en la etapa real), frenadas por el techo',
           'bajas = usuarios × churn %',
           'usuarios al cierre = usuarios + altas − bajas',
-          'contratos = usuarios promedio del mes × contratos por usuario',
+          'contratos = usuarios promedio del mes × contratos por usuario registrado',
           'volumen = contratos × ticket',
-          'ingreso = volumen × comisión % + usuarios × % con membresía × precio + publicidad',
+          'ingreso = volumen × comisión % (0 en la beta) + usuarios × % con membresía × precio + publicidad de terceros',
           'costos = (soporte + infraestructura) × usuarios + (medio de pago + disputas + fraude) % × volumen + CAC × altas + costos fijos',
           'EBITDA = ingreso neto − costos  →  impuestos  →  resultado neto  →  caja',
         ],
@@ -743,7 +891,7 @@ export const GUIA: Seccion[] = [
         tipo: 'aviso',
         tono: 'info',
         texto:
-          'La caja con la que arranca la proyección no es un supuesto de esta sección: es el capital que queda después de pagar la constitución de la sociedad (secciones 01 y 02).',
+          `La caja con la que arranca la proyección no es un supuesto de esta sección: es el capital que queda después de pagar la constitución de la sociedad (sección ${N.tramite}). Los gastos de la beta (${N.gastosBeta}) la van gastando desde el mes 1.`,
       },
       ...SUPUESTOS_DE_LA_PROYECCION.flatMap((g): Bloque[] => [
         { tipo: 'subtitulo', texto: g.grupo },
@@ -753,6 +901,57 @@ export const GUIA: Seccion[] = [
           items: g.items.map((i) => ({ termino: i.etiqueta, definicion: i.explicacion })),
         },
       ]),
+    ],
+  },
+  {
+    id: 'primeros-valores',
+    titulo: 'Qué valores poner cuando todavía no hay datos',
+    resumen: 'Soporte, disputas y fraude: los mínimos supuestos del plan y cómo reemplazarlos.',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto:
+          'El soporte, las disputas y el fraude son los tres supuestos más difíciles de estimar antes del lanzamiento: no hay volumen que medir. Dejarlos en cero hace ver un negocio mejor de lo que es, e inventar números sin base es peor. Por eso el plan arranca con los mínimos que se pueden defender, y cada uno sale de una cuenta que se puede discutir:',
+      },
+      {
+        tipo: 'terminos',
+        items: [
+          {
+            termino: `Soporte: ${usd(A.soporte)} por usuario activo y mes`,
+            definicion: `${num(BASE_DE_LOS_SUPUESTOS_MINIMOS.pedidosDeSoportePorUsuarioYMes, 1)} pedidos de soporte por usuario y por mes (uno cada cinco meses) × ${num(BASE_DE_LOS_SUPUESTOS_MINIMOS.minutosPorPedidoDeSoporte)} minutos × ${usd(BASE_DE_LOS_SUPUESTOS_MINIMOS.costoDeLaHoraUsd, 0)} la hora = ${usd(SUPUESTOS_MINIMOS_SIN_REDONDEAR.soporte)}, redondeado a ${usd(A.soporte)}. No incluye la verificación de identidad: se paga una vez por alta, no todos los meses, y va en el CAC.`,
+          },
+          {
+            termino: `Disputas: ${num(A.disputas)}% del volumen`,
+            definicion: `${num(BASE_DE_LOS_SUPUESTOS_MINIMOS.disputasCada100Contratos)} de cada 100 contratos terminan en disputa y cada una lleva ${num(BASE_DE_LOS_SUPUESTOS_MINIMOS.horasPorDisputa, 1)} horas × ${usd(BASE_DE_LOS_SUPUESTOS_MINIMOS.costoDeLaHoraUsd, 0)} la hora. Sobre un ticket de ${usd(A.ticket, 0)}, eso es el ${num(SUPUESTOS_MINIMOS_SIN_REDONDEAR.disputas, 2)}% del volumen, redondeado a ${num(A.disputas)}%.`,
+          },
+          {
+            termino: `Fraude y contracargos: ${num(A.fraude, 1)}% del volumen`,
+            definicion:
+              'No se calcula: se supone. Con el pago retenido hasta que el cliente confirma y la identidad verificada, se espera que quede por debajo del 0,5% que suele tomarse de referencia para pagos online. Es el más incierto de los tres: un solo contracargo después de liberar el pago se come el contrato entero.',
+          },
+        ],
+      },
+      {
+        tipo: 'aviso',
+        tono: 'cuidado',
+        texto:
+          'Son supuestos, no mediciones: ninguno de los números de esas cuentas (el costo de la hora, cuántos pedidos, cuántas disputas) está medido. Sirven para no arrancar de cero, no para decidir con ellos.',
+      },
+      { tipo: 'subtitulo', texto: 'Cómo reemplazarlos por datos reales' },
+      {
+        tipo: 'pasos',
+        items: [
+          'Disputas: contratos en disputa ÷ contratos creados. "Estado real" ya muestra los dos de los últimos 30 días. Con unas decenas de contratos ya orienta; con cien, es un dato. Multiplicalo por las horas que lleva atender cada una.',
+          'Soporte: pedidos de soporte del mes ÷ usuarios activos, por el tiempo que lleva cada uno. Los pedidos están en el centro de ayuda de la plataforma (tickets).',
+          'Fraude: contracargos reclamados por el medio de pago ÷ volumen cobrado. Hasta que haya un contracargo real, el 0,3% queda como supuesto.',
+          'Cuando haya medición, se carga en Unit economics y la proyección se actualiza sola: no hay que tocar nada más.',
+        ],
+      },
+      {
+        tipo: 'parrafo',
+        texto:
+          'Una forma de saber si lo que se carga es razonable: el costo por contrato (soporte ÷ contratos por usuario + volumen × disputas y fraude) tiene que quedar en el mismo orden que lo que el código usa para fijar el mínimo de una ampliación. Si el plan da un costo muy distinto, Economía unitaria lo avisa.',
+      },
     ],
   },
   {
@@ -770,7 +969,7 @@ export const GUIA: Seccion[] = [
         texto:
           'La cotización sale del dólar blue (precio de venta) de dolarapi.com o de Bluelytics, y el euro se calcula cruzándolo con ese dólar. El botón "Traer" busca la del día; si no se puede, aparece un aviso y se carga a mano.',
       },
-      { tipo: 'subtitulo', texto: 'La sección 03 (Unit economics) convierte' },
+      { tipo: 'subtitulo', texto: `La sección ${N.unitEconomics} (Unit economics) convierte` },
       {
         tipo: 'parrafo',
         texto:
@@ -784,12 +983,17 @@ export const GUIA: Seccion[] = [
           'Si cambia la cotización, los equivalentes se recalculan solos: lo escrito en dólares sigue valiendo lo mismo en dólares y su valor en pesos sale con la cotización nueva.',
         ],
       },
-      { tipo: 'subtitulo', texto: 'Las demás secciones declaran, no convierten' },
+      { tipo: 'subtitulo', texto: 'Las tablas de gastos declaran, no convierten' },
       {
         tipo: 'aviso',
         tono: 'cuidado',
+        texto: `En las secciones ${N.tramite}, ${N.gastosBeta} y ${N.gastosReal} el selector de moneda indica en qué moneda se cargaron los montos: cambiarlo NO convierte los números, solamente le avisa al plan en qué moneda están. Por eso cada monto se carga en la moneda en que se paga o se cobra, y la columna de equivalencia ya los muestra en la moneda de referencia.`,
+      },
+      { tipo: 'subtitulo', texto: `La sección ${N.supuestos} convierte lo que se carga en ella` },
+      {
+        tipo: 'parrafo',
         texto:
-          'En las secciones 01, 02 y 06 el selector de moneda indica en qué moneda se cargaron los montos: cambiarlo NO convierte los números, solamente le avisa al plan en qué moneda están. Por eso cada monto se carga en la moneda en que se paga o se cobra, y la columna de equivalencia ya los muestra en la moneda de referencia.',
+          'Al cambiar la moneda de la proyección se convierten los importes que se cargan a mano en ella (el CAC, la infraestructura por usuario, el precio de la membresía y la publicidad de terceros) y se recalcula lo que viene de otras secciones, que ya está expresado en la moneda nueva. Es necesario: si el ticket cambiara de moneda y el CAC no, la proyección compraría más o menos usuarios con la misma publicidad sólo por mirarla en otra moneda.',
       },
     ],
   },
@@ -842,9 +1046,22 @@ export const GUIA: Seccion[] = [
               'Sí, un instante después de cada cambio. Arriba se ve "Guardando…", "Guardado" o "Error al guardar". Si se intenta cerrar la pestaña con cambios sin guardar, el navegador avisa.',
           },
           {
-            pregunta: '¿Por qué hay dos valores de ticket, uno en cada pestaña?',
+            pregunta: '¿Por qué no puedo editar el ticket ni los costos fijos en la proyección?',
+            respuesta: `Porque se cargan en otra sección y la proyección los toma de ahí. Antes había un ticket en Unit economics y otro en la proyección, y no coincidían: el informe contradecía a la pantalla de al lado. Ahora el ticket, la comisión, el soporte, las disputas y el fraude se cargan en la sección ${N.unitEconomics}; los costos fijos y la publicidad, en las tablas de gastos (${N.gastosBeta} y ${N.gastosReal}). Donde no se editan dice "viene de …".`,
+          },
+          {
+            pregunta: '¿Por qué los costos fijos no incluyen la publicidad ni el soporte?',
             respuesta:
-              'Hay un ticket en la sección 03 (unit economics) y otro en los supuestos de la proyección (sección 06). Si difieren más de un 25%, Economía unitaria lo avisa y usa el de la sección 03. Conviene unificarlos: con una diferencia grande los dos modelos describen negocios distintos.',
+              'Porque ya se cuentan de otra manera y sumarlos acá los contaría dos veces. La publicidad compra usuarios: el modelo la divide por el CAC para sacar las altas, y el costo de adquisición del mes sale de esas altas. El soporte, en la etapa real, se calcula por usuario. Si algo de eso es un monto que se paga igual haya o no usuarios (un sueldo, un servicio), cambiale el tipo a Fijo y entra.',
+          },
+          {
+            pregunta: '¿Qué valores pongo en soporte, disputas y fraude si todavía no hay datos?',
+            respuesta: `Los del plan de arranque, que son supuestos mínimos y no mediciones: soporte de ${usd(A.soporte)} por usuario activo y mes, disputas de ${num(A.disputas)}% del volumen y fraude de ${num(A.fraude, 1)}%. La cuenta de cada uno está en "Qué valores poner cuando todavía no hay datos", junto con cómo reemplazarlos apenas haya datos. Evitá dejarlos en cero: hace ver un negocio mejor de lo que es.`,
+          },
+          {
+            pregunta: '¿Por qué hay un porcentaje de usuarios activos en la proyección?',
+            respuesta:
+              'Porque la proyección cuenta usuarios registrados y Unit economics cuenta usuarios activos. Sin ese porcentaje, la proyección multiplicaba toda la base de registrados por el ritmo de contratación de los activos y sobreestimaba los ingresos varias veces.',
           },
           {
             pregunta: '¿Quién puede ver esto?',
@@ -906,9 +1123,10 @@ export const AYUDA_DE_PANTALLA: Record<
     responde: '¿Cuánta plata hace falta, cuánto dura y cuántos usuarios hacen falta para sostenerse?',
     pasos: [
       'Arriba elegí la cotización del día; cada sección tiene su moneda.',
-      `En 02 · Runway mirá cuántos meses dura el capital: la meta de la Fase 1 es de ${META_RUNWAY_FASE1_MESES}.`,
-      'En 03 · Unit economics está el punto de equilibrio, en usuarios activos.',
-      'En 07 · Resultado, en qué mes cubre sus costos y cuánto capital hace falta como mínimo.',
+      `En ${SECCIONES_DEL_PLAN.gastosBeta} mirá cuánta plata queda al terminar la beta y cuántos meses dura el capital: la meta de la Fase 1 es de ${META_RUNWAY_FASE1_MESES}.`,
+      `En ${SECCIONES_DEL_PLAN.gastosReal} cargá lo que se gasta cuando se cobra comisión; los costos fijos y las altas salen de ahí.`,
+      `En ${SECCIONES_DEL_PLAN.unitEconomics} está el punto de equilibrio, en usuarios activos.`,
+      `En ${SECCIONES_DEL_PLAN.resultado}, a 1, 3, 5 y 10 años: en qué mes cubre sus costos y cuánto capital hace falta como mínimo.`,
     ],
   },
 };

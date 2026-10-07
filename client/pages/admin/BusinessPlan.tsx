@@ -3,6 +3,9 @@ import { useAuth } from '@/hooks/useAuth';
 import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
 import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import AyudaDePantalla from '@/components/admin/AyudaDePantalla';
+import Concepto from '@/components/ui/Concepto';
+import { SECCIONES_DEL_PLAN, ETAPAS_DEL_PLAN, N } from '@/content/seccionesDelPlan';
+import { textoDelAviso } from '@/content/avisosDelPlan';
 import { ROLES_DE_ANALISIS } from '../../../shared/auth/accesoAnalisis';
 import {
   crearGuardador,
@@ -10,11 +13,10 @@ import {
   type Guardador,
   type EstadoDeGuardado,
 } from '@/utils/guardadoAutomatico';
-import type { ProjectionAssumptions } from '@/utils/financialProjection';
+import { projectFinancials, type ProjectionAssumptions } from '@/utils/financialProjection';
 import { calcularUnidad, mauDeEquilibrio, META_RUNWAY_FASE1_MESES } from '../../../shared/pricing/unidadEconomica';
 import {
   aEuros,
-  convertirMoneda,
   cambiarMonedaUe,
   editarImporteUe,
   sincronizarImportesUe,
@@ -22,6 +24,18 @@ import {
   type CampoImporteUe,
   type OrigenImportes,
 } from '../../../shared/pricing/conversionMoneda';
+import {
+  coordinarPlan,
+  cambiarMonedaDeLaProyeccion,
+  MESES_DE_BETA_MAXIMOS,
+} from '../../../shared/pricing/planCoordinado';
+import {
+  tipoDeGasto,
+  totalesPorTipo,
+  TIPOS_DE_GASTO,
+  ROTULO_DE_TIPO,
+  type TipoDeGasto,
+} from '../../../shared/pricing/gastos';
 import {
   Calculator,
   Lock,
@@ -46,7 +60,7 @@ import {
 type Currency = 'ARS' | 'USD' | 'EUR';
 
 interface ConstRow { c: string; d: string; m: number; f: string; e: string }
-interface BudgetRow { c: string; m: number; n: string }
+interface BudgetRow { c: string; m: number; n: string; tipo?: TipoDeGasto }
 interface CheckItem { t: string; w: number; on: boolean }
 interface TimelineRow { h: string; d: string; s: string }
 
@@ -70,8 +84,14 @@ interface Plan {
   capitalInicial: number;
   constCurrency: Currency;
   const: ConstRow[];
+  /** Gastos de la BETA. */
   budgetCurrency: Currency;
   budget: BudgetRow[];
+  /** Cuántos meses dura la beta. */
+  betaMeses: number;
+  /** Gastos de la ETAPA REAL: nacen como copia de los de la beta. */
+  budgetRealCurrency: Currency;
+  budgetReal: BudgetRow[];
   checklist: CheckItem[];
   timeline: TimelineRow[];
   ueCurrency: Currency;
@@ -161,7 +181,7 @@ function SectionHeader({
   right,
 }: {
   num: string;
-  title: string;
+  title: React.ReactNode;
   description: string;
   right?: React.ReactNode;
 }) {
@@ -222,13 +242,160 @@ function Kpi({
     <div className={`${CARD} border-l-4 ${border} p-4`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400"><Concepto c={label} /></p>
           <p className={`truncate text-xl font-bold tabular-nums ${text}`}>{value}</p>
           <p className="mt-0.5 truncate text-xs text-slate-400">{sub}</p>
         </div>
         <Icon className={`h-5 w-5 shrink-0 ${text}`} />
       </div>
     </div>
+  );
+}
+
+/** El rótulo de cada etapa del plan: el orden en que se piensa el negocio. */
+function EtapaHeader({ etapa }: { etapa: keyof typeof ETAPAS_DEL_PLAN }) {
+  const e = ETAPAS_DEL_PLAN[etapa];
+  return (
+    <div role="heading" aria-level={2} className="mb-3 mt-8 flex flex-wrap items-baseline gap-x-3 border-b-2 border-sky-500/40 pb-1.5">
+      <span className="text-sm font-bold uppercase tracking-widest text-sky-700 dark:text-sky-300">{e.titulo}</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400">{e.detalle}</span>
+    </div>
+  );
+}
+
+type ClaveDeGastos = 'budget' | 'budgetReal';
+type ClaveDeMonedaDeGastos = 'budgetCurrency' | 'budgetRealCurrency';
+
+/**
+ * Una tabla de gastos mensuales. La de la beta y la de la etapa real son la misma
+ * tabla con distintos datos: un solo componente evita que una se corrija y la otra no.
+ *
+ * Cada rubro lleva su TIPO, que decide qué hace el modelo con él (ver
+ * shared/pricing/gastos.ts). Muestra el que se deduce del nombre y, si se lo cambia,
+ * queda escrito: lo escrito manda sobre el nombre.
+ */
+function TablaDeGastos({
+  plan,
+  clave,
+  claveMoneda,
+  base,
+  edit,
+}: {
+  plan: Plan;
+  clave: ClaveDeGastos;
+  claveMoneda: ClaveDeMonedaDeGastos;
+  base: Currency;
+  edit: (mutate: (draft: Plan) => void) => void;
+}) {
+  const filas = plan[clave];
+  const moneda = plan[claveMoneda];
+  const enBase = filas.map(r => toBase(r.m, moneda, plan));
+  const totalBase = enBase.reduce((s, v) => s + v, 0);
+  const totales = totalesPorTipo(filas);
+  const th = 'px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400';
+
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700">
+              <th className={th}>Rubro</th>
+              <th className={th}><Concepto c="Tipo de gasto" /></th>
+              <th className={th}>/ mes</th>
+              <th className={th}>≈ {base}</th>
+              <th className={th}>Notas</th>
+              <th className={th} />
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((row, i) => (
+              <tr key={i} className="border-b border-slate-100 dark:border-slate-700/50">
+                <td className="w-1/3 px-1 py-1.5">
+                  <input
+                    className={INPUT}
+                    value={row.c}
+                    onChange={e => edit(d => { d[clave][i].c = e.target.value; })}
+                    aria-label="Rubro"
+                  />
+                </td>
+                <td className="px-1 py-1.5">
+                  <select
+                    className={`${SELECT} w-full text-xs`}
+                    value={tipoDeGasto(row)}
+                    onChange={e => edit(d => { d[clave][i].tipo = e.target.value as TipoDeGasto; })}
+                    aria-label="Tipo de gasto"
+                  >
+                    {TIPOS_DE_GASTO.map(t => (
+                      <option key={t} value={t}>{ROTULO_DE_TIPO[t]}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-1 py-1.5">
+                  <input
+                    type="number"
+                    className={NUM_INPUT}
+                    value={row.m}
+                    onChange={e => edit(d => { d[clave][i].m = Math.max(0, +e.target.value) || 0; })}
+                    aria-label="Monto mensual"
+                  />
+                </td>
+                <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-xs text-sky-600 dark:text-sky-400">
+                  {fmt(enBase[i], base)}
+                </td>
+                <td className="px-1 py-1.5">
+                  <input
+                    className={`${INPUT} text-xs text-slate-500 dark:text-slate-400`}
+                    value={row.n}
+                    placeholder="Notas…"
+                    onChange={e => edit(d => { d[clave][i].n = e.target.value; })}
+                    aria-label="Notas"
+                  />
+                </td>
+                <td className="px-1 py-1.5">
+                  <button
+                    onClick={() => edit(d => { d[clave].splice(i, 1); })}
+                    className="rounded p-1.5 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    aria-label="Eliminar rubro"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-slate-300 dark:border-slate-600">
+              <td className="px-2 py-2 font-bold text-slate-900 dark:text-white"><Concepto c="Gasto mensual" /></td>
+              <td />
+              <td className="px-2 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                {fmt(totales.total, moneda)}
+              </td>
+              <td className="px-2 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
+                {fmt(totalBase, base)}
+              </td>
+              <td colSpan={2} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        {TIPOS_DE_GASTO.map(t => (
+          <span key={t} className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-700/60">
+            <Concepto c={ROTULO_DE_TIPO[t]} />:{' '}
+            <strong className="font-mono text-slate-700 dark:text-slate-200">{fmt(totales[t], moneda)}</strong>
+          </span>
+        ))}
+      </div>
+
+      <button
+        onClick={() => edit(d => { d[clave].push({ c: 'Nuevo rubro', m: 0, n: '' }); })}
+        className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 transition hover:border-sky-500 hover:text-sky-600 dark:border-slate-600 dark:text-slate-400"
+      >
+        <Plus className="h-4 w-4" /> Agregar rubro
+      </button>
+    </>
   );
 }
 
@@ -266,8 +433,13 @@ export default function BusinessPlan() {
       });
       const data = await res.json();
       if (data.success) {
-        planRef.current = data.data;
-        setPlan(data.data);
+        // Los bloques se coordinan al RECIBIR el plan, no sólo al editarlo: uno
+        // guardado antes de que existiera la coordinación trae ticket y costos
+        // fijos propios que no coinciden con los de las otras secciones.
+        const recibido = data.data as Plan;
+        coordinarPlan(recibido);
+        planRef.current = recibido;
+        setPlan(recibido);
         setActuals(data.actuals || null);
         setMeta({ updatedAt: data.updatedAt, updatedBy: data.updatedBy });
       }
@@ -328,6 +500,9 @@ export default function BusinessPlan() {
     // en cada lugar que toca las tasas, para que un cambio de cotización —a
     // mano o con "Traer"— se refleje sin que nadie tenga que acordarse.
     sincronizarImportesUe(siguiente);
+    // Y los bloques entre sí: lo que viene de otra sección se recalcula con cada
+    // cambio (shared/pricing/planCoordinado.ts), para que no haya dos versiones.
+    coordinarPlan(siguiente);
     planRef.current = siguiente;
     setPlan(siguiente);
     guardador.current!.programar(siguiente);
@@ -427,6 +602,16 @@ export default function BusinessPlan() {
     const beMau = mauDeEquilibrio(ue.fijos, margen);
     const faltan = beMau === null ? null : Math.max(0, beMau - ue.mauActual);
 
+    // De dónde sale cada número de la proyección, y qué queda al terminar la beta.
+    // La proyección se corre acá también (la del panel es la misma cuenta) porque
+    // "capital al terminar la beta" se muestra en la sección de gastos de la beta.
+    const derivados = coordinarPlan(JSON.parse(JSON.stringify(plan)) as Plan);
+    const monedaProy = plan.projectionCurrency || 'USD';
+    const cajaInicial = restanteBase / (toBase(1, monedaProy, plan) || 1);
+    const cajaAlTerminarLaBeta = projectFinancials({ ...plan.projection, cajaInicial }).resumen.cajaAlTerminarLaBeta;
+    const cajaAlTerminarLaBetaBase =
+      cajaAlTerminarLaBeta === null ? null : toBase(cajaAlTerminarLaBeta, monedaProy, plan);
+
     const totalWeight = plan.checklist.reduce((s, i) => s + i.w, 0) || 1;
     const doneItems = plan.checklist.filter(i => i.on);
     const pct = Math.round((doneItems.reduce((s, i) => s + i.w, 0) / totalWeight) * 100);
@@ -442,6 +627,8 @@ export default function BusinessPlan() {
       totBudget,
       totBudgetBase,
       runway,
+      derivados,
+      cajaAlTerminarLaBetaBase,
       ingreso,
       costoVar,
       margen,
@@ -479,15 +666,6 @@ export default function BusinessPlan() {
   const base = plan.baseCurrency;
   const capitalNegativo = calc.restanteBase < 0;
 
-  // Lo que pondría el botón "Costos fijos = gasto de Fase 1", en la moneda de la
-  // sección. Se calcula acá para que el botón pueda decir qué va a hacer y
-  // apagarse cuando los costos fijos ya coinciden.
-  const fijosDeFase1 = convertirMoneda(calc.totBudget, plan.budgetCurrency, plan.ueCurrency, plan);
-  // Con tolerancia: al cambiar de moneda los importes se redondean a siete cifras
-  // significativas, así que 10.977.780 y 10.977.778 son el mismo costo.
-  const fijosYaCoinciden =
-    Math.abs(plan.ue.fijos - fijosDeFase1) <= Math.max(1, Math.abs(fijosDeFase1) * 1e-6);
-  const fase1Vacia = fijosDeFase1 <= 0;
 
   // La proyección se carga en su propia moneda; el capital que la alimenta
   // es el que queda después de constituir.
@@ -522,7 +700,8 @@ export default function BusinessPlan() {
               <Calculator className="h-7 w-7" /> Proyección de gastos
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Costos de constitución, runway de validación y punto de equilibrio. Visible para el owner y los analistas.
+              Cuánto cuesta la beta, cuánto la etapa real y qué pasa a 1, 3, 5 y 10 años. Cada número se carga una sola vez, en
+              su sección: los demás bloques lo toman de ahí. Visible para el owner y los analistas.
             </p>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span
@@ -673,10 +852,12 @@ export default function BusinessPlan() {
           </div>
         )}
 
+        <EtapaHeader etapa="antes" />
+
         {/* 01 — Constitución */}
         <section className={`${CARD} mb-6 p-5`}>
           <SectionHeader
-            num="01 · Trámite"
+            num={SECCIONES_DEL_PLAN.tramite}
             title="Costos de constitución — SAS Corrientes"
             description="Valores orientativos. Los aranceles del Registro Público de Corrientes y los honorarios del gestor varían: confirmá con un contador antes de pagar. Cargá cada monto en la moneda en la que lo pagás."
             right={
@@ -691,7 +872,7 @@ export default function BusinessPlan() {
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/50">
               <label className="mb-1.5 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Capital inicial aportado
+                <Concepto c="Capital inicial aportado" />
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -832,12 +1013,14 @@ export default function BusinessPlan() {
           </p>
         </section>
 
-        {/* 02 — Runway */}
+        <EtapaHeader etapa="beta" />
+
+        {/* 02 — Gastos de la beta */}
         <section className={`${CARD} mb-6 p-5`}>
           <SectionHeader
-            num="02 · Runway"
-            title="Presupuesto de validación — MVP Fase 1"
-            description="Gasto mensual de lanzamiento en un solo barrio antes de escalar. El runway se calcula sobre el capital que queda después de constituir."
+            num={SECCIONES_DEL_PLAN.gastosBeta}
+            title="Gastos de la beta"
+            description="Lo que se gasta por mes mientras no se cobra comisión: lanzamiento en un solo barrio, antes de escalar. Cada rubro tiene un tipo —fijo, publicidad o soporte— que decide cómo lo usa el modelo."
             right={
               <CurrencyPicker
                 label="Moneda de la tabla"
@@ -847,106 +1030,121 @@ export default function BusinessPlan() {
             }
           />
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700">
-                  {['Rubro', '/ mes', `≈ ${base}`, 'Notas', ''].map((h, i) => (
-                    <th key={h + i} className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {plan.budget.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-100 dark:border-slate-700/50">
-                    <td className="w-1/3 px-1 py-1.5">
-                      <input
-                        className={INPUT}
-                        value={row.c}
-                        onChange={e => edit(d => { d.budget[i].c = e.target.value; })}
-                        aria-label="Rubro"
-                      />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <input
-                        type="number"
-                        className={NUM_INPUT}
-                        value={row.m}
-                        onChange={e => edit(d => { d.budget[i].m = Math.max(0, +e.target.value) || 0; })}
-                        aria-label="Monto mensual"
-                      />
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-xs text-sky-600 dark:text-sky-400">
-                      {fmt(calc.budgetBase[i], base)}
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <input
-                        className={`${INPUT} text-xs text-slate-500 dark:text-slate-400`}
-                        value={row.n}
-                        placeholder="Notas…"
-                        onChange={e => edit(d => { d.budget[i].n = e.target.value; })}
-                        aria-label="Notas"
-                      />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <button
-                        onClick={() => edit(d => { d.budget.splice(i, 1); })}
-                        className="rounded p-1.5 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                        aria-label="Eliminar rubro"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-slate-300 dark:border-slate-600">
-                  <td className="px-2 py-2 font-bold text-slate-900 dark:text-white">Gasto mensual</td>
-                  <td className="px-2 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
-                    {fmt(calc.totBudget, plan.budgetCurrency)}
-                  </td>
-                  <td className="px-2 py-2 text-right font-mono font-bold text-slate-900 dark:text-white">
-                    {fmt(calc.totBudgetBase, base)}
-                  </td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-900/50">
+            <label htmlFor="beta-meses" className="text-sm text-slate-600 dark:text-slate-400">
+              <Concepto c="Duración de la beta" />
+            </label>
+            <input
+              id="beta-meses"
+              type="number"
+              min={0}
+              max={MESES_DE_BETA_MAXIMOS}
+              className={`${FIELD} w-20`}
+              value={plan.betaMeses}
+              onChange={e => edit(d => { d.betaMeses = Math.min(MESES_DE_BETA_MAXIMOS, Math.max(0, Math.round(+e.target.value) || 0)); })}
+            />
+            <span className="text-sm text-slate-500 dark:text-slate-400">
+              meses · comisión durante la beta: <strong className="text-slate-700 dark:text-slate-200">0%</strong>
+            </span>
           </div>
 
-          <button
-            onClick={() => edit(d => { d.budget.push({ c: 'Nuevo rubro', m: 0, n: '' }); })}
-            className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 transition hover:border-sky-500 hover:text-sky-600 dark:border-slate-600 dark:text-slate-400"
-          >
-            <Plus className="h-4 w-4" /> Agregar rubro
-          </button>
+          <TablaDeGastos plan={plan} clave="budget" claveMoneda="budgetCurrency" base={base} edit={edit} />
 
           <div className="mt-4 rounded-lg bg-slate-900 p-5 text-white dark:bg-slate-950">
-            <p className="text-3xl font-bold text-emerald-400">
-              {calc.runway > 0 ? `${calc.runway.toFixed(1)} meses` : '—'}
+            <p className={`text-3xl font-bold ${calc.cajaAlTerminarLaBetaBase !== null && calc.cajaAlTerminarLaBetaBase < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+              {calc.cajaAlTerminarLaBetaBase === null ? '—' : fmt(calc.cajaAlTerminarLaBetaBase, base)}
             </p>
             <p className="mt-1 text-sm text-slate-300">
-              {calc.runway > 0
-                ? `de runway al ritmo de gasto actual — meta de Fase 1: ${META_RUNWAY_FASE1_MESES} meses`
-                : capitalNegativo
-                  ? 'sin capital disponible tras la constitución'
-                  : 'cargá el gasto mensual para calcular el runway'}
+              <Concepto c="Capital al terminar la beta" />
+              {calc.cajaAlTerminarLaBetaBase === null
+                ? ' — no hay beta: cargá su duración arriba'
+                : ` — después de ${plan.betaMeses} ${plan.betaMeses === 1 ? 'mes' : 'meses'} de beta, con impuestos`}
             </p>
-            <p className="mt-2 text-xs text-slate-400">
-              {fmt(calc.restanteBase, base)} disponibles ÷ {fmt(calc.totBudgetBase, base)} por mes
-            </p>
+            {calc.cajaAlTerminarLaBetaBase !== null && calc.cajaAlTerminarLaBetaBase < 0 && (
+              <p className="mt-2 text-sm text-rose-300">El capital no alcanza para sostener la beta: faltan {fmt(Math.abs(calc.cajaAlTerminarLaBetaBase), base)}.</p>
+            )}
+            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-700 pt-4 md:grid-cols-4">
+              {[
+                { l: 'Gasto mensual', v: fmt(calc.totBudgetBase, base) },
+                { l: 'Runway Fase 1', v: calc.runway > 0 ? `${calc.runway.toFixed(1)} meses` : '—', e: `meta: ${META_RUNWAY_FASE1_MESES} meses` },
+                { l: 'Capital restante', v: fmt(calc.restanteBase, base), e: 'tras constituir' },
+                { l: 'Altas por mes (publicidad ÷ CAC)', v: Math.round(calc.derivados.beta.altasPorMes).toLocaleString('es-AR'), e: `con ${fmtProjection(calc.derivados.beta.pauta)} de publicidad` },
+              ].map(item => (
+                <div key={item.l}>
+                  <p className="text-xs uppercase tracking-wide text-slate-400"><Concepto c={item.l} /></p>
+                  <p className="font-mono text-base font-semibold">{item.v}</p>
+                  {item.e && <p className="font-mono text-xs text-emerald-400">{item.e}</p>}
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        {/* 03 — Unit economics */}
+        <EtapaHeader etapa="real" />
+
+        {/* 03 — Gastos de la etapa real */}
         <section className={`${CARD} mb-6 p-5`}>
           <SectionHeader
-            num="03 · Unit economics"
-            title="Punto de equilibrio"
-            description="Cuántos usuarios activos mensuales hacen falta para cubrir los costos fijos. Podés traer los supuestos desde los datos reales de la plataforma."
+            num={SECCIONES_DEL_PLAN.gastosReal}
+            title="Gastos de la etapa real"
+            description="Lo que se gasta por mes desde que se cobra comisión. Arrancó como copia de los de la beta: ajustalo a lo que esperás gastar. De acá salen los costos fijos y las altas de usuarios de la proyección; no se cargan en ningún otro lado."
+            right={
+              <CurrencyPicker
+                label="Moneda de la tabla"
+                value={plan.budgetRealCurrency}
+                onChange={c => edit(d => { d.budgetRealCurrency = c; })}
+              />
+            }
+          />
+
+          <TablaDeGastos plan={plan} clave="budgetReal" claveMoneda="budgetRealCurrency" base={base} edit={edit} />
+
+          <div className="mt-4 rounded-lg bg-slate-50 p-4 dark:bg-slate-900/50">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Lo que el modelo toma de esta tabla, por mes
+            </p>
+            <dl className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div>
+                <dt className="text-xs text-slate-500 dark:text-slate-400"><Concepto c="Costos fijos de la etapa real" /></dt>
+                <dd className="font-mono text-base font-semibold text-slate-900 dark:text-white">{fmtProjection(calc.derivados.real.fijos)}</dd>
+                <dd className="text-xs text-slate-400">sólo los rubros de tipo Fijo</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500 dark:text-slate-400"><Concepto c="Altas por mes (publicidad ÷ CAC)" /></dt>
+                <dd className="font-mono text-base font-semibold text-slate-900 dark:text-white">
+                  {Math.round(calc.derivados.real.altasPorMes).toLocaleString('es-AR')}
+                </dd>
+                <dd className="text-xs text-slate-400">{fmtProjection(calc.derivados.real.pauta)} de publicidad ÷ CAC de {fmtProjection(plan.projection.costs.cac)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500 dark:text-slate-400"><Concepto c="Soporte y disputas" /></dt>
+                <dd className="font-mono text-base font-semibold text-slate-900 dark:text-white">por usuario</dd>
+                <dd className="text-xs text-slate-400">se calcula en la sección {N.unitEconomics}, no se suma acá</dd>
+              </div>
+            </dl>
+          </div>
+
+          {calc.derivados.avisos.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {calc.derivados.avisos.map(a => (
+                <li
+                  key={a.codigo}
+                  className="flex items-start gap-2 rounded border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{textoDelAviso(a, fmtProjection)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* 04 — Unit economics */}
+        <section className={`${CARD} mb-6 p-5`}>
+          <SectionHeader
+            num={SECCIONES_DEL_PLAN.unitEconomics}
+            title={<Concepto c="Punto de equilibrio" />}
+            description="Cuántos usuarios activos por mes hacen falta para cubrir los costos fijos de la etapa real. Los costos fijos no se cargan acá: vienen de los gastos de la etapa real. Podés traer los demás supuestos desde los datos reales de la plataforma."
             right={
               <CurrencyPicker
                 label="Moneda de la sección"
@@ -961,8 +1159,8 @@ export default function BusinessPlan() {
             }
           />
 
-          <div className="mb-4 flex flex-wrap gap-2">
-            {actuals && (
+          {actuals && (
+            <div className="mb-4 flex flex-wrap gap-2">
               <button
                 onClick={() =>
                   edit(d => {
@@ -981,48 +1179,18 @@ export default function BusinessPlan() {
               >
                 <Database className="h-3.5 w-3.5" /> Usar datos reales
               </button>
-            )}
-            {/*
-              El botón dice qué va a hacer y se apaga cuando ya lo hizo. Antes no
-              daba ninguna señal: tocarlo dos veces seguidas no hacía nada visible
-              la segunda vez, y desde afuera es idéntico a un botón roto.
-            */}
-            <button
-              type="button"
-              disabled={fijosYaCoinciden || fase1Vacia}
-              title={
-                fase1Vacia
-                  ? 'El presupuesto de la Fase 1 está vacío: no hay nada que copiar'
-                  : fijosYaCoinciden
-                    ? 'Los costos fijos ya son iguales al gasto mensual de la Fase 1'
-                    : `Pone los costos fijos en ${fmt(fijosDeFase1, plan.ueCurrency)}, el total mensual del presupuesto de la Fase 1`
-              }
-              onClick={() =>
-                edit(d => {
-                  // Evita cargar dos veces el mismo gasto: los costos fijos
-                  // salen del presupuesto de la Fase 1. Se registra en la moneda
-                  // del presupuesto, que es en la que está escrito.
-                  editarImporteUe(d, 'fijos', calc.totBudget, d.budgetCurrency);
-                })
-              }
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <Check className="h-3.5 w-3.5" />
-              {fijosYaCoinciden
-                ? `Costos fijos ya coinciden con la Fase 1 (${fmt(fijosDeFase1, plan.ueCurrency)})`
-                : `Costos fijos = gasto de Fase 1${fase1Vacia ? '' : ` (${fmt(fijosDeFase1, plan.ueCurrency)})`}`}
-            </button>
-          </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
             {([
               ['Comisión promedio (%)', 'comision', 0.1],
               ['Ticket promedio por contrato', 'ticket', 1],
               ['Contratos por usuario activo / mes', 'contratos', 0.1],
-              ['Costo de disputas (% de contratos)', 'disputas', 0.1],
-              ['Costo de soporte por usuario / mes', 'soporte', 1],
-              ['Costos fijos mensuales — equipo + infra', 'fijos', 1],
-              ['Fraude / chargebacks (% de contratos)', 'fraude', 0.1],
+              ['Costo de disputas (% del volumen)', 'disputas', 0.1],
+              ['Costo de soporte por usuario / mes', 'soporte', 0.05],
+              ['Costos fijos mensuales (de la etapa real)', 'fijos', 1],
+              ['Fraude / chargebacks (% del volumen)', 'fraude', 0.1],
               ['Usuarios activos actuales (MAU)', 'mauActual', 1],
             ] as [string, keyof UnitEconomics, number][]).map(([label, key, step]) => (
               <div
@@ -1030,32 +1198,43 @@ export default function BusinessPlan() {
                 className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50"
               >
                 <label htmlFor={`ue-${key}`} className="flex-1 text-sm text-slate-600 dark:text-slate-400">
-                  {label}
+                  <Concepto c={label} />
                 </label>
-                <input
-                  id={`ue-${key}`}
-                  type="number"
-                  step={step}
-                  className={`${FIELD} w-28`}
-                  value={plan.ue[key]}
-                  onChange={e => edit(d => {
-                    const valor = Math.max(0, +e.target.value) || 0;
-                    // Los importes registran en qué moneda se escribieron; los
-                    // porcentajes y las cantidades no tienen moneda.
-                    if ((CAMPOS_IMPORTE_UE as readonly string[]).includes(key)) {
-                      editarImporteUe(d, key as CampoImporteUe, valor);
-                    } else {
-                      d.ue[key] = valor;
-                    }
-                  })}
-                />
+                {key === 'fijos' ? (
+                  // No es una entrada: son los rubros fijos de la etapa real. Un campo
+                  // editable acá volvía a abrir el hueco de cargar lo mismo dos veces.
+                  <div id={`ue-${key}`} className="w-28 text-right">
+                    <p className="font-mono text-sm tabular-nums text-slate-900 dark:text-white">
+                      {fmt(plan.ue.fijos, plan.ueCurrency)}
+                    </p>
+                    <p className="text-[10px] leading-tight text-slate-400">viene de {SECCIONES_DEL_PLAN.gastosReal}</p>
+                  </div>
+                ) : (
+                  <input
+                    id={`ue-${key}`}
+                    type="number"
+                    step={step}
+                    className={`${FIELD} w-28`}
+                    value={plan.ue[key]}
+                    onChange={e => edit(d => {
+                      const valor = Math.max(0, +e.target.value) || 0;
+                      // Los importes registran en qué moneda se escribieron; los
+                      // porcentajes y las cantidades no tienen moneda.
+                      if ((CAMPOS_IMPORTE_UE as readonly string[]).includes(key)) {
+                        editarImporteUe(d, key as CampoImporteUe, valor);
+                      } else {
+                        d.ue[key] = valor;
+                      }
+                    })}
+                  />
+                )}
               </div>
             ))}
           </div>
 
           <div className="mt-4 rounded-lg bg-slate-900 p-5 text-white dark:bg-slate-950">
             <p className="text-3xl font-bold text-emerald-400">
-              {calc.beMau !== null ? `${calc.beMau.toLocaleString('es-AR')} MAU` : 'No alcanza el margen'}
+              {calc.beMau !== null ? <>{calc.beMau.toLocaleString('es-AR')} <Concepto c="MAU" /></> : 'No alcanza el margen'}
             </p>
             <p className="mt-1 text-sm text-slate-300">necesarios para llegar a EBITDA = 0</p>
             <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-700 pt-4 md:grid-cols-3">
@@ -1076,19 +1255,37 @@ export default function BusinessPlan() {
                 },
               ].map(item => (
                 <div key={item.l}>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">{item.l}</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400"><Concepto c={item.l} /></p>
                   <p className="font-mono text-base font-semibold">{item.v}</p>
                   {item.e && <p className="font-mono text-xs text-emerald-400">{item.e}</p>}
                 </div>
               ))}
             </div>
+            <p className="mt-4 text-xs text-slate-400">
+              Es el mínimo para que el margen cubra los costos fijos. No incluye la publicidad ni reponer a los usuarios que se
+              van: eso lo suma la proyección ({SECCIONES_DEL_PLAN.supuestos}).
+            </p>
           </div>
         </section>
+
+        <EtapaHeader etapa="proyeccion" />
+
+        <FinancialProjectionPanel
+          assumptions={projectionAssumptions}
+          actuals={actuals}
+
+          onEdit={mutate => edit(d => { mutate(d.projection as ProjectionAssumptions); })}
+          currency={projectionCurrency}
+          onCurrencyChange={c => edit(d => cambiarMonedaDeLaProyeccion(d, c as Currency))}
+          fmt={fmtProjection}
+        />
+
+        <EtapaHeader etapa="seguimiento" />
 
         {/* 04 — Checklist */}
         <section className={`${CARD} mb-6 p-5`}>
           <SectionHeader
-            num="04 · Decisión"
+            num={SECCIONES_DEL_PLAN.decision}
             title="Checklist Go / No-Go"
             description="Antes de pagar el primer trámite, marcá lo que ya está resuelto. Los tres primeros pesan más: son los riesgos que pueden convertir la inversión en capital quemado."
           />
@@ -1144,7 +1341,7 @@ export default function BusinessPlan() {
         {/* 05 — Cronograma */}
         <section className={`${CARD} mb-6 p-5`}>
           <SectionHeader
-            num="05 · Cronograma"
+            num={SECCIONES_DEL_PLAN.cronograma}
             title="Hitos hacia Serie A"
             description="Fechas objetivo editables para cada hito. Actualizá el estado a medida que avanza."
           />
@@ -1204,17 +1401,7 @@ export default function BusinessPlan() {
           </button>
         </section>
 
-        <FinancialProjectionPanel
-          assumptions={projectionAssumptions}
-          actuals={actuals}
-          arsToCurrency={toBase(1, 'ARS', plan) / (toBase(1, projectionCurrency, plan) || 1)}
-          onEdit={mutate => edit(d => { mutate(d.projection as ProjectionAssumptions); })}
-          currency={projectionCurrency}
-          onCurrencyChange={c => edit(d => { d.projectionCurrency = c as Currency; })}
-          fmt={fmtProjection}
-        />
-
-        {/* La proyección de arriba es "si pasa X"; esto es lo que está pasando.
+        {/* La proyección es "si pasa X"; esto es lo que está pasando.
             Van separadas a propósito: un número supuesto y uno medido se ven
             igual en pantalla, y conviene que no se confundan. */}
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">

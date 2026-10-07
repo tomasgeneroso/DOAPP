@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -13,6 +14,7 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ReferenceArea,
 } from 'recharts';
 import {
   TrendingUp,
@@ -27,16 +29,21 @@ import {
   Database,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import Concepto from '@/components/ui/Concepto';
 import {
   projectFinancials,
+  proyeccionHastaMes,
+  resumenPorHorizonte,
   applyScenario,
   monthLabel,
+  HORIZONTES,
   SCENARIOS,
+  type AniosDeHorizonte,
   type ProjectionAssumptions,
   type ScenarioKey,
 } from '@/utils/financialProjection';
 import { buildReport, projectionToCsv } from '@/utils/financialReport';
-import { EXPLICACION_DE_SUPUESTO } from '../../content/guiaDelAnalisis';
+import { SECCIONES_DEL_PLAN } from '../../content/seccionesDelPlan';
 
 /* ------------------------------------------------------------------ *
  * Paleta de series
@@ -58,24 +65,10 @@ const FIELD =
 const SELECT =
   'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none';
 
-/**
- * Qué es un campo y qué hace el modelo con él, debajo de su nombre.
- *
- * Antes los campos sólo tenían un rótulo, y rótulos como "Crecimiento mensual"
- * dejaban sin responder lo más básico: ¿de usuarios, de la caja, de los
- * contratos? El texto sale de `client/content/guiaDelAnalisis.ts`, la misma
- * fuente que la guía, y un test exige que cada campo de esta pantalla tenga el
- * suyo.
- */
-function Explicacion({ etiqueta }: { etiqueta: string }) {
-  const texto = EXPLICACION_DE_SUPUESTO[etiqueta];
-  if (!texto) return null;
-  return <p className="mt-0.5 text-xs leading-snug text-slate-400 dark:text-slate-500">{texto}</p>;
-}
-
 /** Números reales de la plataforma, en ARS */
 export interface PlatformActuals {
   mau: number;
+  usuariosTotales: number;
   contratosPorUsuario: number;
   ticketPromedio: number;
   comisionPromedio: number;
@@ -85,8 +78,6 @@ interface Props {
   assumptions: ProjectionAssumptions;
   /** Datos reales para arrancar la proyección desde lo que ya pasa */
   actuals?: PlatformActuals | null;
-  /** Cuánto vale 1 ARS en la moneda de la proyección */
-  arsToCurrency?: number;
   /** Edita los supuestos dentro del plan guardado */
   onEdit: (mutate: (a: ProjectionAssumptions) => void) => void;
   /** Moneda en la que están cargados los supuestos */
@@ -106,7 +97,6 @@ const compact = (n: number) => {
 export default function FinancialProjectionPanel({
   assumptions,
   actuals,
-  arsToCurrency = 1,
   onEdit,
   currency,
   onCurrencyChange,
@@ -120,8 +110,14 @@ export default function FinancialProjectionPanel({
   const ink = isDark ? '#f1f5f9' : '#0f172a';
 
   const [scenario, setScenario] = useState<ScenarioKey>('base');
+  // Cuánto se mira de la proyección: 1, 3, 5 o 10 años. El motor corre siempre 120
+  // meses; esto sólo decide cuántos se muestran y se resumen.
+  const [vista, setVista] = useState<AniosDeHorizonte>(3);
   const [showTable, setShowTable] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const mesesDeLaVista = HORIZONTES.find(h => h.anios === vista)!.meses;
+  const rotuloDeLaVista = HORIZONTES.find(h => h.anios === vista)!.rotulo;
 
   // El informe tiene que describir los mismos supuestos que grafica: si hay
   // un escenario aplicado, los números y el texto salen de esos supuestos.
@@ -130,20 +126,33 @@ export default function FinancialProjectionPanel({
     [assumptions, scenario]
   );
 
+  // UNA corrida de 120 meses; los horizontes son tramos de ella. Correr el motor
+  // una vez por horizonte daría lo mismo con cuatro veces el trabajo y la chance de
+  // que dos corridas no coincidan.
+  const corridaCompleta = useMemo(() => projectFinancials(activeAssumptions), [activeAssumptions]);
+
   const projection = useMemo(
-    () => projectFinancials(activeAssumptions),
-    [activeAssumptions]
+    () => proyeccionHastaMes(corridaCompleta, activeAssumptions, mesesDeLaVista),
+    [corridaCompleta, activeAssumptions, mesesDeLaVista]
+  );
+
+  const porHorizonte = useMemo(
+    () => resumenPorHorizonte(corridaCompleta, activeAssumptions),
+    [corridaCompleta, activeAssumptions]
   );
 
   // Los tres escenarios, para comparar la caja acumulada
   const scenarios = useMemo(
     () =>
-      (Object.keys(SCENARIOS) as ScenarioKey[]).map(key => ({
-        key,
-        label: SCENARIOS[key].label,
-        projection: projectFinancials(key === 'base' ? assumptions : applyScenario(assumptions, key)),
-      })),
-    [assumptions]
+      (Object.keys(SCENARIOS) as ScenarioKey[]).map(key => {
+        const variante = key === 'base' ? assumptions : applyScenario(assumptions, key);
+        return {
+          key,
+          label: SCENARIOS[key].label,
+          projection: proyeccionHastaMes(projectFinancials(variante), variante, mesesDeLaVista),
+        };
+      }),
+    [assumptions, mesesDeLaVista]
   );
 
   const money = (n: number) => fmt(n, 0);
@@ -161,6 +170,7 @@ export default function FinancialProjectionPanel({
   );
 
   const r = projection.resumen;
+  const mesesBeta = r.mesesDeBeta;
 
   const cashData = useMemo(
     () =>
@@ -227,6 +237,18 @@ export default function FinancialProjectionPanel({
   const monthTick = (value: string, index: number) =>
     index % tickEvery === 0 ? value : '';
 
+  /** La zona de la beta, sombreada en cada gráfico: ahí no se cobra comisión. */
+  const zonaDeLaBeta = mesesBeta > 0 && (
+    <ReferenceArea
+      x1={projection.meses[0].etiqueta}
+      x2={projection.meses[mesesBeta - 1].etiqueta}
+      fill={C.s4}
+      fillOpacity={0.14}
+      stroke="none"
+      ifOverflow="visible"
+    />
+  );
+
   const download = (name: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -259,6 +281,7 @@ export default function FinancialProjectionPanel({
   const rev = assumptions.revenue;
   const cost = assumptions.costs;
   const tax = assumptions.taxes;
+  const mesesDeBetaDelPlan = assumptions.beta?.meses ?? 0;
 
   const numField = (
     label: string,
@@ -269,8 +292,7 @@ export default function FinancialProjectionPanel({
   ) => (
     <div key={label} className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
       <div className="flex-1">
-        <label className="text-sm text-slate-600 dark:text-slate-400">{label}</label>
-        <Explicacion etiqueta={label} />
+        <label className="text-sm text-slate-600 dark:text-slate-400"><Concepto c={label} /></label>
       </div>
       <div className="flex items-center gap-1">
         <input
@@ -285,6 +307,25 @@ export default function FinancialProjectionPanel({
     </div>
   );
 
+  /**
+   * Un supuesto que NO se carga acá: lo deriva el plan de otra sección. Se muestra
+   * con su valor y de dónde viene, para que quien lo busque para cambiarlo sepa a
+   * dónde ir; un campo editable acá volvía a abrir el hueco de tener dos versiones.
+   */
+  const campoDerivado = (label: string, valor: string, viene: string) => (
+    <div key={label} className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
+      <div className="flex-1">
+        <span className="text-sm text-slate-600 dark:text-slate-400"><Concepto c={label} /></span>
+      </div>
+      <div className="text-right">
+        <p className="font-mono text-sm tabular-nums text-slate-900 dark:text-white">{valor}</p>
+        <p className="text-[10px] leading-tight text-slate-400">viene de {viene}</p>
+      </div>
+    </div>
+  );
+
+  const celdaDeHorizonte = 'px-2 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400';
+
   return (
     <>
       {/* ---------------- Supuestos ---------------- */}
@@ -292,12 +333,14 @@ export default function FinancialProjectionPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-mono uppercase tracking-widest text-sky-600 dark:text-sky-400">
-              06 · Proyección
+              {SECCIONES_DEL_PLAN.supuestos}
             </p>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Supuestos del modelo</h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-              De acá salen todos los gráficos y el informe. Debajo de cada campo está qué es y qué hace el modelo con él. Cargá los supuestos en una sola moneda; los
-              impuestos están modelados para una SAS argentina inscripta en IVA.
+              De acá salen todos los gráficos y el informe. Lo que dice «viene de…» no se carga acá: lo toma de otra sección, para que
+              el plan diga lo mismo en todas partes. Lo demás sí se carga acá. Pasá el mouse por un concepto para ver qué es; el detalle
+              está en la{' '}
+              <Link to="/analisis?tab=guia" className="text-sky-600 underline dark:text-sky-400">guía del análisis</Link>.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -307,15 +350,14 @@ export default function FinancialProjectionPanel({
                 {['ARS', 'USD', 'EUR'].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
-            {actuals && actuals.mau > 0 && (
+            {actuals && actuals.usuariosTotales > 0 && (
               <button
                 onClick={() =>
                   onEdit(a => {
-                    a.growth.usuariosIniciales = actuals.mau;
-                    if (actuals.contratosPorUsuario > 0) a.revenue.contratosPorUsuario = actuals.contratosPorUsuario;
-                    if (actuals.comisionPromedio > 0) a.revenue.comisionPct = actuals.comisionPromedio;
-                    if (actuals.ticketPromedio > 0) {
-                      a.revenue.ticket = Math.round(actuals.ticketPromedio * arsToCurrency * 100) / 100;
+                    a.growth.usuariosIniciales = actuals.usuariosTotales;
+                    // De cada 100 registrados, cuántos son activos: es lo que mide hoy la plataforma.
+                    if (actuals.mau > 0) {
+                      a.growth.activosPct = Math.min(100, Math.round((actuals.mau / actuals.usuariosTotales) * 1000) / 10);
                     }
                   })
                 }
@@ -325,7 +367,7 @@ export default function FinancialProjectionPanel({
               </button>
             )}
             <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-              Escenario
+              <Concepto c="Escenario" />
               <select className={SELECT} value={scenario} onChange={e => setScenario(e.target.value as ScenarioKey)}>
                 {(Object.keys(SCENARIOS) as ScenarioKey[]).map(k => (
                   <option key={k} value={k}>{SCENARIOS[k].label}</option>
@@ -338,15 +380,14 @@ export default function FinancialProjectionPanel({
         <div className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
           <div>
             <h3 className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Crecimiento
+              Usuarios
             </h3>
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
               <div className="flex-1">
-                <label className="text-sm text-slate-600 dark:text-slate-400">Mes de inicio</label>
-                <Explicacion etiqueta="Mes de inicio" />
+                <label className="text-sm text-slate-600 dark:text-slate-400"><Concepto c="Mes de inicio" /></label>
               </div>
               {/* En un contenedor de ancho fijo: `FIELD` trae w-full, que le ganaba a
-                  w-36 y dejaba la etiqueta y su explicación aplastadas en una columna. */}
+                  w-36 y dejaba la etiqueta aplastada en una columna. */}
               <div className="w-36 shrink-0">
                 <input
                   type="month"
@@ -356,41 +397,41 @@ export default function FinancialProjectionPanel({
                 />
               </div>
             </div>
-            {numField('Usuarios activos al arrancar', g.usuariosIniciales, (a, v) => { a.growth.usuariosIniciales = v; })}
+            {numField('Usuarios registrados al arrancar', g.usuariosIniciales, (a, v) => { a.growth.usuariosIniciales = v; })}
+            {numField('Usuarios activos del mes (% de los registrados)', g.activosPct ?? 0, (a, v) => { a.growth.activosPct = Math.min(100, v); }, 1, '%')}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
               <div className="flex-1">
-                <label className="text-sm text-slate-600 dark:text-slate-400">Cómo crece la base</label>
-                <Explicacion etiqueta="Cómo crece la base" />
+                <label className="text-sm text-slate-600 dark:text-slate-400"><Concepto c="Cómo crece la base" /></label>
               </div>
               <select
                 className={SELECT}
                 value={g.modoCrecimiento}
                 onChange={e => onEdit(a => { a.growth.modoCrecimiento = e.target.value as 'porcentaje' | 'absoluto'; })}
               >
+                <option value="absoluto">altas fijas (publicidad ÷ CAC)</option>
                 <option value="porcentaje">% sobre la base</option>
-                <option value="absoluto">altas fijas</option>
               </select>
             </div>
             {g.modoCrecimiento === 'porcentaje'
               ? numField('Crecimiento mensual de usuarios', g.crecimientoPct, (a, v) => { a.growth.crecimientoPct = v; }, 0.5, '%')
-              : numField('Altas por mes', g.altasPorMes, (a, v) => { a.growth.altasPorMes = v; })}
+              : campoDerivado('Altas por mes en la etapa real', `${Math.round(g.altasPorMes).toLocaleString('es-AR')} usuarios`, SECCIONES_DEL_PLAN.gastosReal)}
+            {campoDerivado('Altas por mes en la beta', `${Math.round(assumptions.beta?.altasPorMes ?? 0).toLocaleString('es-AR')} usuarios`, SECCIONES_DEL_PLAN.gastosBeta)}
+            {campoDerivado('Duración de la beta', `${mesesDeBetaDelPlan} ${mesesDeBetaDelPlan === 1 ? 'mes' : 'meses'}`, SECCIONES_DEL_PLAN.gastosBeta)}
             {numField('Churn mensual', g.churnPct, (a, v) => { a.growth.churnPct = v; }, 0.5, '%')}
             {numField('Techo de mercado (0 = sin techo)', g.techoUsuarios, (a, v) => { a.growth.techoUsuarios = v; }, 1000)}
-            {numField('Horizonte a proyectar', g.horizonteMeses, (a, v) => { a.growth.horizonteMeses = Math.min(120, v); }, 6, 'm')}
 
             <h3 className="mb-1 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Ingresos
             </h3>
-            {numField('Ticket promedio por contrato', rev.ticket, (a, v) => { a.revenue.ticket = v; })}
-            {numField('Contratos por usuario / mes', rev.contratosPorUsuario, (a, v) => { a.revenue.contratosPorUsuario = v; }, 0.1)}
-            {numField('Comisión de la plataforma', rev.comisionPct, (a, v) => { a.revenue.comisionPct = v; }, 0.5, '%')}
+            {campoDerivado('Ticket promedio por contrato', money(rev.ticket), SECCIONES_DEL_PLAN.unitEconomics)}
+            {campoDerivado('Contratos por usuario registrado / mes', rev.contratosPorUsuario.toLocaleString('es-AR', { maximumFractionDigits: 3 }), `${SECCIONES_DEL_PLAN.unitEconomics} × % de activos`)}
+            {campoDerivado('Comisión de la plataforma', `${rev.comisionPct}% (beta: ${assumptions.beta?.comisionPct ?? 0}%)`, SECCIONES_DEL_PLAN.unitEconomics)}
             {numField('Usuarios con membresía', rev.membresiaPct, (a, v) => { a.revenue.membresiaPct = v; }, 0.5, '%')}
             {numField('Precio de la membresía / mes', rev.membresiaPrecio, (a, v) => { a.revenue.membresiaPrecio = v; })}
-            {numField('Publicidad / mes', rev.publicidadMensual, (a, v) => { a.revenue.publicidadMensual = v; })}
+            {numField('Publicidad de terceros (ingreso) / mes', rev.publicidadMensual, (a, v) => { a.revenue.publicidadMensual = v; })}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-700/50">
               <div className="flex-1">
-                <label className="text-sm text-slate-600 dark:text-slate-400">La comisión se cobra con IVA incluido</label>
-                <Explicacion etiqueta="La comisión se cobra con IVA incluido" />
+                <label className="text-sm text-slate-600 dark:text-slate-400"><Concepto c="La comisión se cobra con IVA incluido" /></label>
               </div>
               <input
                 type="checkbox"
@@ -405,13 +446,13 @@ export default function FinancialProjectionPanel({
             <h3 className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Costos
             </h3>
-            {numField('Soporte por usuario / mes', cost.soportePorUsuario, (a, v) => { a.costs.soportePorUsuario = v; }, 0.1)}
+            {campoDerivado('Soporte por usuario registrado / mes', moneyUnit(cost.soportePorUsuario), `${SECCIONES_DEL_PLAN.unitEconomics} × % de activos`)}
             {numField('Infraestructura por usuario / mes', cost.infraPorUsuario, (a, v) => { a.costs.infraPorUsuario = v; }, 0.05)}
             {numField('Comisión del medio de pago', cost.pspPct, (a, v) => { a.costs.pspPct = v; }, 0.1, '%')}
-            {numField('Disputas (% del volumen)', cost.disputasPct, (a, v) => { a.costs.disputasPct = v; }, 0.1, '%')}
-            {numField('Fraude y contracargos (% del volumen)', cost.fraudePct, (a, v) => { a.costs.fraudePct = v; }, 0.1, '%')}
+            {campoDerivado('Disputas (% del volumen)', `${cost.disputasPct}%`, SECCIONES_DEL_PLAN.unitEconomics)}
+            {campoDerivado('Fraude y contracargos (% del volumen)', `${cost.fraudePct}%`, SECCIONES_DEL_PLAN.unitEconomics)}
             {numField('Costo de adquirir un usuario (CAC)', cost.cac, (a, v) => { a.costs.cac = v; }, 0.5)}
-            {numField('Costos fijos del primer mes', cost.fijosMensuales, (a, v) => { a.costs.fijosMensuales = v; }, 100)}
+            {campoDerivado('Costos fijos de la etapa real', money(cost.fijosMensuales), SECCIONES_DEL_PLAN.gastosReal)}
             {numField('Crecimiento mensual de los fijos', cost.fijosCrecimientoPct, (a, v) => { a.costs.fijosCrecimientoPct = v; }, 0.5, '%')}
             {numField('Costos con IVA computable', cost.costosConIvaPct, (a, v) => { a.costs.costosConIvaPct = Math.min(100, v); }, 5, '%')}
 
@@ -432,14 +473,81 @@ export default function FinancialProjectionPanel({
 
       {/* ---------------- Resultado ---------------- */}
       <section className={`${CARD} mb-6 p-5`}>
-        <div className="mb-4">
-          <p className="text-xs font-mono uppercase tracking-widest text-sky-600 dark:text-sky-400">
-            07 · Resultado
-          </p>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            Proyección a {projection.meses.length} meses — escenario {SCENARIOS[scenario].label.toLowerCase()}
-          </h2>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-mono uppercase tracking-widest text-sky-600 dark:text-sky-400">
+              {SECCIONES_DEL_PLAN.resultado}
+            </p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Proyección a {rotuloDeLaVista} — escenario {SCENARIOS[scenario].label.toLowerCase()}
+            </h2>
+          </div>
+          <div role="group" aria-label="Horizonte de la proyección" className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+            {HORIZONTES.map(h => (
+              <button
+                key={h.anios}
+                type="button"
+                aria-pressed={vista === h.anios}
+                onClick={() => setVista(h.anios)}
+                className={`px-3 py-1.5 text-xs font-medium transition ${
+                  vista === h.anios
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {h.rotulo}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Los cuatro horizontes, juntos: es la respuesta a "¿y a 1, 3, 5 y 10 años?" */}
+        <div className="mb-5 overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                {['Horizonte', 'Usuarios registrados', 'Ingresos del último año', 'EBITDA del último año', 'Resultado acumulado', 'Caja acumulada', 'Capital mínimo necesario', 'Mes en que cubre costos'].map(h => (
+                  <th key={h} className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 first:text-left dark:text-slate-400">
+                    {h === 'Horizonte' ? h : <Concepto c={h} />}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {porHorizonte.map(h => (
+                <tr
+                  key={h.anios}
+                  onClick={() => setVista(h.anios)}
+                  className={`cursor-pointer border-b border-slate-100 dark:border-slate-700/50 ${h.anios === vista ? 'bg-sky-50 dark:bg-sky-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
+                >
+                  <td className="px-2 py-2 font-medium text-slate-800 dark:text-slate-200">{h.rotulo}</td>
+                  <td className={celdaDeHorizonte}>{h.usuarios.toLocaleString('es-AR')}</td>
+                  <td className={celdaDeHorizonte}>{money(h.ingresosDelUltimoAnio)}</td>
+                  <td className={`px-2 py-2 text-right tabular-nums font-medium ${h.ebitdaDelUltimoAnio >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {money(h.ebitdaDelUltimoAnio)}
+                  </td>
+                  <td className={`px-2 py-2 text-right tabular-nums font-medium ${h.resultadoAcumulado >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {money(h.resultadoAcumulado)}
+                  </td>
+                  <td className={`px-2 py-2 text-right tabular-nums font-medium ${h.cajaAcumulada >= 0 ? 'text-slate-800 dark:text-slate-200' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {money(h.cajaAcumulada)}
+                  </td>
+                  <td className={celdaDeHorizonte}>{money(h.capitalMinimo)}</td>
+                  <td className={celdaDeHorizonte}>{h.mesEbitdaPositivo ? `mes ${h.mesEbitdaPositivo}` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {mesesBeta > 0 && (
+          <p className="mb-4 rounded border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+            Los primeros {mesesBeta} {mesesBeta === 1 ? 'mes es' : 'meses son'} de <Concepto c="Beta" /> (zona sombreada en los gráficos):
+            sin comisión
+            {r.cajaAlTerminarLaBeta !== null && <> y con {money(r.cajaAlTerminarLaBeta)} en caja al terminar</>}. Desde ahí rige la{' '}
+            <Concepto c="Etapa real" />.
+          </p>
+        )}
 
         {/* Hitos */}
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -463,9 +571,9 @@ export default function FinancialProjectionPanel({
               ok: r.pisoCaja >= 0,
             },
             {
-              l: `Caja al mes ${projection.meses.length}`,
+              l: 'Caja acumulada',
               v: money(r.cajaFinal),
-              s: `${r.usuariosFinales.toLocaleString('es-AR')} usuarios`,
+              s: `al mes ${projection.meses.length} · ${r.usuariosFinales.toLocaleString('es-AR')} usuarios`,
               ok: r.cajaFinal >= 0,
             },
           ].map(k => (
@@ -473,7 +581,7 @@ export default function FinancialProjectionPanel({
               key={k.l}
               className={`rounded-lg border-l-4 bg-slate-50 p-3 dark:bg-slate-900/50 ${k.ok ? 'border-emerald-500' : 'border-rose-500'}`}
             >
-              <p className="text-xs text-slate-500 dark:text-slate-400">{k.l}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400"><Concepto c={k.l} /></p>
               <p className={`text-lg font-bold tabular-nums ${k.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                 {k.v}
               </p>
@@ -485,7 +593,7 @@ export default function FinancialProjectionPanel({
         {/* Caja acumulada por escenario */}
         <div className="mb-6">
           <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-            <TrendingUp className="h-4 w-4 text-slate-400" /> Caja acumulada
+            <TrendingUp className="h-4 w-4 text-slate-400" /> <Concepto c="Caja acumulada" />
           </h3>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
             Dónde queda la plata mes a mes. Por debajo de la línea de cero hace falta financiamiento.
@@ -501,6 +609,7 @@ export default function FinancialProjectionPanel({
                 cursor={{ stroke: axis, strokeWidth: 1 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: axis }} />
+              {zonaDeLaBeta}
               <ReferenceLine y={0} stroke={axis} strokeDasharray="4 4" />
               <Area
                 type="monotone"
@@ -522,7 +631,7 @@ export default function FinancialProjectionPanel({
         {/* Ingresos, costos e impuestos */}
         <div className="mb-6">
           <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-            <Layers className="h-4 w-4 text-slate-400" /> Ingresos, costos e impuestos
+            <Layers className="h-4 w-4 text-slate-400" /> <Concepto c="Ingresos, costos e impuestos" />
           </h3>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
             El mes en que la línea de ingresos cruza la de costos es el punto de equilibrio operativo.
@@ -538,6 +647,7 @@ export default function FinancialProjectionPanel({
                 cursor={{ stroke: axis, strokeWidth: 1 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: axis }} />
+              {zonaDeLaBeta}
               <Line type="monotone" dataKey="ingresos" name="Ingresos netos" stroke={C.s1} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
               <Line type="monotone" dataKey="costos" name="Costos totales" stroke={C.s2} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
               <Line type="monotone" dataKey="impuestos" name="Impuestos" stroke={C.s3} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
@@ -548,7 +658,7 @@ export default function FinancialProjectionPanel({
         {/* Composición del gasto */}
         <div className="mb-6">
           <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-            <Layers className="h-4 w-4 text-slate-400" /> En qué se va la plata
+            <Layers className="h-4 w-4 text-slate-400" /> <Concepto c="En qué se va la plata" />
           </h3>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
             Costos e impuestos apilados por mes: sirve para ver cuál crece más rápido que los ingresos.
@@ -564,6 +674,7 @@ export default function FinancialProjectionPanel({
                 cursor={{ fill: isDark ? '#33415555' : '#f1f5f9' }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: axis }} />
+              {zonaDeLaBeta}
               <Bar dataKey="fijos" name="Fijos" stackId="c" fill={C.s1} stroke={surface} strokeWidth={2} />
               <Bar dataKey="variables" name="Variables" stackId="c" fill={C.s2} stroke={surface} strokeWidth={2} />
               <Bar dataKey="adquisicion" name="Adquisición" stackId="c" fill={C.s3} stroke={surface} strokeWidth={2} />
@@ -575,10 +686,10 @@ export default function FinancialProjectionPanel({
         {/* Usuarios — unidad distinta, gráfico aparte */}
         <div>
           <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-            <Users className="h-4 w-4 text-slate-400" /> Base de usuarios
+            <Users className="h-4 w-4 text-slate-400" /> <Concepto c="Base de usuarios" />
           </h3>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-            Usuarios activos y altas de cada mes. Si las altas se aplanan, el techo de mercado ya está pesando.
+            Usuarios registrados y altas de cada mes. Si las altas se aplanan, el techo de mercado ya está pesando.
           </p>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={usersData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -591,7 +702,8 @@ export default function FinancialProjectionPanel({
                 cursor={{ stroke: axis, strokeWidth: 1 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: axis }} />
-              <Line type="monotone" dataKey="usuarios" name="Usuarios activos" stroke={C.s1} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
+              {zonaDeLaBeta}
+              <Line type="monotone" dataKey="usuarios" name="Usuarios registrados" stroke={C.s1} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
               <Line type="monotone" dataKey="altas" name="Altas del mes" stroke={C.s2} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: surface, strokeWidth: 2 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -608,21 +720,22 @@ export default function FinancialProjectionPanel({
           </button>
 
           {showTable && (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[860px] border-collapse text-xs">
-                <thead>
+            <div className="mt-3 max-h-[560px] overflow-auto">
+              <table className="w-full min-w-[920px] border-collapse text-xs">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800">
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    {['Mes', 'Usuarios', 'Contratos', 'Ingresos', 'Costos', 'EBITDA', 'Impuestos', 'Neto', 'Caja'].map(h => (
+                    {['Mes', 'Etapa', 'Usuarios', 'Contratos', 'Ingresos', 'Costos', 'EBITDA', 'Impuestos', 'Neto', 'Caja'].map(h => (
                       <th key={h} className="px-2 py-2 text-right font-semibold uppercase tracking-wide text-slate-500 first:text-left dark:text-slate-400">
-                        {h}
+                        {h === 'Mes' ? h : <Concepto c={h} />}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {projection.meses.map(m => (
-                    <tr key={m.mes} className="border-b border-slate-100 dark:border-slate-700/50">
+                    <tr key={m.mes} className={`border-b border-slate-100 dark:border-slate-700/50 ${m.etapa === 'beta' ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}>
                       <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300">{m.etiqueta}</td>
+                      <td className="px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">{m.etapa === 'beta' ? 'Beta' : 'Real'}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-400">{m.usuarios.toLocaleString('es-AR')}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-400">{m.contratos.toLocaleString('es-AR')}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-400">{money(m.ingresoNeto)}</td>
@@ -651,10 +764,10 @@ export default function FinancialProjectionPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-mono uppercase tracking-widest text-sky-600 dark:text-sky-400">
-              08 · Informe
+              {SECCIONES_DEL_PLAN.informe}
             </p>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-              <FileText className="h-4 w-4 text-slate-400" /> Lectura del escenario {SCENARIOS[scenario].label.toLowerCase()}
+              <FileText className="h-4 w-4 text-slate-400" /> Lectura a {rotuloDeLaVista}, escenario {SCENARIOS[scenario].label.toLowerCase()}
             </h2>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -666,13 +779,13 @@ export default function FinancialProjectionPanel({
               {copied ? 'Copiado' : 'Copiar informe'}
             </button>
             <button
-              onClick={() => download(`proyeccion-doapp-${scenario}.md`, report.markdown, 'text/markdown')}
+              onClick={() => download(`proyeccion-doapp-${scenario}-${vista}a.md`, report.markdown, 'text/markdown')}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <Download className="h-3.5 w-3.5" /> Informe .md
             </button>
             <button
-              onClick={() => download(`proyeccion-doapp-${scenario}.csv`, projectionToCsv(projection), 'text/csv')}
+              onClick={() => download(`proyeccion-doapp-${scenario}-${vista}a.csv`, projectionToCsv(projection), 'text/csv')}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <Download className="h-3.5 w-3.5" /> Detalle .csv
@@ -713,13 +826,13 @@ export default function FinancialProjectionPanel({
 
         {/* Comparación de escenarios */}
         <div className="mt-5 overflow-x-auto">
-          <h3 className="mb-2 text-sm font-bold text-slate-900 dark:text-white">Los tres escenarios</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-900 dark:text-white">Los tres escenarios a {rotuloDeLaVista}</h3>
           <table className="w-full min-w-[620px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700">
-                {['Escenario', 'Cubre costos', 'Capital mínimo', `Caja al mes ${projection.meses.length}`, 'Usuarios', 'LTV/CAC'].map(h => (
+                {['Escenario', 'Cubre sus costos', 'Capital mínimo', 'Caja acumulada', 'Usuarios registrados', 'LTV/CAC'].map(h => (
                   <th key={h} className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 first:text-left dark:text-slate-400">
-                    {h}
+                    <Concepto c={h} />
                   </th>
                 ))}
               </tr>
@@ -729,7 +842,7 @@ export default function FinancialProjectionPanel({
                 const sr = s.projection.resumen;
                 return (
                   <tr key={s.key} className={`border-b border-slate-100 dark:border-slate-700/50 ${s.key === scenario ? 'bg-sky-50 dark:bg-sky-900/20' : ''}`}>
-                    <td className="px-2 py-2 font-medium text-slate-800 dark:text-slate-200">{s.label}</td>
+                    <td className="px-2 py-2 font-medium text-slate-800 dark:text-slate-200"><Concepto c={s.label} /></td>
                     <td className="px-2 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">
                       {sr.mesEbitdaPositivo ? `mes ${sr.mesEbitdaPositivo}` : '—'}
                     </td>
