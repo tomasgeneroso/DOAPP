@@ -68,7 +68,8 @@ export default function ProDashboardScreen() {
   const isPro = tier === 'pro';
   const isSuperPro = tier === 'super_pro';
   const tierColor = isSuperPro ? '#8b5cf6' : colors.primary[600];
-  const tierLabel = isSuperPro ? 'SUPER PRO' : 'PRO';
+  // 'super_pro' es el nombre interno de las cuentas heredadas: hoy se llama PRO.
+  const tierLabel = 'PRO';
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Sin fecha';
@@ -83,16 +84,16 @@ export default function ProDashboardScreen() {
 
   const benefits = isPro
     ? [
-        'Comision fija del 3%',
+        'La comision es la misma que en el plan gratuito',
         '1 contrato gratis por mes',
         'Badge PRO en tu perfil',
         'Estadisticas avanzadas',
         'Soporte prioritario',
       ]
     : [
-        'Comision fija del 1%',
+        'La comision es la misma que en el plan gratuito',
         '2 contratos gratis por mes',
-        'Badge SUPER PRO en tu perfil',
+        'Badge PRO en tu perfil',
         'Analytics avanzados',
         'Soporte VIP prioritario',
         'Destacado en busquedas',
@@ -206,24 +207,6 @@ export default function ProDashboardScreen() {
             </View>
           ))}
         </View>
-
-        {/* Upgrade CTA (for PRO users) */}
-        {isPro && (
-          <TouchableOpacity
-            style={[styles.upgradeCard, { backgroundColor: '#8b5cf620', borderColor: '#8b5cf6' }]}
-            onPress={() => router.push('/membership')}
-            activeOpacity={0.7}
-          >
-            <Crown size={24} color="#8b5cf6" />
-            <View style={styles.upgradeInfo}>
-              <Text style={[styles.upgradeTitle, { color: '#8b5cf6' }]}>Subir a SUPER PRO</Text>
-              <Text style={[styles.upgradeDesc, { color: themeColors.text.secondary }]}>
-                Obtene 1% de comision y 2 contratos gratis por mes
-              </Text>
-            </View>
-            <ChevronRight size={20} color="#8b5cf6" />
-          </TouchableOpacity>
-        )}
 
         {/* Manage Membership */}
         <TouchableOpacity

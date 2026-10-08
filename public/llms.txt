@@ -4,7 +4,7 @@
 
 DoApp conecta a clientes con trabajadores en Argentina de forma segura. Retiros a CBU bancario (mínimo $1.000 ARS) y aplicación nativa para iOS y Android.
 
-**DoApp está en fase beta hasta el 31 de diciembre de 2026.** Durante la beta la plataforma no cobra comisión: si el trabajo vale $36.000, el cliente paga $36.000 y el trabajador recibe $36.000. Todas las cuentas tienen SUPER PRO sin costo. Terminada la beta rigen las comisiones según el plan (8% FREE, 3% PRO, 1% SUPER PRO, mínimo $1.000) más IVA sobre la comisión.
+**DoApp está en fase beta hasta el 31 de diciembre de 2026.** Durante la beta la plataforma no cobra comisión: el trabajador recibe el precio del trabajo entero y el cliente paga ese precio más el costo de procesamiento del pago. Todas las cuentas tienen las funciones de la membresía PRO sin costo. Terminada la beta se cobra una comisión del 10% sobre el precio del trabajo, a cargo del cliente y la misma para todos los planes, con un piso de EUR 2 y IVA del 21% sobre la comisión. La membresía PRO (€7 por mes) da visibilidad y no modifica la comisión.
 
 DoApp verifica la identidad de los usuarios a través de un proveedor externo. **No verifica matrículas profesionales ni pólizas de seguro**: esos datos son declarados por el trabajador.
 
@@ -15,7 +15,7 @@ DoApp verifica la identidad de los usuarios a través de un proveedor externo. *
 - [Iniciar sesión](https://doapparg.com/login): Acceder a tu cuenta
 - [Blog](https://doapparg.com/blog): Artículos, tips y novedades sobre trabajo freelance
 - [Centro de Ayuda](https://doapparg.com/help): Soporte, tickets y resolución de disputas
-- [Planes y comisiones](https://doapparg.com/membership/pricing): FREE, PRO y SUPER PRO
+- [Planes y comisiones](https://doapparg.com/membership/pricing): FREE y PRO
 - [Contacto](https://doapparg.com/contact): Escribir al equipo de DoApp
 
 ## Legal

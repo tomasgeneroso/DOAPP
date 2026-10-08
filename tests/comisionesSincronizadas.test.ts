@@ -120,3 +120,164 @@ describe('los avisos de beta', () => {
     expect(aviso).not.toMatch(/lo que vale el trabajo es lo que paga/);
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * El resto de las copias: archivos públicos, servidor y app mobile
+ * ------------------------------------------------------------------ */
+
+/** El texto de un archivo sin comentarios: los comentarios pueden NOMBRAR lo viejo para explicar por qué ya no está. */
+const sinComentarios = (fuente: string) =>
+  fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+
+const PLANES_Y_TASAS_VIEJOS: RegExp[] = [
+  /SUPER PRO/,
+  /\$\s?4\.999/,
+  /\$\s?8\.999/,
+  /\$\s?13\.347/,
+  /PRO Trimestral/i,
+  /PRO Mensual/,
+];
+
+describe('los archivos públicos dicen la comisión y el plan vigentes', () => {
+  it.each(['index.html', 'public/llms.txt'])('%s', (archivo) => {
+    const texto = leer(archivo);
+    expect(texto).toContain(`${COMMISSION_RATES.free}%`);
+    expect(texto).toContain(`€${MEMBERSHIP_PRICES_EUR.pro}`);
+    // (El "mínimo $1.000" que sí existe es el de los retiros a CBU: no es de la comisión.)
+    for (const viejo of [...PLANES_Y_TASAS_VIEJOS, /8%\s*(FREE|\))/, /3%\s*PRO/, /1%\s*SUPER/]) {
+      expect({ archivo, patron: String(viejo), aparece: viejo.test(texto) }).toEqual({ archivo, patron: String(viejo), aparece: false });
+    }
+  });
+});
+
+describe('el servidor calcula y describe la comisión vigente', () => {
+  it('commissionService no escribe tasas a mano en lo que le muestra al usuario', () => {
+    const f = leer('server/services/commissionService.ts');
+    expect(sinComentarios(f)).not.toMatch(/\((8|3|1)%\s+fijo\)/);
+    expect(sinComentarios(f)).not.toMatch(/nextTier:\s*\{\s*volume:\s*0/); // subir de plan no baja la comisión
+  });
+
+  it('el cobro de una cotización usa calculateCommission y no 8% con piso de $1.000', () => {
+    const f = sinComentarios(leer('server/routes/quotes.ts'));
+    expect(f).not.toMatch(/commissionRate\s*=\s*0\.08/);
+    expect(f).not.toMatch(/Math\.max\([^)]*,\s*1000\)/);
+    expect(f).toContain('splitFees(');
+  });
+
+  it('la comisión de modificar el precio de un contrato sigue usando la tasa guardada, y eso está marcado como pendiente', () => {
+    /**
+     * Esa ruta (`modify-price`) lee `currentCommissionRate` —que en las cuentas
+     * existentes quedó con la tasa del plan viejo— y sólo cobra la diferencia, no la
+     * comisión sobre ella. Cambiar sólo el valor guardado dejaría un ingreso contable que
+     * nadie pagó (lo revisó el `reviewer`), así que no se tocó: queda marcado en el código
+     * para que no se olvide, y este test avisa si alguien lo cambia sin cobrar la plata.
+     */
+    const f = leer('server/routes/contracts.ts');
+    expect(f).toContain('currentCommissionRate / 100');
+    expect(f).toContain('pendiente de decisión del dueño');
+  });
+});
+
+describe('la app mobile ofrece un solo plan pago', () => {
+  it.each([
+    'mobile/app/membership.tsx',
+    'mobile/app/membership-checkout.tsx',
+    'mobile/app/pro-dashboard.tsx',
+    'mobile/app/(tabs)/profile.tsx',
+  ])('%s no ofrece SUPER PRO ni PRO trimestral ni precios en pesos viejos', (archivo) => {
+    const f = sinComentarios(leer(archivo));
+    for (const viejo of PLANES_Y_TASAS_VIEJOS) {
+      expect({ archivo, patron: String(viejo), aparece: viejo.test(f) }).toEqual({ archivo, patron: String(viejo), aparece: false });
+    }
+  });
+
+  it('la compra manda `plan`, que es lo que el servidor espera (con `membershipType` respondía 400)', () => {
+    const f = leer('mobile/app/membership.tsx');
+    expect(f).toContain("{ plan: 'monthly' }");
+    expect(f).not.toContain('{ membershipType: plan }');
+  });
+});
+
+describe('la web ofrece un solo plan pago, y lo dice igual en español e inglés', () => {
+  // Las pantallas que ofrecían o describían planes. FinancePanel, WorkerSelectionInfo y
+  // admin/Users quedan afuera a propósito: dependen de beneficios por plan que son una
+  // decisión pendiente del dueño (ver el informe).
+  const PANTALLAS = [
+    'client/components/MembershipOfferModal.tsx',
+    'client/components/ProMembershipModal.tsx',
+    'client/components/MembershipStatus.tsx',
+    'client/components/app/Header.tsx',
+    'client/components/chat/QuoteMessage.tsx',
+    'client/pages/MembershipCheckout.tsx',
+    'client/pages/MembershipPaymentSuccess.tsx',
+    'client/pages/Dashboard.tsx',
+    'client/pages/ProUsageDashboard.tsx',
+    'client/pages/ContractSummary.tsx',
+    'client/pages/JobPayment.tsx',
+    'client/pages/UserSettings.tsx',
+    'client/pages/admin/Dashboard.tsx',
+    'client/pages/admin/FinancialTransactions.tsx',
+    'client/pages/admin/PlatformPhase.tsx',
+  ];
+
+  it.each(PANTALLAS)('%s no menciona SUPER PRO, PRO trimestral ni los precios en pesos viejos', (archivo) => {
+    const f = sinComentarios(leer(archivo));
+    for (const viejo of PLANES_Y_TASAS_VIEJOS) {
+      expect({ archivo, patron: String(viejo), aparece: viejo.test(f) }).toEqual({ archivo, patron: String(viejo), aparece: false });
+    }
+  });
+
+  it('ninguna pantalla promete una comisión distinta según el plan (8% / 3% / 1%)', () => {
+    for (const archivo of PANTALLAS) {
+      const f = sinComentarios(leer(archivo));
+      for (const viejo of [/\(\s*\+\s*8\s*%\s*\)/, /comisi[oó]n[^\n]{0,40}\b(3|1)\s?%/i, /\b8\s?%\s*(de\s+)?comisi/i]) {
+        expect({ archivo, patron: String(viejo), aparece: viejo.test(f) }).toEqual({ archivo, patron: String(viejo), aparece: false });
+      }
+    }
+  });
+
+  it('es.json y en.json no mencionan planes ni tasas anteriores', () => {
+    const viejos = [
+      /SUPER PRO/i,
+      /\$\s?4[.,]999/,
+      /\$\s?8[.,]999/,
+      /\$\s?13[.,]347/,
+      /Trimestral|Quarterly/i,
+      /PRO Mensual/,
+      /\b(8|3|1)\s?%[^"]{0,40}(comisi[oó]n|commission)|(comisi[oó]n|commission)[^"]{0,40}\b(8|3|1)\s?%/i,
+    ];
+    for (const idioma of ['es', 'en']) {
+      const json = JSON.parse(leer(`client/i18n/locales/${idioma}.json`));
+      const hallazgos: string[] = [];
+      const recorrer = (nodo: Record<string, unknown>, ruta: string) => {
+        for (const [clave, valor] of Object.entries(nodo)) {
+          if (valor && typeof valor === 'object') recorrer(valor as Record<string, unknown>, `${ruta}${clave}.`);
+          // `referrals.*` queda afuera a propósito: la recompensa de referidos ("3% de
+          // comisión permanente") es una decisión pendiente del dueño. Ver el informe:
+          // la recompensa se guarda pero `calculateCommission` no la lee.
+          else if (typeof valor === 'string' && !`${ruta}${clave}`.startsWith('referrals.') && viejos.some((re) => re.test(valor))) hallazgos.push(`${ruta}${clave}`);
+        }
+      };
+      recorrer(json, '');
+      expect({ idioma, hallazgos }).toEqual({ idioma, hallazgos: [] });
+    }
+  });
+
+  it('la respuesta de comisiones del FAQ lleva las cifras por variables, no escritas a mano', () => {
+    for (const idioma of ['es', 'en']) {
+      const json = JSON.parse(leer(`client/i18n/locales/${idioma}.json`));
+      const texto: string = json.settings.faq.commissionsAnswer;
+      expect(texto).toContain('{{comision}}');
+      expect(texto).toContain('{{piso}}');
+      expect(texto).toContain('{{precio}}');
+    }
+    expect(leer('client/pages/UserSettings.tsx')).toContain('comision: COMMISSION_RATES.free');
+  });
+
+  it('el modal de planes no promete comisión por plan ni contratos sin comisión de la membresía', () => {
+    const modal = sinComentarios(leer('client/components/MembershipOfferModal.tsx'));
+    expect(modal).not.toContain("'membership.proFeat1'");
+    expect(modal).not.toContain("'membership.proFeat2'");
+    expect(modal).toContain('MEMBERSHIP_PRICES_EUR.pro');
+  });
+});

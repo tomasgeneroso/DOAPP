@@ -163,7 +163,7 @@ export default function PlatformPhase() {
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                 {info.isBeta
-                  ? "La app no cobra comisión. En un trabajo de $36.000 el cliente paga el precio más el costo de procesamiento del pago, y el trabajador recibe $36.000. Todos los usuarios tienen SUPER PRO."
+                  ? "La app no cobra comisión. En un trabajo de $36.000 el cliente paga el precio más el costo de procesamiento del pago, y el trabajador recibe $36.000. Todas las cuentas tienen las funciones PRO sin costo."
                   : "Se cobra la comisión vigente sobre el precio del trabajo, a cargo del cliente, y las suscripciones son pagas. El trabajador sigue recibiendo el precio completo."}
               </p>
               {info.isBeta && (

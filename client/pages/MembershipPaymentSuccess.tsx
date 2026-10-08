@@ -3,6 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Crown, TrendingUp, Shield, BarChart3, ArrowRight, Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
 
 interface PaymentConfirmation {
   status: "processing" | "confirmed" | "error";
@@ -220,7 +221,7 @@ export default function MembershipPaymentSuccess() {
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300 mb-2">{t('membershipSuccess.monthlyInvestment')}</p>
               <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-sky-600">
-                $4.999
+                €{MEMBERSHIP_PRICES_EUR.pro}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 {t('membershipSuccess.autoRenewal')}
@@ -246,7 +247,7 @@ export default function MembershipPaymentSuccess() {
                   {t('membershipSuccess.benefit1Title')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  {t('membershipSuccess.benefit1Desc')}
+                  {t('membershipSuccess.benefit1Desc', { dias: MEMBERSHIP_PROMO_DAYS })}
                 </p>
               </div>
             </div>

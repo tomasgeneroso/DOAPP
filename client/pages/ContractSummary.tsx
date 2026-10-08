@@ -4,6 +4,8 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
+import { COMMISSION_RATES } from "../../shared/constants/membershipPricing";
+import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import {
   ArrowLeft,
   Calendar,
@@ -149,6 +151,11 @@ export default function ContractSummary() {
   const otherParty = isClient ? contract.doer : contract.client;
   const commissionRate = contract.commission > 0 ? ((contract.commission / contract.price) * 100).toFixed(0) : "0";
   const isFreeContract = contract.commission === 0;
+  // El piso de la comisión rige cuando el porcentaje da menos que él: ahí la
+  // comisión cobrada supera al porcentaje del precio.
+  const commissionIsMinimum =
+    contract.commission > 0 &&
+    contract.commission > (contract.price * COMMISSION_RATES.free) / 100 + 0.01;
 
   return (
     <>
@@ -313,15 +320,15 @@ export default function ContractSummary() {
                 {t('contracts.summary.costBreakdown', 'Cost breakdown')}
               </div>
 
-              {/* Warning for contracts below minimum */}
-              {contract.price < 8000 && contract.commission > 0 && (
+              {/* Notice when the commission is the minimum */}
+              {commissionIsMinimum && (
                 <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-orange-800 dark:text-orange-300">
-                      <p className="font-semibold mb-1">{t('contracts.summary.minimumContract', 'Minimum contract')}</p>
+                      <p className="font-semibold mb-1">{t('contracts.summary.minimumContract', 'Minimum commission')}</p>
                       <p>
-                        {t('contracts.summary.minimumContractDesc', 'The service price is below $8,000 ARS. A minimum commission of $1,000 ARS applies.')}
+                        {t('contracts.summary.minimumContractDesc', 'The commission for this service is the minimum: EUR {{eur}}, in pesos at the day\'s exchange rate.', { eur: MINIMUM_COMMISSION_EUR })}
                       </p>
                     </div>
                   </div>
@@ -350,9 +357,9 @@ export default function ContractSummary() {
                         </span>
                       )}
                     </span>
-                    {contract.price < 8000 && contract.commission > 0 && (
+                    {commissionIsMinimum && (
                       <span className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                        * {t('contracts.summary.minimumCommission', 'Minimum commission of $1,000 ARS')}
+                        * {t('contracts.summary.minimumCommission', 'Minimum commission of EUR {{eur}}, in pesos at the day\'s exchange rate', { eur: MINIMUM_COMMISSION_EUR })}
                       </span>
                     )}
                   </div>
@@ -377,16 +384,14 @@ export default function ContractSummary() {
                 <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
                   <div className="text-sm">
                     <p className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
-                      {user.membershipTier === 'super_pro' && t('contracts.summary.membershipSuperPro', 'SUPER PRO Membership - 1% Commission')}
-                      {user.membershipTier === 'pro' && t('contracts.summary.membershipPro', 'PRO Membership - 3% Commission')}
-                      {(!user.membershipTier || user.membershipTier === 'free') && t('contracts.summary.membershipFree', 'FREE User - 8% Commission')}
+                      {(user.membershipTier === 'super_pro' || user.membershipTier === 'pro') && t('contracts.summary.membershipPro', 'PRO Membership')}
+                      {(!user.membershipTier || user.membershipTier === 'free') && t('contracts.summary.membershipFree', 'FREE User')}
                     </p>
                     <p className="text-purple-700 dark:text-purple-300">
-                      {user.membershipTier === 'super_pro' && t('contracts.summary.superProDesc', 'You enjoy the lowest commission on the platform.')}
-                      {user.membershipTier === 'pro' && t('contracts.summary.proDesc', 'You have a reduced commission thanks to your membership.')}
+                      {(user.membershipTier === 'super_pro' || user.membershipTier === 'pro') && t('contracts.summary.proDesc', 'The commission is the same on every plan: your membership adds visibility, it does not change it.')}
                       {(!user.membershipTier || user.membershipTier === 'free') && (
                         <>
-                          {t('contracts.summary.freeDesc', 'Upgrade to PRO (3%) or SUPER PRO (1%) to reduce your commissions.')}{' '}
+                          {t('contracts.summary.freeDesc', 'The commission is the same on every plan. PRO adds visibility to your profile.')}{' '}
                           <Link to="/settings?tab=membership" className="underline font-semibold">
                             {t('contracts.summary.viewPlans', 'View plans')}
                           </Link>

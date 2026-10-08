@@ -1,70 +1,37 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation, Trans } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ui/Toast';
 import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Button from '../components/ui/Button';
 import OrigenDeLaCotizacion, { type Cotizacion } from '../components/ui/OrigenDeLaCotizacion';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+
+// Hay una sola membresia paga: PRO, mensual. Los links viejos con ?plan=quarterly
+// o ?plan=super_pro caen aca tambien y se ven como PRO mensual.
+const PLAN = 'monthly';
 
 export default function MembershipCheckout() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [searchParams] = useSearchParams();
-  // Selectable on the page (initialised from the URL): monthly, quarterly, super_pro
-  const [plan, setPlan] = useState<string>(searchParams.get('plan') || 'monthly');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pricing, setPricing] = useState<any>(null);
   const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
-  const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
 
   console.log('🔄 MembershipCheckout renderizando...');
   console.log('👤 Usuario actual:', user);
-  console.log('📦 Plan desde URL:', plan);
 
   useEffect(() => {
     console.log('🎬 MembershipCheckout montado (useEffect)');
     console.log('👤 Usuario en useEffect:', user?.name, user?.email);
-    console.log('📦 Plan seleccionado:', plan);
     loadPricing();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Re-check upgrade eligibility whenever the selected plan changes
-  useEffect(() => {
-    checkUpgradeEligibility();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan]);
-
-  const checkUpgradeEligibility = async () => {
-    // Verificar si el usuario puede hacer upgrade (PRO → SUPER PRO)
-    // realMembershipTier, not membershipTier: during the beta everyone reads as
-    // super_pro, and buying a plan has to be about what they actually pay for.
-    const paidTier = (user as any)?.realMembershipTier ?? user?.membershipTier;
-    if (paidTier === 'pro' && user?.hasMembership && plan === 'super_pro') {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/membership/usage', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
-        if (data.success) {
-          setUpgradeInfo({
-            isUpgrade: true,
-            daysRemaining: data.data.nextReset
-              ? Math.ceil((new Date(data.data.nextReset).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-              : 0
-          });
-        }
-      } catch (err) {
-        console.error('Error checking upgrade eligibility:', err);
-      }
-    }
-  };
 
   const loadPricing = async () => {
     try {
@@ -89,7 +56,7 @@ export default function MembershipCheckout() {
   };
 
   const handleProceedToPayment = async () => {
-    console.log('💳 Iniciando pago para plan:', plan);
+    console.log('💳 Iniciando pago para plan:', PLAN);
     setLoading(true);
     setError(null);
 
@@ -106,7 +73,7 @@ export default function MembershipCheckout() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan: PLAN }),
       });
 
       console.log('📡 Response status:', response.status);
@@ -115,7 +82,15 @@ export default function MembershipCheckout() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Response no OK:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        // El servidor contesta { success:false, message }: se muestra el mensaje, no el JSON crudo.
+        let mensaje = `HTTP ${response.status}: ${errorText}`;
+        try {
+          const json = JSON.parse(errorText);
+          if (json && typeof json.message === 'string' && json.message) mensaje = json.message;
+        } catch {
+          /* no era JSON: queda el texto tal cual */
+        }
+        throw new Error(mensaje);
       }
 
       const data = await response.json();
@@ -140,78 +115,23 @@ export default function MembershipCheckout() {
     }
   };
 
-  const planDetails = {
-    monthly: {
-      name: 'PRO Mensual',
-      price: pricing?.pro?.priceARS || 0,
-      priceARS: pricing?.pro?.priceARS || 0,
-      period: 'por mes',
-      benefits: [
-        { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
-        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
-        { icon: Check, title: 'Contratos adicionales: 3% de comisión', description: 'Plan PRO (3%) vs Plan Free (8%) - ahorra 5%' },
-        { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
-        { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
-        { icon: Crown, title: 'Badge PRO dorado junto a tu nombre', description: 'Destaca como profesional verificado' },
-        { icon: BarChart3, title: 'Estadísticas avanzadas sobre trabajos', description: 'Analytics detallados de tus contratos y aplicaciones' },
-        { icon: BarChart3, title: 'Analytics de balances', description: 'Visualiza tus ingresos y gastos en detalle' },
-      ],
-    },
-    quarterly: {
-      name: 'PRO Trimestral',
-      price: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
-      priceARS: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
-      period: 'cada 3 meses',
-      savings: '$1.650',
-      benefits: [
-        { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
-        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
-        { icon: Check, title: 'Contratos adicionales: 3% de comisión', description: 'Plan PRO (3%) vs Plan Free (8%) - ahorra 5%' },
-        { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
-        { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
-        { icon: Crown, title: 'Badge PRO dorado junto a tu nombre', description: 'Destaca como profesional verificado' },
-        { icon: BarChart3, title: 'Estadísticas avanzadas sobre trabajos', description: 'Analytics detallados de tus contratos y aplicaciones' },
-        { icon: BarChart3, title: 'Analytics de balances', description: 'Visualiza tus ingresos y gastos en detalle' },
-      ],
-    },
-    super_pro: {
-      name: 'SUPER PRO',
-      price: pricing?.superPro?.priceARS || 0,
-      priceARS: pricing?.superPro?.priceARS || 0,
-      period: 'por mes',
-      benefits: [
-        { icon: Crown, title: 'Todos los beneficios de PRO', description: 'Incluye todos los beneficios del plan PRO: verificación, badge dorado, prioridad en búsquedas' },
-        { icon: TrendingUp, title: '2 publicaciones mensuales libres de comisión (0%)', description: 'Publicá 2 trabajos al mes sin comisión' },
-        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
-        { icon: Check, title: 'Contratos adicionales: 1% de comisión', description: 'La comisión más baja de la plataforma - ahorra 7% vs Free (8%) y 2% vs PRO (3%)' },
-        { icon: BarChart3, title: 'Dashboard exclusivo con métricas avanzadas', description: 'Panel personalizado con gráficos interactivos, KPIs y seguimiento de rendimiento en tiempo real' },
-        { icon: BarChart3, title: 'Centro Profesional: facturación y finanzas', description: 'Facturación total, evolución mensual, proyección de cierre, ticket promedio, top clientes y pipeline de trabajos en curso' },
-        { icon: Check, title: 'Panel fiscal para monotributo', description: 'Seguí tu tope anual con alertas de recategorización y una guía simple de tus obligaciones (monotributo, IIBB, vencimientos)' },
-        { icon: TrendingUp, title: 'Reputación y feedback de tu trabajo', description: 'Tus calificaciones por categoría, tasa de finalización, disputas e insignias de confianza' },
-        { icon: Crown, title: 'Profesionalización y matrícula', description: 'Cargá tu matrícula y recibí recordatorios antes de que venza para no quedar inhabilitado' },
-        { icon: BarChart3, title: 'Estadísticas de visitas a tu perfil', description: 'Detalle completo de quién visita tu perfil: nombre, frecuencia, fecha de última visita y procedencia' },
-        { icon: TrendingUp, title: 'Analytics de conversaciones', description: 'Analiza con quién conversas, si tuviste contratos completados con ellos, tasa de conversión a contrato' },
-        { icon: Check, title: 'Estadísticas de contratos completados', description: 'Métricas detalladas: ganancias totales, ratings promedio, clientes repetidos, tasa de éxito, distribución por categoría' },
-        { icon: BarChart3, title: 'Reportes mensuales automatizados', description: 'Informes completos enviados por email: resumen de actividad, ganancias, tendencias, comparativa con mes anterior' },
-      ],
-    },
+  // PRO se vende por visibilidad: no cambia la comision. Los numeros salen de
+  // las constantes compartidas, no se escriben a mano aca.
+  const proPlan = {
+    name: t('membership.planMonthlyName', 'PRO'),
+    priceARS: pricing?.pro?.priceARS || 0,
+    period: 'por mes',
+    benefits: [
+      { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
+      { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
+      { icon: TrendingUp, title: `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes`, description: 'Elegís los días en que querés que tu perfil aparezca destacado' },
+      { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
+      { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
+      { icon: Crown, title: 'Badge PRO dorado junto a tu nombre', description: 'Destaca como profesional verificado' },
+      { icon: BarChart3, title: 'Estadísticas avanzadas sobre trabajos', description: 'Analytics detallados de tus contratos y aplicaciones' },
+      { icon: BarChart3, title: 'Analytics de balances', description: 'Visualiza tus ingresos y gastos en detalle' },
+    ],
   };
-
-  const selectedPlan = planDetails[plan as keyof typeof planDetails];
-
-  if (!selectedPlan) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            {t('membership.invalidPlan', 'Plan no válido')}
-          </h1>
-          <Button onClick={() => navigate('/')}>{t('common.goHome', 'Volver al inicio')}</Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
@@ -231,58 +151,34 @@ export default function MembershipCheckout() {
             <Crown className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            {t('membership.upgradeTo', 'Actualizar a')} {selectedPlan.name}
+            {t('membership.upgradeTo', 'Actualizar a')} {proPlan.name}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-lg">
             {t('membership.unlockFeatures', 'Desbloquea todas las funcionalidades profesionales de DOAPP')}
           </p>
         </div>
 
-        {/* Plan selector cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {(['monthly', 'quarterly', 'super_pro'] as const).map((key) => {
-            const p = planDetails[key];
-            const isSelected = plan === key;
-            const isSuper = key === 'super_pro';
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setPlan(key)}
-                aria-pressed={isSelected}
-                className={`relative text-left rounded-2xl border-2 p-5 transition-all focus:outline-none ${
-                  isSelected
-                    ? isSuper
-                      ? 'border-purple-500 ring-2 ring-purple-500/30 bg-purple-50 dark:bg-purple-900/20'
-                      : 'border-sky-500 ring-2 ring-sky-500/30 bg-sky-50 dark:bg-sky-900/20'
-                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                {isSuper && (
-                  <span className="absolute -top-3 left-4 px-2 py-0.5 text-xs font-bold rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white">
-                    {t('membership.recommended', 'Recomendado')}
-                  </span>
-                )}
-                {key === 'quarterly' && 'savings' in p && p.savings && (
-                  <span className="absolute -top-3 left-4 px-2 py-0.5 text-xs font-bold rounded-full bg-green-500 text-white">
-                    {t('membership.save', 'Ahorra')} {p.savings}
-                  </span>
-                )}
-                <div className="flex items-center gap-2 mb-2">
-                  <Crown className={`w-5 h-5 ${isSuper ? 'text-purple-500' : 'text-sky-500'}`} />
-                  <span className="font-bold text-gray-900 dark:text-white">{p.name}</span>
-                </div>
-                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                  ${Math.round(p.priceARS).toLocaleString('es-AR')}
-                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400"> ARS / {p.period}</span>
-                </p>
-                <p className={`mt-2 flex items-center gap-1 text-sm font-semibold ${isSuper ? 'text-purple-600 dark:text-purple-400' : 'text-sky-600 dark:text-sky-400'}`}>
-                  {isSelected && <Check className="w-4 h-4" />}
-                  {isSuper ? '1%' : '3%'} {t('membership.commission', 'de comisión')} · {isSelected ? t('membership.selected', 'Seleccionado') : t('membership.choosePlan', 'Elegir')}
-                </p>
-              </button>
-            );
-          })}
+        {/* Tarjeta del plan */}
+        <div className="max-w-md mx-auto mb-8">
+          <div className="relative rounded-2xl border-2 border-sky-500 ring-2 ring-sky-500/30 bg-sky-50 dark:bg-sky-900/20 p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Crown className="w-5 h-5 text-sky-500" />
+              <span className="font-bold text-gray-900 dark:text-white">{proPlan.name}</span>
+            </div>
+            <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+              €{MEMBERSHIP_PRICES_EUR.pro}
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400"> / {proPlan.period}</span>
+            </p>
+            {proPlan.priceARS > 0 && (
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                ≈ ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
+              </p>
+            )}
+            <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-sky-600 dark:text-sky-400">
+              <Check className="w-4 h-4" />
+              {t('membership.selected', 'Seleccionado')}
+            </p>
+          </div>
         </div>
 
         {error && (
@@ -292,48 +188,16 @@ export default function MembershipCheckout() {
           </div>
         )}
 
-        {/* Banner de Upgrade */}
-        {upgradeInfo?.isUpgrade && upgradeInfo.daysRemaining > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-2 border-purple-300 dark:border-purple-700 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
-                  {t('membership.upgradeToSuperPro', 'Upgrade a SUPER PRO')}
-                </h3>
-                <p className="text-purple-800 dark:text-purple-200 text-sm mb-3">
-                  <Trans i18nKey="membership.upgradeDaysRemaining" values={{ days: upgradeInfo.daysRemaining }} components={{ b: <strong /> }} defaults="Tienes <b>{{days}} días restantes</b> en tu membresía PRO actual. Solo pagarás la diferencia prorrateada para actualizar a SUPER PRO por el tiempo restante." />
-                </p>
-                <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3 text-sm">
-                  <p className="text-purple-900 dark:text-purple-100 font-semibold mb-1">
-                    {t('membership.upgradeHowTitle', '¿Cómo funciona el upgrade?')}
-                  </p>
-                  <ul className="list-disc list-inside text-purple-800 dark:text-purple-200 space-y-1">
-                    <li>{t('membership.upgradeHow1', 'Calculas el valor de tus {{days}} días restantes de PRO', { days: upgradeInfo.daysRemaining })}</li>
-                    <li>{t('membership.upgradeHow2', 'Solo pagas la diferencia para tener SUPER PRO por esos mismos días')}</li>
-                    <li>{t('membership.upgradeHow3', 'Tu fecha de renovación se mantiene igual')}</li>
-                    <li>{t('membership.upgradeHow4', 'Obtienes acceso inmediato a todos los beneficios SUPER PRO')}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Beneficios - 2/3 del ancho */}
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                {t('membership.whyChoose', '¿Por qué elegir')} {selectedPlan.name}?
+                {t('membership.whyChoose', '¿Por qué elegir')} {proPlan.name}?
               </h2>
 
               <div className="space-y-6">
-                {selectedPlan.benefits.map((benefit, index) => {
+                {proPlan.benefits.map((benefit, index) => {
                   const Icon = benefit.icon;
                   return (
                     <div key={index} className="flex gap-4">
@@ -355,46 +219,17 @@ export default function MembershipCheckout() {
                 })}
               </div>
 
-              {/* Comparación */}
-              <div className={`mt-8 rounded-lg p-6 ${
-                plan === 'super_pro'
-                  ? 'bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20'
-                  : 'bg-sky-50 dark:bg-sky-900/20'
-              }`}>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-4">
-                  {t('membership.commissionComparison', 'Comparación de Comisiones')}
+              {/* La comisión no depende del plan */}
+              <div className="mt-8 rounded-lg p-6 bg-sky-50 dark:bg-sky-900/20">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">
+                  {t('membership.commissionTitle', 'La comisión es la misma en todos los planes')}
                 </h3>
-                <div className={`grid ${plan === 'super_pro' ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
-                  <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Plan Free</p>
-                    <p className="text-3xl font-bold text-gray-400 dark:text-gray-500">8%</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('membership.commission', 'de comisión')}</p>
-                  </div>
-                  {plan === 'super_pro' && (
-                    <div className="text-center p-4 bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg">
-                      <p className="text-sm text-sky-100 mb-2">Plan PRO</p>
-                      <p className="text-3xl font-bold text-white">3%</p>
-                      <p className="text-xs text-sky-100 mt-1">{t('membership.commission', 'de comisión')}</p>
-                    </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {t(
+                    'membership.commissionSame',
+                    'La comisión es del {{comision}}% y la paga el cliente. PRO no la modifica: lo que suma es visibilidad para tu perfil.',
+                    { comision: COMMISSION_RATES.free },
                   )}
-                  <div className={`text-center p-4 rounded-lg ${
-                    plan === 'super_pro'
-                      ? 'bg-gradient-to-br from-purple-600 to-pink-600'
-                      : 'bg-gradient-to-br from-sky-500 to-sky-600'
-                  }`}>
-                    <p className="text-sm text-white opacity-90 mb-2">
-                      {plan === 'super_pro' ? 'Plan SUPER PRO' : 'Plan PRO'}
-                    </p>
-                    <p className="text-3xl font-bold text-white">
-                      {plan === 'super_pro' ? '1%' : '3%'}
-                    </p>
-                    <p className="text-xs text-white opacity-90 mt-1">{t('membership.commission', 'de comisión')}</p>
-                  </div>
-                </div>
-                <p className="text-center text-sm text-green-600 dark:text-green-400 font-semibold mt-4">
-                  {plan === 'super_pro'
-                    ? t('membership.saveSuperPro', '¡Ahorra hasta 6% en cada transacción vs Free y 1% vs PRO!')
-                    : t('membership.savePro', '¡Ahorra 5% en cada transacción!')}
                 </p>
               </div>
             </div>
@@ -407,27 +242,19 @@ export default function MembershipCheckout() {
                 {t('membership.paymentSummary', 'Resumen de Pago')}
               </h2>
 
-              {plan === 'quarterly' && 'savings' in selectedPlan && selectedPlan.savings && (
-                <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                  <p className="text-green-800 dark:text-green-200 text-sm font-semibold text-center">
-                    {t('membership.saveQuarterly', 'Ahorra {{amount}} con el plan trimestral', { amount: selectedPlan.savings })}
-                  </p>
-                </div>
-              )}
-
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {selectedPlan.name}
+                      {proPlan.name}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {selectedPlan.period}
+                      {proPlan.period}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
-                      ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
+                      ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
                 </div>
@@ -436,7 +263,7 @@ export default function MembershipCheckout() {
                   <div className="flex justify-between items-center">
                     <p className="font-bold text-gray-900 dark:text-white">{t('common.total', 'Total')}</p>
                     <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
-                      ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
+                      ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
                   {/*

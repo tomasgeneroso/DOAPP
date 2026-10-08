@@ -267,7 +267,7 @@ export default function LoginScreen() {
     }, 100);
   };
 
-  const handleUpgradeClick = (plan: 'monthly' | 'quarterly' | 'super_pro') => {
+  const handleUpgradeClick = (plan: 'monthly') => {
     console.log('🚀 Usuario seleccionó plan:', plan);
     console.log('👤 Usuario actual:', user?.email);
     setShowMembershipOffer(false);

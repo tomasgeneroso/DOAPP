@@ -300,7 +300,7 @@ DoApp es más que una simple plataforma de trabajos freelance. Es un ecosistema 
 - Sistema de escrow bidireccional
 - Conversión automática USD/ARS
 - Sistema de disputas con adjuntos
-- Sistema de membresía ($6 USD/mes)
+- Sistema de membresía (PRO, €7/mes)
 - Programa de referidos (primeros 1000 usuarios)
 - Testing completo (Jest + Supertest + 90+ tests)
 - Documentación completa para programadores
@@ -357,7 +357,7 @@ DoApp aspira a ser **la plataforma de referencia para trabajo freelance** en mer
 DoApp está **completamente adaptado para Argentina** con:
 - **MercadoPago** como sistema de pagos principal
 - **Conversión automática USD/ARS**
-- **Sistema de membresía** ($6 USD/mes)
+- **Sistema de membresía** (PRO, €7/mes)
 - **Programa de referidos** (primeros 1000 usuarios)
 - **Escrow bidireccional** con confirmación de ambas partes
 - **Sistema de disputas** con adjuntos y resolución admin

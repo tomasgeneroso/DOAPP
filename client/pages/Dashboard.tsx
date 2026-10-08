@@ -6,6 +6,7 @@ import { useSocket } from "../hooks/useSocket";
 import { SkeletonDashboardCard } from "../components/ui/Skeleton";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { usePendingTasks } from "../hooks/usePendingTasks";
+import { MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
 import {
   TrendingUp,
   TrendingDown,
@@ -277,8 +278,7 @@ export default function Dashboard() {
           parts.push(`${initialUsed} ${t('dashboard.initial', 'initial')}`);
         }
         if (monthlyUsed > 0 && monthlyFreeLimit > 0) {
-          const tierName = user?.membershipTier === 'super_pro' ? 'SUPER PRO' : 'PRO';
-          parts.push(`${monthlyUsed} ${tierName}`);
+          parts.push(`${monthlyUsed} PRO`);
         }
 
         if (parts.length > 0) {
@@ -519,26 +519,24 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                {/* Plans Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  {/* PRO Mensual */}
+                {/* Plan PRO: la unica membresia paga. No cambia la comision, da visibilidad. */}
+                <div className="grid grid-cols-1 gap-4 mb-6 max-w-md mx-auto">
                   <div
                     onClick={() => navigate("/membership/checkout?plan=monthly")}
                     className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105"
                   >
                     <div className="text-center mb-4">
                       <Crown className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Mensual</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.mostPopular', 'Most popular')}</p>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO</h3>
                     </div>
                     <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">$4.999</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS/mes</p>
+                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">€{MEMBERSHIP_PRICES_EUR.pro}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('membership.priceNoteMonth', 'per month, charged in pesos at the day\'s rate')}</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>3 contratos/mes al 3%</span>
+                        <span>{t('dashboard.profilePromo', '{{dias}} days of profile promotion per month', { dias: MEMBERSHIP_PROMO_DAYS })}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
@@ -547,77 +545,6 @@ export default function Dashboard() {
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                         <span>{t('dashboard.verifiedBadge', 'Verified badge')}</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* PRO Trimestral */}
-                  <div
-                    onClick={() => navigate("/membership/checkout?plan=quarterly")}
-                    className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-green-300 dark:border-green-700 hover:border-green-500 dark:hover:border-green-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
-                  >
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        {t('dashboard.save11', 'SAVE 11%')}
-                      </span>
-                    </div>
-                    <div className="text-center mb-4">
-                      <Crown className="w-10 h-10 text-green-600 dark:text-green-400 mx-auto mb-2" />
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Trimestral</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.bestValue', 'Best value')}</p>
-                    </div>
-                    <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">$13.347</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.arsEvery3Months', 'ARS every 3 months')}</p>
-                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">$4.449/mes</p>
-                    </div>
-                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>3 contratos/mes al 3%</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.fullDashboard', 'Full dashboard')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.verifiedBadge', 'Verified badge')}</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* SUPER PRO */}
-                  <div
-                    onClick={() => navigate("/membership/checkout?plan=super_pro")}
-                    className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-pink-400 dark:border-pink-600 hover:border-pink-500 dark:hover:border-pink-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
-                  >
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" /> PREMIUM
-                      </span>
-                    </div>
-                    <div className="text-center mb-4">
-                      <Sparkles className="w-10 h-10 text-pink-600 dark:text-pink-400 mx-auto mb-2" />
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">SUPER PRO</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.maximumSavings', 'Maximum savings')}</p>
-                    </div>
-                    <div className="text-center mb-4">
-                      <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">$8.999</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS/mes</p>
-                    </div>
-                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span><strong>{t('dashboard.onePercentCommission', '1% commission')}</strong></span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.advancedAnalytics', 'Advanced analytics')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.exclusiveDashboard', 'Exclusive dashboard')}</span>
                       </li>
                     </ul>
                   </div>
@@ -818,9 +745,9 @@ export default function Dashboard() {
             </div>
           </Link>
 
-          {/* Uso Membresía PRO - Cards en 2 columnas (para usuarios PRO) */}
+          {/* Uso Membresía PRO (para usuarios PRO) */}
           {user?.membershipTier === 'pro' && (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mt-8 grid grid-cols-1 gap-6">
               {/* Card PRO Dashboard */}
               <Link to="/pro/usage">
                 <div className="rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 p-8 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer h-full">
@@ -845,31 +772,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               </Link>
-
-              {/* Card SUPER PRO Upgrade */}
-              <Link to="/membership/checkout?plan=super_pro">
-                <div className="rounded-xl bg-gradient-to-br from-pink-600 via-purple-600 to-indigo-600 p-8 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer h-full border-2 border-yellow-400">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <Sparkles className="h-8 w-8 text-yellow-300" />
-                        <p className="text-sm font-medium opacity-90">{t('dashboard.upgradeAvailable', 'Upgrade available')}</p>
-                      </div>
-                      <p className="text-3xl font-bold">
-                        SUPER PRO
-                      </p>
-                      <p className="mt-1 text-sm opacity-70">
-                        Solo 1% de comisión + Analytics
-                      </p>
-                      <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
-                        <Crown className="h-4 w-4 text-yellow-300" />
-                        {t('dashboard.upgradeYourPlan', '$8.999/mo - Upgrade your plan')}
-                      </p>
-                    </div>
-                    <Sparkles className="h-16 w-16 opacity-20" />
-                  </div>
-                </div>
-              </Link>
             </div>
           )}
 
@@ -881,20 +783,17 @@ export default function Dashboard() {
                   <div>
                     <div className="flex items-center gap-3 mb-2">
                       <Sparkles className="h-8 w-8 text-yellow-300 animate-pulse" />
-                      <p className="text-sm font-medium opacity-90">{t('dashboard.superProMembership', 'SUPER PRO Membership')}</p>
-                      <span className="text-xs bg-yellow-400 text-purple-900 px-3 py-1 rounded-full font-bold">
-                        PREMIUM
-                      </span>
+                      <p className="text-sm font-medium opacity-90">{t('dashboard.superProMembership', 'PRO Membership')}</p>
                     </div>
                     <p className="text-3xl font-bold">
-                      {t('dashboard.viewPremiumDashboard', 'View Premium Dashboard')}
+                      {t('dashboard.viewPremiumDashboard', 'View PRO Dashboard')}
                     </p>
                     <p className="mt-1 text-sm opacity-70">
-                      {t('dashboard.onePercentPlusAnalytics', '1% commission + Advanced analytics')}
+                      {t('dashboard.onePercentPlusAnalytics', 'Advanced analytics and Professional Center')}
                     </p>
                     <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                       <Crown className="h-4 w-4 text-yellow-300" />
-                      {t('dashboard.accessSuperProDashboard', 'Access your exclusive SUPER PRO dashboard')}
+                      {t('dashboard.accessSuperProDashboard', 'Access your exclusive dashboard')}
                     </p>
                   </div>
                   <Sparkles className="h-16 w-16 opacity-20" />

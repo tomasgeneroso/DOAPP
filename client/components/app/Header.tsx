@@ -261,11 +261,10 @@ export default function Header() {
                       {t('nav.commission')} {contractsBadge.commissionRate}%
                     </span>
                     <span className="text-[10px] text-orange-600 dark:text-orange-400">
-                      {contractsBadge.membershipTier === "super_pro"
-                        ? "SUPER PRO"
-                        : contractsBadge.membershipTier === "pro"
-                          ? "PRO"
-                          : "Versión Gratis"}
+                      {/* 'super_pro' es el nombre interno de las cuentas heredadas: hoy es PRO. */}
+                      {contractsBadge.membershipTier === "super_pro" || contractsBadge.membershipTier === "pro"
+                        ? "PRO"
+                        : "Versión Gratis"}
                     </span>
                   </div>
                 </Link>

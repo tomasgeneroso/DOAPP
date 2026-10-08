@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminApi } from "@/lib/adminApi";
 import type { AnalyticsOverview } from "@/types/admin";
 import { Users, FileText, TicketIcon, TrendingUp, Plus, AlertTriangle, DollarSign, CreditCard, Wallet, BarChart3, Crown, Star } from "lucide-react";
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../../shared/constants/membershipPricing";
+import { MINIMUM_COMMISSION_EUR } from "../../../shared/pricing/minimums";
 import {
   PieChart,
   Pie,
@@ -70,6 +72,13 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  // Hay una sola membresia paga: PRO. Las cuentas que el servidor todavia
+  // cuenta aparte (el plan anterior) se suman a PRO para no mostrar un plan
+  // que ya no existe.
+  const miembros = companyBalance?.revenue?.memberships;
+  const proTotal = (miembros?.proCount || 0) + (miembros?.superProCount || 0);
+  const proIngresosARS = (miembros?.proRevenueARS || 0) + (miembros?.superProRevenueARS || 0);
 
   const stats = [
     {
@@ -174,7 +183,7 @@ export default function AdminDashboard() {
                 {t('admin.dashboard.activeMemberships', 'Membresías Activas')}
               </p>
               <p className="text-xs opacity-75 mt-2">
-                {companyBalance.revenue?.memberships?.proCount || 0} PRO + {companyBalance.revenue?.memberships?.superProCount || 0} SUPER PRO
+                {proTotal} PRO
               </p>
             </div>
           </div>
@@ -217,21 +226,20 @@ export default function AdminDashboard() {
               {/* Gráfico de tasas de comisión */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                  {t('admin.dashboard.commissionStructure', 'Estructura de Comisiones por Tipo de Usuario')}
+                  {t('admin.dashboard.commissionStructure', 'Comisión por plan (igual para todos)')}
                 </h4>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={[
-                      { tipo: 'FREE', comision: 0, label: '0%' },
-                      { tipo: t('admin.dashboard.standard', 'Estándar'), comision: 8, label: '8%' },
-                      { tipo: 'PRO', comision: 3, label: '3%' },
-                      { tipo: 'SUPER PRO', comision: 1, label: '1%' },
+                      { tipo: t('admin.dashboard.freeContracts', 'contratos gratuitos'), comision: 0, label: '0%' },
+                      { tipo: 'FREE', comision: COMMISSION_RATES.free, label: `${COMMISSION_RATES.free}%` },
+                      { tipo: 'PRO', comision: COMMISSION_RATES.pro, label: `${COMMISSION_RATES.pro}%` },
                     ]}
                     margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="tipo" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} domain={[0, 10]} unit="%" />
+                    <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} domain={[0, COMMISSION_RATES.free + 4]} unit="%" />
                     <Tooltip
                       formatter={(value: number) => [`${value}%`, t('admin.dashboard.commission', 'Comisión')]}
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
@@ -239,18 +247,23 @@ export default function AdminDashboard() {
                     />
                     <Bar dataKey="comision" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#9ca3af', fontSize: 12, formatter: (value: any) => value > 0 ? `${value}%` : '0%' } as any}>
                       <Cell fill="#22c55e" />
-                      <Cell fill="#ef4444" />
                       <Cell fill="#8b5cf6" />
-                      <Cell fill="#f59e0b" />
+                      <Cell fill="#0ea5e9" />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />FREE — 0% ({t('admin.dashboard.freeContracts', 'contratos gratuitos')})</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500" />{t('admin.dashboard.standard', 'Estándar')} — 8%</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-500" />PRO — 3%</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-500" />SUPER PRO — 1%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />{t('admin.dashboard.freeContracts', 'contratos gratuitos')} — 0%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-500" />FREE — {COMMISSION_RATES.free}%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-sky-500" />PRO — {COMMISSION_RATES.pro}%</span>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                  {t(
+                    'admin.dashboard.commissionSameNote',
+                    'La membresía no modifica la comisión: {{comision}}% a cargo del cliente, con un piso de EUR {{piso}}. Durante la beta es 0% hasta la fecha de cierre.',
+                    { comision: COMMISSION_RATES.free, piso: MINIMUM_COMMISSION_EUR },
+                  )}
+                </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
                   {t('admin.dashboard.minAmountFamilyPlan', 'Mínimo $1.000 ARS · Plan Familia y publicaciones libres de comisión: 0%')}
                 </p>
@@ -303,9 +316,8 @@ export default function AdminDashboard() {
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart
                       data={[
-                        { name: 'FREE', usuarios: companyBalance.revenue?.memberships?.freeCount ?? (companyBalance.revenue?.users?.total || 0) - (companyBalance.revenue?.memberships?.proCount || 0) - (companyBalance.revenue?.memberships?.superProCount || 0) },
-                        { name: 'PRO', usuarios: companyBalance.revenue?.memberships?.proCount || 0 },
-                        { name: 'SUPER PRO', usuarios: companyBalance.revenue?.memberships?.superProCount || 0 },
+                        { name: 'FREE', usuarios: miembros?.freeCount ?? (companyBalance.revenue?.users?.total || 0) - proTotal },
+                        { name: 'PRO', usuarios: proTotal },
                       ]}
                       margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                     >
@@ -320,7 +332,6 @@ export default function AdminDashboard() {
                       <Bar dataKey="usuarios" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#9ca3af', fontSize: 12 }}>
                         <Cell fill="#22c55e" />
                         <Cell fill="#8b5cf6" />
-                        <Cell fill="#f59e0b" />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -331,11 +342,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-purple-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">PRO ({companyBalance.revenue?.memberships?.proCount || 0})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-amber-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO ({companyBalance.revenue?.memberships?.superProCount || 0})</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">PRO ({proTotal})</span>
                     </div>
                   </div>
                 </div>
@@ -351,13 +358,8 @@ export default function AdminDashboard() {
                       data={[
                         {
                           name: 'PRO',
-                          ingresos: companyBalance.revenue?.memberships?.proRevenueARS || 0,
-                          cantidad: companyBalance.revenue?.memberships?.proCount || 0
-                        },
-                        {
-                          name: 'SUPER PRO',
-                          ingresos: companyBalance.revenue?.memberships?.superProRevenueARS || 0,
-                          cantidad: companyBalance.revenue?.memberships?.superProCount || 0
+                          ingresos: proIngresosARS,
+                          cantidad: proTotal
                         },
                       ]}
                       layout="vertical"
@@ -376,17 +378,11 @@ export default function AdminDashboard() {
                       <Bar dataKey="ingresos" fill="#10b981" name="ingresos" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                  <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+                  <div className="mt-4 grid grid-cols-1 gap-4 text-center">
                     <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.proPerMonth', 'PRO (6 USD/mes)')}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.proPerMonth', 'PRO (€{{precio}}/mes)', { precio: MEMBERSHIP_PRICES_EUR.pro })}</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                        ${(companyBalance.revenue?.memberships?.proRevenueARS || 0).toLocaleString('es-AR')}
-                      </p>
-                    </div>
-                    <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.superProPerMonth', 'SUPER PRO (8 USD/mes)')}</p>
-                      <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                        ${(companyBalance.revenue?.memberships?.superProRevenueARS || 0).toLocaleString('es-AR')}
+                        ${proIngresosARS.toLocaleString('es-AR')}
                       </p>
                     </div>
                   </div>
@@ -399,10 +395,7 @@ export default function AdminDashboard() {
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.dashboard.estimatedTotalMonthlyRevenueArs', 'Ingreso Mensual Estimado Total (ARS)')}</p>
                     <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-amber-600 bg-clip-text text-transparent">
-                      ${(
-                        (companyBalance.revenue?.memberships?.proRevenueARS || 0) +
-                        (companyBalance.revenue?.memberships?.superProRevenueARS || 0)
-                      ).toLocaleString('es-AR')}
+                      ${proIngresosARS.toLocaleString('es-AR')}
                     </p>
                   </div>
                   <div className="text-right">

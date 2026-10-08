@@ -16,7 +16,8 @@ interface Usage {
 const LABEL: Record<string, string> = {
   free: "FREE",
   pro: "PRO",
-  super_pro: "SUPER PRO",
+  // Nombre interno de las cuentas heredadas: hoy es la misma membresía, PRO.
+  super_pro: "PRO",
 };
 
 function daysLeft(iso?: string | null): number | null {

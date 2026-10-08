@@ -72,15 +72,15 @@ export default function ProUsageDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Says why the account is SUPER PRO. Showing the badge without the
-          reason invites the reading that it was bought, which makes the end of
-          the beta feel like something being taken away. */}
+      {/* Says why the account has the PRO features. Showing the badge without
+          the reason invites the reading that it was bought, which makes the end
+          of the beta feel like something being taken away. */}
       {(user as any)?.membershipIsFromBeta && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 mb-4">
           <p className="text-xs text-amber-800 dark:text-amber-300">
-            Tenés <strong className="font-semibold">SUPER PRO sin costo porque estás en la beta</strong>,
+            Tenés <strong className="font-semibold">las funciones PRO sin costo porque estás en la beta</strong>,
             junto con la exención de comisión. Tu plan contratado sigue siendo{" "}
-            <strong className="font-semibold">{((user as any)?.realMembershipTier ?? 'free').toUpperCase().replace('_', ' ')}</strong>.
+            <strong className="font-semibold">{((user as any)?.realMembershipTier ?? 'free') === 'free' ? 'FREE' : 'PRO'}</strong>.
             Al terminar la beta volvés a ese plan, salvo que contrates otro.
           </p>
         </div>
@@ -98,10 +98,7 @@ export default function ProUsageDashboard() {
               {user?.membershipTier === 'super_pro' ? (
                 <>
                   <Sparkles className="w-8 h-8 text-yellow-300 animate-pulse" />
-                  {t('proUsage.dashboardSuperPro', 'Dashboard SUPER PRO')}
-                  <span className="text-sm bg-yellow-400 text-purple-900 px-3 py-1 rounded-full font-bold ml-2">
-                    {t('proUsage.premium', 'PREMIUM')}
-                  </span>
+                  {t('proUsage.dashboardSuperPro', 'Dashboard PRO')}
                 </>
               ) : (
                 <>
@@ -112,8 +109,8 @@ export default function ProUsageDashboard() {
             </h1>
             <p className={user?.membershipTier === 'super_pro' ? 'text-pink-100' : 'text-purple-100'}>
               {user?.membershipTier === 'super_pro'
-                ? t('proUsage.subtitleSuperPro', 'Comisión del 2% + Analytics avanzados exclusivos')
-                : t('proUsage.subtitlePro', 'Gestiona tus contratos mensuales con comisión reducida')
+                ? t('proUsage.subtitleSuperPro', 'Analytics avanzados y Centro Profesional')
+                : t('proUsage.subtitlePro', 'Seguí el uso mensual de tu membresía')
               }
             </p>
           </div>
@@ -127,7 +124,7 @@ export default function ProUsageDashboard() {
         </div>
       </div>
 
-      {/* Centro Profesional CTA (SUPER PRO) */}
+      {/* Centro Profesional CTA (cuentas con el panel completo) */}
       {user?.membershipTier === 'super_pro' && (
         <button
           onClick={() => navigate('/pro/finanzas')}
@@ -183,7 +180,7 @@ export default function ProUsageDashboard() {
         </h2>
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>{t('proUsage.contractsWithCommission', 'Contratos con {{pct}} de comisión', { pct: user?.membershipTier === 'super_pro' ? '1%' : '3%' })}</span>
+            <span>{t('proUsage.contractsWithCommission', 'Contratos mensuales sin comisión')}</span>
             <span>{usage.contractsUsed} {t('proUsage.ofSep', 'de')} {usage.contractsLimit}</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
@@ -248,7 +245,7 @@ export default function ProUsageDashboard() {
       </div>
 
       {/* Grid con beneficios */}
-      <div className={`grid grid-cols-1 ${user?.membershipTier === 'super_pro' ? '' : 'md:grid-cols-2'} gap-6`}>
+      <div className="grid grid-cols-1 gap-6">
         {/* Información adicional - Beneficios de la membresía actual */}
         <div className={`rounded-lg p-6 ${
           user?.membershipTier === 'super_pro'
@@ -260,7 +257,7 @@ export default function ProUsageDashboard() {
               ? 'text-purple-900 dark:text-purple-100'
               : 'text-blue-900 dark:text-blue-100'
           }`}>
-            {user?.membershipTier === 'super_pro' ? t('proUsage.benefitsSuperPro', 'Beneficios de tu Membresía SUPER PRO') : t('proUsage.benefitsPro', 'Beneficios de tu Membresía PRO')}
+            {t('proUsage.benefitsPro', 'Beneficios de tu Membresía PRO')}
           </h3>
           <ul className={`space-y-2 text-sm ${
             user?.membershipTier === 'super_pro'
@@ -273,7 +270,7 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
-              <span>{t('proUsage.benefit3Contracts', '3 contratos mensuales con solo {{pct}} de comisión (vs 8% normal)', { pct: user?.membershipTier === 'super_pro' ? '1%' : '3%' })}</span>
+              <span>{t('proUsage.benefit3Contracts', 'Contratos mensuales sin comisión incluidos en tu membresía')}</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
@@ -289,7 +286,7 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
-              <span>{t('proUsage.benefitBadge', 'Badge {{tier}} verificado y prioridad en búsquedas', { tier: user?.membershipTier === 'super_pro' ? 'SUPER PRO' : 'PRO' })}</span>
+              <span>{t('proUsage.benefitBadge', 'Badge {{tier}} verificado y prioridad en búsquedas', { tier: 'PRO' })}</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
@@ -317,69 +314,6 @@ export default function ProUsageDashboard() {
             )}
           </ul>
         </div>
-
-        {/* Card Upgrade SUPER PRO - Solo si es PRO */}
-        {user?.membershipTier === 'pro' && (
-        <div className="bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 dark:from-pink-900/20 dark:via-purple-900/20 dark:to-indigo-900/20 border-2 border-purple-300 dark:border-purple-700 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/membership/checkout?plan=super_pro')}>
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center flex-shrink-0">
-              <Crown className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-purple-900 dark:text-purple-100 flex items-center gap-2">
-                {t('proUsage.upgradeToSuperPro', 'Upgrade a SUPER PRO')}
-                <span className="text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-0.5 rounded-full">
-                  {t('proUsage.premiumBadge', 'Premium')}
-                </span>
-              </h3>
-              <p className="text-xs text-purple-700 dark:text-purple-300 mt-0.5">
-                {t('proUsage.maximizeBenefits', 'Maximiza tus beneficios')}
-              </p>
-            </div>
-          </div>
-
-          <ul className="space-y-2 text-sm text-purple-800 dark:text-purple-200 mb-4">
-            <li className="flex items-start gap-2">
-              <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-              <span><Trans i18nKey="proUsage.upgrade1pct" components={{ b: <strong /> }} defaults="<b>Solo 1% de comisión</b> en tus 3 contratos/mes" /></span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-              <span><Trans i18nKey="proUsage.upgradeStats" components={{ b: <strong /> }} defaults="<b>Estadísticas avanzadas</b> de perfil" /></span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-              <span><Trans i18nKey="proUsage.upgradeAnalytics" components={{ b: <strong /> }} defaults="<b>Analytics</b> de visitas y conversaciones" /></span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-              <span><Trans i18nKey="proUsage.upgradeReports" components={{ b: <strong /> }} defaults="<b>Reportes mensuales</b> detallados" /></span>
-            </li>
-          </ul>
-
-          <div className="flex items-center justify-between pt-3 border-t border-purple-200 dark:border-purple-800">
-            <div>
-              <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                $8.999
-              </p>
-              <p className="text-xs text-purple-600 dark:text-purple-400">
-                {t('proUsage.arsPerMonth', 'ARS/mes')}
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate('/membership/checkout?plan=super_pro');
-              }}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-            >
-              <Crown className="w-4 h-4 mr-2" />
-              {t('proUsage.upgradePlan', 'Mejorar Plan')}
-            </Button>
-          </div>
-        </div>
-        )}
       </div>
     </div>
   );

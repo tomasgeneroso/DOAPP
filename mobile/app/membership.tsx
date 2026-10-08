@@ -29,7 +29,6 @@ interface PricingTier {
 interface Pricing {
   free: PricingTier;
   pro: PricingTier;
-  superPro: PricingTier;
 }
 
 export default function MembershipScreen() {
@@ -38,6 +37,9 @@ export default function MembershipScreen() {
   const { user } = useAuth();
 
   const [pricing, setPricing] = useState<Pricing | null>(null);
+  // Si la membresía se puede comprar ahora: durante la beta no está a la venta.
+  const [disponible, setDisponible] = useState(true);
+  const [motivoNoDisponible, setMotivoNoDisponible] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState<string | null>(null);
 
@@ -47,6 +49,8 @@ export default function MembershipScreen() {
         const res = await get<{ pricing: Pricing }>('/membership/pricing', false);
         if (res.success) {
           setPricing((res as any).pricing);
+          setDisponible((res as any).available !== false);
+          setMotivoNoDisponible((res as any).unavailableReason || null);
         }
       } catch (error) {
         console.error('Error fetching pricing:', error);
@@ -57,14 +61,17 @@ export default function MembershipScreen() {
     fetchPricing();
   }, []);
 
-  const handleUpgrade = async (plan: 'pro' | 'super_pro') => {
+  // Hay un solo plan pago, PRO. El servidor lo llama 'monthly'.
+  const handleUpgrade = async (plan: 'pro') => {
     if (!user) {
       router.push('/(auth)/login');
       return;
     }
     setUpgrading(plan);
     try {
-      const res = await post<any>('/membership/create-payment', { membershipType: plan });
+      // El servidor espera `plan`, no `membershipType`: con ese nombre respondía 400 y
+      // la compra desde la app nunca arrancaba.
+      const res = await post<any>('/membership/create-payment', { plan: 'monthly' });
       if (res.success) {
         const initPoint = (res as any).initPoint || (res as any).data?.initPoint;
         if (initPoint) {
@@ -86,8 +93,10 @@ export default function MembershipScreen() {
 
   const getMembershipLabel = (type: string) => {
     switch (type) {
-      case 'pro': return 'PRO';
-      case 'super_pro': return 'SUPER PRO';
+      // 'super_pro' es el nombre interno de las cuentas heredadas: hoy es una sola
+      // membresía, PRO.
+      case 'pro':
+      case 'super_pro': return 'PRO';
       default: return 'Gratis';
     }
   };
@@ -168,11 +177,13 @@ export default function MembershipScreen() {
           <View style={[styles.volumeBox, { backgroundColor: themeColors.slate[50], borderColor: themeColors.border }]}>
             <Text style={[styles.volumeTitle, { color: themeColors.text.primary }]}>Comisión</Text>
             <View style={styles.volumeRow}>
-              <Text style={[styles.volumeDesc, { color: themeColors.text.secondary }]}>Tasa fija</Text>
-              <Text style={[styles.volumeRate, { color: themeColors.primary[600] }]}>8%</Text>
+              <Text style={[styles.volumeDesc, { color: themeColors.text.secondary }]}>Igual para todos los planes</Text>
+              <Text style={[styles.volumeRate, { color: themeColors.primary[600] }]}>
+                {pricing?.free.commissionRate !== undefined ? `${pricing.free.commissionRate}%` : '…'}
+              </Text>
             </View>
             <Text style={[styles.volumeMin, { color: themeColors.text.muted }]}>
-              Mínimo: {formatARS(1000)} por contrato
+              La paga el cliente. Tiene un piso mínimo por contrato.
             </Text>
           </View>
         </View>
@@ -199,66 +210,27 @@ export default function MembershipScreen() {
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.upgradeBtn, { backgroundColor: colors.primary[600] }, upgrading === 'pro' && styles.upgradeDisabled]}
+                style={[styles.upgradeBtn, { backgroundColor: colors.primary[600] }, (upgrading === 'pro' || !disponible) && styles.upgradeDisabled]}
                 onPress={() => handleUpgrade('pro')}
-                disabled={!!upgrading || currentPlan === 'super_pro'}
+                disabled={!!upgrading || !disponible}
               >
                 {upgrading === 'pro' ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.upgradeBtnText}>Mejorar</Text>
+                  <Text style={styles.upgradeBtnText}>{disponible ? 'Mejorar' : 'No disponible'}</Text>
                 )}
               </TouchableOpacity>
             )}
           </View>
+          {!disponible && motivoNoDisponible && (
+            <Text style={[styles.volumeMin, { color: themeColors.text.muted, marginBottom: spacing.sm }]}>
+              {motivoNoDisponible}
+            </Text>
+          )}
           <View style={styles.benefitsList}>
             {(pricing?.pro.benefits || []).map((b, i) => (
               <View key={i} style={styles.benefitRow}>
                 <Check size={14} color={colors.primary[500]} />
-                <Text style={[styles.benefitText, { color: themeColors.text.secondary }]}>{b}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* SUPER PRO */}
-        <View style={[
-          styles.planCard,
-          { backgroundColor: themeColors.card, borderColor: currentPlan === 'super_pro' ? colors.secondary[500] : themeColors.border },
-          currentPlan === 'super_pro' && styles.planCardActive,
-        ]}>
-          <View style={styles.planHeader}>
-            <View style={[styles.planIconWrap, { backgroundColor: colors.secondary[50] }]}>
-              <Crown size={20} color={colors.secondary[500]} />
-            </View>
-            <View style={styles.planInfo}>
-              <Text style={[styles.planName, { color: themeColors.text.primary }]}>SUPER PRO</Text>
-              <Text style={[styles.planPrice, { color: colors.secondary[500] }]}>
-                {pricing?.superPro.priceARS ? formatARS(pricing.superPro.priceARS) : '...'}/mes
-              </Text>
-            </View>
-            {currentPlan === 'super_pro' ? (
-              <View style={[styles.activeBadge, { backgroundColor: colors.secondary[50] }]}>
-                <Text style={[styles.activeBadgeText, { color: colors.secondary[500] }]}>Actual</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.upgradeBtn, { backgroundColor: colors.secondary[500] }, upgrading === 'super_pro' && styles.upgradeDisabled]}
-                onPress={() => handleUpgrade('super_pro')}
-                disabled={!!upgrading}
-              >
-                {upgrading === 'super_pro' ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.upgradeBtnText}>Mejorar</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.benefitsList}>
-            {(pricing?.superPro.benefits || []).map((b, i) => (
-              <View key={i} style={styles.benefitRow}>
-                <Check size={14} color={colors.secondary[500]} />
                 <Text style={[styles.benefitText, { color: themeColors.text.secondary }]}>{b}</Text>
               </View>
             ))}
@@ -272,9 +244,9 @@ export default function MembershipScreen() {
             onPress={() => router.push('/pro-dashboard')}
             activeOpacity={0.7}
           >
-            <Crown size={20} color={currentPlan === 'super_pro' ? '#8b5cf6' : colors.primary[600]} />
+            <Crown size={20} color={colors.primary[600]} />
             <Text style={[styles.dashboardLinkText, { color: themeColors.text.primary }]}>
-              Ver Dashboard {currentPlan === 'super_pro' ? 'SUPER PRO' : 'PRO'}
+              Ver Dashboard PRO
             </Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>

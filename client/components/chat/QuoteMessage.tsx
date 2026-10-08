@@ -205,7 +205,7 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
                   className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg"
                 >
                   <Check className="h-3.5 w-3.5" />
-                  Pagar y aceptar (+8%)
+                  Pagar y aceptar
                 </button>
               )}
             </div>

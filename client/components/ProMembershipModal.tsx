@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { MembershipPricing } from '../types';
 import Button from './ui/Button';
 import OrigenDeLaCotizacion, { type Cotizacion } from './ui/OrigenDeLaCotizacion';
-import { Crown, Check, X, TrendingDown, Info } from 'lucide-react';
+import { Crown, Check, X, Info } from 'lucide-react';
+import { COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+import { MINIMUM_COMMISSION_EUR } from '../../shared/pricing/minimums';
 
 interface ProMembershipModalProps {
   isOpen: boolean;
@@ -83,7 +85,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                 {t('membership.upgradeToPro', 'Upgrade to PRO')}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                {t('membership.unlockBenefits', 'Unlock exclusive benefits and save on commissions')}
+                {t('membership.unlockBenefits', 'Unlock more visibility for your profile')}
               </p>
             </div>
             <button
@@ -126,40 +128,19 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                     ))}
                   </ul>
 
-                  {/* Tabla de comisiones por volumen */}
-                  {(pricing.free as any).volumeCommissions && (
-                    <div className="mt-4 bg-white dark:bg-gray-600 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <TrendingDown className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                          {t('membership.volumeCommissions', 'Volume commissions')}
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                        {(pricing.free as any).volumeCommissions.description}
+                  {/* La comisión es la misma en todos los planes */}
+                  <div className="mt-4 bg-white dark:bg-gray-600 rounded-lg p-4">
+                    <div className="flex items-start gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t(
+                          'membership.commissionInfo',
+                          'The commission is {{comision}}% on every plan and the client pays it. The minimum is EUR {{piso}}, in pesos at the day\'s exchange rate.',
+                          { comision: COMMISSION_RATES.free, piso: MINIMUM_COMMISSION_EUR },
+                        )}
                       </p>
-                      <div className="space-y-1.5">
-                        {(pricing.free as any).volumeCommissions.tiers.map((tier: any, index: number) => (
-                          <div key={index} className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600 dark:text-gray-400">{tier.description}</span>
-                            <span className={`font-bold ${
-                              tier.rate <= 3 ? 'text-green-600 dark:text-green-400' :
-                              tier.rate <= 4 ? 'text-yellow-600 dark:text-yellow-400' :
-                              'text-orange-600 dark:text-orange-400'
-                            }`}>{tier.rate}%</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
-                        <div className="flex items-start gap-1.5">
-                          <Info className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {t('membership.minimumCommission', 'Minimum commission')}: ${(pricing.free as any).volumeCommissions.minimumCommission.toLocaleString('es-AR')} ARS
-                          </p>
-                        </div>
-                      </div>
                     </div>
-                  )}
+                  </div>
 
                   <div className="mt-4">
                     <div className="bg-white dark:bg-gray-600 rounded-lg p-3 text-center">
@@ -240,8 +221,8 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{t('membership.saveOnCommissions', 'Save on commissions')}</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('membership.saveOnCommissionsDesc', 'Only 3% flat vs 6-2% variable on Free')}</p>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{t('membership.profilePromotion', 'Profile promotion')}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('membership.profilePromotionDesc', '{{dias}} days of promotion per month, the ones you choose', { dias: MEMBERSHIP_PROMO_DAYS })}</p>
                   </div>
 
                   <div className="text-center">

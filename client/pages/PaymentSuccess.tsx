@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, BarChart3, Shield, Sparkles } from "lucide-react";
+import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, Shield } from "lucide-react";
+import { MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
 import { useAuth } from "../hooks/useAuth";
 import { analytics } from "../utils/analytics";
 
@@ -21,7 +22,7 @@ export default function PaymentSuccess() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const paymentType = searchParams.get("type") || "contract"; // 'membership' or 'contract'
-  const membershipPlan = searchParams.get("plan") || "monthly"; // 'monthly', 'quarterly', 'super_pro'
+  const membershipPlan = searchParams.get("plan") || "monthly"; // 'monthly' (la unica membresia paga)
 
   const [confirmation, setConfirmation] = useState<PaymentConfirmation>({
     token: searchParams.get("token") || "",
@@ -344,24 +345,16 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                 {/* Beneficio 1 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      membershipPlan === 'super_pro'
-                        ? 'bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900'
-                        : 'bg-sky-100 dark:bg-sky-900'
-                    }`}>
-                      <Crown className={`w-6 h-6 ${
-                        membershipPlan === 'super_pro'
-                          ? 'text-purple-600 dark:text-purple-400'
-                          : 'text-sky-600 dark:text-sky-400'
-                      }`} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-sky-100 dark:bg-sky-900">
+                      <Crown className="w-6 h-6 text-sky-600 dark:text-sky-400" />
                     </div>
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Tu membresía {membershipPlan === 'super_pro' ? 'SUPER PRO' : 'PRO'} está activa
+                      Tu membresía PRO está activa
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      Ya tienes acceso a todos los beneficios {membershipPlan === 'super_pro' ? 'premium' : 'PRO'}. Tu perfil ahora muestra el badge {membershipPlan === 'super_pro' ? 'SUPER PRO' : 'PRO'} dorado.
+                      Ya tienes acceso a todos los beneficios PRO. Tu perfil ahora muestra la insignia PRO dorada.
                     </p>
                   </div>
                 </div>
@@ -369,24 +362,16 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                 {/* Beneficio 2 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      membershipPlan === 'super_pro'
-                        ? 'bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900'
-                        : 'bg-green-100 dark:bg-green-900'
-                    }`}>
-                      <CheckCircle className={`w-6 h-6 ${
-                        membershipPlan === 'super_pro'
-                          ? 'text-purple-600 dark:text-purple-400'
-                          : 'text-green-600 dark:text-green-400'
-                      }`} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900">
+                      <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
                     </div>
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Comisión reducida al {membershipPlan === 'super_pro' ? '1%' : '3%'}
+                      Promoción de tu perfil
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      A partir de ahora, pagarás solo {membershipPlan === 'super_pro' ? '1%' : '3%'} de comisión en tus próximos 3 contratos mensuales. {membershipPlan === 'super_pro' ? '¡La tarifa más baja de la plataforma!' : '¡Ahorra 5% vs el plan Free!'}
+                      Tienes {MEMBERSHIP_PROMO_DAYS} días de promoción por mes, los que elijas, para que tu perfil aparezca destacado. La comisión es la misma que en el plan FREE: la membresía suma visibilidad.
                     </p>
                   </div>
                 </div>
@@ -394,16 +379,8 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                 {/* Beneficio 3 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      membershipPlan === 'super_pro'
-                        ? 'bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900'
-                        : 'bg-blue-100 dark:bg-blue-900'
-                    }`}>
-                      <Shield className={`w-6 h-6 ${
-                        membershipPlan === 'super_pro'
-                          ? 'text-purple-600 dark:text-purple-400'
-                          : 'text-blue-600 dark:text-blue-400'
-                      }`} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900">
+                      <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     </div>
                   </div>
                   <div className="flex-1">
@@ -415,26 +392,6 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                     </p>
                   </div>
                 </div>
-
-                {/* Beneficio 4 - Solo para Super PRO */}
-                {membershipPlan === 'super_pro' && (
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900 rounded-full flex items-center justify-center">
-                        <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                        Dashboard exclusivo con analytics avanzados
-                        <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-300">
-                        Accede a estadísticas detalladas de visitas a tu perfil, analytics de conversaciones, métricas de contratos completados, y reportes mensuales automatizados.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               // Contenido original para pago de contrato

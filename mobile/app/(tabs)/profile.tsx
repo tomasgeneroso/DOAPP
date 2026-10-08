@@ -158,7 +158,8 @@ export default function ProfileScreen() {
       case 'pro':
         return { label: 'PRO', color: colors.secondary[500] };
       case 'super_pro':
-        return { label: 'SUPER PRO', color: '#8b5cf6' };
+        // Nombre interno de las cuentas heredadas: hoy es la misma membresía, PRO.
+        return { label: 'PRO', color: '#8b5cf6' };
       default:
         return null;
     }
@@ -418,19 +419,14 @@ export default function ProfileScreen() {
                   <Text style={styles.upgradeLock}>🔒</Text>
                   <View>
                     <Text style={styles.upgradeTitle}>Mejora tu plan</Text>
-                    <Text style={styles.upgradeSubtitle}>Desbloquea el potencial de DOAPP</Text>
+                    <Text style={styles.upgradeSubtitle}>Más visibilidad para tu perfil</Text>
                   </View>
                 </View>
                 <View style={styles.upgradePlans}>
-                  <View style={styles.upgradePlan}>
-                    <Text style={styles.upgradePlanName}>👑 PRO</Text>
-                    <Text style={styles.upgradePlanPrice}>$4.999 ARS/mes</Text>
-                    <Text style={styles.upgradePlanFeature}>3% comisión</Text>
-                  </View>
                   <View style={[styles.upgradePlan, styles.upgradePlanHighlight]}>
-                    <Text style={styles.upgradePlanName}>✨ SUPER PRO</Text>
-                    <Text style={styles.upgradePlanPrice}>$8.999 ARS/mes</Text>
-                    <Text style={styles.upgradePlanFeature}>1% comisión</Text>
+                    <Text style={styles.upgradePlanName}>👑 Membresía PRO</Text>
+                    <Text style={styles.upgradePlanPrice}>Promoción de tu perfil</Text>
+                    <Text style={styles.upgradePlanFeature}>Insignia, prioridad en búsquedas y estadísticas</Text>
                   </View>
                 </View>
               </TouchableOpacity>

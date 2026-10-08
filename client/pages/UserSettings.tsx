@@ -35,6 +35,8 @@ import {
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { FormField } from "../components/ui/FormField";
 import { useOnboarding } from "../hooks/useOnboarding";
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
+import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 
 type TabType = "basic" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
@@ -1474,7 +1476,11 @@ export default function UserSettings() {
                         },
                         {
                           q: t('settings.faq.commissions'),
-                          a: t('settings.faq.commissionsAnswer'),
+                          a: t('settings.faq.commissionsAnswer', {
+                            comision: COMMISSION_RATES.free,
+                            piso: MINIMUM_COMMISSION_EUR,
+                            precio: MEMBERSHIP_PRICES_EUR.pro,
+                          }),
                         },
                         {
                           q: t('settings.faq.howToPublish'),

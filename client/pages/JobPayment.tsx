@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
 import { PROCESSING_COST_LABEL, PROCESSING_COST_HELP } from "../../shared/pricing/processingCost";
+import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 
 export default function JobPayment() {
   const { t } = useTranslation();
@@ -51,8 +52,8 @@ export default function JobPayment() {
   /**
    * The breakdown comes from the server.
    *
-   * This screen used to recompute it here — tiers, free contracts, the $1.000
-   * minimum — a second implementation of the pricing rules. It could not know
+   * This screen used to recompute it here — tiers, free contracts, a fixed
+   * minimum in pesos — a second implementation of the pricing rules. It could not know
    * about the platform phase or the IVA, so it showed one total while the
    * server charged another. On a payment screen that gap is a dispute, so the
    * figures now come from the same function that does the charging.
@@ -513,15 +514,15 @@ export default function JobPayment() {
               </div>
             )}
 
-            {/* Warning for contracts below minimum */}
-            {!isFreeContract && jobPrice < 8000 && (
+            {/* Aviso cuando la comisión es el piso (lo dice el servidor con minimumApplied) */}
+            {!isBudgetIncrease && !isFreeContract && quote?.minimumApplied && (
               <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FileText className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-orange-800 dark:text-orange-300">
-                    <p className="font-semibold mb-1">{t('jobPayment.minContract', 'Mínimo de contrato')}</p>
+                    <p className="font-semibold mb-1">{t('jobPayment.minContract', 'Comisión mínima')}</p>
                     <p>
-                      {t('jobPayment.minContractDesc', 'El presupuesto es menor a $8,000 ARS. La comisión de publicación será de $1,000 ARS (comisión mínima).')}
+                      {t('jobPayment.minContractDesc', 'La comisión de publicación es la mínima: EUR {{eur}}, en pesos al cambio del día.', { eur: MINIMUM_COMMISSION_EUR })}
                     </p>
                   </div>
                 </div>
@@ -615,9 +616,9 @@ export default function JobPayment() {
                           ✨ Libre de comisión — {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
                         </span>
                       )}
-                      {!isFreeContract && jobPrice < 8000 && (
+                      {!isFreeContract && quote?.minimumApplied && (
                         <span className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                          * Comisión mínima de $1,000 ARS
+                          * Comisión mínima: EUR {MINIMUM_COMMISSION_EUR}, en pesos al cambio del día
                         </span>
                       )}
                     </div>
@@ -702,24 +703,13 @@ export default function JobPayment() {
                 </p>
               ) : (
                 <p>
-                  Tu comisión de publicación es del <strong>{commissionRate}%</strong> del presupuesto
-                  {" "}(plan <strong>{user?.membershipTier === 'super_pro' ? 'SUPER PRO' : user?.membershipTier === 'pro' ? 'PRO' : 'FREE'}</strong>).
+                  Tu comisión de publicación es del <strong>{commissionRate}%</strong> del presupuesto,
+                  la misma en todos los planes.
                 </p>
               )}
               <p className="pt-2">
-                <strong>Nota:</strong> Para contratos menores a $8,000 ARS, se aplica una comisión mínima de $1,000 ARS.
+                <strong>Nota:</strong> La comisión tiene un piso de EUR {MINIMUM_COMMISSION_EUR}, en pesos al cambio del día. Se suman el costo de procesamiento del pago y el IVA.
               </p>
-              {user?.membershipTier === 'free' && (
-                <p className="pt-2">
-                  💡 <strong>Tip:</strong> Actualiza a PRO o SUPER PRO para reducir tus comisiones.{" "}
-                  <button
-                    onClick={() => navigate("/settings?tab=membership")}
-                    className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700"
-                  >
-                    Ver planes
-                  </button>
-                </p>
-              )}
             </div>
           </div>
 

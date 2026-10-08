@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { getImageUrl } from "@/utils/imageUrl";
+import { COMMISSION_RATES } from "../../../shared/constants/membershipPricing";
+import { MINIMUM_COMMISSION_EUR } from "../../../shared/pricing/minimums";
 import ExcelJS from "exceljs";
 import {
   DollarSign,
@@ -393,11 +395,6 @@ export default function FinancialTransactions() {
           // Commissions breakdown
           data = {
             areaData: generateTrendData('Comisiones', 30),
-            pieData: [
-              { name: 'Contratos (8%)', value: 8, color: '#8b5cf6' },
-              { name: 'PRO (3%)', value: 3, color: '#3b82f6' },
-              { name: 'SUPER PRO (1%)', value: 1, color: '#10b981' }
-            ]
           };
           break;
 
@@ -641,7 +638,7 @@ export default function FinancialTransactions() {
       },
       membership: {
         label: 'Membresía',
-        tooltip: 'Pago de suscripción PRO o SUPER PRO. Otorga beneficios como menor comisión y mayor visibilidad.',
+        tooltip: 'Pago de la suscripción PRO. Da visibilidad al perfil del trabajador (promoción, insignia, prioridad en búsquedas) y no modifica la comisión.',
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
       },
       withdrawal: {
@@ -999,28 +996,11 @@ export default function FinancialTransactions() {
 
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                          Distribución de Tasas de Comisión
+                          Tasa de Comisión
                         </h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={chartData.pieData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={(entry) => `${entry.name}: ${entry.value}%`}
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {chartData.pieData.map((entry: any, index: number) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {`La comisión es del ${COMMISSION_RATES.free}% en todos los planes (FREE y PRO), a cargo del cliente, con un piso de EUR ${MINIMUM_COMMISSION_EUR} en pesos al cambio del día. Durante la beta es 0% hasta la fecha de cierre.`}
+                        </p>
                       </div>
                     </>
                   )}
@@ -1221,7 +1201,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('commission')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                    title="Tipo de membresía del usuario y porcentaje de comisión aplicado (FREE: 8%, PRO: 3%, SUPER PRO: 1%)"
+                    title={`Comisión aplicada al pago, tal como quedó registrada (${COMMISSION_RATES.free}% en todos los planes; 0% durante la beta)`}
                   >
                     Suscripción
                     <SortIcon field="commission" />

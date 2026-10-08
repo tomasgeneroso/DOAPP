@@ -8,31 +8,21 @@ import { useAuth } from '../context/AuthContext';
 import { get, post } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
+// Hay un solo plan pago: PRO, mensual. Esta pantalla ofrecía además PRO Trimestral y
+// SUPER PRO, que ya no se venden (y el servidor los rechaza).
 const PLAN_DETAILS: Record<string, any> = {
   monthly: {
-    name: 'PRO Mensual',
+    name: 'PRO',
     period: '/mes',
     color: '#7c3aed',
-    benefits: ['1 contrato/mes sin comisión', 'Comisión 3% en contratos adicionales', 'Badge PRO verificado', 'Prioridad en búsquedas', 'Estadísticas avanzadas'],
-  },
-  quarterly: {
-    name: 'PRO Trimestral',
-    period: 'cada 3 meses',
-    color: '#059669',
-    savings: '11% de descuento',
-    benefits: ['Todo lo del PRO Mensual', 'Ahorrás $1.650 vs 3 meses', '3 contratos/mes sin comisión'],
-  },
-  super_pro: {
-    name: 'SUPER PRO',
-    period: '/mes',
-    color: '#db2777',
-    benefits: ['2 contratos/mes sin comisión', 'Comisión solo 1%', 'Dashboard exclusivo', 'Analytics de perfil', 'Reportes mensuales automatizados', 'Todo lo de PRO'],
+    benefits: ['Promoción de tu perfil', 'Insignia de socio', 'Prioridad en las búsquedas', 'Estadísticas de tu perfil', 'La comisión no cambia: es la misma que en el plan gratuito'],
   },
 };
 
 export default function MembershipCheckoutScreen() {
   const router = useRouter();
-  const { plan = 'monthly' } = useLocalSearchParams<{ plan: string }>();
+  // El plan es siempre el mensual; cualquier `?plan=` que llegue por un enlace viejo se ignora.
+  const plan = 'monthly';
   const { colors: themeColors } = useTheme();
   const { user } = useAuth();
 
@@ -56,9 +46,7 @@ export default function MembershipCheckoutScreen() {
 
   const getPrice = () => {
     if (!pricing) return 0;
-    // Prices come from the API in ARS (6/8 USD at the day's dólar blue).
-    if (plan === 'super_pro') return pricing.superPro?.priceARS || 0;
-    if (plan === 'quarterly') return (pricing.pro?.priceARS || 0) * 3 * 0.89;
+    // El precio viene de la API en pesos (el plan está fijado en euros y se cobra al cambio del día).
     return pricing.pro?.priceARS || 0;
   };
 
@@ -80,7 +68,7 @@ export default function MembershipCheckoutScreen() {
     }
   };
 
-  const planInfo = PLAN_DETAILS[plan] || PLAN_DETAILS.monthly;
+  const planInfo = PLAN_DETAILS.monthly;
   const price = getPrice();
 
   if (loading) {
@@ -110,7 +98,7 @@ export default function MembershipCheckoutScreen() {
         {/* Plan Header */}
         <View style={[styles.planCard, { borderColor: planInfo.color, backgroundColor: themeColors.card }]}>
           <View style={[styles.planIconBg, { backgroundColor: planInfo.color + '20' }]}>
-            {plan === 'super_pro' ? <Zap size={28} color={planInfo.color} /> : <Crown size={28} color={planInfo.color} />}
+            <Crown size={28} color={planInfo.color} />
           </View>
           <Text style={[styles.planName, { color: planInfo.color }]}>{planInfo.name}</Text>
           {planInfo.savings && (
@@ -140,7 +128,7 @@ export default function MembershipCheckoutScreen() {
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>Plan actual</Text>
             <Text style={[styles.currentPlan, { color: themeColors.text.secondary }]}>
-              Actualmente en plan {user.membershipType === 'pro' ? 'PRO' : user.membershipType === 'super_pro' ? 'SUPER PRO' : 'FREE'}
+              Actualmente en plan {user.membershipType === 'pro' || user.membershipType === 'super_pro' ? 'PRO' : 'FREE'}
             </Text>
           </View>
         )}
