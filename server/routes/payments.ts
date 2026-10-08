@@ -23,6 +23,13 @@ import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
+import {
+  evaluarPagoMercadoPago,
+  esIdDePagoMp,
+  ESTADOS_CAPTURABLES,
+  ESTADOS_YA_PROCESADOS,
+  type VeredictoMp,
+} from "../services/pagoMercadoPago.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -598,11 +605,124 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 });
 
 /**
+ * Respuesta para un pago que YA se procesó bien (por esta ruta, por el webhook o por un admin).
+ * Repetir la confirmación (recargar la página de éxito, doble clic, reintento del navegador) no rehace
+ * nada: no vuelve a publicar, no vuelve a activar, no manda otra notificación. Devuelve lo mismo que la
+ * primera vez para que la pantalla se vea igual.
+ */
+async function responderPagoYaProcesado(res: Response, payment: any): Promise<void> {
+  const data: Record<string, unknown> = {
+    paymentId: payment.id,
+    status: payment.status,
+    amount: payment.amount,
+    contractId: payment.contractId,
+    alreadyProcessed: true,
+  };
+  if (payment.paymentType === 'membership') data.membershipActivated = true;
+  if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
+    const job = await Job.findOne({ where: { publicationPaymentId: payment.id }, attributes: ['id', 'status'] });
+    if (job) {
+      data.jobId = job.id;
+      if (payment.paymentType === 'job_publication') data.jobPublished = job.status === 'open';
+    }
+  }
+  res.json({ success: true, data });
+}
+
+/**
+ * Qué se hace cuando MercadoPago NO confirma el pago que se está reclamando. En ningún caso se ejecuta
+ * lo que el pago compra: el pago sigue donde estaba (o pasa a revisión) y quien volvió de MercadoPago
+ * recibe el motivo real, no un "listo".
+ */
+async function manejarCapturaNoAprobada(
+  res: Response,
+  payment: any,
+  mpPaymentId: string,
+  mpData: any,
+  veredicto: Extract<VeredictoMp, { ok: false }>,
+  userId: string,
+): Promise<void> {
+  logger.payment('ERROR', `Captura no aprobada (${veredicto.motivo}): ${veredicto.detalle}`, {
+    paymentId: String(payment.id),
+    data: { motivo: veredicto.motivo, detalle: veredicto.detalle, mpPaymentId, estadoMp: mpData?.status },
+    userId,
+  });
+
+  switch (veredicto.motivo) {
+    case 'pendiente': {
+      // Se guarda el id de MercadoPago para que el webhook pueda completarlo cuando se acredite.
+      await Payment.update(
+        { status: 'processing', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
+        { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
+      ).catch(() => undefined);
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_PENDING',
+        message: 'MercadoPago todavía no confirmó tu pago. Si ya pagaste, no pagues de nuevo: se va a acreditar solo en unos minutos.',
+      });
+      return;
+    }
+    case 'rechazado':
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_REJECTED',
+        message: 'MercadoPago rechazó o canceló el pago. No se cobró nada: podés intentar de nuevo.',
+      });
+      return;
+    case 'monto':
+    case 'moneda': {
+      // El pago existe y está aprobado, pero no es lo que esperábamos: lo decide una persona.
+      await Payment.update(
+        { status: 'pending_verification', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
+        { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
+      ).catch(() => undefined);
+      const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+      for (const admin of admins) {
+        await Notification.create({
+          recipientId: admin.id,
+          type: 'error',
+          category: 'admin',
+          title: 'Pago con monto inesperado',
+          message: `El pago ${payment.id} se confirmó con MercadoPago pero no coincide con lo esperado (${veredicto.detalle}). Quedó en revisión y no se ejecutó ninguna acción.`,
+          relatedModel: 'Payment',
+          relatedId: payment.id,
+          sentVia: ['in_app'],
+        } as any).catch(() => undefined);
+      }
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_UNDER_REVIEW',
+        message: 'Tu pago quedó en revisión porque el monto no coincide con el esperado. Un administrador lo va a verificar; no hace falta que pagues de nuevo.',
+      });
+      return;
+    }
+    case 'ajeno':
+      res.status(403).json({
+        success: false,
+        code: 'PAYMENT_NOT_YOURS',
+        message: 'Este pago de MercadoPago no corresponde a tu cuenta.',
+      });
+      return;
+    default:
+      res.status(502).json({
+        success: false,
+        code: 'PAYMENT_VERIFICATION_FAILED',
+        message: 'MercadoPago devolvió información incompleta sobre el pago, así que no pudimos confirmarlo. Si ya pagaste, no pagues de nuevo: escribinos y lo revisamos.',
+      });
+  }
+}
+
+/**
  * Capture/Verify a payment after approval
  * POST /api/payments/capture-order
  *
  * For MercadoPago: payment_id from URL params or webhook
  * For PayPal (commented): orderId
+ *
+ * Regla de toda la ruta: el pago se confirma CONTRA MERCADOPAGO y recién entonces se ejecuta lo que
+ * compra (publicar, activar la membresía, dejar la plata en escrow). Lo que falte, venga raro o no
+ * coincida es un "no", nunca un "se supone que sí". Antes: sin id de pago, con MercadoPago caído o con
+ * el pago "pendiente" se daba por aprobado y se ejecutaba igual.
  */
 router.post("/capture-order", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -647,53 +767,116 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
     console.log("🔍 [CAPTURE] Step 3 - Authorization verified");
 
-    // Vexor/MercadoPago: Get payment info
-    console.log("🔍 [CAPTURE] Step 4 - Getting MercadoPago payment info via Vexor...");
-    const mpPaymentId = paymentId || collection_id;
-    let captureResult: any = { status: "approved" };
-
-    if (mpPaymentId) {
-      try {
-        const mpPaymentData = await mercadopagoService.getPayment(mpPaymentId, 'mercadopago');
-        console.log("✅ [CAPTURE] MercadoPago payment result:", JSON.stringify(mpPaymentData, null, 2));
-
-        // Update payment record with MercadoPago data
-        payment.mercadopagoPaymentId = mpPaymentId;
-        payment.mercadopagoStatus = mpPaymentData.status;
-        payment.mercadopagoStatusDetail = mpPaymentData.status_detail || mpPaymentData.status;
-
-        // MercadoPago returns 'approved' for successful payments, not 'succeeded'
-        const isApproved = ['approved', 'succeeded', 'authorized'].includes(mpPaymentData.status);
-
-        captureResult = {
-          status: isApproved ? 'COMPLETED' : mpPaymentData.status?.toUpperCase() || 'PENDING',
-          captureId: mpPaymentId,
-          payerId: mpPaymentData.metadata?.payerId,
-          payerEmail: mpPaymentData.metadata?.payerEmail,
-          mpStatus: mpPaymentData.status, // Keep original MP status for debugging
-        };
-        console.log("🔍 [CAPTURE] MercadoPago status:", mpPaymentData.status, "-> captureResult.status:", captureResult.status);
-      } catch (error: any) {
-        logger.silentError('payments', 'Could not get MercadoPago payment info', error, {
-          mpPaymentId,
-          internalPaymentId: payment.id,
-          userId
-        });
-        console.error("⚠️ [CAPTURE] Could not get MercadoPago payment, assuming approved");
-        captureResult.status = "COMPLETED"; // If we can't verify, assume it worked since user returned from MP
-      }
+    // Un pago que ya se procesó no se rehace: se responde lo mismo que la primera vez.
+    if ((ESTADOS_YA_PROCESADOS as readonly string[]).includes(String(payment.status))) {
+      await responderPagoYaProcesado(res, payment);
+      return;
     }
+    // Sólo se completa un pago pendiente o en proceso. Uno reembolsado, en disputa, fallido o ya
+    // liberado no vuelve a escrow ni reabre un trabajo porque alguien repita la confirmación.
+    if (!(ESTADOS_CAPTURABLES as readonly string[]).includes(String(payment.status))) {
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_NOT_CAPTURABLE',
+        message: `Este pago está en estado "${payment.status}" y no se puede volver a confirmar.`,
+      });
+      return;
+    }
+
+    // El id del pago de MercadoPago: el que mandó el navegador o, si no mandó, el que ya registró el webhook.
+    // Sin id no hay nada que verificar, y sin verificar no se da por pagado.
+    const idCrudo = paymentId || collection_id || payment.mercadopagoPaymentId;
+    const mpPaymentId = idCrudo === undefined || idCrudo === null ? '' : String(idCrudo).trim();
+    if (!mpPaymentId || mpPaymentId === 'null' || mpPaymentId === 'undefined') {
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_PENDING',
+        message: 'Todavía no recibimos la confirmación de MercadoPago. Si ya pagaste, no pagues de nuevo: se va a acreditar solo en unos minutos.',
+      });
+      return;
+    }
+    if (!esIdDePagoMp(mpPaymentId)) {
+      res.status(400).json({ success: false, code: 'PAYMENT_ID_INVALID', message: 'El identificador del pago no es válido.' });
+      return;
+    }
+
+    // MercadoPago es la única fuente de verdad sobre si se cobró. Si no responde, NO se asume aprobado.
+    console.log("🔍 [CAPTURE] Step 4 - Getting MercadoPago payment info...");
+    let mpPaymentData: any;
+    try {
+      mpPaymentData = await mercadopagoService.getPayment(mpPaymentId, 'mercadopago');
+    } catch (error: any) {
+      logger.silentError('payments', 'Could not get MercadoPago payment info', error, {
+        mpPaymentId,
+        internalPaymentId: payment.id,
+        userId
+      });
+      res.status(503).json({
+        success: false,
+        code: 'PAYMENT_VERIFICATION_UNAVAILABLE',
+        message: 'No pudimos confirmar tu pago con MercadoPago en este momento. Si ya pagaste, no pagues de nuevo: probá otra vez en unos minutos.',
+      });
+      return;
+    }
+
+    // Aprobado, por el monto y la moneda esperados y a nombre de quien lo reclama. Todo lo demás es un no.
+    const veredicto = evaluarPagoMercadoPago(mpPaymentData, {
+      amount: payment.amount,
+      currency: payment.currency,
+      payerId: userId,
+    });
+    if (!veredicto.ok) {
+      await manejarCapturaNoAprobada(res, payment, mpPaymentId, mpPaymentData, veredicto, userId);
+      return;
+    }
+
+    const captureResult: any = {
+      status: 'COMPLETED',
+      captureId: mpPaymentId,
+      payerId: mpPaymentData.metadata?.payerId,
+      payerEmail: mpPaymentData.metadata?.payerEmail,
+      mpStatus: mpPaymentData.status, // Keep original MP status for debugging
+    };
 
     // Update payment record
     console.log("🔍 [CAPTURE] Step 5 - Updating payment record...");
-    payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
+    const estadoFinal = payment.isEscrow ? "held_escrow" : "completed";
 
-    if (payment.isEscrow) {
-      console.log("🔍 [CAPTURE] Setting status to 'held_escrow'");
-      payment.status = "held_escrow";
+    // Se "reclama" el pago con un UPDATE condicional al estado: si dos confirmaciones llegan juntas (doble
+    // clic, la página de éxito y el webhook), sólo una pasa a ejecutar lo que el pago compra. La otra ve
+    // que ya está procesado y responde sin repetir nada.
+    let reclamados = 0;
+    try {
+      [reclamados] = await Payment.update(
+        {
+          status: estadoFinal,
+          mercadopagoPaymentId: mpPaymentId,
+          mercadopagoStatus: String(mpPaymentData.status),
+          mercadopagoStatusDetail: String(mpPaymentData.status_detail || mpPaymentData.status),
+        } as any,
+        { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
+      );
+    } catch (error: any) {
+      // El índice único de mercadopagoPaymentId: ese pago de MercadoPago ya respalda otra orden.
+      if (error?.name === 'SequelizeUniqueConstraintError') {
+        res.status(409).json({
+          success: false,
+          code: 'PAYMENT_ALREADY_USED',
+          message: 'Ese pago de MercadoPago ya se usó para confirmar otra orden.',
+        });
+        return;
+      }
+      throw error;
     }
-
-    await payment.save();
+    if (reclamados === 0) {
+      await payment.reload();
+      await responderPagoYaProcesado(res, payment);
+      return;
+    }
+    payment.status = estadoFinal as any;
+    payment.mercadopagoPaymentId = mpPaymentId;
+    payment.mercadopagoStatus = String(mpPaymentData.status);
+    payment.mercadopagoStatusDetail = String(mpPaymentData.status_detail || mpPaymentData.status);
     console.log("✅ [CAPTURE] Step 6 - Payment record updated. New status:", payment.status);
 
     // Log payment capture success
@@ -733,7 +916,9 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     ===== END PAYPAL CODE ===== */
 
     // Handle membership payment
-    if (payment.paymentType === "membership" || payment.description?.includes("Membresía")) {
+    // Sólo por el TIPO del pago, que lo fija el servidor al crearlo. La descripción la escribe quien
+    // paga (create-order la toma del cuerpo): con "Membresía" en el texto, cualquier pago activaba PRO.
+    if (payment.paymentType === "membership") {
       console.log("🔍 [CAPTURE] Step 7 - Detected membership payment");
       console.log("💳 Procesando pago de membresía...");
 
@@ -851,6 +1036,25 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           }
         ]
       });
+      // Sólo se publica un trabajo que estaba esperando este pago. Uno ya publicado, completado o
+      // cancelado no se "reabre" porque se repita una confirmación.
+      if (job && !["draft", "pending_payment"].includes(String(job.status))) {
+        logger.warn('payments', `Pago de publicación confirmado pero el trabajo está en "${job.status}": no se cambia`, {
+          data: { paymentId: payment.id, jobId: job.id },
+        });
+        res.json({
+          success: true,
+          data: {
+            paymentId: payment.id,
+            captureId: captureResult.captureId,
+            status: payment.status,
+            amount: payment.amount,
+            jobId: job.id,
+            jobPublished: job.status === "open",
+          },
+        });
+        return;
+      }
       if (job) {
         const previousStatus = job.status;
         job.status = "open";
@@ -1012,6 +1216,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     if (contract) {
       console.log("🔍 [CAPTURE] Contract found:", contract.id);
       contract.paymentStatus = payment.isEscrow ? "escrow" : "completed";
+      // Escrow SYNC: contract.escrowStatus + contract.paymentStatus + payment.status cambian juntos.
+      if (payment.isEscrow) contract.escrowStatus = "held_escrow";
       await contract.save();
       console.log("✅ [CAPTURE] Contract updated. Payment status:", contract.paymentStatus);
     } else {

@@ -76,6 +76,7 @@ import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/
 
 const PRECIO_ARS = MEMBERSHIP_PRICES_EUR.pro * TIPO_EUR;
 const PLAN_VIEJO_ACEPTADO = ['quarterly', 'super_pro'];
+let contadorIdMp = 7_000_000;
 
 describe('una sola membresía paga, y no se vende en la beta', () => {
   let app: Express;
@@ -137,7 +138,15 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
     mockCrearPago.mockReset();
     mockCrearPago.mockResolvedValue({ paymentId: 'pref-1', checkoutUrl: 'https://mp.test/checkout' });
     mockObtenerPago.mockReset();
-    mockObtenerPago.mockResolvedValue({ status: 'approved', status_detail: 'accredited' });
+    // Un pago aprobado COMPLETO, como lo devuelve MercadoPago: /capture-order exige monto y moneda,
+    // y un `{ status: 'approved' }` a secas ya no alcanza para dar nada por pagado.
+    mockObtenerPago.mockResolvedValue({
+      status: 'approved',
+      status_detail: 'accredited',
+      transaction_amount: PRECIO_ARS,
+      currency_id: 'ARS',
+      metadata: {},
+    });
     mockEnviarMail.mockReset();
     mockEnviarMail.mockResolvedValue(true);
     const ids = Object.values(usuarios).map((u) => u.id);
@@ -305,7 +314,8 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       request(app)
         .post('/api/payments/capture-order')
         .set(como(clave))
-        .send({ preference_id: preferencia, paymentId: `mp-${preferencia}` });
+        // Un id de MercadoPago real es numérico (capture-order lo valida), y no se puede repetir entre pagos.
+        .send({ preference_id: preferencia, paymentId: String(++contadorIdMp) });
 
     beforeEach(async () => {
       await Membership.destroy({ where: { userId: usuarios.compra.id } });
