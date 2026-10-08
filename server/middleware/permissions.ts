@@ -78,6 +78,17 @@ export const requireAdminRole = (req: AuthRequest, res: Response, next: NextFunc
     return;
   }
 
+  // El rol 'analista' colabora con el plan de negocio y NADA más (ver ROLES_DE_ANALISIS): "tener algún rol
+  // de administración" no le da entrada al panel. Antes pasaba por acá como cualquier otro y llegaba a
+  // los listados de usuarios, trabajos y pagos, que traen nombres, correos y teléfonos.
+  if (req.user.adminRole === 'analista') {
+    res.status(403).json({
+      success: false,
+      message: "Acceso denegado: tu rol no incluye el panel de administración",
+    });
+    return;
+  }
+
   next();
 };
 

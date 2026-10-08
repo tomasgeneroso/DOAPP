@@ -20,3 +20,16 @@ import { config } from 'dotenv';
 config({ path: '.env.test', override: true });
 
 process.env.NODE_ENV = 'test';
+
+/**
+ * Un pool de conexiones CHICO por archivo de test.
+ *
+ * Cada archivo de test crea su propia instancia de Sequelize y no la cierra (ver setup.integration.ts: cerrarla
+ * deja sin conexión al archivo siguiente). Con el pool de producción (mínimo 5, máximo 20) cada archivo deja 5
+ * conexiones abiertas para siempre: con 26 archivos son 130, más que el máximo de Postgres (100), y las suites
+ * del final fallaban al azar con "ya tenemos demasiados clientes" -- una suite distinta cada corrida, que es la
+ * peor forma de fallar. Con mínimo 0 las conexiones inactivas se devuelven enseguida.
+ */
+process.env.DB_POOL_MIN = '0';
+process.env.DB_POOL_MAX = '5';
+process.env.DB_POOL_IDLE = '1000';

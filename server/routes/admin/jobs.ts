@@ -1,6 +1,6 @@
 import express, { Response } from 'express';
 import { protect } from '../../middleware/auth.js';
-import { requireAdminRole } from '../../middleware/permissions.js';
+import { requireAdminRole, requireRole } from '../../middleware/permissions.js';
 import type { AuthRequest } from '../../types/index.js';
 import { Job } from '../../models/sql/Job.model.js';
 import { Contract } from '../../models/sql/Contract.model.js';
@@ -362,7 +362,9 @@ router.get(
 router.put(
   '/:id/status',
   protect,
-  requireAdminRole,
+  // Aprobar, rechazar y cancelar una publicación mueve plata (liquida la cancelación): no es para
+  // cualquier rol administrativo (marketing, soporte, dpo...).
+  requireRole('admin', 'super_admin', 'owner'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
@@ -390,6 +392,28 @@ router.put(
         res.status(404).json({
           success: false,
           message: 'Publicación no encontrada',
+        });
+        return;
+      }
+
+      /**
+       * Sólo se aprueba lo que está esperando aprobación. Antes se podía "aprobar" un borrador, un trabajo
+       * sin pagar la publicación, uno pausado o uno ya terminado, y quedaba publicado (status 'open').
+       * Rechazar no aplica a lo que ya terminó.
+       */
+      if (status === 'approved' && String(job.status) !== 'pending_approval') {
+        res.status(409).json({
+          success: false,
+          code: 'JOB_NOT_PENDING_APPROVAL',
+          message: `Sólo se aprueba una publicación pendiente de aprobación; ésta está en "${job.status}".`,
+        });
+        return;
+      }
+      if (status === 'rejected' && ['completed', 'cancelled'].includes(String(job.status))) {
+        res.status(409).json({
+          success: false,
+          code: 'JOB_ALREADY_CLOSED',
+          message: `Una publicación "${job.status}" ya no se rechaza.`,
         });
         return;
       }
@@ -556,7 +580,7 @@ router.put(
 router.put(
   '/:id/action',
   protect,
-  requireAdminRole,
+  requireRole('admin', 'super_admin', 'owner'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
@@ -723,7 +747,7 @@ router.put(
 router.put(
   '/:id/toggle-reviewer',
   protect,
-  requireAdminRole,
+  requireRole('admin', 'super_admin', 'owner'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const job = await Job.findByPk(req.params.id, {
