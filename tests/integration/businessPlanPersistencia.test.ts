@@ -393,4 +393,117 @@ describe('el plan de negocio se guarda y se recupera', () => {
       expect(r.body.data.ue.soporte).toBe(0);
     });
   });
+
+  describe('el guardado se protege de formas inválidas y de pisarse entre personas', () => {
+    /** El plan reemplaza al anterior entero: lo que se guarda mal o a ciegas se pierde o rompe la pantalla. */
+
+    it('rechaza con 400 un campo con otro tipo que su valor por defecto, y no guarda NADA del pedido', async () => {
+      const base = (await leer()).body.data;
+      expect((await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 321 } })).status).toBe(200);
+
+      const malos: Array<[string, any]> = [
+        ['un texto donde va un objeto', { ...base, projection: 'hola' }],
+        ['un arreglo donde va un objeto', { ...base, ue: [1, 2] }],
+        ['un texto donde va un número', { ...base, rateUsd: 'mucho' }],
+        ['un objeto donde va un texto', { ...base, baseCurrency: { x: 1 } }],
+        ['un número donde va una lista', { ...base, budget: 5 }],
+        ['un texto donde va un número, anidado', { ...base, ue: { ...base.ue, mauActual: 'x' } }],
+      ];
+      for (const [nombre, plan] of malos) {
+        const r = await guardar('owner', plan);
+        expect([nombre, r.status]).toEqual([nombre, 400]);
+        expect(r.body.code).toBe('PLAN_INVALID');
+        expect(Array.isArray(r.body.problemas) && r.body.problemas.length > 0).toBe(true);
+      }
+      // y lo que había sigue igual
+      expect((await leer()).body.data.ue.mauActual).toBe(321);
+    });
+
+    it('rechaza un número infinito (1e999 llega como Infinity), y nombres de campo peligrosos', async () => {
+      const base = (await leer()).body.data;
+      const infinito = await request(app)
+        .put(RUTA)
+        .set(como('owner'))
+        .set('Content-Type', 'application/json')
+        .send(JSON.stringify({ data: { ...base, rateUsd: 0 } }).replace('"rateUsd":0', '"rateUsd":1e999'));
+      expect(infinito.status).toBe(400);
+      expect(infinito.body.code).toBe('PLAN_INVALID');
+
+      const proto = await request(app)
+        .put(RUTA)
+        .set(como('owner'))
+        .set('Content-Type', 'application/json')
+        .send(JSON.stringify({ data: { ...base } }).replace('"data":{', '"data":{"__proto__":{"x":1},'));
+      // Según quién la intercepte primero: el WAF la corta (403), el validador la rechaza (400), o el
+      // saneador de XSS la descarta antes de llegar (200, sin la clave). En los tres casos no se
+      // contamina el prototipo global ni queda nada guardado. El rechazo de la clave como tal está
+      // probado en tests/validarPlan.test.ts.
+      expect([200, 400, 403]).toContain(proto.status);
+      expect(({} as any).x).toBeUndefined();
+      expect(JSON.stringify((await leer()).body.data)).not.toMatch(/"x":1/);
+    });
+
+    it('un cliente viejo que no manda baseUpdatedAt sigue guardando como antes', async () => {
+      const base = (await leer()).body.data;
+      expect((await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 11 } })).status).toBe(200);
+      expect((await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 12 } })).status).toBe(200);
+      expect((await leer()).body.data.ue.mauActual).toBe(12);
+    });
+
+    it('guardar con la versión que se cargó funciona, y encadena: cada guardado deja la versión nueva', async () => {
+      const base = (await leer()).body.data;
+      let version: string | null = (await leer()).body.updatedAt; // sin nada guardado: null
+      const primero = await request(app).put(RUTA).set(como('owner')).send({ data: { ...base, ue: { ...base.ue, mauActual: 1 } }, baseUpdatedAt: version });
+      expect(primero.status).toBe(200);
+      version = primero.body.updatedAt;
+      const segundo = await request(app).put(RUTA).set(como('owner')).send({ data: { ...base, ue: { ...base.ue, mauActual: 2 } }, baseUpdatedAt: version });
+      expect(segundo.status).toBe(200);
+      expect((await leer()).body.data.ue.mauActual).toBe(2);
+    });
+
+    it('si otra persona guardó mientras editabas, responde 409 y NO pisa su trabajo', async () => {
+      const base = (await leer()).body.data;
+      const cargado = (await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 100 } })).body.updatedAt;
+
+      // el analista guarda sobre esa misma versión…
+      const delAnalista = await request(app).put(RUTA).set(como('analista')).send({ data: { ...base, ue: { ...base.ue, mauActual: 200 } }, baseUpdatedAt: cargado });
+      expect(delAnalista.status).toBe(200);
+
+      // …y el owner, que todavía tiene la versión vieja, intenta guardar encima
+      const delOwner = await request(app).put(RUTA).set(como('owner')).send({ data: { ...base, ue: { ...base.ue, mauActual: 300 } }, baseUpdatedAt: cargado });
+      expect(delOwner.status).toBe(409);
+      expect(delOwner.body.code).toBe('PLAN_CONFLICT');
+      expect((await leer()).body.data.ue.mauActual).toBe(200);
+    });
+
+    it('creer que no había plan cuando ya lo hay también es un conflicto', async () => {
+      const base = (await leer()).body.data;
+      expect((await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 5 } })).status).toBe(200);
+      const r = await request(app).put(RUTA).set(como('analista')).send({ data: base, baseUpdatedAt: null });
+      expect(r.status).toBe(409);
+    });
+
+    it('una fecha de versión inválida es un 400, no se interpreta como "cualquiera"', async () => {
+      const base = (await leer()).body.data;
+      const r = await request(app).put(RUTA).set(como('owner')).send({ data: base, baseUpdatedAt: 'ayer' });
+      expect(r.status).toBe(400);
+    });
+
+    it('dos guardados simultáneos sobre la misma versión: uno gana y el otro recibe 409 (nunca los dos)', async () => {
+      const base = (await leer()).body.data;
+      const version = (await guardar('owner', { ...base, ue: { ...base.ue, mauActual: 1 } })).body.updatedAt;
+      const [a, b] = await Promise.all([
+        request(app).put(RUTA).set(como('owner')).send({ data: { ...base, ue: { ...base.ue, mauActual: 10 } }, baseUpdatedAt: version }),
+        request(app).put(RUTA).set(como('analista')).send({ data: { ...base, ue: { ...base.ue, mauActual: 20 } }, baseUpdatedAt: version }),
+      ]);
+      expect([a.status, b.status].sort()).toEqual([200, 409]);
+      const ganador = a.status === 200 ? 10 : 20;
+      expect((await leer()).body.data.ue.mauActual).toBe(ganador);
+    });
+
+    it('la lectura avisa si la coordinación no falló (coordinacionFallida: false)', async () => {
+      const r = await leer();
+      expect(r.body.coordinacionFallida).toBe(false);
+    });
+  });
 });

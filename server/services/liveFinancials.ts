@@ -137,13 +137,20 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
 
   // Si la cotizacion no responde, se sigue con un valor de respaldo: el panel
   // tiene que abrir igual, con un numero aproximado, y no quedarse en blanco.
-  const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
+  // Una cotización que no llega, o llega en cero, negativa o NaN, no es un dato: se sigue con el
+  // respaldo. (Dividir por ella daba infinitos que el panel mostraba como cifras.)
+  const cotizacionEur = await currencyExchange.getEURtoARSRate().catch(() => NaN);
+  const eurArs = Number.isFinite(cotizacionEur) && cotizacionEur > 0 ? cotizacionEur : 1800;
 
   // Los importes del plan vienen en la moneda de la proyección, que no siempre es
   // el euro: se pasan a pesos con la moneda que corresponda. (Esto asumía euros, y
   // con la proyección en dólares los costos salían un 8% corridos.)
   const monedaPlan: string = plan?.projectionCurrency || 'EUR';
-  const arsPorUsd = eurArs / (Number(plan?.rateUsd) || 1.08);
+  // `rateUsd` son dólares por euro. Se carga a mano en el plan: fuera de un rango creíble (cero,
+  // negativo, 1e-9, 500) se usa el valor de respaldo en vez de multiplicar los costos por un absurdo.
+  const usdPorEurPlan = Number(plan?.rateUsd);
+  const usdPorEur = Number.isFinite(usdPorEurPlan) && usdPorEurPlan >= 0.2 && usdPorEurPlan <= 5 ? usdPorEurPlan : 1.08;
+  const arsPorUsd = eurArs / usdPorEur;
   const arsPorMonedaPlan = monedaPlan === 'ARS' ? 1 : monedaPlan === 'USD' ? arsPorUsd : eurArs;
 
   // El objetivo sale del plan guardado, no de una constante: si el owner

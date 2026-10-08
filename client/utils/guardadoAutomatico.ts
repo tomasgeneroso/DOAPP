@@ -181,6 +181,7 @@ export function motivoDeFallo(estado: number, mensaje?: string, esJson = true): 
   }
   if (estado === 401) return 'tu sesión venció: volvé a iniciar sesión';
   if (estado === 403) return mensaje || 'no tenés permiso para editar el plan';
+  if (estado === 409) return mensaje || 'otra persona guardó cambios mientras editabas: recargá la página';
   if (estado === 413) return 'el plan es demasiado grande';
   if (estado === 429) return 'demasiados pedidos seguidos: esperá un momento';
   if (estado >= 500) return mensaje ? `error del servidor (${mensaje})` : 'error del servidor';

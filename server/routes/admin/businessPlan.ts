@@ -6,6 +6,7 @@ import { Payment } from '../../models/sql/Payment.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { protect, requireAdminRole } from '../../middleware/auth.js';
 import { logAudit } from '../../utils/auditLog.js';
+import { validarPlanEnviado } from '../../utils/validarPlan.js';
 import currencyExchange from '../../services/currencyExchange.js';
 import { getLiveFinancials } from '../../services/liveFinancials.js';
 import { getUnitEconomics } from '../../services/unitEconomics.js';
@@ -264,14 +265,28 @@ function clavesCompletadasConDefectos(guardado: unknown, defaults: unknown, pref
   return faltan;
 }
 
-function planCompleto(guardado: unknown): any {
+/**
+ * Igual que `planCompleto`, pero dice si la coordinación falló.
+ *
+ * La coordinación se hace sobre una COPIA: `coordinarPlan` muta el plan, y si falla a mitad de camino
+ * dejaría números a medio derivar mezclados con los guardados. Con la copia, un fallo devuelve el plan
+ * tal como estaba guardado (completo con los valores por defecto) y no una mezcla. Y se avisa: antes el
+ * error sólo iba a la consola y la pantalla mostraba números sin coordinar como si estuvieran bien.
+ */
+function planCompletoConEstado(guardado: unknown): { data: any; coordinacionFallida: boolean } {
   const data = mergeDeep(defaultPlan(), guardado || {});
   try {
-    coordinarPlan(data as PlanCoordinable);
+    const coordinado = JSON.parse(JSON.stringify(data));
+    coordinarPlan(coordinado as PlanCoordinable);
+    return { data: coordinado, coordinacionFallida: false };
   } catch (error) {
-    console.error('No se pudieron coordinar los bloques del plan:', error);
+    console.error('[business-plan] No se pudieron coordinar los bloques del plan:', error);
+    return { data, coordinacionFallida: true };
   }
-  return data;
+}
+
+function planCompleto(guardado: unknown): any {
+  return planCompletoConEstado(guardado).data;
 }
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -357,7 +372,7 @@ router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response):
     // Un plan guardado antes de agregar una sección no tiene esa clave:
     // se completa con el valor por defecto en vez de romper la pantalla.
     const guardado = plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {};
-    const data = planCompleto(guardado);
+    const { data, coordinacionFallida } = planCompletoConEstado(guardado);
     // Lo que no estaba guardado y salió del valor por defecto: la pantalla lo guarda
     // al recibirlo, para que no vuelva a cambiar solo. `budgetReal` no tiene valor por
     // defecto (nace como copia de la beta), así que se pregunta aparte.
@@ -371,6 +386,7 @@ router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response):
     res.json({
       success: true,
       data,
+      coordinacionFallida,
       completadoConDefectos,
       isDefault: !plan,
       updatedAt: plan?.updatedAt || null,
@@ -455,19 +471,56 @@ router.put('/', protect, analisisOnly, async (req: AuthRequest, res: Response): 
       return;
     }
 
-    const existing = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
-
-    let plan: BusinessPlan;
-    if (existing) {
-      await existing.update({ data, updatedById: req.user!.id });
-      plan = existing;
-    } else {
-      plan = await BusinessPlan.create({
-        slug: PLAN_SLUG,
-        data,
-        updatedById: req.user!.id,
+    // La forma: cada campo con el mismo tipo que su valor por defecto, sin NaN/infinitos ni nombres
+    // peligrosos. Antes se guardaba cualquier objeto y uno mal formado dejaba sin abrir la pantalla.
+    const problemas = validarPlanEnviado(data, defaultPlan());
+    if (problemas.length > 0) {
+      res.status(400).json({
+        success: false,
+        code: 'PLAN_INVALID',
+        message: `El plan tiene datos que no corresponden: ${problemas.map((p) => `${p.ruta} (${p.motivo})`).join('; ')}`,
+        problemas,
       });
+      return;
     }
+
+    // Control de versión: el cliente manda el `updatedAt` que cargó. Si alguien guardó después,
+    // este guardado pisaría su trabajo (el PUT reemplaza el plan entero), así que se rechaza.
+    // Un cliente que no manda `baseUpdatedAt` (versión vieja de la pantalla) se acepta como antes.
+    const mandaBase = Object.prototype.hasOwnProperty.call(req.body, 'baseUpdatedAt');
+    let base: number | null = null;
+    if (mandaBase && req.body.baseUpdatedAt !== null) {
+      base = new Date(req.body.baseUpdatedAt).getTime();
+      if (!Number.isFinite(base)) {
+        res.status(400).json({ success: false, message: 'baseUpdatedAt no es una fecha válida' });
+        return;
+      }
+    }
+
+    // La fila se bloquea mientras se compara y se escribe: sin eso, dos guardados simultáneos
+    // pasan la comparación los dos y el segundo pisa al primero igual.
+    const resultado = await BusinessPlan.sequelize!.transaction(async (t) => {
+      const existing = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG }, transaction: t, lock: t.LOCK.UPDATE });
+      if (existing && mandaBase && existing.updatedAt.getTime() !== base) {
+        return { conflicto: existing.updatedAt as Date };
+      }
+      if (existing) {
+        await existing.update({ data, updatedById: req.user!.id }, { transaction: t });
+        return { plan: existing };
+      }
+      return { plan: await BusinessPlan.create({ slug: PLAN_SLUG, data, updatedById: req.user!.id }, { transaction: t }) };
+    });
+
+    if ('conflicto' in resultado) {
+      res.status(409).json({
+        success: false,
+        code: 'PLAN_CONFLICT',
+        message: 'Otra persona guardó cambios en el plan mientras lo editabas. Recargá la página para ver su versión.',
+        updatedAt: resultado.conflicto,
+      });
+      return;
+    }
+    const plan = resultado.plan;
 
     await logAudit({
       req,

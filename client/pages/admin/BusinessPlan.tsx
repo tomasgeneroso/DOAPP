@@ -418,11 +418,15 @@ export default function BusinessPlan() {
     updatedBy: null,
   });
   const [loading, setLoading] = useState(true);
+  const [coordinacionFallida, setCoordinacionFallida] = useState(false);
   const [saveState, setSaveState] = useState<EstadoDeGuardado>({ tipo: 'ocioso' });
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState('');
   // El plan que se está editando, siempre al día: de ahí sale cada cambio y lo que se guarda.
   const planRef = useRef<Plan | null>(null);
+  // El `updatedAt` de la versión que cargamos o guardamos por última vez. Se manda con cada guardado
+  // para que el servidor rechace (409) si otra persona guardó en el medio, en vez de pisarla.
+  const versionRef = useRef<string | null>(null);
 
   /* ---- carga ---- */
   const load = useCallback(async () => {
@@ -448,6 +452,8 @@ export default function BusinessPlan() {
           guardador.current!.programar(recibido);
         }
         setActuals(data.actuals || null);
+        setCoordinacionFallida(data.coordinacionFallida === true);
+        versionRef.current = data.updatedAt ?? null;
         setMeta({ updatedAt: data.updatedAt, updatedBy: data.updatedBy });
       }
     } catch (err) {
@@ -478,7 +484,7 @@ export default function BusinessPlan() {
       res = await fetch('/api/admin/business-plan', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ data: siguiente }),
+        body: JSON.stringify({ data: siguiente, baseUpdatedAt: versionRef.current }),
         // Al cerrar o recargar, el pedido tiene que sobrevivir a la página.
         keepalive: alSalir,
       });
@@ -489,6 +495,7 @@ export default function BusinessPlan() {
     const esJson = (res.headers.get('content-type') || '').includes('json');
     const data = esJson ? await res.json().catch(() => null) : null;
     if (!res.ok || !data?.success) throw new Error(motivoDeFallo(res.status, data?.message, esJson));
+    versionRef.current = data.updatedAt ?? null;
     setMeta(m => ({ ...m, updatedAt: data.updatedAt }));
   }, []);
 
@@ -726,6 +733,12 @@ export default function BusinessPlan() {
                 </button>
               )}
             </p>
+            {coordinacionFallida && (
+              <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400" role="alert">
+                Aviso: no se pudieron coordinar los bloques del plan, así que algunos números pueden estar sin derivar de
+                su sección de origen. Avisá a quien mantiene la aplicación.
+              </p>
+            )}
           </div>
 
           {/* Cotización */}
