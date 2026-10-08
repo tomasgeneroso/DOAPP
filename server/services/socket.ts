@@ -6,6 +6,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
+import { estaBaneadoAhora } from "../middleware/auth.js";
 import fcmService from "./fcm";
 import emailService from "./email";
 import { Op } from 'sequelize';
@@ -74,6 +75,11 @@ export class SocketService {
 
         if (!user) {
           return next(new Error("Authentication error: User not found"));
+        }
+
+        // Una cuenta baneada no se conecta al tiempo real (antes sólo la pantalla la mandaba a /banned).
+        if (estaBaneadoAhora(user as any)) {
+          return next(new Error("Authentication error: Account banned"));
         }
 
         socket.userId = user.id;

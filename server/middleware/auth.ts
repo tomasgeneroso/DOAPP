@@ -10,6 +10,33 @@ interface DecodedToken extends JwtPayload {
   id: string;
 }
 
+/** ¿La cuenta está baneada AHORA? Un baneo con fecha de vencimiento ya pasada no cuenta. */
+export function estaBaneadoAhora(user: { isBanned?: boolean; banExpiresAt?: Date | string | null } | null | undefined): boolean {
+  if (!user?.isBanned) return false;
+  if (user.banExpiresAt && Date.now() > new Date(user.banExpiresAt).getTime()) return false;
+  return true;
+}
+
+/**
+ * Lo único que puede hacer una cuenta baneada: ver su estado, cerrar sesión y apelar con un ticket.
+ * Es lo que necesita la pantalla /banned. Todo lo demás (retirar saldo, tomar trabajos, escribir en un
+ * chat, pagar) queda cerrado en el servidor: antes el baneo sólo lo hacía cumplir la pantalla
+ * (Layout.tsx redirigía a /banned) y la API seguía respondiendo igual que a cualquiera.
+ */
+const RUTAS_PERMITIDAS_CON_BANEO: Array<{ metodo: string; ruta: RegExp }> = [
+  { metodo: 'GET', ruta: /^\/api\/auth\/(me|profile)\/?$/ },
+  { metodo: 'POST', ruta: /^\/api\/auth\/logout\/?$/ },
+  { metodo: 'GET', ruta: /^\/api\/tickets(\/[0-9a-f-]{36})?\/?$/i },
+  { metodo: 'POST', ruta: /^\/api\/tickets\/?$/ },
+  { metodo: 'POST', ruta: /^\/api\/tickets\/[0-9a-f-]{36}\/messages\/?$/i },
+];
+
+function rutaPermitidaConBaneo(req: AuthRequest): boolean {
+  const ruta = String(req.originalUrl || '').split('?')[0];
+  const metodo = String(req.method || '').toUpperCase();
+  return RUTAS_PERMITIDAS_CON_BANEO.some((r) => r.metodo === metodo && r.ruta.test(ruta));
+}
+
 export const protect = async (
   req: AuthRequest,
   res: Response,
@@ -61,6 +88,20 @@ export const protect = async (
         res.status(401).json({
           success: false,
           message: "Usuario no encontrado",
+        });
+        return;
+      }
+
+      // Una cuenta baneada no opera: sólo ve su estado, cierra sesión y apela.
+      if (estaBaneadoAhora(req.user as any) && !rutaPermitidaConBaneo(req)) {
+        res.status(403).json({
+          success: false,
+          code: 'ACCOUNT_BANNED',
+          banned: true,
+          message: (req.user as any).banReason
+            ? `Tu cuenta ha sido suspendida: ${(req.user as any).banReason}`
+            : 'Tu cuenta ha sido suspendida',
+          banExpiresAt: (req.user as any).banExpiresAt ?? null,
         });
         return;
       }
