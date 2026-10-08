@@ -340,10 +340,13 @@ export const adminApi = {
       });
       return res.json();
     },
-    getBackupCodes: async () => {
+    // Regenerar los códigos de respaldo exige el código actual del autenticador (POST, ya no un GET).
+    getBackupCodes: async (code: string) => {
 
       const res = await fetchWithAuth(`${API_URL}/admin/2fa/backup-codes`, {
 
+        method: "POST",
+        body: JSON.stringify({ code }),
       });
       return res.json();
     },
