@@ -1,4 +1,5 @@
 import express, { Router, Response } from "express";
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import { splitFees, getProcessingFeeRate } from "../../shared/pricing/processingCost.js";
 import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing.js";
@@ -676,7 +677,7 @@ async function manejarCapturaNoAprobada(
         { status: 'pending_verification', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
         { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
       ).catch(() => undefined);
-      const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+      const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
       for (const admin of admins) {
         await Notification.create({
           recipientId: admin.id,
@@ -1137,7 +1138,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
               data: { jobId: job.id, reservado, motivo: e?.message },
               userId: String(job.clientId),
             });
-            const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+            const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
             for (const admin of admins) {
               await Notification.create({
                 recipientId: admin.id,
@@ -2094,24 +2095,24 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
     }
 
     // Notify admins about new payment proof
-    const adminUsers = await User.findAll({
-      where: {
-        [Op.or]: [
-          { role: 'admin' },
-          { role: 'super_admin' },
-          { role: 'owner' }
-        ]
-      }
-    });
+    const adminUsers = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
 
+    // Los campos de Notification son recipientId/category/relatedModel; antes se mandaban userId y
+    // relatedType (que no existen) sin category (obligatoria): al encontrar de verdad a algún admin,
+    // el aviso lanzaba un error y la subida del comprobante respondía 500 con el estado ya cambiado.
+    // Avisar es secundario: si falla, el comprobante igual quedó subido.
     for (const admin of adminUsers) {
       await Notification.create({
-        userId: admin.id,
+        recipientId: admin.id,
+        type: 'info',
+        category: 'payment',
         title: 'Nuevo comprobante de pago',
         message: `Usuario ${req.user.username} subió un comprobante para el pago ${paymentId}`,
-        type: 'payment',
+        relatedModel: 'Payment',
         relatedId: paymentId,
-        relatedType: 'Payment',
+        sentVia: ['in_app'],
+      } as any).catch((error: any) => {
+        logger.silentError('payments', 'No se pudo avisar a un administrador del comprobante', error, { paymentId });
       });
     }
 

@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { DONDE_ES_ADMIN_O_SOPORTE } from '../utils/admins.js';
 import { Dispute, IPropuestaAcuerdo, TipoAcuerdo } from '../models/sql/Dispute.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
@@ -37,7 +38,7 @@ async function avisar(recipientId: string, title: string, message: string, dispu
 }
 
 async function avisarAdmins(title: string, message: string, disputeId: string) {
-  const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner', 'support'] } }, attributes: ['id'] });
+  const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN_O_SOPORTE }, attributes: ['id'] });
   for (const a of admins) {
     await Notification.create({
       recipientId: a.id, type: 'warning', category: 'admin', title, message,

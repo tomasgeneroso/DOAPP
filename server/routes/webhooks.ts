@@ -1,4 +1,5 @@
 import express from 'express';
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Membership } from "../models/sql/Membership.model.js";
@@ -11,18 +12,48 @@ import logger from '../services/logger.js';
 import { MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { Op } from 'sequelize';
 import crypto from 'crypto';
+import { esIdDePagoMp, ESTADOS_YA_PROCESADOS } from '../services/pagoMercadoPago.js';
 
 const router = express.Router();
 
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * ¿El webhook de pagos hace avanzar los pagos (completar, publicar, escrow, revisión de un admin)?
+ *
+ * Hasta ahora NO lo hacía, aunque el código dijera que sí: cada aviso lanzaba un error al buscar el pago
+ * (`WHERE contract_id = undefined`, porque `external_reference` se lee de una metadata donde nunca se
+ * escribe) y el handler lo tragaba. El único camino vivo para dar un pago por cobrado era
+ * POST /payments/capture-order, cuando el comprador vuelve a la página de éxito.
+ *
+ * Arreglar la búsqueda activa un flujo que nunca corrió y que decide distinto: deja el trabajo en
+ * "pendiente de aprobación" y el pago en "pendiente de verificación" de un administrador, en vez de
+ * publicar al instante como capture-order. Es una decisión de producto, no un bug, así que queda detrás
+ * de MP_WEBHOOK_PROCESA_PAGOS=true, apagada por defecto: el comportamiento de hoy no cambia. Mientras esté
+ * apagada el webhook igual verifica la firma y registra lo que informa MercadoPago.
+ */
+function webhookProcesaPagos(): boolean {
+  return process.env.MP_WEBHOOK_PROCESA_PAGOS === 'true';
+}
+
 /**
  * Verifica la firma `x-signature` de MercadoPago (HMAC-SHA256).
- * Si MERCADOPAGO_WEBHOOK_SECRET no está configurado, se omite (no rompe el flujo
- * actual; configurar el secret en el panel de MP activa la verificación).
+ *
+ * Sin MERCADOPAGO_WEBHOOK_SECRET: en producción se RECHAZA (antes se aceptaba todo, y quien conociera la
+ * URL podía mandar avisos de contracargo, fraude o suscripción como si fueran de MercadoPago). Fuera de
+ * producción se acepta, para poder probar en local sin configurarlo. El secreto se saca del panel de
+ * MercadoPago (Webhooks) y se declara en .env.schema como obligatorio.
  * Manifest (doc MP): `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
  */
 function verifyMpSignature(req: express.Request): boolean {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-  if (!secret) return true; // no configurado → no verificar
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('webhooks', 'MERCADOPAGO_WEBHOOK_SECRET no está definido en producción: se rechazan todos los webhooks de MercadoPago hasta que se configure', {});
+      return false;
+    }
+    return true; // desarrollo y tests: sin secreto no se verifica
+  }
 
   const sigHeader = req.headers['x-signature'] as string | undefined;
   const requestId = req.headers['x-request-id'] as string | undefined;
@@ -463,7 +494,7 @@ async function avisarAdmins(
   relatedId: string | null,
 ) {
   const admins = await User.findAll({
-    where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+    where: { ...DONDE_ES_ADMIN },
   });
   for (const admin of admins) {
     await Notification.create({
@@ -484,7 +515,12 @@ async function avisarAdmins(
  */
 async function handlePaymentWebhook(data: any, ip: string) {
   try {
-    const paymentId = data.id;
+    // El id viene en el cuerpo del aviso y termina en la URL que se le pide a MercadoPago: se valida antes.
+    const paymentId = data?.id;
+    if (!esIdDePagoMp(String(paymentId ?? ''))) {
+      logger.warn('webhooks', 'Webhook de pago sin un id de pago válido: se ignora', { data: { dataId: paymentId } });
+      return;
+    }
 
     logger.payment('WEBHOOK_PROCESS', `Processing payment webhook for ID: ${paymentId}`, {
       paymentId: paymentId?.toString()
@@ -510,15 +546,15 @@ async function handlePaymentWebhook(data: any, ip: string) {
       data: { external_reference, amount: transaction_amount, currency: currency_id, ...paymentMethodInfo }
     });
 
-    // Buscar el pago en nuestra base de datos
-    const dbPayment = await Payment.findOne({
-      where: {
-        [Op.or]: [
-          { mercadopagoPaymentId: paymentId?.toString() },
-          { contractId: external_reference },
-        ],
-      },
-    });
+    // Buscar el pago en nuestra base de datos.
+    // Sólo con valores que existan: un `undefined` dentro de un `where` hace que Sequelize lance un error, y
+    // `external_reference` casi nunca viene (se lee de una metadata donde no se escribe). Eso rompía la
+    // búsqueda de TODOS los pagos. Un contractId tiene que ser además un UUID válido.
+    const condiciones: any[] = [{ mercadopagoPaymentId: String(paymentId) }];
+    if (typeof external_reference === 'string' && ES_UUID.test(external_reference)) {
+      condiciones.push({ contractId: external_reference });
+    }
+    const dbPayment = await Payment.findOne({ where: { [Op.or]: condiciones } });
 
     // Si no se encuentra por contractId, buscar por metadata.job_id
     let foundPayment = dbPayment;
@@ -527,10 +563,10 @@ async function handlePaymentWebhook(data: any, ip: string) {
     // mercadopagoPaymentId ni contractId lo encuentran. Por eso su preferencia
     // lleva el id del registro en la metadata: es el único puente disponible
     // antes de que el contrato exista.
-    if (!foundPayment && metadata?.payment_id) {
+    if (!foundPayment && typeof metadata?.payment_id === 'string' && ES_UUID.test(metadata.payment_id)) {
       foundPayment = await Payment.findByPk(metadata.payment_id);
     }
-    if (!foundPayment && metadata?.job_id) {
+    if (!foundPayment && typeof metadata?.job_id === 'string' && ES_UUID.test(metadata.job_id)) {
       const { Job } = await import('../models/sql/Job.model.js');
       const job = await Job.findByPk(metadata.job_id);
       if (job && job.publicationPaymentId) {
@@ -541,6 +577,34 @@ async function handlePaymentWebhook(data: any, ip: string) {
     if (!foundPayment) {
       logger.warn('webhooks', `Payment not found in database: ${paymentId}`, {
         data: { mpPaymentId: paymentId, external_reference }
+      });
+      return;
+    }
+
+    // Apagado por defecto (ver webhookProcesaPagos): se registra lo que informa MercadoPago y se deja que
+    // el pago lo confirme capture-order, que es lo que viene funcionando.
+    if (!webhookProcesaPagos()) {
+      logger.payment('WEBHOOK_IGNORED', 'Webhook de pago recibido: el procesamiento por webhook está apagado (MP_WEBHOOK_PROCESA_PAGOS)', {
+        paymentId: foundPayment.id?.toString(),
+        data: { mpPaymentId: String(paymentId), estadoMp: status, estadoNuestro: foundPayment.status },
+      });
+      return;
+    }
+
+    // Idempotencia. MercadoPago reintenta y a veces repite el mismo aviso: un "aprobado" sobre un pago que
+    // ya se procesó no vuelve a ejecutar nada (publicar, avisar, mover saldos); y un rechazo o cancelación
+    // de OTRO intento de pago no puede pisar uno que ya está cobrado.
+    if ((status === 'approved' || status === 'succeeded') && (ESTADOS_YA_PROCESADOS as readonly string[]).includes(String(foundPayment.status))) {
+      logger.payment('WEBHOOK_DUPLICATE', `Webhook repetido: el pago ya estaba en ${foundPayment.status}`, {
+        paymentId: foundPayment.id?.toString(),
+        data: { mpPaymentId: String(paymentId) },
+      });
+      return;
+    }
+    if ((status === 'rejected' || status === 'cancelled') && !['pending', 'processing'].includes(String(foundPayment.status))) {
+      logger.payment('WEBHOOK_IGNORED', `Se ignora un "${status}" sobre un pago en ${foundPayment.status}`, {
+        paymentId: foundPayment.id?.toString(),
+        data: { mpPaymentId: String(paymentId) },
       });
       return;
     }
@@ -616,7 +680,7 @@ async function handlePaymentWebhook(data: any, ip: string) {
             metadata: { cobradoAlCliente: cobrado, tarifaRealSinIva: realSinIva, tarifaConIva: comisionMp },
           }).catch(() => {});
 
-          const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+          const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
           for (const admin of admins) {
             await Notification.create({
               recipientId: admin.id,
@@ -664,7 +728,7 @@ async function handlePaymentWebhook(data: any, ip: string) {
         });
 
         const admins = await User.findAll({
-          where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+          where: { ...DONDE_ES_ADMIN },
         });
         for (const admin of admins) {
           await Notification.create({
@@ -755,7 +819,7 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       // Plata cobrada sin orden confirmada: eso lo mira una persona, no se
       // resuelve solo.
       const admins = await User.findAll({
-        where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+        where: { ...DONDE_ES_ADMIN },
       });
       for (const admin of admins) {
         await Notification.create({
@@ -807,7 +871,7 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       });
 
       const admins = await User.findAll({
-        where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+        where: { ...DONDE_ES_ADMIN },
       });
       for (const admin of admins) {
         await Notification.create({
@@ -890,7 +954,7 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       // Notificación al admin
       const adminUsers = await User.findAll({
         where: {
-          role: { [Op.in]: ['admin', 'super_admin', 'owner'] }
+          ...DONDE_ES_ADMIN
         }
       });
 
@@ -956,7 +1020,7 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       // Notificación al admin
       const adminUsers = await User.findAll({
         where: {
-          role: { [Op.in]: ['admin', 'super_admin', 'owner'] }
+          ...DONDE_ES_ADMIN
         }
       });
 
@@ -1191,70 +1255,24 @@ async function handleMembershipPayment(userId: string, paymentId: string, status
 }
 
 /**
- * Manejar webhook de suscripción
+ * Webhook de suscripción: hoy NO cambia ningún dato.
+ *
+ * Antes renovaba o cancelaba la membresía del usuario cuyo id venía en `data.external_reference` del
+ * propio cuerpo del aviso, sin verificar firma ni consultar a MercadoPago: un POST anónimo a
+ * /api/webhooks/mercadopago/subscription renovaba (un mes gratis) o cancelaba la membresía de cualquier
+ * usuario. Y no era un flujo real: DOAPP no crea suscripciones de MercadoPago (nada guarda
+ * `mercadopagoSubscriptionId`; la membresía se paga mes a mes como un pago común), así que MercadoPago
+ * nunca mandó un aviso de este tipo.
+ *
+ * Si algún día se usan suscripciones, este handler tiene que (1) exigir firma, (2) consultar la
+ * suscripción a MercadoPago por su id y (3) ubicar al usuario por el `mercadopagoSubscriptionId` que
+ * guardamos nosotros, nunca por lo que diga el cuerpo recibido.
  */
 async function handleSubscriptionWebhook(data: any, action: string, ip: string) {
-  try {
-    logger.webhook('mercadopago', 'subscription', `Processing subscription webhook: ${action}`, {
-      data: { action, subscriptionId: data?.id },
-      ip
-    });
-
-    if (action === 'subscription.authorized' || data?.status === 'authorized') {
-      const userId = data.external_reference;
-      if (userId) {
-        await membershipService.renewMembership(userId);
-
-        const user = await User.findByPk(userId);
-        if (user) {
-          await Notification.create({
-            recipientId: parseInt(userId),
-            type: "success",
-            category: "membership",
-            title: "Membresía renovada",
-            message: "Tu membresía PRO ha sido renovada automáticamente.",
-            sentVia: ["in_app", "email"],
-          });
-        }
-
-        logger.membership('RENEWED', `Membership renewed for user: ${userId}`, {
-          userId,
-          data: { subscriptionId: data?.id }
-        });
-      }
-    } else if (action === 'subscription.cancelled' || data?.status === 'cancelled') {
-      const userId = data.external_reference;
-      if (userId) {
-        const membership = await Membership.findOne({ where: { userId } });
-        if (membership) {
-          membership.status = 'cancelled';
-          membership.cancelledAt = new Date();
-          await membership.save();
-        }
-
-        const user = await User.findByPk(userId);
-        if (user) {
-          await Notification.create({
-            recipientId: parseInt(userId),
-            type: "info",
-            category: "membership",
-            title: "Membresía cancelada",
-            message: "Tu membresía PRO ha sido cancelada. Seguirás teniendo acceso hasta el fin del período actual.",
-            sentVia: ["in_app", "email"],
-          });
-        }
-
-        logger.membership('CANCELLED', `Membership cancelled for user: ${userId}`, {
-          userId,
-          data: { subscriptionId: data?.id }
-        });
-      }
-    }
-  } catch (error: any) {
-    logger.error('webhooks', `Error handling subscription webhook: ${error.message}`, {
-      data: { error: error.message, action }
-    });
-  }
+  logger.webhook('mercadopago', 'subscription', `Aviso de suscripción ignorado (no se usan suscripciones de MercadoPago): ${action}`, {
+    data: { action, subscriptionId: data?.id },
+    ip
+  });
 }
 
 /**
@@ -1263,7 +1281,7 @@ async function handleSubscriptionWebhook(data: any, action: string, ip: string) 
  */
 router.post('/mercadopago/subscription', async (req, res) => {
   try {
-    const { type, data, action } = req.body;
+    const { type, data, action } = req.body ?? {};
     const ip = req.ip || (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for'] as string) || 'unknown';
 
     logger.webhook('mercadopago', 'subscription', 'Subscription webhook received (legacy)', {
@@ -1271,15 +1289,21 @@ router.post('/mercadopago/subscription', async (req, res) => {
       ip: ip as string
     });
 
-    res.status(200).send('OK');
+    // Antes esta ruta no verificaba la firma: cualquiera podía llamarla.
+    if (!verifyMpSignature(req)) {
+      logger.webhook('mercadopago', 'invalid_signature', 'Subscription webhook signature verification failed', { ip: ip as string });
+      res.status(401).send('invalid signature');
+      return;
+    }
 
-    // Procesar usando el handler unificado
+    res.status(200).send('OK');
     await handleSubscriptionWebhook(data, action || type, ip as string);
   } catch (error: any) {
     logger.error('webhooks', `Error processing subscription webhook: ${error.message}`, {
       data: { error: error.message }
     });
-    res.status(500).send('Error processing webhook');
+    // Si ya se respondió 200, responder de nuevo lanza "headers already sent".
+    if (!res.headersSent) res.status(500).send('Error processing webhook');
   }
 });
 

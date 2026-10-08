@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
@@ -2264,7 +2265,7 @@ router.post("/:id/emergencia", protect, async (req: AuthRequest, res: Response):
     const { Notification } = await import('../models/sql/Notification.model.js');
     const otraParte = await User.findByPk(esCliente ? contract.doerId : contract.clientId, { attributes: ['id', 'name', 'phone'] });
     const quienUser = await User.findByPk(userId, { attributes: ['id', 'name', 'phone'] });
-    const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } }, attributes: ['id', 'email'] });
+    const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN }, attributes: ['id', 'email'] });
 
     const resumen =
       `🚨 EMERGENCIA — ${quienUser?.name || quien} (${quien}) en "${job?.title || 'contrato'}". ` +

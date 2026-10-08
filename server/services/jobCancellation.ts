@@ -1,4 +1,5 @@
 import { Job } from '../models/sql/Job.model.js';
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { User } from '../models/sql/User.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
@@ -308,7 +309,7 @@ export async function liquidarCancelacionDePublicacion(
   if (errores.length > 0) {
     try {
       const { Op } = await import('sequelize');
-      const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+      const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
       for (const admin of admins) {
         await Notification.create({
           recipientId: admin.id,

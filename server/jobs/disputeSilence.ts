@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { DONDE_ES_ADMIN_O_SOPORTE } from '../utils/admins.js';
 import { Dispute } from '../models/sql/Dispute.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
@@ -139,7 +140,7 @@ export async function revisarSilencioEnDisputas(): Promise<{ avisadas: number; r
         } as any);
 
         const admins = await User.findAll({
-          where: { role: { [Op.in]: ['admin', 'super_admin', 'owner', 'support'] } },
+          where: { ...DONDE_ES_ADMIN_O_SOPORTE },
           attributes: ['id'],
         });
         for (const a of admins) {

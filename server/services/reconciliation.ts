@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { logger } from './logger.js';
@@ -227,7 +228,7 @@ export async function conciliarYRegistrar(motivo: string, horas = 48): Promise<R
   const { User } = await import('../models/sql/User.model.js');
   const { Notification } = await import('../models/sql/Notification.model.js');
   const admins = await User.findAll({
-    where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+    where: { ...DONDE_ES_ADMIN },
   });
 
   const resumen = r.discrepancias.slice(0, 3).map((d) => d.detalle).join(' | ');

@@ -1,4 +1,5 @@
 import { getEffectiveTier } from '../services/platformPhase.js';
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
@@ -2642,7 +2643,7 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       await job.save();
       cacheService.delPattern('jobs:*');
 
-      const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } }, attributes: ['id'] });
+      const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN }, attributes: ['id'] });
       for (const a of admins) {
         await Notification.create({
           recipientId: a.id,
