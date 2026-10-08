@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -157,6 +158,13 @@ const ContactPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <Helmet>
+        <title>{t('contact.metaTitle', 'Contacto - DOAPP')}</title>
+        <meta
+          name="description"
+          content={t('contact.metaDescription', 'Escribinos por consultas generales, soporte o publicidad en DOAPP.')}
+        />
+      </Helmet>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { usePermissions } from "../hooks/usePermissions";
 import {
@@ -155,6 +156,13 @@ export default function HelpPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
+      <Helmet>
+        <title>{t('help.metaTitle', 'Centro de Ayuda - DOAPP')}</title>
+        <meta
+          name="description"
+          content={t('help.metaDescription', 'Resolvé tus dudas, abrí un ticket de soporte o iniciá una disputa por un contrato en DOAPP.')}
+        />
+      </Helmet>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">

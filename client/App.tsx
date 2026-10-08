@@ -3,6 +3,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
+import { SeoDeRuta } from "./components/SeoDeRuta";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import FirstContractGuide from "./components/FirstContractGuide";
@@ -153,6 +154,7 @@ export default function App() {
             */}
             <BrowserRouter>
               <GoogleAnalytics />
+              <SeoDeRuta />
               <OnboardingProvider>
                 <OnboardingTooltip />
                 <FirstContractGuide />

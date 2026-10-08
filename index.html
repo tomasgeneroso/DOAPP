@@ -11,9 +11,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=5" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico?v=5" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.svg?v=5" />
-    <link rel="canonical" href="https://doapparg.com/" />
+    <!--
+      Sin la etiqueta canonical ni la de robots fijas acá: este archivo se le entrega a TODAS
+      las rutas, y una canónica fija apuntaba todo a la home. Las pone cada ruta con <SeoDeRuta />
+      (client/components/SeoDeRuta.tsx) según shared/seo/indexacion.ts.
+    -->
     <meta name="theme-color" content="#0ea5e9" />
-    <meta name="robots" content="index, follow" />
     <meta name="geo.region" content="AR" />
     <meta name="geo.placename" content="Argentina" />
 
@@ -99,12 +102,7 @@
       "name": "DoApp",
       "alternateName": ["DoApp Argentina", "DoApp AR", "doapparg"],
       "url": "https://doapparg.com/",
-      "description": "Plataforma freelance argentina con pagos seguros mediante escrow. Publicá trabajos o encontrá oportunidades.",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://doapparg.com/?search={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
+      "description": "Plataforma freelance argentina con pagos seguros mediante escrow. Publicá trabajos o encontrá oportunidades."
     }
     </script>
 
