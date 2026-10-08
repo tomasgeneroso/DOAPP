@@ -1,23 +1,22 @@
 /**
  * Commission Service
  *
- * Sistema de comisiones:
+ * Sistema de comisiones.
  *
- * 1. USUARIOS FREE:
- *    - 8% comisión fija
- *    - Contratos gratuitos (primeros 1000 usuarios): 0% comisión
+ * La comisión es UNA sola para todos los planes (`COMMISSION_RATES`, en
+ * shared/constants/membershipPricing.ts), a cargo del cliente. La membresía PRO
+ * (un solo plan pago, `MEMBERSHIP_PRICES_EUR.pro`) da visibilidad y NO la modifica.
+ * Este comentario tenía la tabla vieja (8% / 3% / 1%, PRO $4,999, SUPER PRO $8,999)
+ * y un mínimo de $1,000: nada de eso se cobra. Los números viven en las constantes.
  *
- * 2. USUARIOS PRO ($4,999 ARS/mes):
- *    - 3% comisión fija (3 contratos mensuales)
+ * Excepciones, en el orden en que se evalúan:
+ * - Beta: 0% para todos, hasta la fecha de cierre (`isBetaPhase`).
+ * - Plan Familia: 0%.
+ * - Contrato gratuito (`isFreeContract`, o FREE con `freeContractsRemaining`): 0%.
  *
- * 3. USUARIOS SUPER PRO ($8,999 ARS/mes):
- *    - 1% comisión fija (3 contratos mensuales)
- *
- * Excepciones:
- * - Plan Familia: 0% comisión
- * - Contratos gratuitos: 0% comisión
- *
- * Mínimo de comisión: $1,000 ARS
+ * Piso de la comisión: `MINIMUM_COMMISSION_EUR`, convertido a pesos con la cotización de
+ * respaldo (`MINIMUM_COMMISSION_ARS`). Los Términos (7.4) prometen el cambio del día y el
+ * código todavía no lo cumple del todo: es una diferencia pendiente, no un dato resuelto.
  */
 
 import { Op } from 'sequelize';
@@ -39,6 +38,13 @@ const FREE_COMMISSION_RATE = COMMISSION_RATES.free;
 const PRO_COMMISSION_RATE = COMMISSION_RATES.pro;
 const SUPER_PRO_COMMISSION_RATE = COMMISSION_RATES.super_pro;
 const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
+
+/**
+ * Cómo se le describe la comisión al usuario (`tierDescription`, que llega a la
+ * pantalla de pago). Salía escrita a mano —'FREE (8% fijo)', 'PRO (3% fijo)',
+ * 'SUPER PRO (1% fijo)'— mientras se cobraba el 10%, y se le mostraba a la gente.
+ */
+const describirTasa = (rate: number) => `Comisión del ${rate}%`;
 
 /**
  * IVA on DOAPP's own fee.
@@ -70,7 +76,7 @@ export interface CommissionResult {
   tierDescription: string;        // Descripción del tier actual
   isFamilyPlan: boolean;          // Si tiene plan familia
   isFreeContract: boolean;        // Si es contrato gratuito
-  minimumApplied: boolean;        // Si se aplicó el mínimo de $1,000
+  minimumApplied: boolean;        // Si se aplicó el piso de la comisión (MINIMUM_COMMISSION_EUR)
   vatRate: number;                // Alícuota de IVA aplicada a la comisión
   vat: number;                    // IVA sobre la comisión
   totalFee: number;               // Lo que cobra la plataforma: comisión + IVA
@@ -126,12 +132,12 @@ export async function getUserMonthlyVolume(userId: string): Promise<number> {
 }
 
 /**
- * Get the commission rate for free users (flat 8%)
+ * Get the commission rate (flat, the same for every plan)
  */
 export function getCommissionRateByVolume(_monthlyVolume: number): { rate: number; tierDescription: string } {
   // El porcentaje sale de la constante, no del texto: decia 8% mientras el
   // codigo cobraba 10%, y ese texto se le muestra al usuario.
-  return { rate: FREE_COMMISSION_RATE, tierDescription: `FREE (${FREE_COMMISSION_RATE}% fijo)` };
+  return { rate: FREE_COMMISSION_RATE, tierDescription: describirTasa(FREE_COMMISSION_RATE) };
 }
 
 /**
@@ -184,7 +190,7 @@ async function computeCommissionBase(
   // 0. Beta phase = no commission for anybody.
   //
   // Checked before anything else, including the user lookup: during the beta
-  // the plan is irrelevant, and the "user not found" path below defaults to 8%,
+  // the plan is irrelevant, and the "user not found" path below defaults to the flat rate,
   // which would silently charge a commission the platform has publicly said it
   // is not charging. This is the single funnel every caller goes through
   // (contracts, jobs, admin, price changes), so one branch covers all of them.
@@ -211,7 +217,7 @@ async function computeCommissionBase(
       rate: FREE_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
-      tierDescription: 'FREE (8% fijo)',
+      tierDescription: describirTasa(FREE_COMMISSION_RATE),
       isFamilyPlan: false,
       isFreeContract: false,
       minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
@@ -248,7 +254,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 3. PRO membership = 3% fixed commission
+  // 3. PRO membership: la misma tasa (la membresía no modifica la comisión)
   if (membershipType === 'pro') {
     const calculatedCommission = contractPrice * (PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -256,14 +262,14 @@ async function computeCommissionBase(
       rate: PRO_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
-      tierDescription: 'PRO (3% fijo)',
+      tierDescription: describirTasa(PRO_COMMISSION_RATE),
       isFamilyPlan: false,
       isFreeContract: false,
       minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
     };
   }
 
-  // 4. SUPER PRO membership = 1% fixed commission
+  // 4. SUPER PRO (cuentas heredadas; ya no se vende): la misma tasa
   if (membershipType === 'super_pro') {
     const calculatedCommission = contractPrice * (SUPER_PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -271,7 +277,7 @@ async function computeCommissionBase(
       rate: SUPER_PRO_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
-      tierDescription: 'SUPER PRO (1% fijo)',
+      tierDescription: describirTasa(SUPER_PRO_COMMISSION_RATE),
       isFamilyPlan: false,
       isFreeContract: false,
       minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
@@ -292,7 +298,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 6. FREE user WITHOUT available contracts = flat 8% commission
+  // 6. FREE user WITHOUT available contracts: la tasa fija
   const monthlyVolume = options.currentVolume ?? await getUserMonthlyVolume(userId);
   const calculatedCommission = contractPrice * (FREE_COMMISSION_RATE / 100);
   const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -302,7 +308,7 @@ async function computeCommissionBase(
     rate: FREE_COMMISSION_RATE,
     commission,
     monthlyVolume,
-    tierDescription: 'FREE (8% fijo)',
+    tierDescription: describirTasa(FREE_COMMISSION_RATE),
     isFamilyPlan: false,
     isFreeContract: false,
     minimumApplied,
@@ -332,11 +338,14 @@ export async function getUserCommissionRate(userId: string): Promise<{
   const membershipType = user?.membershipTier || 'free';
   const monthlyVolume = await getUserMonthlyVolume(userId);
 
+  // `nextTier` es siempre null: subir de plan NO baja la comisión (la membresía da
+  // visibilidad). Sugerir "pasate a PRO" o "a SUPER PRO" con una tasa menor era
+  // mostrar un ahorro que no existe. Nadie consume este campo hoy.
   if (membershipType === 'super_pro') {
     return {
       rate: SUPER_PRO_COMMISSION_RATE,
       monthlyVolume,
-      tierDescription: 'SUPER PRO (1% fijo)',
+      tierDescription: describirTasa(SUPER_PRO_COMMISSION_RATE),
       nextTier: null,
     };
   }
@@ -345,8 +354,8 @@ export async function getUserCommissionRate(userId: string): Promise<{
     return {
       rate: PRO_COMMISSION_RATE,
       monthlyVolume,
-      tierDescription: 'PRO (3% fijo)',
-      nextTier: { volume: 0, rate: SUPER_PRO_COMMISSION_RATE }, // Suggest SUPER PRO
+      tierDescription: describirTasa(PRO_COMMISSION_RATE),
+      nextTier: null,
     };
   }
 
@@ -354,8 +363,8 @@ export async function getUserCommissionRate(userId: string): Promise<{
   return {
     rate: FREE_COMMISSION_RATE,
     monthlyVolume,
-    tierDescription: 'FREE (8% fijo)',
-    nextTier: { volume: 0, rate: PRO_COMMISSION_RATE }, // Suggest PRO
+    tierDescription: describirTasa(FREE_COMMISSION_RATE),
+    nextTier: null,
   };
 }
 

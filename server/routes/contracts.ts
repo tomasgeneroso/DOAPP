@@ -964,7 +964,7 @@ router.post(
 
       const { job: jobId, doer: doerId, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
 
-      // Validar monto mínimo de $8,000 ARS
+      // Validar el monto mínimo de contrato (MINIMUM_CONTRACT_AMOUNT)
       if (price < MINIMUM_CONTRACT_AMOUNT) {
         res.status(400).json({
           success: false,
@@ -1013,9 +1013,11 @@ router.post(
         await client.save();
       }
 
-      // Calcular comisión basada en el plan del usuario
-      // FREE: 8% | PRO: 3% | SUPER PRO: 1% | Plan Familia: 0%
-      // Mínimo de comisión: $1,000 ARS
+      // Calcular la comisión: la misma tasa para todos los planes (COMMISSION_RATES),
+      // 0% en la beta, con Plan Familia y contratos gratuitos como excepciones. El piso es
+      // MINIMUM_COMMISSION_EUR convertido con la cotización de respaldo
+      // (MINIMUM_COMMISSION_ARS): los Términos (7.4) prometen el cambio del día y el código
+      // todavía no lo hace.
       const commissionResult = await calculateCommission(req.user.id, price, {
         isFreeContract,
       });
@@ -3273,6 +3275,11 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
 
     // Update contract price
     contract.price = newPrice;
+    // OJO, pendiente de decisión del dueño (ver el informe): esta ruta usa la tasa
+    // GUARDADA en la cuenta (`currentCommissionRate`, que en las cuentas existentes quedó
+    // con la del plan viejo: 8, 3 o 1) y sólo cobra la DIFERENCIA de precio, no la comisión
+    // sobre esa diferencia, a diferencia de las otras rutas de este archivo. Cambiar sólo
+    // el valor de `commission` sin cobrarlo dejaría un ingreso contable que nadie pagó.
     contract.commission = newPrice * (client.currentCommissionRate / 100);
     contract.totalPrice = newPrice + contract.commission;
 

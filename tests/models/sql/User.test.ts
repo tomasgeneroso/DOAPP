@@ -5,6 +5,7 @@
 import { describe, it, test, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
 import { User } from '../../../server/models/sql/User.model.js';
 import { sequelize } from '../../../server/config/database.js';
+import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
 
 describe('User Model', () => {
   afterEach(async () => {
@@ -255,6 +256,10 @@ describe('User Model', () => {
       });
     });
 
+    it('a new user starts at the standard rate, not at the old 8%', () => {
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(COMMISSION_RATES.free);
+    });
+
     it('should activate PRO membership', async () => {
       const startDate = new Date();
       const endDate = new Date();
@@ -264,7 +269,8 @@ describe('User Model', () => {
 
       expect(user.hasMembership).toBe(true);
       expect(user.membershipTier).toBe('pro');
-      expect(parseFloat(user.currentCommissionRate as any)).toBe(3.0);
+      // La membresía no modifica la comisión: la tasa sale de COMMISSION_RATES.
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(COMMISSION_RATES.pro);
     });
 
     it('should activate SUPER_PRO membership', async () => {
@@ -276,7 +282,8 @@ describe('User Model', () => {
 
       expect(user.hasMembership).toBe(true);
       expect(user.membershipTier).toBe('super_pro');
-      expect(parseFloat(user.currentCommissionRate as any)).toBe(1.0); // SUPER PRO = 1% (CLAUDE.md)
+      // SUPER_PRO es sólo un identificador interno: tampoco modifica la comisión.
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(COMMISSION_RATES.super_pro);
     });
 
     it('should deactivate membership', async () => {
@@ -287,7 +294,7 @@ describe('User Model', () => {
 
       expect(user.hasMembership).toBe(false);
       expect(user.membershipTier).toBeUndefined();
-      expect(parseFloat(user.currentCommissionRate as any)).toBe(8.0);
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(COMMISSION_RATES.free);
     });
 
     it('should check if membership is active', () => {

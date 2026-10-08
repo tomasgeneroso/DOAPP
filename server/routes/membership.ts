@@ -7,17 +7,34 @@ import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "
 import { areMembershipsAvailable } from "../services/platformPhase.js";
 import { body, validationResult } from "express-validator";
 
-// Membresías cotizadas en EUROS y cobradas en ARS al cambio del día.
-// El importe en pesos cambia entre meses; el precio en euros no.
+// Una sola membresía paga: PRO mensual, cotizada en EUROS y cobrada en ARS al
+// cambio del día. El importe en pesos cambia entre meses; el precio en euros no.
+// SUPER PRO ya no se vende ni se muestra: 'super_pro' sobrevive sólo como
+// identificador interno (enum de base, tipos, tier efectivo durante la beta).
 const PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.pro;
-// SUPER PRO ya no se vende. El precio queda para poder mostrarle el importe a
-// una cuenta que todavia lo tiene activo; nadie nuevo lo puede contratar.
-const SUPER_PRO_PRICE_EUR = 8;
 async function getProPriceARS(): Promise<number> {
   return Math.round(await currencyExchange.convertEURtoARS(PRO_PRICE_EUR));
 }
-async function getSuperProPriceARS(): Promise<number> {
-  return Math.round(await currencyExchange.convertEURtoARS(SUPER_PRO_PRICE_EUR));
+
+/** Por qué no se puede comprar hoy. Es lo que dicen los Términos (8.1). */
+const MOTIVO_MEMBRESIAS_NO_DISPONIBLES =
+  'Durante el período de lanzamiento (beta) la membresía no está a la venta. Se habilita cuando termine.';
+
+/**
+ * Guard de venta: toda ruta que cobra o arranca una membresía pasa por acá.
+ *
+ * Antes sólo GET /pricing miraba areMembershipsAvailable(); las rutas que
+ * cobraban no, así que durante la beta se podía comprar igual con sólo saltarse
+ * la pantalla. Devuelve true si se puede seguir; si no, ya respondió 403.
+ */
+async function membresiasEnVenta(res: Response): Promise<boolean> {
+  if (await areMembershipsAvailable()) return true;
+  res.status(403).json({
+    success: false,
+    code: 'MEMBERSHIPS_NOT_AVAILABLE',
+    message: MOTIVO_MEMBRESIAS_NO_DISPONIBLES,
+  });
+  return false;
 }
 
 const router = Router();
@@ -60,6 +77,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
  */
 router.post("/create", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!(await membresiasEnVenta(res))) return;
     const userId = req.user.id || req.user.id?.toString();
 
     const result = await membershipService.createMembership(userId);
@@ -157,10 +175,8 @@ router.post(
 router.get("/pricing", async (req, res) => {
   try {
     const proPriceARS = await getProPriceARS();
-    const superProPriceARS = await getSuperProPriceARS();
-    // Durante la beta los planes no se ofrecen: la comision es 0% y un plan
-    // que promete bajarla no le sirve a nadie. Se activan solos al pasar a
-    // la fase estable.
+    // Durante la beta la membresía no está a la venta (Términos 8.1). Se
+    // habilita sola al pasar a la fase estable.
     const disponibles = await areMembershipsAvailable();
 
     /**
@@ -180,7 +196,7 @@ router.get("/pricing", async (req, res) => {
       cotizacion,
       unavailableReason: disponibles
         ? null
-        : 'Durante la beta no cobramos comisión, así que los planes no están a la venta. Se habilitan cuando termine.',
+        : MOTIVO_MEMBRESIAS_NO_DISPONIBLES,
       pricing: {
         free: {
           name: 'Free',
@@ -211,28 +227,12 @@ router.get("/pricing", async (req, res) => {
             'Cancelás cuando quieras',
           ],
         },
-        // Ya no se vende. Se sigue informando para las cuentas que lo tienen
-        // activo, marcado para que la pantalla no lo ofrezca.
-        superPro: {
-          discontinued: true,
-          name: 'SUPER PRO',
-          price: superProPriceARS,
-          priceARS: superProPriceARS,
-          priceEUR: SUPER_PRO_PRICE_EUR,
-          currency: 'ARS',
-          commissionRate: COMMISSION_RATES.super_pro,
-          benefits: [
-            'Todos los beneficios de PRO',
-            '2 publicaciones mensuales sin comisión',
-            'Estadísticas avanzadas de perfil',
-            'Analytics de visitas y conversaciones',
-            'Insights de contratos completados',
-            'Reportes mensuales detallados',
-            'Analytics de engagement',
-            'Análisis de actividad por tiempo',
-            'Dashboard exclusivo con métricas',
-          ],
-        },
+        // SÓLO COMPATIBILIDAD. Las apps móviles publicadas antes de que SUPER PRO dejara de
+        // venderse leen `pricing.superPro.priceARS` sin `?.` y se rompen al abrir la
+        // pantalla Membresía si falta. Va sin precio ni beneficios y marcado como
+        // discontinuado; las versiones nuevas no lo leen. Se puede quitar cuando ya no
+        // circulen esas versiones.
+        superPro: { discontinued: true, name: 'PRO', price: null, priceARS: null, benefits: [] },
       },
     });
   } catch (error: any) {
@@ -251,6 +251,7 @@ router.get("/pricing", async (req, res) => {
  */
 router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!(await membresiasEnVenta(res))) return;
     const userId = req.user.id || req.user.id?.toString();
     const { User } = await import('../models/sql/User.model.js');
 
@@ -275,7 +276,7 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
     // ========================================
     // Crear preferencia de pago con MercadoPago
     // ========================================
-    const finalPrice = await getProPriceARS(); // 6 USD al dólar blue, cobrado en ARS
+    const finalPrice = await getProPriceARS(); // PRO en euros, cobrado en ARS al cambio del día
 
     const mercadopagoService = (await import('../services/mercadopago.js')).default;
 
@@ -356,15 +357,22 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
 router.post("/create-payment", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id || req.user.id?.toString();
-    const { plan } = req.body; // 'monthly', 'quarterly', or 'super_pro'
+    const plan = req.body?.plan; // hoy sólo 'monthly'
 
-    if (!plan || !['monthly', 'quarterly', 'super_pro'].includes(plan)) {
+    // Una sola membresía paga: PRO mensual (Términos 8.1). El trimestral (PRO x3
+    // con 11% de descuento) y SUPER PRO (con upgrade prorrateado) dejaron de
+    // venderse. Se valida ANTES de mirar la fase para que un plan inexistente dé
+    // siempre el mismo 400, sin depender del reloj ni de la configuración.
+    if (plan !== 'monthly') {
       res.status(400).json({
         success: false,
-        message: "Plan inválido. Debe ser 'monthly', 'quarterly' o 'super_pro'",
+        message: "Plan inválido. Hoy hay un solo plan pago: PRO mensual ('monthly').",
       });
       return;
     }
+
+    // Durante la beta la membresía no está a la venta (Términos 8.1).
+    if (!(await membresiasEnVenta(res))) return;
 
     const { User } = await import('../models/sql/User.model.js');
     const user = await User.findByPk(userId);
@@ -377,96 +385,22 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       return;
     }
 
-    // Verificar si es un upgrade válido
-    const isUpgrade = user.membershipTier === 'pro' && user.hasMembership && plan === 'super_pro';
-
-    if (user.membershipTier === 'pro' && user.hasMembership) {
-      // Permitir upgrade a SUPER PRO
-      if (plan !== 'super_pro') {
-        res.status(400).json({
-          success: false,
-          message: "Ya tienes una membresía PRO activa",
-        });
-        return;
-      }
-    }
-
-    // Verificar si ya tiene SUPER PRO
-    if (user.membershipTier === 'super_pro' && user.hasMembership) {
+    // Quien ya tiene una membresía activa no compra otra. 'super_pro' es el nivel
+    // heredado de las cuentas que lo tenían: tampoco se le vende nada encima.
+    if ((user.membershipTier === 'pro' || user.membershipTier === 'super_pro') && user.hasMembership) {
       res.status(400).json({
         success: false,
-        message: "Ya tienes la membresía SUPER PRO activa",
+        message: "Ya tienes una membresía activa",
       });
       return;
     }
 
     // ========================================
-    // PRO: 6 USD / SUPER PRO: 8 USD, al dólar blue del día (cobrado en ARS).
+    // PRO en euros (MEMBERSHIP_PRICES_EUR.pro), cobrado en ARS al cambio del día.
     // ========================================
-    const proPriceARS = await getProPriceARS();
-    const superProPriceARS = await getSuperProPriceARS();
-
-    let finalPrice = proPriceARS;
-    let description = 'Membresía DOAPP PRO - Mensual';
-    let membershipPlan = 'PRO'; // 'PRO' or 'SUPER_PRO'
-
-    if (plan === 'quarterly') {
-      finalPrice = Math.round(proPriceARS * 3 * 0.89); // 11% descuento
-      description = 'Membresía DOAPP PRO - Trimestral (ahorra 11%)';
-      membershipPlan = 'PRO';
-    } else if (plan === 'super_pro') {
-      // Calcular diferencia de precio si es upgrade
-      if (isUpgrade) {
-        // Obtener membresía actual para calcular días restantes
-        const { Membership } = await import('../models/sql/Membership.model.js');
-        const currentMembership = await Membership.findOne({ where: { userId, status: 'active' } });
-
-        if (currentMembership && currentMembership.endDate) {
-          const now = new Date();
-          const endDate = new Date(currentMembership.endDate);
-          const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (daysRemaining > 0) {
-            // Calcular valor proporcional del plan PRO restante
-            const proDailyRate = proPriceARS / 30;
-            const proValueRemaining = proDailyRate * daysRemaining;
-
-            // Calcular valor proporcional del plan SUPER PRO por los días restantes
-            const superProDailyRate = superProPriceARS / 30;
-            const superProValueForRemainingDays = superProDailyRate * daysRemaining;
-
-            // Diferencia a pagar
-            const priceDifference = superProValueForRemainingDays - proValueRemaining;
-
-            finalPrice = Math.round(Math.max(priceDifference, 100)); // Mínimo 100 ARS
-            description = `Upgrade a SUPER PRO (${daysRemaining} días restantes - diferencia prorrateada)`;
-
-            console.log('💰 Cálculo de upgrade:', {
-              daysRemaining,
-              proDailyRate: proDailyRate.toFixed(2),
-              proValueRemaining: proValueRemaining.toFixed(2),
-              superProDailyRate: superProDailyRate.toFixed(2),
-              superProValueForRemainingDays: superProValueForRemainingDays.toFixed(2),
-              priceDifference: priceDifference.toFixed(2),
-              finalPrice
-            });
-          } else {
-            // Membresía ya expiró, cobrar precio completo
-            finalPrice = Math.round(superProPriceARS);
-            description = 'Membresía DOAPP SUPER PRO - Mensual';
-          }
-        } else {
-          // No se encontró membresía activa, cobrar precio completo
-          finalPrice = Math.round(superProPriceARS);
-          description = 'Membresía DOAPP SUPER PRO - Mensual';
-        }
-      } else {
-        // No es upgrade, cobrar precio completo
-        finalPrice = Math.round(superProPriceARS);
-        description = 'Membresía DOAPP SUPER PRO - Mensual';
-      }
-      membershipPlan = 'SUPER_PRO';
-    }
+    const finalPrice = await getProPriceARS();
+    const description = 'Membresía DOAPP PRO - Mensual';
+    const membershipPlan = 'PRO';
 
     console.log('💳 Creando preferencia de pago MercadoPago:', { plan, finalPrice, description });
 
@@ -608,7 +542,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     if ((user.membershipTier !== 'pro' && user.membershipTier !== 'super_pro') || !user.hasMembership) {
       res.status(403).json({
         success: false,
-        message: "Esta función solo está disponible para miembros PRO y SUPER PRO",
+        message: "Esta función solo está disponible para miembros con una membresía activa",
       });
       return;
     }
@@ -640,18 +574,20 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 
 /**
  * GET /api/membership/analytics
- * Panel financiero/fiscal exclusivo de miembros SUPER PRO (adaptado a Argentina).
+ * Panel financiero/fiscal del nivel interno 'super_pro' (adaptado a Argentina).
+ * Ese nivel ya no se vende: durante la beta lo tienen todos (getEffectiveTier) y
+ * después sólo las cuentas heredadas y el owner.
  * Agrega la facturación del usuario como trabajador (contratos completados como `doer`).
  * Query: ?year=YYYY (default año actual), ?limit=<tope anual monotributo> (opcional).
  */
 router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Gating: solo SUPER PRO
+    // Gating: nivel interno 'super_pro' (el código 'SUPER_PRO_REQUIRED' lo leen los clientes)
     if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
       res.status(403).json({
         success: false,
         code: 'SUPER_PRO_REQUIRED',
-        message: 'El panel financiero es exclusivo de miembros SUPER PRO',
+        message: 'El panel financiero no está disponible para tu plan actual',
       });
       return;
     }
@@ -983,12 +919,12 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
 
 /**
  * GET /api/membership/analytics/export.csv?year=YYYY
- * Exporta la facturación del año como CSV (para el contador). Solo SUPER PRO.
+ * Exporta la facturación del año como CSV (para el contador). Nivel interno 'super_pro'.
  */
 router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
-      res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
+      res.status(403).json({ success: false, message: 'La exportación no está disponible para tu plan actual' });
       return;
     }
     const userId = req.user.id || req.user.id?.toString();
@@ -1047,12 +983,12 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
 
 /**
  * GET /api/membership/analytics/export.pdf?year=YYYY
- * Resumen anual de facturación en PDF (para el contador). Solo SUPER PRO.
+ * Resumen anual de facturación en PDF (para el contador). Nivel interno 'super_pro'.
  */
 router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
-      res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
+      res.status(403).json({ success: false, message: 'La exportación no está disponible para tu plan actual' });
       return;
     }
     const userId = req.user.id || req.user.id?.toString();

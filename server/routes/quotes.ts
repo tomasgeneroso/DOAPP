@@ -12,6 +12,7 @@ import { protect } from '../middleware/auth.js';
 import { generateQuotePDF } from '../services/pdfGenerator.js';
 import { getIO } from '../services/socket.js';
 import { calculateCommission } from '../services/commissionService.js';
+import { splitFees } from '../../shared/pricing/processingCost.js';
 import * as socketService from '../services/socket.js';
 import type { AuthRequest } from '../types/index.js';
 
@@ -502,7 +503,7 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
   }
 });
 
-// POST /api/quotes/:id/pay – recipient pays the quote (no-job flow: total + 8% commission)
+// POST /api/quotes/:id/pay – recipient pays the quote (no-job flow: total + comisión + procesamiento + IVA)
 router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const quote = await Quote.findByPk(req.params.id, {
@@ -529,11 +530,16 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Calculate 8% platform commission on the quote total
+    // La misma cuenta que el resto de los cobros (calculateCommission + splitFees).
+    // Acá estaba escrita a mano: 8% con piso de $1.000, sin IVA ni costo de
+    // procesamiento y sin respetar la beta, así que cobraba una tasa que no es la
+    // vigente (10%, piso EUR 2 en pesos con la cotización de respaldo) y un total que no
+    // coincidía con el de los demás flujos.
     const baseAmount = Number(quote.total);
-    const commissionRate = 0.08;
-    const commission = Math.max(baseAmount * commissionRate, 1000); // min $1000 ARS
-    const totalWithCommission = baseAmount + commission;
+    const c = await calculateCommission(userId, baseAmount);
+    const split = splitFees(baseAmount, c.commission, c.vat);
+    const commission = c.commission;
+    const totalWithCommission = split.clientPays;
 
     // El registro va primero: su id viaja en la metadata de la preferencia y es
     // lo que le permite al webhook encontrarlo.
@@ -548,7 +554,7 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
       paymentType: 'quote_payment',
       description: `Cotización: ${quote.title}`,
       platformFee: commission,
-      platformFeePercentage: commissionRate * 100,
+      platformFeePercentage: c.rate,
       isEscrow: false,
     } as any);
 
@@ -584,6 +590,10 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
       preferenceId: orden.providerPaymentId,
       totalWithCommission,
       commission,
+      commissionRate: c.rate,
+      vat: c.vat,
+      processingCharge: split.processingCharge,
+      processingVat: split.processingVat,
       baseAmount,
     });
   } catch (error: any) {

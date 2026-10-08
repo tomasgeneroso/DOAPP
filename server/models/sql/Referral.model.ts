@@ -21,7 +21,8 @@ import { User } from './User.model.js';
  * Beneficios del referidor (quien refiere):
  * - 1er referido completa contrato: 2 contratos gratis
  * - 2do referido completa contrato: 1 contrato gratis
- * - 3er referido completa contrato: 3% comisión permanente
+ * - 3er referido completa contrato: descuento de comisión por 1 mes, no permanente
+ *   (lo otorga referralService.grantReferrerReward; el valor lo define esa lógica)
  * - Máximo 3 referidos por usuario
  *
  * Beneficios del referido:

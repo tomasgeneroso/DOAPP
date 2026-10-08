@@ -1,5 +1,5 @@
 import { Membership } from "../models/sql/Membership.model.js";
-import { MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
+import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
 import { User } from "../models/sql/User.model.js";
 import currencyExchange from './currencyExchange.js';
 import { Op } from 'sequelize';
@@ -86,7 +86,7 @@ class MembershipService {
         user.membershipTier = 'pro';
         user.hasMembership = true;
         user.isPremiumVerified = false; // Activar después de KYC
-        user.currentCommissionRate = 3; // 3% para PRO
+        user.currentCommissionRate = COMMISSION_RATES.pro; // la membresía no modifica la comisión
         await user.save();
         console.log('✅ Usuario actualizado a PRO:', user.email);
       }
@@ -101,6 +101,9 @@ class MembershipService {
   /**
    * Usar un contrato con la membresía
    * Retorna si es gratis y qué porcentaje de comisión aplicar
+   *
+   * Sin llamadores hoy: la comisión que se cobra sale de
+   * commissionService.calculateCommission, no de acá.
    */
   async useContract(userId: string, contractId: string, contractAmount: number = 0): Promise<{
     isFree: boolean;
@@ -110,7 +113,7 @@ class MembershipService {
       const membership = await Membership.findOne({ where: { userId, status: 'active' } });
 
       if (!membership || !membership.isActive()) {
-        return { isFree: false, commissionPercentage: 8 }; // FREE = 8%
+        return { isFree: false, commissionPercentage: COMMISSION_RATES.free };
       }
 
       // useContract persists the change itself (no extra save needed).
@@ -154,7 +157,7 @@ class MembershipService {
       const user = await User.findByPk(userId);
       if (user) {
         user.hasMembership = false;
-        user.currentCommissionRate = 8; // vuelve a FREE = 8%
+        user.currentCommissionRate = COMMISSION_RATES.free; // vuelve a la tasa estándar
         await user.save();
       }
 
@@ -243,7 +246,7 @@ class MembershipService {
           await membership.save();
 
           await User.update(
-            { hasMembership: false, currentCommissionRate: 8 }, // vuelve a FREE = 8%
+            { hasMembership: false, currentCommissionRate: COMMISSION_RATES.free }, // vuelve a la tasa estándar
             { where: { id: membership.userId } }
           );
         }

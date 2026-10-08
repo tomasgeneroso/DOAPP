@@ -16,6 +16,7 @@ import {
 } from 'sequelize-typescript';
 import * as bcrypt from 'bcryptjs';
 import { encryptCBU, decryptCBU, maskCBU, encrypt, decrypt, isEncrypted } from '../../utils/encryption.js';
+import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
 
 /**
  * User Model - PostgreSQL/Sequelize
@@ -606,7 +607,7 @@ export class User extends Model {
   @Column(DataType.BOOLEAN)
   isPremiumVerified!: boolean;
 
-  @Default(8.0)
+  @Default(COMMISSION_RATES.free)
   @AllowNull(false)
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;
@@ -715,7 +716,7 @@ export class User extends Model {
   invitationCodesUsed!: number;
 
   // Fecha en que expira el descuento de comisión por referido (3% por 1 mes)
-  // Después de esta fecha, vuelve al 8% si no tiene suscripción PRO/SUPER PRO
+  // Después de esta fecha, vuelve a la tasa estándar (COMMISSION_RATES.free)
   @Column(DataType.DATE)
   referralDiscountExpiresAt?: Date;
 
@@ -826,7 +827,8 @@ export class User extends Model {
     this.membershipTier = tier;
     this.membershipExpiresAt = endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
     // Set commission rate based on tier
-    this.currentCommissionRate = tier === 'pro' ? 3 : 1; // PRO: 3%, SUPER_PRO: 1%
+    // La tasa sale de COMMISSION_RATES: la membresía no modifica la comisión
+    this.currentCommissionRate = tier === 'pro' ? COMMISSION_RATES.pro : COMMISSION_RATES.super_pro;
     await this.save();
   }
 
@@ -837,7 +839,7 @@ export class User extends Model {
     this.hasMembership = false;
     this.membershipTier = undefined;
     this.membershipExpiresAt = undefined;
-    this.currentCommissionRate = 8; // Reset to default 8%
+    this.currentCommissionRate = COMMISSION_RATES.free; // Reset to the standard rate
     await this.save();
   }
 

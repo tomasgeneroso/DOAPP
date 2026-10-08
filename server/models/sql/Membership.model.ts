@@ -13,13 +13,16 @@ import {
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { Payment } from './Payment.model.js';
+import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
 
 /**
  * Membership Model - PostgreSQL/Sequelize
  *
  * Sistema de membresía mensual con:
- * - PRO: $4,999 ARS/mes - 3 contratos/mes al 3% comisión
- * - SUPER_PRO: $8,999 ARS/mes - 3 contratos/mes al 1% comisión + analytics
+ * - PRO: la única que se vende. Precio en EUR (MEMBERSHIP_PRICES_EUR), cobrado
+ *   en ARS al cambio del día.
+ * - SUPER_PRO: ya no se vende; queda como valor del enum para las cuentas heredadas.
+ * - La membresía NO modifica la comisión (COMMISSION_RATES): vende visibilidad.
  * - Tracking de contratos usados
  * - Integración MercadoPago subscriptions
  * - Auto-renovación
@@ -193,9 +196,9 @@ export class Membership extends Model {
   // BENEFITS
   // ============================================
 
-  @Default(3.0)
+  @Default(COMMISSION_RATES.pro)
   @Column(DataType.DECIMAL(5, 2))
-  reducedCommissionPercentage!: number; // 3% PRO, 1% SUPER_PRO después de agotar gratis
+  reducedCommissionPercentage!: number; // Tasa del plan (COMMISSION_RATES); hoy igual para todos
 
   // ============================================
   // CANCELLATION
@@ -233,12 +236,14 @@ export class Membership extends Model {
 
   @BeforeValidate
   static validateMembership(instance: Membership) {
-    // Set commission rate based on plan
+    // La comisión sale de COMMISSION_RATES: hoy es la misma para todos los planes
+    // (la membresía vende visibilidad, no descuento), pero se lee por plan para que
+    // un cambio en esa tabla llegue acá solo.
     if (instance.plan === 'PRO') {
-      instance.reducedCommissionPercentage = 3.0;
+      instance.reducedCommissionPercentage = COMMISSION_RATES.pro;
       instance.freeContractsTotal = 3;
     } else if (instance.plan === 'SUPER_PRO') {
-      instance.reducedCommissionPercentage = 1.0;
+      instance.reducedCommissionPercentage = COMMISSION_RATES.super_pro;
       instance.freeContractsTotal = 3;
     }
 
@@ -287,6 +292,9 @@ export class Membership extends Model {
 
   /**
    * Use a contract (track usage)
+   *
+   * Sin llamadores hoy (membershipService.useContract tampoco los tiene): la
+   * comisión que se cobra sale de commissionService.calculateCommission, no de acá.
    */
   async useContract(
     contractId: string,
@@ -297,7 +305,7 @@ export class Membership extends Model {
     commissionAmount: number;
   }> {
     let isFree = false;
-    let commissionPercentage = 8.0; // Default sin membresía
+    let commissionPercentage: number = COMMISSION_RATES.free; // Default sin membresía
     let commissionAmount = 0;
 
     if (this.hasFreeContractsRemaining()) {
@@ -434,9 +442,12 @@ export class Membership extends Model {
 
   /**
    * Get savings compared to no membership
+   *
+   * Sin llamadores. Con una sola tasa, lo único que ahorra la membresía son los
+   * contratos gratis; la diferencia de tasa da cero.
    */
   getSavingsEstimate(averageContractAmount: number): number {
-    const standardCommission = 0.08; // 8%
+    const standardCommission = COMMISSION_RATES.free / 100;
     const proCommission = this.reducedCommissionPercentage / 100;
 
     const totalSavings =

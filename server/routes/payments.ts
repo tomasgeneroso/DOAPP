@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth.js";
 import { splitFees, getProcessingFeeRate } from "../../shared/pricing/processingCost.js";
+import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing.js";
 import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -740,54 +741,43 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       const { Membership } = await import('../models/sql/Membership.model.js');
       const currencyExchange = (await import('../services/currencyExchange.js')).default;
 
-      // Determinar el plan según la descripción o monto
-      let plan: "PRO" | "SUPER_PRO" = "PRO";
-      let priceUSD = 5.99; // PRO price
+      // Hoy hay una sola membresía paga: PRO (Términos 8.1). Toda compra activa PRO.
+      // Antes el plan se deducía de `payment.amount >= 8.99`, pero ese monto está en
+      // ARS (miles), así que casi toda compra de PRO terminaba como SUPER_PRO.
+      const plan = "PRO" as const;
+      const priceEUR = MEMBERSHIP_PRICES_EUR.pro;
 
-      if (payment.description?.includes("SUPER PRO") || payment.amount >= 8.99) {
-        plan = "SUPER_PRO";
-        priceUSD = 8.99;
-      }
+      console.log(`📊 Plan: ${plan}`);
 
-      console.log(`📊 Plan detectado: ${plan}`);
+      // Cotización del día: la membresía se fija en euros y se cobra en pesos.
+      const exchangeRate = await currencyExchange.getEURtoARSRate();
+      const priceARS = await currencyExchange.convertEURtoARS(priceEUR);
 
-      // Obtener tasa de cambio actual
-      const exchangeRate = await currencyExchange.getUSDtoARSRate();
-      const priceARS = await currencyExchange.convertUSDtoARS(priceUSD);
-
-      console.log(`💱 Tasa de cambio: 1 USD = ${exchangeRate} ARS`);
-      console.log(`💵 Precio: ${priceUSD} USD = ${priceARS} ARS`);
+      console.log(`💱 Tasa de cambio: 1 EUR = ${exchangeRate} ARS`);
+      console.log(`💵 Precio: ${priceEUR} EUR = ${priceARS} ARS`);
 
       // Buscar o crear membresía
       let membership = await Membership.findOne({ where: { userId: payment.payerId } });
 
       if (membership) {
-        // Verificar si es un upgrade (PRO → SUPER PRO)
-        const isUpgrade = membership.plan === 'PRO' && plan === 'SUPER_PRO' && membership.status === 'active';
-
         // Actualizar membresía existente
         membership.plan = plan;
         membership.status = "active";
 
-        if (isUpgrade && membership.endDate) {
-          // Es upgrade: mantener la fecha de fin actual (solo cambiamos el plan)
-          console.log(`🔄 Upgrade detectado: manteniendo fecha de fin ${membership.endDate}`);
-          // NO modificar startDate ni endDate, solo actualizar el plan
-        } else {
-          // Nueva membresía o renovación: establecer 30 días desde ahora
-          membership.startDate = new Date();
-          membership.endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
-          membership.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        }
+        // Nueva membresía o renovación: establecer 30 días desde ahora
+        membership.startDate = new Date();
+        membership.endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+        membership.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
         membership.lastPaymentId = payment.id as any;
         membership.lastPaymentDate = new Date();
-        membership.priceUSD = priceUSD;
+        // priceUSD es legacy (filas anteriores a la cotización en euros): no se toca.
+        membership.priceEUR = priceEUR;
         membership.priceARS = priceARS;
         membership.exchangeRateAtPurchase = exchangeRate;
-        membership.reducedCommissionPercentage = plan === "SUPER_PRO" ? 2 : 3;
+        // La comisión no depende del plan: la fija el hook del modelo (COMMISSION_RATES).
         await membership.save();
-        console.log("✅ Membresía actualizada", isUpgrade ? "(upgrade)" : "(renovación)");
+        console.log("✅ Membresía actualizada (renovación)");
       } else {
         // Crear nueva membresía
         membership = await Membership.create({
@@ -796,7 +786,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           status: "active",
           startDate: new Date(),
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          priceUSD,
+          priceUSD: 0, // legacy: la columna es obligatoria pero ya no se cotiza en dólares
+          priceEUR,
           priceARS,
           exchangeRateAtPurchase: exchangeRate,
           lastPaymentId: payment.id,
@@ -805,7 +796,6 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           freeContractsTotal: 3,
           freeContractsUsed: 0,
           freeContractsRemaining: 3,
-          reducedCommissionPercentage: plan === "SUPER_PRO" ? 2 : 3,
         });
         console.log("✅ Membresía creada");
       }
@@ -814,7 +804,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       const user = await User.findByPk(payment.payerId);
       if (user) {
         user.hasMembership = true;
-        user.membershipTier = plan === "SUPER_PRO" ? "super_pro" : "pro";
+        user.membershipTier = "pro";
         user.proContractsUsedThisMonth = 0; // reset monthly counter on activation
         await user.save();
         console.log("✅ Usuario actualizado con membresía", plan);
