@@ -1,3 +1,7 @@
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../constants/membershipPricing.js';
+import { MINIMUM_COMMISSION_EUR } from '../pricing/minimums.js';
+import { IVA, MP_FEE_BY_RELEASE_DAYS, splitFees } from '../pricing/processingCost.js';
+
 /**
  * The article the beta banner links to.
  *
@@ -9,51 +13,100 @@
  * answer standing on its own — and, more importantly, to be honest about the
  * two things a reader will actually want to know: what "gratis" does not cover,
  * and what happens the day the beta ends.
+ *
+ * Cada número que el artículo dice sale del código (comisión, precio de la
+ * membresía, piso, tasa de procesamiento) y el ejemplo de $36.000 se calcula con
+ * la misma cuenta que usa el cobro (`splitFees`). El artículo decía 8% / 3% / 1%,
+ * un SUPER PRO y que el cliente pagaba $36.000 en la beta, y nada de eso era lo que
+ * se cobraba: ver tests/comisionesSincronizadas.test.ts.
  */
 
 export const BETA_POST_SLUG = 'que-incluye-la-beta-de-doapp';
+
+/* ------------------------------------------------------------------ *
+ * Los números del artículo, calculados
+ * ------------------------------------------------------------------ */
+
+const COMISION = COMMISSION_RATES.free;
+const PRECIO_PRO = MEMBERSHIP_PRICES_EUR.pro;
+const PISO = MINIMUM_COMMISSION_EUR;
+
+/**
+ * La tasa de procesamiento del ejemplo: la de base. La vigente se configura desde el
+ * panel y se publica en la plataforma, así que el ejemplo lo aclara en vez de
+ * prometerla.
+ */
+const TASA = MP_FEE_BY_RELEASE_DAYS[0].base;
+const TRABAJO = 36000;
+
+const redondear = (n: number) => Math.round(n * 100) / 100;
+const pesos = (n: number) =>
+  `$${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const porcentaje = (fraccion: number) =>
+  `${(fraccion * 100).toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
+
+const comisionEjemplo = redondear((TRABAJO * COMISION) / 100);
+const ivaComisionEjemplo = redondear(comisionEjemplo * IVA);
+
+/** Lo que paga cada parte en el mismo trabajo, durante la beta y después. */
+export const EJEMPLO_DE_LA_BETA = splitFees(TRABAJO, 0, 0, TASA);
+export const EJEMPLO_DESPUES_DE_LA_BETA = splitFees(TRABAJO, comisionEjemplo, ivaComisionEjemplo, TASA);
+
+const enBeta = EJEMPLO_DE_LA_BETA;
+const despues = EJEMPLO_DESPUES_DE_LA_BETA;
+
+const tablaDelEjemplo = `| | Durante la beta | Desde el 1/1/2027 |
+|---|---|---|
+| Trabajo | ${pesos(enBeta.jobPrice)} | ${pesos(despues.jobPrice)} |
+| Comisión de DoApp (${COMISION}%) | ${pesos(enBeta.commission)} | ${pesos(despues.commission)} |
+| Costo de procesamiento del pago (${porcentaje(TASA)}) | ${pesos(enBeta.processingCharge)} | ${pesos(despues.processingCharge)} |
+| IVA (21% sobre la comisión y el procesamiento) | ${pesos(enBeta.totalVat)} | ${pesos(despues.totalVat)} |
+| **Paga el cliente** | **${pesos(enBeta.clientPays)}** | **${pesos(despues.clientPays)}** |
+| **Recibe el trabajador** | **${pesos(enBeta.workerReceives)}** | **${pesos(despues.workerReceives)}** |`;
 
 export const betaPost = {
   slug: BETA_POST_SLUG,
   title: '¿Qué incluye la beta de DoApp y qué cambia después?',
   subtitle:
-    'Durante la beta la plataforma no cobra comisión y todas las cuentas tienen SUPER PRO. Acá está el detalle, incluido lo que sí se paga y lo que pasa el 1 de enero de 2027.',
+    'Durante la beta la plataforma no cobra comisión y todas las cuentas tienen las funciones de la membresía PRO. Acá está el detalle, incluido lo que sí se paga y lo que pasa el 1 de enero de 2027.',
   excerpt:
-    'DoApp está en beta hasta el 31 de diciembre de 2026. En esa etapa la plataforma no cobra comisión por los contratos y todas las cuentas tienen la membresía SUPER PRO sin costo. El dinero del trabajo sigue siendo del trabajador: lo que no se cobra es la comisión de DoApp.',
+    'DoApp está en beta hasta el 31 de diciembre de 2026. En esa etapa la plataforma no cobra comisión por los contratos y todas las cuentas tienen las funciones de la membresía PRO sin costo. El trabajador recibe el precio del trabajo entero: lo que no se cobra es la comisión de DoApp.',
   category: 'Tips',
-  tags: ['beta', 'comisiones', 'membresías', 'super pro', 'cómo funciona'],
-  metaTitle: '¿Qué incluye la beta de DoApp? Comisiones, SUPER PRO y qué cambia',
+  tags: ['beta', 'comisiones', 'membresías', 'membresía pro', 'cómo funciona'],
+  metaTitle: '¿Qué incluye la beta de DoApp? Comisiones, membresía PRO y qué cambia',
   metaDescription:
-    'Durante la beta DoApp no cobra comisión y todas las cuentas tienen SUPER PRO. Hasta el 31/12/2026. Qué se paga, qué no, y qué cambia después.',
+    'Durante la beta DoApp no cobra comisión y todas las cuentas tienen las funciones PRO. Hasta el 31/12/2026. Qué se paga, qué no, y qué cambia después.',
 
   keyTakeaways: [
-    'Durante la beta DoApp no cobra ninguna comisión: si el trabajo vale $36.000, el cliente paga $36.000 y el trabajador recibe $36.000.',
-    'Todas las cuentas tienen la membresía SUPER PRO sin costo mientras dure la beta, con todas las funciones habilitadas.',
-    'La beta termina el 31 de diciembre de 2026; a partir del 1 de enero de 2027 se aplican las comisiones según el plan y las membresías pasan a ser pagas.',
-    'Lo que sí se paga durante la beta es el trabajo en sí, y ese dinero va íntegro al trabajador, no a la plataforma.',
+    `Durante la beta DoApp no cobra ninguna comisión: si el trabajo vale ${pesos(TRABAJO)}, el trabajador recibe ${pesos(enBeta.workerReceives)} y el cliente paga ese precio más el costo de procesamiento del pago.`,
+    'Todas las cuentas tienen las funciones de la membresía PRO sin costo mientras dure la beta.',
+    `La beta termina el 31 de diciembre de 2026. A partir del 1 de enero de 2027 se cobra una comisión del ${COMISION}%, a cargo del cliente y la misma para todos los planes, y la membresía PRO pasa a ser paga (€${PRECIO_PRO} por mes).`,
+    'El dinero del trabajo va íntegro al trabajador, no a la plataforma: ni la comisión ni el costo de procesamiento se le descuentan.',
     'Los contratos hechos durante la beta conservan sus condiciones: al terminar la beta no se les aplica comisión de forma retroactiva.',
   ],
 
   faq: [
     {
       question: '¿Qué significa que DoApp no cobra comisión durante la beta?',
-      answer:
-        'Significa que la plataforma no retiene nada del monto del contrato. Si acordás un trabajo por $36.000, el cliente paga $36.000 y el trabajador cobra $36.000 completos. Fuera de la beta, DoApp cobra entre 1% y 8% según el plan del cliente, con un mínimo de $1.000, más IVA sobre esa comisión.',
+      answer: `Significa que la plataforma no retiene nada del monto del contrato. Si acordás un trabajo por ${pesos(TRABAJO)}, el trabajador cobra ${pesos(enBeta.workerReceives)} completos. Fuera de la beta, DoApp cobra una comisión del ${COMISION}% sobre el precio del trabajo, a cargo del cliente, con un piso de EUR ${PISO} (convertido a pesos al cambio del día) y IVA del 21% sobre esa comisión. Es la misma para todos los planes.`,
     },
     {
       question: 'Entonces, ¿qué se paga durante la beta?',
       answer:
-        'Se paga el trabajo. Cuando publicás, el monto del contrato queda en custodia y se libera al trabajador cuando ambas partes confirman que se completó. Ese dinero nunca fue de DoApp: es lo que le corresponde a quien hizo el trabajo. Lo que no se cobra durante la beta es la comisión de la plataforma.',
+        'Se paga el trabajo y el costo de procesamiento del pago. Cuando publicás, el monto del contrato queda en custodia y se libera al trabajador cuando ambas partes confirman que se completó. Ese dinero nunca fue de DoApp: es lo que le corresponde a quien hizo el trabajo. El costo de procesamiento es lo que cobra la pasarela por procesar el pago: lo paga el cliente, se informa con su IVA antes de confirmar el pago y no es una ganancia de DoApp. Lo que no se cobra durante la beta es la comisión de la plataforma.',
     },
     {
-      question: '¿Qué incluye la membresía SUPER PRO que tengo en la beta?',
+      question: '¿Qué incluye la membresía PRO que tengo en la beta?',
       answer:
-        'Todas las funciones del plan más alto, sin costo: el panel de analíticas con exportación a CSV y PDF, los contratos mensuales sin comisión, y el resto de las herramientas de la cuenta. Es la membresía completa, no una versión recortada. Al terminar la beta tu cuenta vuelve al plan que tengas contratado, que por defecto es FREE.',
+        'Todas las funciones de la membresía, sin costo: promoción del perfil, insignia, prioridad en las búsquedas y estadísticas de tu actividad. La membresía da visibilidad: no modifica la comisión. Al terminar la beta tu cuenta vuelve al plan que tengas contratado, que por defecto es FREE.',
     },
     {
       question: '¿Qué pasa exactamente el 1 de enero de 2027?',
-      answer:
-        'Empiezan a aplicarse las comisiones según el plan de cada cliente: 8% en FREE, 3% en PRO y 1% en SUPER PRO, con un mínimo de $1.000 y con IVA del 21% sobre esa comisión. Las membresías PRO y SUPER PRO pasan a ser pagas. Nadie queda suscripto automáticamente: si no contratás un plan, tu cuenta queda en FREE.',
+      answer: `Empieza a cobrarse la comisión del ${COMISION}% sobre el precio de cada contrato nuevo, a cargo del cliente, con un piso de EUR ${PISO} y con IVA del 21% sobre esa comisión. La membresía PRO pasa a estar a la venta: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día, con renovación mensual. Nadie queda suscripto automáticamente: si no contratás un plan, tu cuenta queda en FREE.`,
+    },
+    {
+      question: '¿La membresía PRO baja la comisión?',
+      answer: `No. La comisión es del ${COMISION}% para todos, con o sin membresía, porque la paga el cliente. La membresía PRO (€${PRECIO_PRO} por mes) da visibilidad: promoción del perfil, insignia, prioridad en las búsquedas y estadísticas.`,
     },
     {
       question: '¿Los contratos que hice durante la beta van a pagar comisión después?',
@@ -77,41 +130,38 @@ export const betaPost = {
     },
   ],
 
-  content: `Durante la beta, DoApp no cobra comisión. Si acordás un trabajo por $36.000, el cliente paga $36.000 y el trabajador recibe $36.000. Además, todas las cuentas tienen la membresía SUPER PRO sin costo. Esto vale hasta el **31 de diciembre de 2026**.
+  content: `Durante la beta, DoApp no cobra comisión. Si acordás un trabajo por ${pesos(TRABAJO)}, el trabajador recibe ${pesos(enBeta.workerReceives)} y el cliente paga ese precio más el costo de procesamiento del pago. Además, todas las cuentas tienen las funciones de la membresía PRO sin costo. Esto vale hasta el **31 de diciembre de 2026**.
 
 Abajo está el detalle completo: qué incluye, qué se sigue pagando, y qué cambia exactamente el día que la beta termina.
 
 ## ¿Qué significa "sin comisión"?
 
-Fuera de la beta, DoApp cobra un porcentaje de cada contrato según el plan del cliente: 8% en FREE, 3% en PRO y 1% en SUPER PRO, con un mínimo de $1.000 y con IVA del 21% aplicado sobre esa comisión.
+Fuera de la beta, DoApp cobra una comisión del ${COMISION}% sobre el precio del trabajo. La paga el cliente, es la misma para todos los planes, tiene un piso de EUR ${PISO} (convertido a pesos al cambio del día) y lleva IVA del 21%.
 
-Durante la beta ese porcentaje es cero. La plataforma no retiene nada del monto acordado.
+Durante la beta esa comisión es cero. La plataforma no retiene nada del monto acordado.
 
-| | Durante la beta | Desde el 1/1/2027 (plan FREE) |
-|---|---|---|
-| Trabajo | $36.000 | $36.000 |
-| Comisión | $0 | $2.880 |
-| IVA sobre la comisión | $0 | $604,80 |
-| **Paga el cliente** | **$36.000** | **$39.484,80** |
-| **Recibe el trabajador** | **$36.000** | **$36.000** |
+${tablaDelEjemplo}
 
-Fijate en la última fila: el trabajador cobra lo mismo en los dos casos. La comisión no sale de lo que gana quien trabaja, se suma a lo que paga quien contrata.
+Fijate en la última fila: el trabajador cobra lo mismo en los dos casos. Ni la comisión ni el costo de procesamiento salen de lo que gana quien trabaja: se suman a lo que paga quien contrata.
+
+El costo de procesamiento del ejemplo usa una tasa de ${porcentaje(TASA)}. La tasa vigente se publica en la plataforma y se informa, con su IVA, antes de confirmar cada pago.
 
 ## ¿Qué se paga entonces durante la beta?
 
-El trabajo. Cuando un cliente publica, el monto del contrato queda **en custodia**: DoApp lo retiene hasta que ambas partes confirman que se completó, y recién ahí se libera al trabajador.
+El trabajo y el costo de procesamiento del pago. Cuando un cliente publica, el monto del contrato queda **en custodia**: DoApp lo retiene hasta que ambas partes confirman que se completó, y recién ahí se libera al trabajador.
 
-Ese dinero nunca fue de la plataforma. Es lo que le corresponde a quien hizo el trabajo. Lo que no se cobra durante la beta es la comisión de DoApp.
+Ese dinero nunca fue de la plataforma. Es lo que le corresponde a quien hizo el trabajo. El costo de procesamiento es lo que cobra la pasarela de pago y no es una ganancia de DoApp. Lo que no se cobra durante la beta es la comisión de DoApp.
 
-## ¿Qué incluye el SUPER PRO que tengo ahora?
+## ¿Qué incluye la membresía PRO que tengo ahora?
 
-La membresía completa del plan más alto, sin costo:
+Las funciones de la membresía, sin costo:
 
-- Panel de analíticas de tu actividad, con exportación a CSV y PDF
-- Contratos mensuales sin comisión
-- El resto de las herramientas de cuenta del plan
+- Promoción de tu perfil
+- Insignia en el perfil
+- Prioridad en las búsquedas
+- Estadísticas de tu actividad
 
-No es una versión de prueba recortada: es el plan entero, para que puedas evaluarlo con tu trabajo real antes de que cueste algo.
+No es una versión de prueba recortada: es la membresía entera, para que puedas evaluarla con tu trabajo real antes de que cueste algo.
 
 Al terminar la beta, tu cuenta vuelve al plan que tengas contratado. Si nunca contrataste ninguno, queda en FREE. **Nadie queda suscripto automáticamente.**
 
@@ -119,8 +169,8 @@ Al terminar la beta, tu cuenta vuelve al plan que tengas contratado. Si nunca co
 
 Tres cosas, y ninguna más:
 
-1. **Las comisiones empiezan a aplicarse** según el plan del cliente, con IVA sobre la comisión.
-2. **Las membresías pasan a ser pagas**: PRO a $4.999 por mes y SUPER PRO a $8.999 por mes.
+1. **Empieza a cobrarse la comisión**: ${COMISION}% sobre el precio del trabajo, a cargo del cliente, con IVA sobre la comisión.
+2. **La membresía PRO pasa a ser paga**: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día. Da visibilidad y no modifica la comisión.
 3. **El aviso de beta desaparece** y en su lugar avisamos que la plataforma pasó a su versión estable.
 
 ## ¿Y qué NO cambia?

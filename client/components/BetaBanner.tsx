@@ -2,12 +2,13 @@ import { Link } from "react-router-dom";
 import { Rocket, PartyPopper } from "lucide-react";
 import { formatBetaEnd, usePlatformPhase } from "@/hooks/usePlatformPhase";
 import { BETA_POST_SLUG } from "../../shared/content/betaPost";
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 
 /**
  * Standing notice that the platform is in its beta phase.
  *
- * Not dismissible on purpose. The beta is why people pay no commission and hold
- * SUPER PRO, and it ends on a fixed date — so the offer and its expiry have to
+ * Not dismissible on purpose. The beta is why people pay no commission and get
+ * the PRO membership's features, and it ends on a fixed date — so the offer and its expiry have to
  * travel together. A banner someone closed in week one is exactly how a
  * scheduled price change turns into a broken promise.
  *
@@ -38,8 +39,9 @@ export default function BetaBanner() {
           <PartyPopper className="h-4 w-4 mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
           <p>
             <strong className="font-semibold">DOAPP salió de la beta.</strong>{" "}
-            Ya estamos en la versión estable: desde ahora rigen las comisiones segun tu plan
-            y las suscripciones PRO y SUPER PRO. Gracias por haber sido parte de la prueba.
+            Ya estamos en la versión estable: desde ahora se cobra una comisión del {COMMISSION_RATES.free}%
+            a cargo del cliente, igual para todos los planes, y la membresía PRO (€{MEMBERSHIP_PRICES_EUR.pro} por mes)
+            está a la venta. Gracias por haber sido parte de la prueba.
           </p>
         </div>
       </div>
@@ -54,14 +56,14 @@ export default function BetaBanner() {
         <Rocket className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
         <p>
           <strong className="font-semibold">Estás en la beta de DOAPP.</strong>{" "}
-          Publicá y postulate gratis. Todas las cuentas tienen membresía{" "}
-          <strong className="font-semibold">SUPER PRO</strong> con todas las funciones disponibles
+          No cobramos comisión por los contratos. Todas las cuentas tienen las funciones de la
+          membresía <strong className="font-semibold">PRO</strong> disponibles
           para que las pruebes. La versión beta está disponible hasta el{" "}
           <strong className="font-semibold">{endsAt}</strong>
           {typeof platform.betaDaysLeft === "number" && platform.betaDaysLeft > 0
             ? ` (faltan ${platform.betaDaysLeft} días)`
             : ""}
-          ; luego se aplican comisiones y membresías.{" "}
+          ; luego se cobra la comisión y la membresía PRO pasa a ser paga.{" "}
           {/* The banner states the offer; the article states its limits. Anyone
               deciding based on "gratis" deserves one click to the detail. */}
           <Link
