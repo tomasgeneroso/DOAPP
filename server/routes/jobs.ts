@@ -1293,8 +1293,26 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     // If job was rejected or cancelled by admin (not permanently), change to pending_approval when edited
     const requiresReapproval = ['rejected', 'cancelled'].includes(job.status) && !job.permanentlyCancelled;
 
-    // Prepare update data
-    const updateData: any = { ...req.body };
+    // Prepare update data.
+    //
+    // SÓLO los campos de contenido que la persona puede editar. Antes era `{ ...req.body }`: el dueño del
+    // trabajo podía escribir CUALQUIER columna con el cuerpo del pedido —`status: 'open'` para publicar sin
+    // pagar ni pasar la revisión, `publicationPaid`, `publicationPaymentId`, `clientId`, `doerId`,
+    // `selectedWorkers`, `permanentlyCancelled: false` para "resucitar" un trabajo dado de baja, los campos
+    // de revisión de un admin, etc. Lo que no está en la lista se ignora. El estado, el pago y el resto lo
+    // cambian sólo las rutas que corresponden (pago, aprobación de un admin, pausa, cancelación).
+    const CAMPOS_EDITABLES_DEL_TRABAJO = [
+      'title', 'summary', 'description', 'requirements',
+      'price', 'category', 'tags', 'allowCounterOffers',
+      'location', 'neighborhood', 'postalCode', 'addressStreet', 'addressNumber', 'addressDetails', 'latitude', 'longitude',
+      'startDate', 'endDate', 'endDateFlexible',
+      'remoteOk', 'singleDelivery', 'urgency', 'experienceLevel',
+      'completionRequirements', 'vacancyTaskAssignments',
+    ] as const;
+    const updateData: any = {};
+    for (const campo of CAMPOS_EDITABLES_DEL_TRABAJO) {
+      if (req.body[campo] !== undefined) updateData[campo] = req.body[campo];
+    }
 
     // Coerce the counter-offer flag from a FormData string to a boolean
     if (updateData.allowCounterOffers !== undefined) {
