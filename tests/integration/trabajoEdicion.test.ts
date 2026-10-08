@@ -53,7 +53,7 @@ describe('PUT /api/jobs/:id: sólo se edita el contenido', () => {
   // Cada trabajo empieza otro día: editar uno revisa que no se superponga con los demás del mismo dueño.
   let dia = 10;
   const trabajo = async (over: Record<string, unknown> = {}) => {
-    const t = await crearTrabajo(dueno.id, { status: 'pending_payment', publicationPaid: false, startDate: new Date(Date.now() + (dia++) * 86_400_000), ...over });
+    const t = await crearTrabajo(dueno.id, { status: 'pending_payment', publicationPaid: false, startDate: new Date(Date.now() + (dia += 3) * 86_400_000), ...over });
     jobs.push(t.id);
     return t;
   };

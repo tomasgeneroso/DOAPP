@@ -1,4 +1,4 @@
-import { describe, it, test, expect, beforeAll, beforeEach } from '@jest/globals';
+import { describe, it, test, expect, beforeAll, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Express } from 'express';
 import { Dispute } from '../../server/models/sql/Dispute.model.js';
@@ -8,6 +8,14 @@ import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import jwt from 'jsonwebtoken';
 import { crearEscenario, crearDisputa, crearUsuario } from '../helpers/fixtures.js';
+
+// MercadoPago responde bien: este archivo prueba las rutas, no la pasarela. Sin esto el reembolso se intentaba
+// contra la API real (sin red ni credenciales), fallaba, y la ruta vieja cerraba la disputa como "reembolsada"
+// igual. Qué pasa cuando MercadoPago falla se prueba en tests/integration/disputasDinero.test.ts.
+jest.mock('../../server/services/mercadopago.js', () => ({
+  __esModule: true,
+  default: { refundPayment: async () => ({ refundId: 'refund-test-1' }), getPayment: async () => ({}) },
+}));
 
 describe('Admin Dispute Routes', () => {
   let app: Express;
@@ -257,7 +265,8 @@ describe('Admin Dispute Routes', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.status).toBe('resolved_partial');
-      expect(response.body.data.refundAmount).toBe(5000);
+      // La respuesta trae lo guardado en la base (un DECIMAL, que llega como texto), no el eco del pedido.
+      expect(Number(response.body.data.refundAmount)).toBe(5000);
     });
 
     it('should reject invalid resolution types', async () => {

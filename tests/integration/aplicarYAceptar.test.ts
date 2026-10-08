@@ -42,7 +42,7 @@ describe('apply-and-accept: no se le saca un trabajo a quien ya lo tiene, ni sin
   const propuestas = (jobId: string) => Proposal.count({ where: { jobId } });
   let dia = 20;
   const trabajo = async (over: Record<string, unknown> = {}) => {
-    const t = await crearTrabajo(cliente.id, { status: 'open', startDate: new Date(Date.now() + (dia++) * 86_400_000), ...over });
+    const t = await crearTrabajo(cliente.id, { status: 'open', startDate: new Date(Date.now() + (dia += 3) * 86_400_000), ...over });
     jobs.push(t.id);
     return t;
   };
@@ -125,7 +125,7 @@ describe('apply-and-accept: no se le saca un trabajo a quien ya lo tiene, ni sin
   });
 
   it('el dueño no puede tomar su propio trabajo', async () => {
-    const t = await crearTrabajo(duenoVerificado.id, { status: 'open', startDate: new Date(Date.now() + (dia++) * 86_400_000) });
+    const t = await crearTrabajo(duenoVerificado.id, { status: 'open', startDate: new Date(Date.now() + (dia += 3) * 86_400_000) });
     jobs.push(t.id);
     const r = await aplicar(t.id, duenoVerificado);
     expect(r.status).toBe(400);

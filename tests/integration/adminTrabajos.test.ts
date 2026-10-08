@@ -38,7 +38,7 @@ describe('admin/jobs: quién puede mover una publicación y desde qué estado', 
   const estado = async (id: string) => ((await Job.findByPk(id)) as any).status as string;
   let dia = 30;
   const trabajo = async (status: string, over: Record<string, unknown> = {}) => {
-    const t = await crearTrabajo(cliente.id, { status, startDate: new Date(Date.now() + (dia++) * 86_400_000), ...over });
+    const t = await crearTrabajo(cliente.id, { status, startDate: new Date(Date.now() + (dia += 3) * 86_400_000), ...over });
     jobs.push(t.id);
     return t;
   };
