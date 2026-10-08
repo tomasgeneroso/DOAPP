@@ -16,7 +16,7 @@ import { protect } from "../middleware/auth.js";
 import { notifyPostWorkRatingPending } from "../services/postWorkRating.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
@@ -963,7 +963,19 @@ router.post(
         return;
       }
 
-      const { job: jobId, doer: doerId, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
+      const { job: jobId, doer: doerId, price: precioRecibido, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
+
+      // `isNumeric` acepta el texto "1000": con un string, `price + commission` concatenaba ("1000" + 100 =
+      // "1000100") y el total salía disparatado. Se trabaja siempre con el número.
+      const price = Number(precioRecibido);
+      if (!Number.isFinite(price) || price <= 0) {
+        res.status(400).json({ success: false, message: "El precio no es válido" });
+        return;
+      }
+      if (new Date(endDate).getTime() < new Date(startDate).getTime()) {
+        res.status(400).json({ success: false, message: "La fecha de fin no puede ser anterior a la de inicio" });
+        return;
+      }
 
       // Validar el monto mínimo de contrato (MINIMUM_CONTRACT_AMOUNT)
       if (price < MINIMUM_CONTRACT_AMOUNT) {
@@ -1003,47 +1015,78 @@ router.post(
         return;
       }
 
-      // Check if user wants to use a free contract and has one available
-      const client = await User.findByPk(req.user.id);
-      let isFreeContract = false;
-
-      if (useFreeContract && client && client.freeContractsRemaining > 0) {
-        isFreeContract = true;
-        // Decrement free contracts
-        client.freeContractsRemaining -= 1;
-        await client.save();
+      // Nadie se contrata a sí mismo: un autocontrato deja completar un trabajo "entre uno mismo",
+      // sumar reputación y reseñas propias y cobrar referidos.
+      if (String(doerId) === String(req.user.id)) {
+        res.status(400).json({ success: false, message: "No podés contratarte a vos mismo" });
+        return;
       }
 
-      // Calcular la comisión: la misma tasa para todos los planes (COMMISSION_RATES),
-      // 0% en la beta, con Plan Familia y contratos gratuitos como excepciones. El piso es
-      // MINIMUM_COMMISSION_EUR convertido con la cotización de respaldo
-      // (MINIMUM_COMMISSION_ARS): los Términos (7.4) prometen el cambio del día y el código
-      // todavía no lo hace.
-      const commissionResult = await calculateCommission(req.user.id, price, {
-        isFreeContract,
-      });
+      // El trabajo tiene que estar esperando contrato: publicado (open) o, si admite varios trabajadores,
+      // ya en marcha. Antes se creaba contrato sobre un trabajo en borrador, sin pagar la publicación, en
+      // revisión, pausado, cancelado o terminado, y se lo pasaba a "en progreso".
+      const admitidos = (Number((job as any).maxWorkers) || 1) > 1 ? ["open", "in_progress"] : ["open"];
+      if (!admitidos.includes(String(job.status))) {
+        res.status(409).json({
+          success: false,
+          message: `El trabajo está en estado "${job.status}" y no admite un contrato nuevo.`,
+        });
+        return;
+      }
 
-      const commissionRate = commissionResult.rate;
-      const commission = commissionResult.commission;
-      const totalPrice = price + commission;
+      // El contrato gratis se RECLAMA con un UPDATE condicional (dos pedidos simultáneos no gastan el mismo)
+      // y se devuelve si el contrato no llega a crearse. Antes se descontaba antes de crear: si la creación
+      // fallaba, el cliente perdía el contrato gratis.
+      let isFreeContract = false;
+      if (useFreeContract) {
+        const [reclamados] = await User.update(
+          { freeContractsRemaining: literal('"free_contracts_remaining" - 1') } as any,
+          { where: { id: req.user.id, freeContractsRemaining: { [Op.gt]: 0 } } },
+        );
+        isFreeContract = reclamados > 0;
+      }
 
-      // Crear contrato
-      const contract = await Contract.create({
-        jobId: jobId,
-        clientId: req.user.id,
-        doerId: doerId,
-        type: "trabajo", // tipo por defecto
-        price,
-        commission,
-        commissionPercentage: commissionRate,
-        totalPrice,
-        startDate,
-        endDate,
-        termsAccepted,
-        termsAcceptedAt: termsAccepted ? new Date() : undefined,
-        termsAcceptedByClient: termsAccepted,
-        notes,
-      });
+      let contract: any;
+      try {
+        // Calcular la comisión: la misma tasa para todos los planes (COMMISSION_RATES),
+        // 0% en la beta, con Plan Familia y contratos gratuitos como excepciones. El piso es
+        // MINIMUM_COMMISSION_EUR convertido con la cotización de respaldo
+        // (MINIMUM_COMMISSION_ARS): los Términos (7.4) prometen el cambio del día y el código
+        // todavía no lo hace.
+        const commissionResult = await calculateCommission(req.user.id, price, {
+          isFreeContract,
+        });
+
+        const commissionRate = commissionResult.rate;
+        const commission = commissionResult.commission;
+        const totalPrice = price + commission;
+
+        // Crear contrato
+        contract = await Contract.create({
+          jobId: jobId,
+          clientId: req.user.id,
+          doerId: doerId,
+          type: "trabajo", // tipo por defecto
+          price,
+          commission,
+          commissionPercentage: commissionRate,
+          totalPrice,
+          startDate,
+          endDate,
+          termsAccepted,
+          termsAcceptedAt: termsAccepted ? new Date() : undefined,
+          termsAcceptedByClient: termsAccepted,
+          notes,
+        });
+      } catch (error) {
+        if (isFreeContract) {
+          await User.update(
+            { freeContractsRemaining: literal('"free_contracts_remaining" + 1') } as any,
+            { where: { id: req.user.id } },
+          ).catch(() => undefined);
+        }
+        throw error;
+      }
 
       // Actualizar estado del trabajo
       job.status = "in_progress";
@@ -1178,7 +1221,9 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
       contract.status = "accepted";
       contract.termsAccepted = true;
       contract.termsAcceptedAt = new Date();
-      contract.paymentStatus = "held";
+      // Ya no se escribe paymentStatus = "held" acá: aceptar los términos no retiene plata. Ese estado lo
+      // fijan los flujos de pago (capture-order, verify-escrow) cuando hay un pago de verdad, y esta ruta
+      // lo declaraba sin que existiera ninguno.
     }
 
     await contract.save();
@@ -1252,90 +1297,19 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
 // @route   PUT /api/contracts/:id/complete
 // @desc    Marcar contrato como completado
 // @access  Private
-router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const contract = await Contract.findByPk(req.params.id, {
-      include: [
-        {
-          model: Job,
-          as: 'job'
-        }
-      ]
-    });
-
-    if (!contract) {
-      res.status(404).json({
-        success: false,
-        message: "Contrato no encontrado",
-      });
-      return;
-    }
-
-    // Solo el cliente puede marcar como completado
-    if (contract.clientId.toString() !== req.user.id.toString()) {
-      res.status(403).json({
-        success: false,
-        message: "Solo el cliente puede marcar el contrato como completado",
-      });
-      return;
-    }
-
-    contract.status = "completed";
-    contract.actualEndDate = new Date();
-    contract.paymentStatus = "released";
-    contract.paymentDate = new Date();
-    await contract.save();
-
-    // Actualizar el trabajo
-    if (contract.jobId) {
-      const job = await Job.findByPk(contract.jobId);
-      if (job) {
-        job.status = "completed";
-        await job.save();
-      }
-    }
-
-    // Incrementar trabajos completados del doer
-    const doer = await User.findByPk(contract.doerId);
-    if (doer) {
-      doer.completedJobs = (doer.completedJobs || 0) + 1;
-      await doer.save();
-    }
-
-    // Verificar si este es el primer contrato de un usuario referido
-    // y acreditar al referidor si aplica
-    await processReferralCredit(contract.clientId, contract.id);
-    await processReferralCredit(contract.doerId, contract.id);
-
-    // Puntuación post-trabajo obligatoria para ambas partes
-    await notifyPostWorkRatingPending(contract.clientId.toString(), contract.id.toString());
-    await notifyPostWorkRatingPending(contract.doerId.toString(), contract.id.toString());
-
-    // Send real-time notifications via Socket.io
-    socketService.notifyContractUpdate(
-      contract.id.toString(),
-      contract.clientId.toString(),
-      contract.doerId.toString(),
-      {
-        action: 'completed',
-        contract
-      }
-    );
-
-    // Notify dashboard refresh
-    socketService.notifyDashboardRefresh(contract.clientId.toString());
-    socketService.notifyDashboardRefresh(contract.doerId.toString());
-
-    res.json({
-      success: true,
-      contract,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error del servidor",
-    });
-  }
+router.put("/:id/complete", protect, async (_req: AuthRequest, res: Response): Promise<void> => {
+  /**
+   * Deshabilitada, como /cancel. Ninguna pantalla la usa (web y móvil confirman con /:id/confirm, que
+   * pide las dos partes). Hacía todo sin mirar nada: completaba un contrato en CUALQUIER estado
+   * (pendiente, cancelado, en disputa), ponía el pago como liberado sin que existiera, completaba el
+   * trabajo, y sumaba el trabajo terminado y el crédito de referidos en cada llamada, sin idempotencia:
+   * el cliente podía repetirla para inflar la reputación del trabajador (o la suya, contratándose).
+   */
+  res.status(410).json({
+    success: false,
+    code: 'CONTRACT_COMPLETE_GONE',
+    message: "Esta ruta ya no se usa. El contrato se completa cuando las dos partes confirman.",
+  });
 });
 
 /**
@@ -1389,6 +1363,19 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
 
     if (!isClient && !isDoer) {
       res.status(403).json({ success: false, message: "No eres parte de este contrato" });
+      return;
+    }
+
+    // Sólo se confirma un contrato en marcha: la primera parte propone las horas desde "en progreso", la
+    // otra responde desde "esperando confirmación". Antes no se miraba el estado: se podía "confirmar" un
+    // contrato pendiente, cancelado, en disputa o ya terminado, y con las dos confirmaciones quedaba
+    // completado y con el pago marcado "a liberar" aunque nunca hubiera empezado.
+    if (!['in_progress', 'awaiting_confirmation'].includes(String(contract.status))) {
+      res.status(409).json({
+        success: false,
+        code: 'CONTRACT_NOT_CONFIRMABLE',
+        message: `Un contrato "${contract.status}" no se puede confirmar. Se confirma cuando está en progreso.`,
+      });
       return;
     }
 
@@ -2886,6 +2873,22 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // Sólo las partes del contrato. Antes cualquier usuario con sesión podía pisar el código de
+    // pareamiento de un contrato ajeno con el suyo, y los verdaderos participantes ya no podían confirmar.
+    if (contract.clientId.toString() !== req.user.id.toString() && contract.doerId.toString() !== req.user.id.toString()) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Sólo antes de empezar: un contrato ya en marcha, terminado o cancelado no necesita código.
+    if (String(contract.status) !== 'accepted') {
+      res.status(409).json({
+        success: false,
+        message: `No se puede generar el código de un contrato "${contract.status}".`,
+      });
+      return;
+    }
+
     // Verificar que el contrato esté aceptado por ambas partes
     if (!contract.termsAcceptedByClient || !contract.termsAcceptedByDoer) {
       res.status(400).json({
@@ -2957,6 +2960,16 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
 
     if (!isClient && !isDoer) {
       res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // El pareamiento sólo inicia un contrato aceptado. Antes no miraba el estado: con las dos
+    // confirmaciones pasaba a "en progreso" un contrato pendiente, cancelado, en disputa o terminado.
+    if (String(contract.status) !== 'accepted') {
+      res.status(409).json({
+        success: false,
+        message: `El contrato está "${contract.status}": sólo se confirma el pareamiento de un contrato aceptado.`,
+      });
       return;
     }
 
@@ -3080,7 +3093,9 @@ router.post("/:id/force-start-pairing", protect, async (req: AuthRequest, res: R
       return;
     }
 
-    if (!['accepted', 'ready', 'pending'].includes(contract.status)) {
+    // El inicio flexible saltea el código, no la aceptación: desde "pendiente" o "listo" el contrato
+    // arrancaba sin que las dos partes hubieran aceptado los términos ni pasado la revisión.
+    if (String(contract.status) !== 'accepted') {
       res.status(400).json({
         success: false,
         message: `El contrato no puede iniciarse en estado "${contract.status}"`,
