@@ -180,7 +180,8 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
-    if (bankingInfo.cbu.length !== 22) {
+    // 22 DÍGITOS: antes sólo se medía el largo, y una cadena de 22 letras pasaba.
+    if (typeof bankingInfo.cbu !== 'string' || !/^\d{22}$/.test(bankingInfo.cbu)) {
       res.status(400).json({
         success: false,
         message: "El CBU debe tener exactamente 22 dígitos"
@@ -191,6 +192,41 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     const user = await User.findByPk(userId);
     if (!user) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
+    }
+
+    /**
+     * El destino del retiro es la cuenta que está guardada en el PERFIL, no la que mande el pedido.
+     *
+     * El enfriamiento de abajo mide hace cuánto se cambió el CBU DEL PERFIL (bankingInfoUpdatedAt). Pero esta
+     * ruta aceptaba cualquier CBU en el cuerpo, que nunca toca esa fecha: una sesión robada retiraba todo el
+     * saldo a una cuenta nueva en una sola llamada y el enfriamiento no se enteraba. Cambiar de cuenta pasa
+     * por el perfil (que fija la fecha y activa el enfriamiento), no por el formulario de retiro.
+     */
+    const { decryptCBU } = await import('../utils/encryption.js');
+    let cbuDelPerfil: string | null = null;
+    const guardado = (user as any).bankingInfo?.cbu;
+    if (typeof guardado === 'string' && guardado) {
+      try {
+        cbuDelPerfil = /^\d{22}$/.test(guardado) ? guardado : decryptCBU(guardado);
+      } catch {
+        cbuDelPerfil = null;
+      }
+    }
+    if (!cbuDelPerfil) {
+      res.status(400).json({
+        success: false,
+        code: 'BANKING_INFO_NOT_SAVED',
+        message: "Primero guardá tu cuenta bancaria en tu perfil. Por seguridad, los retiros se habilitan unas horas después de cargarla o cambiarla.",
+      });
+      return;
+    }
+    if (cbuDelPerfil !== bankingInfo.cbu) {
+      res.status(403).json({
+        success: false,
+        code: 'CBU_DIFFERS_FROM_PROFILE',
+        message: "El CBU del retiro tiene que ser el de tu perfil. Si querés cobrar en otra cuenta, cambiala desde tu perfil (por seguridad, los retiros se habilitan unas horas después del cambio).",
+      });
       return;
     }
 
