@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Flyer DOAPP (oscuro)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;800;900&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 210mm; height: 297mm; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: #0b1220;
+    color: #f8fafc;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .hoja {
+    position: relative; width: 210mm; height: 297mm; overflow: hidden;
+    background: radial-gradient(900px 520px at 50% -120px, rgba(14,165,233,0.28) 0%, rgba(14,165,233,0) 70%), #0b1220;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 15mm 16mm 14mm;
+  }
+  .marca { display: flex; align-items: center; gap: 4.5mm; }
+  .logo { width: 19mm; height: 19mm; display: block; }
+  .marca span { font-weight: 900; font-size: 27pt; letter-spacing: -0.02em; line-height: 1; }
+
+  .preguntas { display: flex; flex-direction: column; align-items: center; gap: 7mm; text-align: center; }
+  .q { font-weight: 900; font-size: 41pt; line-height: 1.06; letter-spacing: -0.025em; max-width: 178mm; text-wrap: balance; }
+  .q.trabajador { color: #38bdf8; }
+  .corte { width: 22mm; height: 1.1mm; border-radius: 1mm; background: #38bdf8; opacity: 0.45; }
+
+  .bloque-qr { display: flex; flex-direction: column; align-items: center; gap: 6mm; }
+  .tarjeta {
+    background: #ffffff; border-radius: 8mm; padding: 7mm;
+    border: 0.5mm solid #38bdf8; box-shadow: 0 0 0 1.2mm rgba(56,189,248,0.25), 0 4mm 12mm rgba(0,0,0,0.5);
+  }
+  .qr { display: block; width: 76mm; height: 76mm; }
+
+  .pie { display: flex; flex-direction: column; align-items: center; gap: 3.2mm; }
+  .beta { font-size: 12.5pt; font-weight: 600; color: #94a3b8; letter-spacing: 0.005em; }
+  .redes { display: flex; align-items: center; gap: 2.6mm; font-size: 12pt; font-weight: 600; color: #f8fafc; }
+  .ig { width: 7.5mm; height: 7.5mm; display: block; }
+  .punto { color: #94a3b8; padding: 0 1mm; }
+</style>
+</head>
+<body>
+  <main class="hoja">
+    <header class="marca">
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" class="logo" role="img" aria-label="DOAPP">
+  <circle cx="150" cy="150" r="145" fill="#00A8E8"/>
+  <path d="M 68 70 L 120 70 Q 160 70 160 150 Q 160 230 120 230 L 68 230 Z" fill="#fff"/>
+  <circle cx="215" cy="150" r="60" fill="#fff"/>
+</svg><span>DOAPP</span></header>
+
+    <section class="preguntas">
+      <p class="q cliente">¿Necesitás que te arreglen la canilla?</p>
+      <div class="corte" aria-hidden="true"></div>
+      <p class="q trabajador">¿Estás buscando trabajo?</p>
+    </section>
+
+    <section class="bloque-qr">
+      <div class="tarjeta"><svg class="qr" role="img" aria-label="Código QR de DOAPP" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" shape-rendering="crispEdges"><path stroke="#0b1220" d="M0 0.5h7m1 0h1m4 0h3m1 0h1m2 0h1m1 0h2m3 0h1m2 0h7M0 1.5h1m5 0h1m4 0h2m4 0h1m1 0h5m2 0h2m2 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h1m1 0h1m3 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m1 0h5m3 0h3m1 0h2m2 0h1m3 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m10 0h3m2 0h2m3 0h1m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h1m1 0h1m1 0h4m1 0h1m1 0h2m6 0h2m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h1m1 0h2m4 0h1m4 0h1m1 0h2m1 0h1M1 8.5h1m1 0h1m1 0h4m1 0h1m3 0h1m2 0h5m1 0h1m1 0h7m1 0h2m1 0h1M1 9.5h1m2 0h1m3 0h1m1 0h1m2 0h5m1 0h1m4 0h1m1 0h1m1 0h3m3 0h3M0 10.5h4m1 0h2m4 0h1m1 0h2m3 0h1m1 0h1m1 0h1m5 0h1m1 0h1m1 0h2m1 0h2M0 11.5h1m3 0h1m3 0h2m1 0h1m1 0h1m1 0h2m1 0h1m1 0h6m1 0h2m2 0h1m4 0h1M2 12.5h2m2 0h2m1 0h5m1 0h3m2 0h1m2 0h1m1 0h1m1 0h4m2 0h1m2 0h1M2 13.5h1m5 0h6m4 0h1m5 0h1m5 0h2m1 0h1m1 0h2M0 14.5h1m5 0h2m5 0h3m1 0h1m3 0h1m1 0h1m2 0h1m4 0h1m2 0h1m1 0h1M1 15.5h1m1 0h2m3 0h1m3 0h5m2 0h1m1 0h3m1 0h3m2 0h1m1 0h1m2 0h2M0 16.5h2m1 0h5m2 0h1m2 0h2m3 0h2m7 0h5m1 0h2m1 0h1M2 17.5h1m1 0h2m1 0h2m1 0h5m2 0h3m1 0h1m1 0h3m4 0h1m1 0h1m3 0h1M0 18.5h2m2 0h1m1 0h2m2 0h1m2 0h1m1 0h1m4 0h1m1 0h1m2 0h2m2 0h3m1 0h1m1 0h2M0 19.5h1m1 0h1m1 0h2m1 0h2m3 0h1m1 0h1m3 0h1m1 0h5m4 0h2m2 0h4M1 20.5h3m1 0h4m1 0h1m4 0h1m2 0h4m1 0h1m1 0h1m1 0h2m1 0h3m2 0h1M2 21.5h1m4 0h1m2 0h4m1 0h1m2 0h2m4 0h2m3 0h2m2 0h1m1 0h2M0 22.5h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h3m1 0h3m1 0h3m3 0h1m2 0h8M0 23.5h1m1 0h2m1 0h1m1 0h3m1 0h1m2 0h3m1 0h2m1 0h2m1 0h2m3 0h2m1 0h1m2 0h1M0 24.5h2m2 0h7m1 0h4m3 0h3m3 0h1m1 0h1m1 0h2m5 0h1M3 25.5h1m3 0h2m1 0h1m1 0h1m2 0h1m2 0h3m2 0h2m3 0h4m1 0h2m1 0h1M0 26.5h1m3 0h3m5 0h2m1 0h2m1 0h1m1 0h2m1 0h1m2 0h1m1 0h4m2 0h1m1 0h1M1 27.5h2m1 0h2m2 0h1m1 0h2m1 0h1m1 0h2m1 0h2m1 0h5m2 0h1m1 0h2M0 28.5h3m1 0h4m2 0h1m3 0h3m2 0h1m1 0h4m2 0h6m1 0h3M8 29.5h2m2 0h1m1 0h2m2 0h3m2 0h4m1 0h1m3 0h1m2 0h2M0 30.5h7m1 0h1m1 0h2m3 0h2m3 0h2m5 0h2m1 0h1m1 0h1m1 0h3M0 31.5h1m5 0h1m1 0h4m2 0h1m2 0h2m3 0h1m1 0h1m3 0h1m3 0h1m1 0h1M0 32.5h1m1 0h3m1 0h1m2 0h2m1 0h3m1 0h5m4 0h2m1 0h6m1 0h2M0 33.5h1m1 0h3m1 0h1m1 0h3m1 0h3m1 0h2m1 0h1m1 0h1m2 0h2m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1M0 34.5h1m1 0h3m1 0h1m3 0h3m1 0h4m1 0h1m1 0h1m5 0h3m1 0h2m1 0h1m1 0h1M0 35.5h1m5 0h1m1 0h1m1 0h2m2 0h2m2 0h6m1 0h6m1 0h1M0 36.5h7m2 0h1m1 0h1m8 0h2m3 0h1m2 0h5m2 0h2"/></svg>
+</div>
+    </section>
+
+    <footer class="pie">
+      <p class="beta">Aprovechá los 3 meses de beta gratis</p>
+      <div class="redes">
+        
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" class="ig" role="img" aria-label="Instagram">
+  <defs>
+    <radialGradient id="igg" cx="0.3" cy="1.05" r="1.25">
+      <stop offset="0" stop-color="#fed576"/>
+      <stop offset="0.26" stop-color="#f47133"/>
+      <stop offset="0.61" stop-color="#bc3081"/>
+      <stop offset="1" stop-color="#4c63d2"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#igg)"/>
+  <rect x="14" y="14" width="36" height="36" rx="10" fill="none" stroke="#fff" stroke-width="4"/>
+  <circle cx="32" cy="32" r="8.5" fill="none" stroke="#fff" stroke-width="4"/>
+  <circle cx="43" cy="21" r="2.6" fill="#fff"/>
+</svg><span>@doapparg</span><span class="punto">·</span><span>doapparg.com</span>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
