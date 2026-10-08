@@ -1426,6 +1426,10 @@ router.delete("/:id",
 router.post(
   "/apply-and-accept",
   protect,
+  // Los mismos controles que la postulación normal (POST /): antes esta variante los salteaba todos.
+  requireKyc,
+  requirePostWorkRating,
+  requireNotSuspended,
   [body("jobId").notEmpty().withMessage("El trabajo es requerido")],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -1462,6 +1466,28 @@ router.post(
         res.status(400).json({
           success: false,
           message: "Este trabajo ya no está abierto",
+        });
+        return;
+      }
+
+      // Un trabajo ya tomado no se toma de nuevo. Antes esta ruta pisaba `job.doerId` sin mirar si ya
+      // había un trabajador: el último en llamar se quedaba con el trabajo, sin que el cliente eligiera, y
+      // el anterior (con su propuesta "aprobada") quedaba sin trabajo. Tampoco sirve para los trabajos de
+      // varios trabajadores, que se postulan por el camino normal y los elige el cliente.
+      const yaTomado = !!job.doerId || (Array.isArray((job as any).selectedWorkers) && (job as any).selectedWorkers.length > 0);
+      if (yaTomado) {
+        res.status(409).json({
+          success: false,
+          code: "JOB_ALREADY_TAKEN",
+          message: "Este trabajo ya tiene un trabajador asignado",
+        });
+        return;
+      }
+      if ((Number((job as any).maxWorkers) || 1) > 1) {
+        res.status(409).json({
+          success: false,
+          code: "JOB_REQUIRES_PROPOSAL",
+          message: "Este trabajo admite varios trabajadores: postulate con una propuesta y el cliente elige.",
         });
         return;
       }
@@ -1641,7 +1667,7 @@ router.post(
                     <p><strong>Cliente:</strong> ${clientUser.name}</p>
                     <p><strong>Ubicación:</strong> ${job.location}</p>
                     <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <div class="warning-box">
@@ -1686,7 +1712,7 @@ router.post(
                     <h3>${job.title}</h3>
                     <p><strong>Candidato:</strong> ${req.user.name}</p>
                     <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <p>Puedes revisar todas las postulaciones y seleccionar al trabajador ideal.</p>
