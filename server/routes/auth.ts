@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { leerSignedRequestDeFacebook } from '../utils/facebookSignedRequest.js';
 import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
@@ -1309,9 +1310,13 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
       return;
     }
 
-    // Parse the signed request from Facebook
-    const [encodedSig, payload] = signed_request.split('.');
-    const data = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+    // La firma se VERIFICA con el secreto de la app (antes se descartaba): cualquiera que conociera el
+    // facebookId de alguien podía desvincularle la cuenta con un POST anónimo.
+    const data = leerSignedRequestDeFacebook(signed_request, process.env.FACEBOOK_APP_SECRET);
+    if (!data) {
+      res.status(400).json({ error: "invalid signed_request" });
+      return;
+    }
     const userId = data.user_id;
 
     if (!userId) {
@@ -1327,7 +1332,8 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
 
     if (user) {
       // Clear Facebook-related data (but keep user for audit trail)
-      user.facebookId = undefined;
+      // null y no undefined: Sequelize IGNORA los undefined al guardar, y la columna nunca se limpiaba.
+      (user as any).facebookId = null;
       await user.save();
 
       console.log(`[GDPR] Facebook data deleted for user: ${user.id}`);
@@ -1388,9 +1394,12 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
       return;
     }
 
-    // Parse the signed request from Facebook
-    const [encodedSig, payload] = signed_request.split('.');
-    const data = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+    // Misma verificación de firma que en data-deletion.
+    const data = leerSignedRequestDeFacebook(signed_request, process.env.FACEBOOK_APP_SECRET);
+    if (!data) {
+      res.status(400).json({ error: "invalid signed_request" });
+      return;
+    }
     const userId = data.user_id;
 
     if (userId) {
@@ -1398,7 +1407,7 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
       const user = await User.findOne({ where: { facebookId: userId } });
 
       if (user) {
-        user.facebookId = undefined;
+        (user as any).facebookId = null; // null, no undefined (Sequelize ignora undefined al guardar)
         await user.save();
 
         console.log(`[OAuth] Facebook deauthorized for user: ${user.id}`);
