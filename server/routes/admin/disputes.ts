@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { resolverDisputa } from '../../services/disputeResolution.js';
 import { protect, authorize, AuthRequest } from "../../middleware/auth.js";
 import { Dispute } from "../../models/sql/Dispute.model.js";
 import { User } from "../../models/sql/User.model.js";
@@ -291,7 +292,7 @@ router.post(
       const dispute = await Dispute.findByPk(req.params.id);
       if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
       const { ejecutarAcuerdo } = await import('../../services/reclamoDirecto.js');
-      const r = await ejecutarAcuerdo(dispute, String(req.user.id));
+      const r = await ejecutarAcuerdo(dispute, String(req.user.id), { devolucionManual: req.body?.devolucionManual === true });
       if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
       await logAudit({
         req,
@@ -364,165 +365,64 @@ router.post(
         return;
       }
 
-      const contract = await Contract.findByPk(dispute.contractId);
-      const payment = dispute.paymentId ? await Payment.findByPk(dispute.paymentId) : null;
-
-      if (!contract) {
-        res.status(404).json({
-          success: false,
-          message: "Contrato no encontrado",
-        });
+      // La plata se mueve por UNA sola puerta: resolverDisputa (servicio). Esta ruta tenía su propia copia del
+      // movimiento de dinero, y era la vieja: marcaba el pago y la disputa como reembolsados ANTES de pedirle el
+      // reembolso a MercadoPago y se tragaba el error (la disputa quedaba cerrada como "reembolsada" aunque no
+      // hubiera salido un peso); calculaba mal el monto del reembolso total (amountArs y commission no existen en
+      // el pago: daba 0 y MercadoPago devolvía TODO, comisión incluida); no miraba si la disputa ya estaba
+      // resuelta; y saltaba el libro, la exclusión mutua y el tope de devoluciones.
+      const monto = refundAmount === undefined || refundAmount === null || refundAmount === '' ? undefined : Number(refundAmount);
+      if (monto !== undefined && (!Number.isFinite(monto) || monto < 0)) {
+        res.status(400).json({ success: false, message: 'El monto a devolver no es válido.' });
+        return;
+      }
+      if (resolutionType === 'partial_refund' && !(typeof monto === 'number' && monto > 0)) {
+        res.status(400).json({ success: false, message: 'Para una devolución parcial indicá el monto a devolver (mayor que cero).' });
         return;
       }
 
-      // Update dispute
-      const disputeUpdateData: any = {
-        resolution,
-        resolutionType,
-        resolvedAt: new Date(),
-        resolvedBy: req.user.id,
-        refundAmount,
-        platformFeeRefunded: false, // Nunca se devuelve la comisión
-      };
-
-      // Process resolution
-      switch (resolutionType) {
-        case "full_release":
-          // Release payment to doer - restore to completed status (was disputed)
-          await contract.update({
-            status: "completed",
-            paymentStatus: "released",
-            escrowStatus: "released",
-            disputeStatus: "resolved",
-            clientConfirmed: true,
-            doerConfirmed: true,
-          });
-          if (payment) {
-            await payment.update({
-              status: "completed",
-              escrowReleasedAt: new Date(),
-            });
-
-            // Release escrow - MercadoPago handles this automatically
-            if (payment.mercadopagoPaymentId) {
-              console.log(`✅ Escrow released for payment: ${payment.mercadopagoPaymentId}`);
-            }
-          }
-
-          disputeUpdateData.status = "resolved_released";
-          break;
-
-        case "full_refund":
-          // Refund to client (minus platform fee)
-          await contract.update({
-            status: "cancelled",
-            paymentStatus: "refunded",
-            escrowStatus: "refunded",
-            disputeStatus: "resolved",
-          });
-          if (payment) {
-            await payment.update({
-              status: "refunded",
-              refundedAt: new Date(),
-            });
-
-            // Refund via MercadoPago (minus platform fee)
-            if (payment.mercadopagoPaymentId) {
-              try {
-                const refundAmountARS = payment.amountArs || 0;
-                const commission = (payment as any).commission || 0;
-                const refundableAmount = refundAmountARS - commission; // Don't refund commission
-
-                await mercadopagoService.refundPayment(
-                  payment.mercadopagoPaymentId,
-                  'mercadopago',
-                  refundableAmount
-                );
-              } catch (error) {
-                console.error("Error processing refund:", error);
-              }
-            }
-          }
-
-          disputeUpdateData.status = "resolved_refunded";
-          break;
-
-        case "partial_refund":
-          // Partial refund to client
-          await contract.update({
-            status: "completed",
-            paymentStatus: "partially_refunded",
-            escrowStatus: "released", // Escrow se libera (parcialmente al doer, parcialmente reembolsado)
-            disputeStatus: "resolved",
-          });
-          if (payment) {
-            await payment.update({
-              status: "partially_refunded",
-              refundedAt: new Date(),
-            });
-
-            // Partial refund via MercadoPago
-            if (payment.mercadopagoPaymentId && refundAmount) {
-              try {
-                await mercadopagoService.refundPayment(payment.mercadopagoPaymentId, 'mercadopago', refundAmount);
-              } catch (error) {
-                console.error("Error processing partial refund:", error);
-              }
-            }
-          }
-
-          disputeUpdateData.status = "resolved_partial";
-          break;
-
-        case "no_action":
-          // No changes to payment, but clear dispute status
-          await contract.update({
-            disputeStatus: "resolved",
-          });
-          disputeUpdateData.status = "resolved_released";
-          break;
+      const r = await resolverDisputa({
+        disputeId: String(dispute.id),
+        tipo: resolutionType,
+        resolucion: String(resolution),
+        montoDevolucion: monto,
+        actor: `admin:${req.user.id}`,
+        resueltoPor: String(req.user.id),
+        devolucionManual: req.body.devolucionManual === true,
+      });
+      if (!r.ok) {
+        res.status(409).json({
+          success: false,
+          code: 'DISPUTE_NOT_RESOLVED',
+          message: r.motivo || 'No se pudo resolver la disputa.',
+        });
+        return;
       }
-
-      // Add log entry
-      const currentLogs = dispute.logs || [];
-      const newLog = {
-        action: `Disputa resuelta`,
-        performedBy: req.user.id,
-        timestamp: new Date(),
-        details: `Tipo: ${resolutionType}`,
-      };
-
-      disputeUpdateData.logs = [...currentLogs, newLog];
-      await dispute.update(disputeUpdateData);
+      await dispute.reload();
 
       void logAudit({
         req, action: 'dispute.resolve', category: 'payment', severity: 'high',
         description: `Resolvió la disputa ${dispute.id} (${resolutionType})${refundAmount ? ` · reembolso $${Number(refundAmount).toLocaleString('es-AR')}` : ''}`,
         targetModel: 'Dispute', targetId: dispute.id,
-        metadata: { resolutionType, refundAmount: refundAmount || null, resolution },
+        metadata: { resolutionType, refundAmount: refundAmount || null, resolution, devolucionManual: req.body.devolucionManual === true },
       });
 
-      // Send email notifications
-      const { Job } = await import("../../models/sql/Job.model.js");
-      const job = await Job.findByPk(contract.jobId);
-
-      await emailService.sendDisputeResolvedEmail(contract.clientId, dispute.id.toString(), resolution, 0);
-      await emailService.sendDisputeResolvedEmail(contract.doerId, dispute.id.toString(), resolution, 0);
-
-      // Emit socket event to notify contract update
-      const { getIO } = await import("../../services/socket.js");
-      await contract.reload({
-        include: [
-          { model: User, as: "client", attributes: ["id", "name", "email"] },
-          { model: User, as: "doer", attributes: ["id", "name", "email"] },
-          { model: Job, as: "job", attributes: ["id", "title"] },
-        ],
-      });
-      getIO()?.to(`user:${contract.clientId}`).to(`user:${contract.doerId}`).emit('contract:updated', {
-        contract: contract.toJSON(),
-        action: "dispute_resolved",
-        resolutionType,
-      });
+      // Avisos por mail y por socket: la plata ya se movió, así que un fallo acá NO puede responder 500.
+      try {
+        const contract = await Contract.findByPk(dispute.contractId);
+        if (contract) {
+          await emailService.sendDisputeResolvedEmail(contract.clientId, dispute.id.toString(), resolution, 0);
+          await emailService.sendDisputeResolvedEmail(contract.doerId, dispute.id.toString(), resolution, 0);
+          const { getIO } = await import('../../services/socket.js');
+          getIO()?.to(`user:${contract.clientId}`).to(`user:${contract.doerId}`).emit('contract:updated', {
+            contract: contract.toJSON(),
+            action: 'dispute_resolved',
+            resolutionType,
+          });
+        }
+      } catch (avisoError) {
+        console.error('[disputas] La disputa se resolvió pero falló el aviso:', avisoError);
+      }
 
       res.json({
         success: true,

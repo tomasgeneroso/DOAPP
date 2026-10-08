@@ -18,6 +18,13 @@ export interface ResolucionParams {
   actor: string;
   /** Id del admin que resolvio, si fue una persona. */
   resueltoPor?: string | null;
+  /**
+   * El admin confirma que la devolución ya se hizo (o se va a hacer) FUERA de MercadoPago: el pago no pasó por
+   * MercadoPago (transferencia, otro medio) y no hay un reembolso automático que ejecutar. Sin esto, resolver un
+   * reembolso sobre un pago sin id de MercadoPago se rechaza: antes la disputa se cerraba como "reembolsada" y el
+   * contrato como "cancelado" sin que ninguna plata se moviera.
+   */
+  devolucionManual?: boolean;
 }
 
 /**
@@ -94,7 +101,17 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
         return { ok: false, motivo: 'no queda nada por devolver en este pago' };
       }
 
-      if (payment?.mercadopagoPaymentId) {
+      const esMp = !!payment?.mercadopagoPaymentId;
+      if (!esMp && !p.devolucionManual) {
+        return {
+          ok: false,
+          motivo:
+            'El pago no se hizo por MercadoPago, así que la devolución no se puede ejecutar desde acá. ' +
+            'Hacela por fuera y volvé a resolver con devolucionManual: true; hasta entonces la disputa sigue abierta.',
+        };
+      }
+
+      if (payment) {
         const { executeFinancialAction } = await import('./paymentActions.js');
         const mercadoPagoService = (await import('./mercadopago.js')).default;
 
@@ -102,7 +119,7 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
           {
             contractId: String(contract.id),
             paymentId: String(payment.id),
-            provider: 'mercadopago',
+            provider: esMp ? 'mercadopago' : 'transferencia_manual',
             actionType: devuelto >= total - 0.01 ? 'REFUND_TOTAL' : 'REFUND_PARTIAL',
             amount: devuelto,
             currency: String(payment.currency || 'ARS'),
@@ -110,6 +127,9 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
             requestPayload: { disputeId: dispute.id, tipo: p.tipo, actor: p.actor },
           },
           async () => {
+            // Devolución hecha por fuera de MercadoPago: queda asentada en el libro (quién, cuánto y cuándo),
+            // pero no hay nada que llamarle a un proveedor.
+            if (!esMp) return { ok: true, resourceId: 'devolucion-manual' };
             try {
               const res = await mercadoPagoService.refundPayment(
                 payment.mercadopagoPaymentId!,

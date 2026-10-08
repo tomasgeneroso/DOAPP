@@ -205,7 +205,11 @@ export async function aceptarAcuerdo(d: Dispute, userId: string): Promise<{ ok: 
  * camino por el que ese acuerdo mueve plata, y pasa por resolverDisputa igual
  * que cualquier resolucion: exclusion mutua, tope de devoluciones, libro.
  */
-export async function ejecutarAcuerdo(d: Dispute, adminId: string): Promise<{ ok: boolean; motivo?: string }> {
+export async function ejecutarAcuerdo(
+  d: Dispute,
+  adminId: string,
+  opciones: { devolucionManual?: boolean } = {},
+): Promise<{ ok: boolean; motivo?: string }> {
   const p = d.agreementProposal;
   if (!p || !d.agreementAcceptedAt) return { ok: false, motivo: 'No hay un acuerdo aceptado por las dos partes.' };
   if (p.tipo === 'rehacer') return { ok: false, motivo: 'Un acuerdo de rehacer el trabajo no mueve plata: ya se aplicó.' };
@@ -220,6 +224,8 @@ export async function ejecutarAcuerdo(d: Dispute, adminId: string): Promise<{ ok
     resolucion: `Acuerdo entre las partes, ejecutado por el equipo de DOAPP: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}${p.monto ? ` (${$(p.monto)})` : ''}. ${p.nota || ''}`.trim(),
     actor: `admin:${adminId}`,
     resueltoPor: adminId,
+    // Un pago que no pasó por MercadoPago no tiene devolución automática: el admin confirma que la hizo por fuera.
+    devolucionManual: opciones.devolucionManual === true,
   });
   if (!r.ok) return { ok: false, motivo: r.motivo };
 
