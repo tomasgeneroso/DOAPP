@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
-import membershipService from "../services/membershipService.js";
+import membershipService, { MembershipError } from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing.js";
 import { areMembershipsAvailable } from "../services/platformPhase.js";
@@ -75,29 +75,15 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
  * POST /api/membership/create
  * Crear una nueva membresía
  */
-router.post("/create", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    if (!(await membresiasEnVenta(res))) return;
-    const userId = req.user.id || req.user.id?.toString();
-
-    const result = await membershipService.createMembership(userId);
-
-    res.status(201).json({
-      success: true,
-      message: "Membresía creada. Completa el pago para activarla.",
-      data: {
-        membership: result.membership,
-        paymentUrl: result.paymentPreference.initPoint,
-        preferenceId: result.paymentPreference.preferenceId,
-      },
-    });
-  } catch (error: any) {
-    console.error('Error creating membership:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error al crear membresía",
-    });
-  }
+router.post("/create", protect, async (_req: AuthRequest, res: Response): Promise<void> => {
+  // Ruta sin uso: ninguna pantalla la llama. Dependía de una "preferencia de pago" que es un stub
+  // (devuelve null), así que fallaba con un 500 después de crear la fila de membresía y marcar al usuario
+  // como miembro sin haber pagado. La membresía se paga con /create-payment (o /upgrade-to-pro).
+  res.status(410).json({
+    success: false,
+    code: 'MEMBERSHIP_ROUTE_GONE',
+    message: "Esta ruta ya no se usa. Para contratar la membresía usá el pago de membresía.",
+  });
 });
 
 /**
@@ -130,6 +116,10 @@ router.post(
         data: membership,
       });
     } catch (error: any) {
+      if (error instanceof MembershipError) {
+        res.status(error.status).json({ success: false, message: error.message });
+        return;
+      }
       console.error('Error activating membership:', error);
       res.status(500).json({
         success: false,

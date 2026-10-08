@@ -228,17 +228,26 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
   });
 
   describe('las otras dos rutas que arrancan una compra también respetan la beta', () => {
-    it.each([
-      ['/api/membership/upgrade-to-pro'],
-      ['/api/membership/create'],
-    ])('POST %s durante la beta: 403 y no se crea nada', async (ruta) => {
+    it('POST /upgrade-to-pro durante la beta: 403 y no se crea nada', async () => {
       await enBeta();
-      const r = await request(app).post(ruta).set(como('libre')).send({});
+      const r = await request(app).post('/api/membership/upgrade-to-pro').set(como('libre')).send({});
       expect(r.status).toBe(403);
       expect(r.body.code).toBe('MEMBERSHIPS_NOT_AVAILABLE');
       expect(mockCrearPago).not.toHaveBeenCalled();
       expect(await pagosDe('libre')).toBe(0);
       expect(await Membership.count({ where: { userId: usuarios.libre.id } })).toBe(0);
+    });
+
+    it('POST /create ya no existe (410) ni en la beta ni fuera de ella, y no crea nada', async () => {
+      for (const fase of [enBeta, enFaseEstable]) {
+        await fase();
+        const r = await request(app).post('/api/membership/create').set(como('libre')).send({});
+        expect(r.status).toBe(410);
+        expect(mockCrearPago).not.toHaveBeenCalled();
+        expect(await pagosDe('libre')).toBe(0);
+        expect(await Membership.count({ where: { userId: usuarios.libre.id } })).toBe(0);
+      }
+      await enBeta();
     });
 
     it('POST /upgrade-to-pro fuera de la beta sigue cobrando PRO (el guard no rompe el camino feliz)', async () => {
@@ -417,7 +426,13 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
 
     it('activar la membresía deja la tasa del usuario en la de la tabla (antes 3)', async () => {
       await nuevaMembresia('compra', 'PRO');
-      await membershipService.activateMembership(usuarios.compra.id, 'mp-1');
+      // activateMembership exige un pago de membresía propio y confirmado
+      const pago: any = await Payment.create({
+        payerId: usuarios.compra.id, recipientId: null, contractId: null, amount: PRECIO_ARS, currency: 'ARS',
+        status: 'completed', paymentType: 'membership', description: 'Membresía DOAPP PRO - Mensual',
+        platformFee: 0, platformFeePercentage: 0, isEscrow: false,
+      } as any);
+      await membershipService.activateMembership(usuarios.compra.id, pago.id);
       const u: any = await User.findByPk(usuarios.compra.id);
       expect(u.membershipTier).toBe('pro');
       expect(Number(u.currentCommissionRate)).toBe(COMMISSION_RATES.pro);
@@ -517,7 +532,7 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
    * ------------------------------------------------------------------ */
   describe('el mail de bienvenida a PRO lista beneficios reales', () => {
     const fuente = readFileSync(join(process.cwd(), 'server/routes/webhooks.ts'), 'utf8');
-    const bienvenida = fuente.slice(fuente.indexOf('async function handleMembershipPayment'), fuente.indexOf('Manejar webhook de suscripción'));
+    const bienvenida = fuente.slice(fuente.indexOf('async function handleMembershipPayment'), fuente.indexOf('Webhook de suscripción: hoy NO cambia'));
 
     it('no promete comisión reducida, contratos por plan ni soporte prioritario', () => {
       expect(bienvenida.length).toBeGreaterThan(500);
@@ -533,6 +548,101 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       expect(bienvenida).toMatch(/Prioridad en las búsquedas/);
       expect(bienvenida).toMatch(/Estadísticas de tu perfil/);
       expect(bienvenida).toMatch(/la misma que en el plan gratuito/);
+    });
+  });
+
+  /* ------------------------------------------------------------------ *
+   * F. PRO no se regala: activar exige un pago propio y confirmado
+   * ------------------------------------------------------------------ */
+  describe('POST /api/membership/activate y /create: sin pago confirmado no hay PRO', () => {
+    const pagoDe = (clave: string, extra: Record<string, unknown> = {}) =>
+      Payment.create({
+        payerId: usuarios[clave].id, recipientId: null, contractId: null, amount: PRECIO_ARS, currency: 'ARS',
+        status: 'completed', paymentType: 'membership', description: 'Membresía DOAPP PRO - Mensual',
+        platformFee: 0, platformFeePercentage: 0, isEscrow: false, ...extra,
+      } as any) as Promise<any>;
+    const filaPendiente = (clave: string, extra: Record<string, unknown> = {}) =>
+      Membership.create({
+        userId: usuarios[clave].id, plan: 'PRO', status: 'pending', startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 86400000), priceUSD: 0, priceARS: PRECIO_ARS,
+        exchangeRateAtPurchase: TIPO_EUR, ...extra,
+      } as any);
+    const activar = (clave: string, paymentId: unknown) =>
+      request(app).post('/api/membership/activate').set(como(clave)).send({ paymentId });
+    const esPro = async (clave: string) => ((await User.findByPk(usuarios[clave].id)) as any).membershipTier === 'pro';
+
+    beforeEach(async () => {
+      await Membership.destroy({ where: { userId: usuarios.compra.id } });
+      await Payment.destroy({ where: { payerId: [usuarios.compra.id, usuarios.libre.id] } });
+      await User.update({ hasMembership: false, membershipTier: 'free' } as any, { where: { id: [usuarios.compra.id, usuarios.libre.id] } });
+    });
+
+    it('un paymentId inventado ("x", "mp-1", un número) no activa nada', async () => {
+      await filaPendiente('compra');
+      for (const falso of ['x', 'mp-1', '123456', 'drop table users']) {
+        const r = await activar('compra', falso);
+        expect([falso, r.status]).toEqual([falso, 404]);
+      }
+      expect(await esPro('compra')).toBe(false);
+      expect(((await Membership.findOne({ where: { userId: usuarios.compra.id } })) as any).status).toBe('pending');
+    });
+
+    it('el pago de otra persona no sirve', async () => {
+      await filaPendiente('compra');
+      const ajeno = await pagoDe('libre');
+      const r = await activar('compra', ajeno.id);
+      expect(r.status).toBe(404);
+      expect(await esPro('compra')).toBe(false);
+    });
+
+    it('un pago que todavía no está confirmado no sirve', async () => {
+      await filaPendiente('compra');
+      for (const estado of ['pending', 'processing', 'pending_verification', 'failed']) {
+        const p = await pagoDe('compra', { status: estado });
+        const r = await activar('compra', p.id);
+        expect([estado, r.status]).toEqual([estado, 409]);
+      }
+      expect(await esPro('compra')).toBe(false);
+    });
+
+    it('un pago que no es de membresía no sirve', async () => {
+      await filaPendiente('compra');
+      const p = await pagoDe('compra', { paymentType: 'job_publication' });
+      expect((await activar('compra', p.id)).status).toBe(404);
+      expect(await esPro('compra')).toBe(false);
+    });
+
+    it('sin paymentId se rechaza con 400', async () => {
+      const r = await request(app).post('/api/membership/activate').set(como('compra')).send({});
+      expect(r.status).toBe(400);
+    });
+
+    it('con un pago propio, de membresía y confirmado, activa PRO y lo deja registrado', async () => {
+      await filaPendiente('compra');
+      const p = await pagoDe('compra');
+      const r = await activar('compra', p.id);
+      expect(r.status).toBe(200);
+      expect(await esPro('compra')).toBe(true);
+      const m: any = await Membership.findOne({ where: { userId: usuarios.compra.id } });
+      expect(m.status).toBe('active');
+      expect(String(m.lastPaymentId)).toBe(String(p.id));
+    });
+
+    it('un mismo pago no reactiva una membresía ya vencida o cancelada (sería regalar otro mes)', async () => {
+      const p = await pagoDe('compra');
+      await filaPendiente('compra', { status: 'expired', lastPaymentId: p.id });
+      const r = await activar('compra', p.id);
+      expect(r.status).toBe(409);
+      expect(await esPro('compra')).toBe(false);
+    });
+
+    it('/create ya no existe: no crea la fila ni marca al usuario como miembro antes de pagar', async () => {
+      await enFaseEstable();
+      const r = await request(app).post('/api/membership/create').set(como('libre')).send({});
+      expect(r.status).toBe(410);
+      expect(await Membership.count({ where: { userId: usuarios.libre.id } })).toBe(0);
+      expect(((await User.findByPk(usuarios.libre.id)) as any).hasMembership).toBe(false);
+      await enBeta();
     });
   });
 });

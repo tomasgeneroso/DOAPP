@@ -2,7 +2,18 @@ import { Membership } from "../models/sql/Membership.model.js";
 import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
 import { User } from "../models/sql/User.model.js";
 import currencyExchange from './currencyExchange.js';
+import { Payment } from "../models/sql/Payment.model.js";
 import { Op } from 'sequelize';
+
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Un rechazo esperable (pago inexistente, sin confirmar, ya usado): la ruta lo traduce a 4xx, no a 500. */
+export class MembershipError extends Error {
+  constructor(message: string, public readonly status = 400) {
+    super(message);
+    this.name = 'MembershipError';
+  }
+}
 
 // Stub for legacy code — MP subscription methods not yet migrated to Sequelize
 const mercadopago: any = {
@@ -51,9 +62,9 @@ class MembershipService {
 
       const paymentPreference = await mercadopago.createSubscription(userId, priceARS);
 
-      user.hasMembership = true;
-      user.membershipExpiresAt = endDate;
-      await user.save();
+      // Ya NO se marca `hasMembership` acá: la membresía recién existe cuando se confirma el pago
+      // (activateMembership). Antes quedaba "con membresía" desde antes de pagar, y como la preferencia
+      // de pago era un stub que devuelve null, la ruta fallaba con un 500 con ese estado ya guardado.
 
       return {
         membership,
@@ -70,13 +81,34 @@ class MembershipService {
    */
   async activateMembership(userId: string, paymentId: string) {
     try {
+      // Sin un pago confirmado no hay membresía. Esta función se llamaba con CUALQUIER `paymentId` (hasta
+      // "x") y dejaba PRO a quien tuviera una fila de membresía, pagada o no, vencida o no. El pago tiene
+      // que ser NUESTRO registro, del mismo usuario, de membresía y ya confirmado (por capture-order tras
+      // verificarlo con MercadoPago, o por un administrador).
+      const pago = typeof paymentId === 'string' && ES_UUID.test(paymentId)
+        ? await Payment.findOne({ where: { id: paymentId, payerId: userId, paymentType: 'membership' } })
+        : null;
+      if (!pago) {
+        throw new MembershipError('No encontramos un pago de membresía tuyo con ese identificador.', 404);
+      }
+      if (String(pago.status) !== 'completed') {
+        throw new MembershipError('El pago de la membresía todavía no está confirmado.', 409);
+      }
+
       const membership = await Membership.findOne({ where: { userId } });
       if (!membership) {
-        throw new Error('Membership not found');
+        throw new MembershipError('Membership not found', 404);
+      }
+
+      // Un pago sirve para UN período. Si ya respaldó esta membresía y hoy no está activa, reactivarla
+      // con el mismo pago sería regalar otro mes.
+      if (membership.lastPaymentId && String(membership.lastPaymentId) === String(pago.id) && membership.status !== 'active' && membership.status !== 'pending') {
+        throw new MembershipError('Ese pago ya se usó para un período anterior.', 409);
       }
 
       membership.status = 'active';
       membership.lastPaymentDate = new Date();
+      membership.lastPaymentId = pago.id as any;
       await membership.save();
 
       // Actualizar usuario con membresía PRO
@@ -93,7 +125,8 @@ class MembershipService {
 
       return membership;
     } catch (error) {
-      console.error('Error activating membership:', error);
+      // Un rechazo esperable (pago inexistente o sin confirmar) no es un error del servidor.
+      if (!(error instanceof MembershipError)) console.error('Error activating membership:', error);
       throw error;
     }
   }
