@@ -1,4 +1,4 @@
-# 🚀 DoApp - Plataforma de Trabajo Freelance
+# 👩‍💻👨‍💻🛠️💸DoApp - Plataforma de Trabajo Freelance
 
 > **Conectando profesionales con clientes de manera segura y eficiente**
 
