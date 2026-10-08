@@ -889,6 +889,52 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     const doer = contract.doer as any;
     const job = contract.job as any;
 
+    // Un contrato ya pagado no se paga dos veces. El libro contesta "ok" a un reintento de la misma
+    // acción (es idempotente a propósito), y esta ruta rehacía todo lo demás: notificación al trabajador,
+    // comprobante, asientos y la factura.
+    if (contract.paymentStatus === 'completed') {
+      res.status(409).json({ success: false, code: 'PAYOUT_YA_PAGADO', message: 'Este contrato ya figura como pagado al trabajador.' });
+      return;
+    }
+    if (['cancelled', 'rejected'].includes(String(contract.status))) {
+      res.status(409).json({ success: false, code: 'PAYOUT_CONTRATO_NO_PAGABLE', message: `Un contrato ${contract.status} no se le paga al trabajador.` });
+      return;
+    }
+
+    /**
+     * El pago del cliente tiene que estar confirmado para pagar. El listado de pagos pendientes ya muestra
+     * sólo los contratos con un pago en `confirmed_for_payout`, pero esta ruta aceptaba cualquier contrato
+     * por su id —aunque el cliente nunca hubiera pagado, o el pago estuviera reembolsado o fallido— y
+     * marcaba como pagado "cualquier pago que encontrara". Salida de emergencia: sólo owner o super_admin,
+     * con justificación, y queda asentada con severidad alta.
+     */
+    const pagoConfirmado = await Payment.findOne({ where: { contractId, status: 'confirmed_for_payout' }, attributes: ['id'] });
+    if (!pagoConfirmado) {
+      const { forzarSinPago, justificacionSinPago } = req.body as { forzarSinPago?: boolean; justificacionSinPago?: string };
+      const rolDelAdmin = String((req.user as any)?.adminRole || '');
+      const puedeForzar = ['owner', 'super_admin'].includes(rolDelAdmin);
+      if (!(forzarSinPago === true && puedeForzar && String(justificacionSinPago || '').trim().length >= 15)) {
+        res.status(409).json({
+          success: false,
+          code: 'PAYOUT_SIN_PAGO_CONFIRMADO',
+          message:
+            'El pago del cliente por este contrato no está confirmado para pagar al trabajador (estado confirmed_for_payout). ' +
+            'Confirmalo primero desde Pagos. Sólo un owner o super_admin puede saltearlo, con forzarSinPago: true y una justificación de al menos 15 caracteres.',
+        });
+        return;
+      }
+      await logMoneyEvent({
+        action: 'PAYOUT_WITHOUT_CONFIRMED_PAYMENT',
+        actor: `admin:${adminId}`,
+        severity: 'high',
+        description: 'Pago al trabajador marcado sin un pago del cliente confirmado para pagar.',
+        contractId,
+        userId: doer?.id,
+        moneda: 'ARS',
+        metadata: { justificacion: String(justificacionSinPago).trim() },
+      });
+    }
+
     /**
      * Lo que corresponde pagarle: su parte menos la pasarela real del pago.
      *
@@ -903,10 +949,34 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     const netBeforeDeductions = calc.neto;
 
     // Apply deductions if provided (retenciones impositivas, etc.)
-    const bankFee = deductions?.bankFee || 0;
-    const taxAmount = deductions?.taxAmount || 0;
-    const otherDeductions = deductions?.otherDeductions || 0;
-    const finalAmountPaid = deductions?.finalAmountPaid || netBeforeDeductions;
+    // Todo lo que viene del cuerpo se valida ANTES de asentar nada. Antes se usaba tal cual: un texto en
+    // `taxAmount` rompía con un 500 en `.toFixed` DESPUÉS de registrar el pago en el libro, y un
+    // `finalAmountPaid` mayor que lo adeudado se transfería y se acreditaba sin tope.
+    if (deductions !== undefined && deductions !== null && (typeof deductions !== 'object' || Array.isArray(deductions))) {
+      res.status(400).json({ success: false, code: 'PAYOUT_DEDUCCIONES_INVALIDAS', message: 'Las deducciones tienen que ser un objeto.' });
+      return;
+    }
+    const aImporte = (v: unknown): number =>
+      v === undefined || v === null || v === '' ? 0 : typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : NaN;
+    const bankFee = aImporte(deductions?.bankFee);
+    const taxAmount = aImporte(deductions?.taxAmount);
+    const otherDeductions = aImporte(deductions?.otherDeductions);
+    const pedido = deductions?.finalAmountPaid;
+    const finalAmountPaid: number =
+      pedido === undefined || pedido === null || pedido === '' ? netBeforeDeductions : (typeof pedido === 'number' ? pedido : NaN);
+    if (
+      [bankFee, taxAmount, otherDeductions].some((n) => !Number.isFinite(n)) ||
+      !Number.isFinite(finalAmountPaid) ||
+      finalAmountPaid <= 0 ||
+      finalAmountPaid > netBeforeDeductions + 0.01
+    ) {
+      res.status(400).json({
+        success: false,
+        code: 'PAYOUT_MONTO_INVALIDO',
+        message: `Los importes no son válidos: deben ser números, y el monto final (mayor que cero) no puede superar lo que se le adeuda al trabajador ($${netBeforeDeductions.toLocaleString('es-AR')}).`,
+      });
+      return;
+    }
 
     // Use the final amount with all deductions for the worker's balance
     const netAmount = finalAmountPaid;
@@ -1099,17 +1169,31 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
 
       // Create a PaymentProof record if proof was uploaded
       if (proofOfPayment) {
-        const proof = await PaymentProof.create({
-          paymentId: paymentToUpdate.id,
-          fileUrl: proofOfPayment,
-          status: 'approved',
-          uploadedAt: new Date(),
-          verifiedBy: adminId,
-          verifiedAt: new Date(),
-          isActive: true,
-          notes: `Comprobante de pago al trabajador - ${job?.title || 'Contrato'}`,
-        });
-        console.log(`[mark-paid] PaymentProof created: ${proof.id} for payment ${paymentToUpdate.id}`);
+        // Registro accesorio: el pago ya está asentado en el libro y en el contrato. Antes este create
+        // faltaba userId y fileSize (obligatorios) y lanzaba SIEMPRE que se adjuntaba comprobante: la ruta
+        // respondía 500 con el pago ya hecho, el trabajador nunca recibía el aviso y el admin reintentaba.
+        // El comprobante de la transferencia al trabajador es evidencia de administración (kind 'note'),
+        // no el recibo del cliente, y no pisa al recibo activo del pago.
+        try {
+          const proof = await PaymentProof.create({
+            paymentId: paymentToUpdate.id,
+            userId: adminId,
+            fileUrl: String(proofOfPayment),
+            fileName: 'comprobante-de-pago-al-trabajador',
+            fileSize: 0,
+            kind: 'note',
+            uploadedByRole: 'admin',
+            status: 'approved',
+            uploadedAt: new Date(),
+            verifiedBy: adminId,
+            verifiedAt: new Date(),
+            isActive: false,
+            notes: `Comprobante de pago al trabajador - ${job?.title || 'Contrato'}`,
+          } as any);
+          console.log(`[mark-paid] PaymentProof created: ${proof.id} for payment ${paymentToUpdate.id}`);
+        } catch (error: any) {
+          console.error(`[mark-paid] No se pudo guardar el comprobante (el pago ya está asentado): ${error.message}`);
+        }
       }
     } else {
       console.log(`[mark-paid] WARNING: No Payment record found for contract ${contractId}`);
