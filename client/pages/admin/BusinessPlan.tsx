@@ -440,6 +440,13 @@ export default function BusinessPlan() {
         coordinarPlan(recibido);
         planRef.current = recibido;
         setPlan(recibido);
+        // Lo que el servidor completó con valores por defecto se guarda ahora. Si no,
+        // los que dependen del reloj (mes de inicio, meses de beta) se recalculan en
+        // cada lectura y el número cambia solo: un número tiene que quedar como está
+        // hasta que alguien lo modifique y guarde.
+        if (Array.isArray(data.completadoConDefectos) && data.completadoConDefectos.length > 0) {
+          guardador.current!.programar(recibido);
+        }
         setActuals(data.actuals || null);
         setMeta({ updatedAt: data.updatedAt, updatedBy: data.updatedBy });
       }

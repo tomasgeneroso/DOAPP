@@ -316,4 +316,81 @@ describe('el plan de negocio se guarda y se recupera', () => {
       expect(b).toEqual(a);
     });
   });
+
+  /**
+   * Los números se guardan hasta que alguien los modifica y guarda.
+   *
+   * Algunos valores por defecto dependen del reloj (el mes de inicio de la
+   * proyección, cuántos meses de beta quedan) y, mientras no estuvieran guardados,
+   * se recalculaban en cada lectura: el número cambiaba solo, mes a mes. Ahora el
+   * servidor dice qué completó con valores por defecto y la pantalla lo guarda al
+   * recibirlo.
+   */
+  describe('los números quedan como están hasta que alguien los modifica y guarda', () => {
+    it('un plan sin nada guardado avisa qué completó con valores por defecto', async () => {
+      const r = await leer();
+      expect(r.body.completadoConDefectos).toEqual(
+        expect.arrayContaining([
+          'betaMeses',
+          'budgetReal',
+          'budgetRealCurrency',
+          'projection',
+          'ue',
+        ]),
+      );
+    });
+
+    it('si falta una clave de adentro de un bloque, avisa la ruta completa', async () => {
+      const base = (await leer()).body.data;
+      const { activosPct: _a, mesInicio: _m, ...growthSinEllas } = base.projection.growth;
+      const viejo = { ...base, projection: { ...base.projection, growth: growthSinEllas } };
+      expect((await guardar('owner', viejo)).status).toBe(200);
+      const r = await leer();
+      expect(r.body.completadoConDefectos).toEqual(
+        expect.arrayContaining(['projection.growth.activosPct', 'projection.growth.mesInicio']),
+      );
+    });
+
+    it('al guardar lo recibido, la lectura siguiente no completa nada y devuelve lo mismo', async () => {
+      const a = await leer();
+      expect((await guardar('owner', a.body.data)).status).toBe(200);
+      const b = await leer();
+      expect(b.body.completadoConDefectos).toEqual([]);
+      expect(b.body.data).toEqual(a.body.data);
+    });
+
+    it('lo guardado manda sobre lo que hoy daría el reloj', async () => {
+      const base = (await leer()).body.data;
+      const guardado = {
+        ...base,
+        betaMeses: base.betaMeses === 7 ? 8 : 7,
+        projection: { ...base.projection, growth: { ...base.projection.growth, mesInicio: '2024-02' } },
+      };
+      expect((await guardar('owner', guardado)).status).toBe(200);
+      const d = (await leer()).body.data;
+      expect(d.betaMeses).toBe(guardado.betaMeses);
+      expect(d.projection.growth.mesInicio).toBe('2024-02');
+    });
+
+    it('un plan guardado antes de la beta y la etapa real los completa y lo avisa', async () => {
+      const base = (await leer()).body.data;
+      const { betaMeses: _b, budgetReal: _r, budgetRealCurrency: _m, ...viejo } = base;
+      expect((await guardar('owner', viejo)).status).toBe(200);
+      const r = await leer();
+      expect(r.body.completadoConDefectos).toEqual(
+        expect.arrayContaining(['betaMeses', 'budgetReal', 'budgetRealCurrency']),
+      );
+      // y lo que SÍ estaba guardado no se toca
+      expect(r.body.data.budget).toEqual(viejo.budget);
+    });
+
+    it('lo que ya tiene un valor guardado nunca figura como completado, ni siquiera un cero', async () => {
+      const base = (await leer()).body.data;
+      const conCeros = { ...base, ue: { ...base.ue, mauActual: 0, soporte: 0 } };
+      expect((await guardar('owner', conCeros)).status).toBe(200);
+      const r = await leer();
+      expect(r.body.completadoConDefectos.filter((k: string) => k.startsWith('ue.'))).toEqual([]);
+      expect(r.body.data.ue.soporte).toBe(0);
+    });
+  });
 });

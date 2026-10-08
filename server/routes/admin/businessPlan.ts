@@ -235,6 +235,35 @@ function mergeDeep(defaults: any, saved: any): any {
  * pantalla con números a medio derivar es mejor que una pantalla que no abre,
  * pero no puede pasar callado.
  */
+/**
+ * Qué claves le faltan al plan guardado y se completaron con el valor por defecto.
+ *
+ * Importa porque algunos valores por defecto dependen del reloj —el mes de inicio de
+ * la proyección y cuántos meses de beta quedan— y mientras no estén GUARDADOS se
+ * recalculan en cada lectura: el número cambiaba solo, mes a mes, sin que nadie lo
+ * tocara. La pantalla guarda lo que le falta apenas lo recibe, y desde ahí el número
+ * es el guardado y sólo cambia cuando alguien lo modifica y guarda.
+ *
+ * Las claves cuyo valor por defecto es `null` no cuentan (no hay nada que fijar), y
+ * tampoco las derivadas por `coordinarPlan`, que salen siempre de lo guardado.
+ */
+function clavesCompletadasConDefectos(guardado: unknown, defaults: unknown, prefijo = ''): string[] {
+  const esObjeto = (v: unknown): v is Record<string, unknown> =>
+    !!v && typeof v === 'object' && !Array.isArray(v);
+  if (!esObjeto(defaults)) return [];
+  const faltan: string[] = [];
+  for (const [clave, porDefecto] of Object.entries(defaults)) {
+    const valor = esObjeto(guardado) ? guardado[clave] : undefined;
+    const ruta = prefijo + clave;
+    if (valor === undefined || valor === null) {
+      if (porDefecto !== null && porDefecto !== undefined) faltan.push(ruta);
+    } else if (esObjeto(porDefecto) && esObjeto(valor)) {
+      faltan.push(...clavesCompletadasConDefectos(valor, porDefecto, `${ruta}.`));
+    }
+  }
+  return faltan;
+}
+
 function planCompleto(guardado: unknown): any {
   const data = mergeDeep(defaultPlan(), guardado || {});
   try {
@@ -327,11 +356,22 @@ router.get('/', protect, analisisOnly, async (_req: AuthRequest, res: Response):
 
     // Un plan guardado antes de agregar una sección no tiene esa clave:
     // se completa con el valor por defecto en vez de romper la pantalla.
-    const data = planCompleto(plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {});
+    const guardado = plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {};
+    const data = planCompleto(guardado);
+    // Lo que no estaba guardado y salió del valor por defecto: la pantalla lo guarda
+    // al recibirlo, para que no vuelva a cambiar solo. `budgetReal` no tiene valor por
+    // defecto (nace como copia de la beta), así que se pregunta aparte.
+    const completadoConDefectos = [
+      ...clavesCompletadasConDefectos(guardado, defaultPlan()),
+      ...['budgetReal', 'budgetRealCurrency'].filter(
+        (k) => (guardado as Record<string, unknown>)[k] === undefined || (guardado as Record<string, unknown>)[k] === null,
+      ),
+    ];
 
     res.json({
       success: true,
       data,
+      completadoConDefectos,
       isDefault: !plan,
       updatedAt: plan?.updatedAt || null,
       updatedBy: (plan as any)?.updatedBy?.name || null,
