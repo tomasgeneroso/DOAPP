@@ -271,58 +271,9 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
   }
 });
 
-// @route   GET /api/contracts/debug-job/:jobId
-// @desc    Diagnóstico de contratos por trabajo (temporal)
-// @access  Private
-router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user.id.toString();
-    const jobId = req.params.jobId;
-
-    // Find all contracts for this job (without user filter)
-    const allContracts = await Contract.findAll({
-      where: { jobId },
-      include: [
-        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
-      ]
-    });
-
-    // Find the job
-    const job = await Job.findByPk(jobId, {
-      include: [{ model: User, as: 'client', attributes: ['id', 'name', 'email'] }]
-    });
-
-    res.json({
-      success: true,
-      debug: {
-        currentUserId: userId,
-        jobExists: !!job,
-        jobId: job?.id,
-        jobCode: ((job as any)?.code),
-        jobStatus: job?.status,
-        jobClientId: job?.clientId,
-        jobClient: job?.client,
-        jobDoerId: job?.doerId,
-        jobSelectedWorkers: job?.selectedWorkers,
-        totalContracts: allContracts.length,
-        contracts: allContracts.map(c => ({
-          id: c.id,
-          status: c.status,
-          clientId: c.clientId,
-          doerId: c.doerId,
-          client: (c as any).client,
-          doer: (c as any).doer,
-        }))
-      }
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
+// GET /api/contracts/debug-job/:jobId se eliminó. Era un diagnóstico "temporal" que le devolvía a CUALQUIER usuario
+// con sesión el nombre, el correo y los ids del cliente y del trabajador de cualquier trabajo, y de todos sus
+// contratos. Ninguna pantalla lo usaba.
 
 /**
  * @route   GET /api/contracts/:id/daily-log

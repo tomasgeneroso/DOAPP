@@ -556,76 +556,9 @@ router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response):
   }
 });
 
-// @route   GET /api/jobs/debug-by-code/:code
-// @desc    Diagnóstico de trabajo por código (temporal)
-// @access  Private
-router.get("/debug-by-code/:code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const code = req.params.code.toLowerCase();
-    const userId = req.user.id.toString();
-
-    // Get all jobs and filter manually (simple approach)
-    const allJobs = await Job.findAll({
-      include: [
-        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
-      ]
-    });
-
-    // Find job where ID starts with the code
-    const job = allJobs.find(j => j.id.toLowerCase().startsWith(code));
-
-    if (!job) {
-      res.status(404).json({ success: false, message: 'Trabajo no encontrado con código: ' + code });
-      return;
-    }
-
-    // Find contracts for this job
-    const contracts = await Contract.findAll({
-      where: { jobId: job.id },
-      include: [
-        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
-      ]
-    });
-
-    res.json({
-      success: true,
-      debug: {
-        currentUserId: userId,
-        job: {
-          id: job.id,
-          title: job.title,
-          status: job.status,
-          clientId: job.clientId,
-          client: job.client,
-          doerId: job.doerId,
-          doer: job.doer,
-          selectedWorkers: job.selectedWorkers,
-          maxWorkers: job.maxWorkers,
-        },
-        contracts: contracts.map(c => ({
-          id: c.id,
-          status: c.status,
-          clientId: c.clientId,
-          doerId: c.doerId,
-          client: (c as any).client,
-          doer: (c as any).doer,
-          createdAt: c.createdAt,
-        })),
-        analysis: {
-          isCurrentUserClient: job.clientId === userId,
-          isCurrentUserDoer: job.doerId === userId,
-          isCurrentUserInSelectedWorkers: job.selectedWorkers?.includes(userId),
-          contractsForCurrentUser: contracts.filter(c => c.clientId === userId || c.doerId === userId).length,
-        }
-      }
-    });
-  } catch (error: any) {
-    console.error('Debug endpoint error:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+// GET /api/jobs/debug-by-code/:code se eliminó. Era un diagnóstico "temporal" que devolvía los correos del cliente
+// y del trabajador de cualquier trabajo a cualquier usuario con sesión, y además cargaba TODOS los trabajos de la
+// base (con sus joins) en cada llamada. Ninguna pantalla lo usaba.
 
 // --- iCal Calendar Feed (must be before /:id route) ---
 
