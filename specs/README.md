@@ -51,6 +51,8 @@ correr algo, se dice qué quedó sin verificar y por qué.
 |---|---|---|---|
 | [001](001-seguridad-modelos/spec.md) | Seguridad de los modelos de datos | Clarificación | ⏳ esperando respuestas |
 | [002](002-filtro-rubros/spec.md) | Filtrar publicaciones por rubro | Clarificación | ⏳ esperando respuestas |
+| [003](003-antecedentes-penales/spec.md) | Antecedentes penales para trabajadores | Clarificación | ⏳ esperando respuestas |
+| 004 | Documentos subidos accesibles sin autenticación | Propuesta | 🔴 hallazgo de 003 |
 
 ## Verificadores
 
