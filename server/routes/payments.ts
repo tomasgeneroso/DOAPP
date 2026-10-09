@@ -24,6 +24,8 @@ import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
+import { moduloActivo } from "../services/moduleFlags.js";
+import { MODULO_APROBACION_DE_PUBLICACIONES } from "../../shared/constants/modulos.js";
 import {
   evaluarPagoMercadoPago,
   esIdDePagoMp,
@@ -637,7 +639,10 @@ async function responderPagoYaProcesado(res: Response, payment: any): Promise<vo
     const job = await Job.findOne({ where: { publicationPaymentId: payment.id }, attributes: ['id', 'status'] });
     if (job) {
       data.jobId = job.id;
-      if (payment.paymentType === 'job_publication') data.jobPublished = job.status === 'open';
+      if (payment.paymentType === 'job_publication') {
+        data.jobPublished = job.status === 'open';
+        data.jobPendingApproval = job.status === 'pending_approval';
+      }
     }
   }
   res.json({ success: true, data });
@@ -1083,32 +1088,73 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
             amount: payment.amount,
             jobId: job.id,
             jobPublished: job.status === "open",
+            jobPendingApproval: job.status === "pending_approval",
           },
         });
         return;
       }
       if (job) {
         const previousStatus = job.status;
-        job.status = "open";
+        // Etapa de lanzamiento: la publicación pagada la aprueba un administrador antes de que se vea (módulo
+        // «Aprobación de publicaciones pagadas», encendido por defecto). Antes se abría directo al confirmar el pago.
+        const requiereAprobacion = await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true);
+        job.status = requiereAprobacion ? "pending_approval" : "open";
         job.publicationPaid = true;
         job.publicationPaidAt = new Date();
         await job.save();
 
-        // Notify user that job is published
-        await Notification.create({
-          recipientId: payment.payerId,
-          type: "success",
-          category: "payment",
-          title: "Trabajo publicado",
-          message: `Tu trabajo "${job.title}" ha sido publicado exitosamente. Los profesionales pueden ahora enviar propuestas.`,
-          relatedModel: "Job",
-          relatedId: job.id,
-          sentVia: ["in_app"],
-        });
+        if (requiereAprobacion) {
+          await Notification.create({
+            recipientId: payment.payerId,
+            type: "info",
+            category: "payment",
+            title: "Pago recibido: tu publicación está en revisión",
+            message: `Recibimos el pago de "${job.title}". Un administrador la revisa y, apenas la apruebe, queda visible para los profesionales. Te avisamos.`,
+            relatedModel: "Job",
+            relatedId: job.id,
+            sentVia: ["in_app"],
+          });
 
-        // Real-time notification: new job published
-        socketService.notifyNewJob(job.toJSON());
-        socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+          // Un administrador la tiene que aprobar: se le avisa a todos (si la lista saliera vacía, queda en el registro).
+          const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
+          if (admins.length === 0) {
+            logger.error('payments', 'Publicación pagada pendiente de aprobación y no hay ningún administrador a quien avisar', {
+              data: { jobId: String(job.id), paymentId: String(payment.id) },
+            });
+          }
+          for (const admin of admins) {
+            await Notification.create({
+              recipientId: admin.id,
+              type: "warning",
+              category: "admin",
+              title: "Publicación pagada para aprobar",
+              message: `El cliente pagó la publicación "${job.title}" ($${Number(payment.amount).toLocaleString('es-AR')} ARS). Aprobala o rechazala desde Publicaciones.`,
+              relatedModel: "Job",
+              relatedId: job.id,
+              sentVia: ["in_app"],
+            } as any).catch((e: unknown) => logger.error('payments', 'No se pudo avisar a un administrador de una publicación pagada', {
+              data: { jobId: String(job.id), adminId: String(admin.id), error: (e as Error)?.message },
+            }));
+          }
+
+          socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+        } else {
+          // Notify user that job is published
+          await Notification.create({
+            recipientId: payment.payerId,
+            type: "success",
+            category: "payment",
+            title: "Trabajo publicado",
+            message: `Tu trabajo "${job.title}" ha sido publicado exitosamente. Los profesionales pueden ahora enviar propuestas.`,
+            relatedModel: "Job",
+            relatedId: job.id,
+            sentVia: ["in_app"],
+          });
+
+          // Real-time notification: new job published
+          socketService.notifyNewJob(job.toJSON());
+          socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+        }
 
         res.json({
           success: true,
@@ -1118,7 +1164,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
             status: payment.status,
             amount: payment.amount,
             jobId: job.id,
-            jobPublished: true,
+            jobPublished: !requiereAprobacion,
+            jobPendingApproval: requiereAprobacion,
           },
         });
         return;

@@ -12,6 +12,8 @@ interface PaymentConfirmation {
   status: "processing" | "confirmed" | "error";
   contractId?: string;
   jobId?: string;
+  /** La publicación quedó pagada pero un administrador todavía la tiene que aprobar. */
+  jobPendingApproval?: boolean;
   amount?: number;
   message?: string;
 }
@@ -157,6 +159,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           status: "confirmed",
           contractId: data.data?.contractId,
           jobId: data.data?.jobId,
+          jobPendingApproval: data.data?.jobPendingApproval === true,
           amount: paymentAmount,
         });
       } catch (error: any) {
@@ -405,10 +408,12 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      1. Tu trabajo está publicado
+                      {confirmation.jobPendingApproval ? '1. Recibimos tu pago: tu publicación está en revisión' : '1. Tu trabajo está publicado'}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      Tu solicitud de trabajo ha sido publicada en la plataforma y ya está visible para todos los profesionales.
+                      {confirmation.jobPendingApproval
+                        ? 'Un administrador revisa tu publicación y, apenas la apruebe, queda visible para todos los profesionales. Te avisamos con una notificación.'
+                        : 'Tu solicitud de trabajo ha sido publicada en la plataforma y ya está visible para todos los profesionales.'}
                     </p>
                   </div>
                 </div>

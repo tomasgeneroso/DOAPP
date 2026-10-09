@@ -5,6 +5,7 @@ import { olvidarModulos } from '../../services/moduleFlags.js';
 import { logAudit, getSeverityForAction } from '../../utils/auditLog.js';
 import { ACTIONS, isActionPasswordSet, verifyActionPassword } from '../../services/actionPassword.js';
 import { MODULO_PAGO_AL_TERMINAR } from '../../../shared/pagos/modoDePago.js';
+import { MODULO_APROBACION_DE_PUBLICACIONES } from '../../../shared/constants/modulos.js';
 
 const router = Router();
 
@@ -62,6 +63,15 @@ const DEFAULT_MODULES = [
       'por una orden que genera la app. Cambia quién corre el riesgo y agrega cláusulas a los ' +
       'términos. Apagado por defecto; cambiarlo pide contraseña.',
     isActive: false,
+  },
+  {
+    moduleId: MODULO_APROBACION_DE_PUBLICACIONES,
+    category: 'feature',
+    name: 'Aprobación de publicaciones pagadas',
+    description:
+      'Encendido: cuando el cliente paga la publicación, un administrador la tiene que aprobar antes de que se vea. ' +
+      'Apagado: se publica apenas se confirma el pago. Regla de la etapa de lanzamiento.',
+    isActive: true,
   },
   {
     moduleId: 'dashboard:analytics',
