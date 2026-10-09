@@ -13,6 +13,7 @@ import { logAudit, getSeverityForAction, detectChanges } from "../../utils/audit
 import type { AuthRequest } from "../../types/index.js";
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { limpiarCampos } from "../../utils/limpiarCampos.js";
 import { isDiditConfigured, getDiditMedia } from "../../services/didit.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
@@ -435,10 +436,7 @@ router.post(
       }
 
       user.isBanned = false;
-      user.banReason = undefined;
-      user.bannedAt = undefined;
-      user.bannedBy = undefined;
-      user.banExpiresAt = undefined;
+      limpiarCampos(user, 'banReason', 'bannedAt', 'bannedBy', 'banExpiresAt');
 
       await user.save();
 

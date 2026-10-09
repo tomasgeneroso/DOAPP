@@ -5,6 +5,7 @@ import emailService from '../services/email.js';
 import { isBetaPhase } from '../services/platformPhase.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { Op } from 'sequelize';
+import { limpiarCampos } from '../utils/limpiarCampos.js';
 
 /**
  * Cron job para resetear los descuentos de comisión por referidos que expiraron.
@@ -76,7 +77,7 @@ export function startResetReferralDiscountsJob() {
           // Resetear a la tasa estándar
           user.currentCommissionRate = COMMISSION_RATES.free;
           user.hasReferralDiscount = false;
-          user.referralDiscountExpiresAt = undefined;
+          limpiarCampos(user, 'referralDiscountExpiresAt');
           await user.save();
 
           // Crear notificación

@@ -327,6 +327,30 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
     });
   });
 
+  /* ---------------- extensiones ---------------- */
+
+  describe('POST /api/contracts/:id/reject-extension', () => {
+    it('una extensión rechazada queda rechazada de verdad: no se puede aprobar después', async () => {
+      const c = await contratoEn('in_progress');
+      await Contract.update(
+        { extensionRequestedBy: cliente.id, extensionRequestedAt: new Date(), extensionDays: 3, extensionAmount: 6000 } as any,
+        { where: { id: c.id } },
+      );
+
+      const rechazo = await request(app).post(`/api/contracts/${c.id}/reject-extension`).set(como(trabajador)).send({ reason: 'No puedo' });
+      expect(rechazo.status).toBe(200);
+
+      // antes: extensionRequestedBy quedaba puesto (Sequelize ignora los undefined al guardar)
+      const fila: any = await Contract.findByPk(c.id);
+      expect(fila.extensionRequestedBy ?? null).toBeNull();
+      expect(fila.extensionDays ?? null).toBeNull();
+
+      const aprobacion = await request(app).post(`/api/contracts/${c.id}/approve-extension`).set(como(trabajador)).send({});
+      expect(aprobacion.status).toBe(400);
+      expect(aprobacion.body.message).toContain('No hay solicitud de extensión pendiente');
+    });
+  });
+
   /* ---------------- aceptar ---------------- */
 
   describe('POST /api/contracts/:id/accept', () => {

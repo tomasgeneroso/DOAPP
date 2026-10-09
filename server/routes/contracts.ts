@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
+import { limpiarCampos } from '../utils/limpiarCampos.js';
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
@@ -2759,11 +2760,9 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
     // Guardar datos de extensión para la notificación antes de limpiar
     const extensionDaysRequested = contract.extensionDays;
 
-    // Limpiar la solicitud de extensión
-    contract.extensionRequestedBy = undefined;
-    contract.extensionRequestedAt = undefined;
-    contract.extensionDays = undefined;
-    contract.extensionAmount = undefined;
+    // Limpiar la solicitud de extensión. En NULL, no en undefined: Sequelize ignora los undefined al guardar, y con
+    // extensionRequestedBy todavía puesto, una extensión rechazada se podía aprobar después.
+    limpiarCampos(contract, 'extensionRequestedBy', 'extensionRequestedAt', 'extensionDays', 'extensionAmount');
     contract.extensionNotes = reason || "Solicitud de extensión rechazada";
 
     await contract.save();

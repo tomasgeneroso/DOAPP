@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
 import { logAudit } from "../../utils/auditLog.js";
+import { limpiarCampos } from "../../utils/limpiarCampos.js";
 import type { AuthRequest } from "../../types/index.js";
 
 const router = express.Router();
@@ -214,8 +215,8 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
 
     // Deshabilitar 2FA
     user.twoFactorEnabled = false;
-    user.twoFactorSecret = undefined;
-    user.twoFactorBackupCodes = undefined;
+    // En NULL: con undefined, Sequelize no los borraba y el secreto y los códigos de respaldo quedaban en la base.
+    limpiarCampos(user, 'twoFactorSecret', 'twoFactorBackupCodes');
 
     await user.save();
 

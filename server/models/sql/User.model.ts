@@ -17,6 +17,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { encryptCBU, decryptCBU, maskCBU, encrypt, decrypt, isEncrypted } from '../../utils/encryption.js';
 import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
+import { limpiarCampos } from '../../utils/limpiarCampos.js';
 
 /**
  * User Model - PostgreSQL/Sequelize
@@ -980,10 +981,7 @@ export class User extends Model {
    */
   async unban(): Promise<void> {
     this.isBanned = false;
-    this.bannedBy = undefined;
-    this.banReason = undefined;
-    this.bannedAt = undefined;
-    this.banExpiresAt = undefined;
+    limpiarCampos(this, 'bannedBy', 'banReason', 'bannedAt', 'banExpiresAt');
     await this.save();
   }
 
