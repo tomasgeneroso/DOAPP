@@ -862,7 +862,9 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       currency: payment.currency,
       payerId: userId,
     });
-    if (!veredicto.ok) {
+    // `=== false` y no `!veredicto.ok`: el tsconfig del servidor no es estricto y sin strictNullChecks la negación no
+    // acota la unión (el chequeo de tipos del CI bloqueaba el deploy por esto).
+    if (veredicto.ok === false) {
       await manejarCapturaNoAprobada(res, payment, mpPaymentId, mpPaymentData, veredicto, userId);
       return;
     }
