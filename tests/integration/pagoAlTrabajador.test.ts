@@ -31,6 +31,7 @@ import { Payment } from '../../server/models/sql/Payment.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
 import { PaymentAction } from '../../server/models/sql/PaymentAction.model.js';
 import { PaymentProof } from '../../server/models/sql/PaymentProof.model.js';
+import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
 
 const DEBIDO = 1000; // precio del contrato = lo que se le adeuda al trabajador
@@ -138,6 +139,21 @@ describe('mark-paid: sólo se paga lo que está confirmado, por un monto válido
     expect(pruebas[0].kind).toBe('note');
     expect(pruebas[0].isActive).toBe(false);
     expect(pruebas[0].fileUrl).toBe('comprobante-123');
+  });
+
+  it('si el comprobante no se puede guardar, el pago sigue asentado Y queda un evento en el registro de dinero (antes sólo un console.error)', async () => {
+    const id = await armar('confirmed_for_payout');
+    const espia = jest.spyOn(PaymentProof, 'create').mockRejectedValue(new Error('disco lleno'));
+    try {
+      const r = await pagar(admin, id, { proofOfPayment: 'comprobante-que-no-se-guarda' });
+      expect(r.status).toBe(200);
+      expect(await estadoContrato(id)).toBe('completed');
+      const evento: any = await AuditLog.findOne({ where: { action: 'PAYOUT_PROOF_NOT_SAVED', targetId: id } });
+      expect(evento).not.toBeNull();
+      expect(evento.severity).toBe('high');
+    } finally {
+      espia.mockRestore();
+    }
   });
 
   it('un contrato cancelado no se paga', async () => {

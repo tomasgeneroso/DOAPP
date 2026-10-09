@@ -1192,7 +1192,18 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
           } as any);
           console.log(`[mark-paid] PaymentProof created: ${proof.id} for payment ${paymentToUpdate.id}`);
         } catch (error: any) {
+          // El pago ya está asentado, así que no se corta la respuesta, pero el comprobante de la transferencia se
+          // perdía sin dejar rastro (sólo un console.error): ahora queda en el registro de dinero, con severidad alta.
           console.error(`[mark-paid] No se pudo guardar el comprobante (el pago ya está asentado): ${error.message}`);
+          await logMoneyEvent({
+            action: 'PAYOUT_PROOF_NOT_SAVED',
+            actor: `admin:${adminId}`,
+            severity: 'high',
+            description: `Se pagó al trabajador pero NO se pudo guardar el comprobante de la transferencia: ${String(error?.message || error).slice(0, 300)}. Volvé a cargarlo.`,
+            contractId,
+            paymentId: String(paymentToUpdate.id),
+            metadata: { archivo: proofOfPayment ? 'recibido' : 'sin archivo' },
+          }).catch(() => undefined);
         }
       }
     } else {
