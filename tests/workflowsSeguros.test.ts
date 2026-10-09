@@ -54,6 +54,16 @@ describe('workflows de GitHub Actions', () => {
       expect(fallas).toBe(2);
     });
 
+    it('un fallo de install, build o migraciones también vuelve atrás (trap ERR armado cuando el código ya se movió)', () => {
+      const arma = t.indexOf("trap 'volver_atras' ERR");
+      expect(arma).toBeGreaterThan(0);
+      // después de mover el código y antes de instalar, construir y migrar
+      const movido = t.indexOf('git reset --hard origin/master');
+      expect(arma).toBeGreaterThan(movido);
+      expect(arma).toBeLessThan(t.indexOf('npm install --legacy-peer-deps', movido));
+      expect(arma).toBeLessThan(t.indexOf('NODE_ENV=production npx sequelize-cli db:migrate', movido));
+    });
+
     it('el rollback no pasa por alto la reconstrucción ni el reinicio', () => {
       const bloque = t.slice(t.indexOf('volver_atras() {'), t.indexOf('echo "📥 Pulling latest code..."'));
       for (const paso of ['git reset --hard "$ANTERIOR"', 'npm run build:client', 'pm2 start ecosystem.config.cjs']) {

@@ -42,6 +42,12 @@ for variable in $(compgen -e | grep -E '^(DB_|DATABASE_URL$|DEV_DATABASE_URL$|TE
   unset "$variable"
 done
 
+# Producción corre con NODE_ENV=production (ecosystem.config.cjs). Se descartó arriba el que heredó este proceso,
+# pero tiene que quedar definido: sin NODE_ENV, `sequelize-cli db:migrate` usa la configuración "development"
+# (la base local), y `pm2 restart --update-env` reinicia sin NODE_ENV, con lo que el webhook de MercadoPago
+# aceptaría avisos sin firma y arrancaría el sync de desarrollo.
+export NODE_ENV=production
+
 # Lo que producción está corriendo ahora. Es lo que hay que poder deshacer si
 # esto sale mal, así que se imprime antes que nada y queda en el registro.
 ANTERIOR="$(git rev-parse HEAD)"
@@ -87,7 +93,7 @@ npm run build
 # Las migraciones van DESPUÉS del build y ANTES del reinicio: si el build falla,
 # la base todavía no se tocó y producción sigue sirviendo la versión anterior.
 paso "Migraciones"
-npx sequelize-cli db:migrate
+npx sequelize-cli db:migrate --env production
 
 paso "Reiniciando $PROD_PM2"
 pm2 restart "$PROD_PM2" --update-env

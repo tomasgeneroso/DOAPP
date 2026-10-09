@@ -80,6 +80,15 @@ describe('scripts/promote-to-prod.sh', () => {
     }
   });
 
+  it('migra y reinicia con NODE_ENV=production (sin él, las migraciones usan la base de desarrollo)', () => {
+    const descarte = script.indexOf('unset "$variable"');
+    const exporta = script.indexOf('export NODE_ENV=production');
+    expect(exporta).toBeGreaterThan(descarte);
+    expect(exporta).toBeLessThan(script.indexOf('npx sequelize-cli db:migrate'));
+    expect(exporta).toBeLessThan(script.indexOf('pm2 restart "$PROD_PM2"'));
+    expect(script).toContain('db:migrate --env production');
+  });
+
   it('el chequeo de salud apunta al puerto de producción (3001, ver ecosystem.config.cjs), no al 5000', () => {
     const ecosistema = readFileSync(join(process.cwd(), 'ecosystem.config.cjs'), 'utf8');
     expect(ecosistema).toMatch(/PORT:\s*3001/);

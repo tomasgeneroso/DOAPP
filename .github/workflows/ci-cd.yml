@@ -224,6 +224,11 @@ jobs:
             echo "📥 Pulling latest code..."
             git fetch origin && git reset --hard origin/master
 
+            # Desde acá el código nuevo está en el servidor: cualquier fallo (npm install, build, migraciones, arranque)
+            # tiene que deshacerlo. Antes el rollback sólo cubría el chequeo de salud: con `set -e` un build que fallaba
+            # a mitad de camino salía sin llamarlo y dejaba `dist` roto.
+            trap 'volver_atras' ERR
+
             echo "📦 Installing dependencies..."
             npm install --legacy-peer-deps
 
