@@ -4,6 +4,7 @@ import { Payment } from '../models/sql/Payment.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import currencyExchange from '../services/currencyExchange.js';
+import { COTIZACION_EUR_ARS_DE_RESPALDO, USD_POR_EUR_DE_RESPALDO } from '../../shared/constants/cotizacionesDeRespaldo.js';
 
 /**
  * Estado financiero real de la plataforma, medido contra el plan.
@@ -140,7 +141,7 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
   // Una cotización que no llega, o llega en cero, negativa o NaN, no es un dato: se sigue con el
   // respaldo. (Dividir por ella daba infinitos que el panel mostraba como cifras.)
   const cotizacionEur = await currencyExchange.getEURtoARSRate().catch(() => NaN);
-  const eurArs = Number.isFinite(cotizacionEur) && cotizacionEur > 0 ? cotizacionEur : 1800;
+  const eurArs = Number.isFinite(cotizacionEur) && cotizacionEur > 0 ? cotizacionEur : COTIZACION_EUR_ARS_DE_RESPALDO;
 
   // Los importes del plan vienen en la moneda de la proyección, que no siempre es
   // el euro: se pasan a pesos con la moneda que corresponda. (Esto asumía euros, y
@@ -149,7 +150,7 @@ export async function getLiveFinancials(plan: any): Promise<LiveFinancials> {
   // `rateUsd` son dólares por euro. Se carga a mano en el plan: fuera de un rango creíble (cero,
   // negativo, 1e-9, 500) se usa el valor de respaldo en vez de multiplicar los costos por un absurdo.
   const usdPorEurPlan = Number(plan?.rateUsd);
-  const usdPorEur = Number.isFinite(usdPorEurPlan) && usdPorEurPlan >= 0.2 && usdPorEurPlan <= 5 ? usdPorEurPlan : 1.08;
+  const usdPorEur = Number.isFinite(usdPorEurPlan) && usdPorEurPlan >= 0.2 && usdPorEurPlan <= 5 ? usdPorEurPlan : USD_POR_EUR_DE_RESPALDO;
   const arsPorUsd = eurArs / usdPorEur;
   const arsPorMonedaPlan = monedaPlan === 'ARS' ? 1 : monedaPlan === 'USD' ? arsPorUsd : eurArs;
 

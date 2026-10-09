@@ -1,4 +1,5 @@
 import { COMMISSION_RATES } from '../constants/membershipPricing.js';
+import { COTIZACION_EUR_ARS_DE_RESPALDO } from '../constants/cotizacionesDeRespaldo.js';
 
 /**
  * Montos minimos de la plataforma.
@@ -43,7 +44,7 @@ export const MINIMUM_COMMISSION_EUR = 2;
  * respaldo sirve para que una pantalla pueda mostrar algo si la cotizacion no
  * llego; el cobro real siempre usa la del dia.
  */
-export function minimumCommissionArs(eurArs = 1800): number {
+export function minimumCommissionArs(eurArs = COTIZACION_EUR_ARS_DE_RESPALDO): number {
   return Math.round(MINIMUM_COMMISSION_EUR * eurArs);
 }
 

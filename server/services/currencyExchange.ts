@@ -62,6 +62,8 @@ export function describirCotizacion(q: QuotedRate): CotizacionMostrable {
  * Servicio de conversión de moneda USD/EUR a ARS
  * Utiliza APIs públicas con fallback y caché en memoria
  */
+import { USD_POR_EUR_DE_RESPALDO } from '../../shared/constants/cotizacionesDeRespaldo.js';
+
 class CurrencyExchangeService {
   private readonly CACHE_KEY = 'currency:usd_ars_rate';
   private readonly USDT_CACHE_KEY = 'currency:usdt_rate';
@@ -298,7 +300,7 @@ class CurrencyExchangeService {
       console.warn('EUR/USD no disponible:', e?.message);
     }
     // Last resort. Deliberately a recent figure rather than the old 1.08.
-    return 1.17;
+    return USD_POR_EUR_DE_RESPALDO;
   }
 
   /**
