@@ -352,6 +352,10 @@ export class SocketService {
   private handleTyping(socket: AuthenticatedSocket, data: TypingData, isTyping: boolean) {
     const { conversationId } = data;
 
+    // Sólo quien está EN la conversación puede avisar que escribe: entra con join:conversation, que valida que sea
+    // participante. Antes cualquiera mandaba «escribiendo…» a la sala de conversaciones ajenas.
+    if (!conversationId || !socket.rooms.has(`conversation:${conversationId}`)) return;
+
     // Broadcast typing status to other participants in the conversation
     socket.to(`conversation:${conversationId}`).emit("typing:update", {
       conversationId,
@@ -371,11 +375,16 @@ export class SocketService {
         return;
       }
 
+      // Sólo desde dentro de la conversación (ver handleTyping), y el mensaje tiene que ser DE esa conversación:
+      // antes se podía marcar como leído cualquier mensaje conociendo su id y avisarle a una sala ajena.
+      if (!conversationId || !socket.rooms.has(`conversation:${conversationId}`)) return;
+
       const message = await ChatMessage.findByPk(messageId);
 
       if (!message) {
         return;
       }
+      if (String(message.conversationId) !== String(conversationId)) return;
 
       // Update message as read
       message.read = true;
@@ -401,6 +410,10 @@ export class SocketService {
       if (!conversation) {
         return;
       }
+
+      // Sólo un participante marca como leída una conversación (antes cualquiera, con sólo conocer el id).
+      const quien = socket.userId?.toString() || '';
+      if (!(conversation.participants || []).map((p) => p?.toString() || '').includes(quien)) return;
 
       // Mark all unread messages as read
       await ChatMessage.update(

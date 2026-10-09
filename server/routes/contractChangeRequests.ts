@@ -5,7 +5,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Ticket } from "../models/sql/Ticket.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Job } from "../models/sql/Job.model.js";
-import { protect } from '../middleware/auth.js';
+import { protect, authorize } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
@@ -436,7 +436,9 @@ router.put(
  * Job automático: Escalar solicitudes sin respuesta después de 2 días
  * (Este endpoint debe ser llamado por un cron job)
  */
-router.post('/escalate-expired', async (req, res: Response): Promise<void> => {
+// Sólo administración: era una ruta SIN sesión que crea tickets y manda correos, así que cualquiera la disparaba
+// (y dos llamadas juntas duplicaban tickets). El cron la llama por su cuenta (jobs/escalateExpiredChangeRequests.ts).
+router.post('/escalate-expired', protect, authorize('owner', 'super_admin', 'admin'), async (req, res: Response): Promise<void> => {
   try {
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
 
