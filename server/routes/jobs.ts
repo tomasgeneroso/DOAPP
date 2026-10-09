@@ -90,12 +90,34 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       location,
       tags,
       sortBy = 'date',
-      type // 'jobs' (default) or 'users'
+      type, // 'jobs' (default) or 'users'
+      client: clientePedido,
+      userId: usuarioPedido,
     } = req.query;
+    // `userId` lo mandan varias pantallas con el mismo sentido que `client`: sólo los trabajos de esa persona.
+    const clienteFiltro = clientePedido ?? usuarioPedido;
+
+    // Este listado es PÚBLICO (sin sesión): sólo puede mostrar lo que ya está publicado. Antes `status` se copiaba tal
+    // cual a la consulta, así que `?status=draft`, `pending_payment`, `pending_approval` o `cancelled` devolvía los
+    // borradores, los trabajos sin pagar y los dados de baja de OTRAS personas (con sus datos); y sin `status`
+    // devolvía todo. Los propios se piden en /my-jobs y la administración tiene su listado.
+    const ESTADOS_PUBLICOS = ['open', 'in_progress', 'completed'];
+    if (status !== undefined && !(typeof status === 'string' && ESTADOS_PUBLICOS.includes(status))) {
+      res.status(400).json({
+        success: false,
+        message: `Estado no válido. Los trabajos publicados están en: ${ESTADOS_PUBLICOS.join(', ')}.`,
+      });
+      return;
+    }
+    // Sin `status` se devuelven todos los estados PÚBLICOS (lo que ya mostraba), nunca los privados.
+    const estadoPedido: string | undefined = typeof status === 'string' ? status : undefined;
+    // Tope del resultado: antes se cargaban TODOS los trabajos de la base y recién después se cortaba en memoria.
+    const limiteSolicitado = Number.parseInt(String(limit), 10);
+    const limiteFinal = Number.isFinite(limiteSolicitado) && limiteSolicitado > 0 ? Math.min(limiteSolicitado, 500) : 20;
 
     // Generate cache key for this request
     const cacheKey = generateCacheKey('jobs:search', {
-      status, category, minPrice, maxPrice, limit, searchQuery, location, tags, sortBy, type
+      status: estadoPedido ?? 'publicos', category, minPrice, maxPrice, limit: limiteFinal, searchQuery, location, tags, sortBy, type, clienteFiltro,
     });
 
     // Check cache first (cache for 60 seconds for search results)
@@ -151,20 +173,34 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     const query: any = {};
+    // Cada grupo de condiciones "una u otra" va en su propio elemento de Op.and: antes la búsqueda de texto
+    // reemplazaba a la condición de "no vencida" (las dos usaban query[Op.or]) y una búsqueda con status=open
+    // devolvía también trabajos abiertos con la fecha de fin ya pasada.
+    const condiciones: any[] = [];
 
     // Status filter
-    if (status) {
-      query.status = status;
+    query.status = estadoPedido ?? { [Op.in]: ESTADOS_PUBLICOS };
 
-      // If filtering by "open" status, also exclude jobs with past end dates
-      if (status === 'open') {
-        query[Op.or] = [
+    // If filtering by "open" status, also exclude jobs with past end dates
+    if (estadoPedido === 'open') {
+      condiciones.push({
+        [Op.or]: [
           // Jobs without end date (flexible)
           { endDate: null },
           // Jobs with end date in the future
-          { endDate: { [Op.gte]: new Date() } }
-        ];
+          { endDate: { [Op.gte]: new Date() } },
+        ],
+      });
+    }
+
+    // Los trabajos de una persona (lo usa el chat para ver los de quien le escribe). Antes este parámetro se
+    // ignoraba y devolvía los de todos.
+    if (typeof clienteFiltro === 'string') {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clienteFiltro)) {
+        res.status(400).json({ success: false, message: 'client no es un identificador válido' });
+        return;
       }
+      query.clientId = clienteFiltro;
     }
 
     // Category filter
@@ -181,13 +217,18 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 
     // Text search (title, description, summary) - Sequelize ILIKE for PostgreSQL
     if (searchQuery && typeof searchQuery === 'string') {
-      const searchPattern = `%${searchQuery}%`;
-      query[Op.or] = [
-        { title: { [Op.iLike]: searchPattern } },
-        { summary: { [Op.iLike]: searchPattern } },
-        { description: { [Op.iLike]: searchPattern } },
-      ];
+      // Los comodines de LIKE que escriba quien busca son texto, no patrón: "100%" no tiene que significar "todo".
+      const textoLiteral = searchQuery.replace(/[\\%_]/g, (c) => `\\${c}`);
+      const searchPattern = `%${textoLiteral}%`;
+      condiciones.push({
+        [Op.or]: [
+          { title: { [Op.iLike]: searchPattern } },
+          { summary: { [Op.iLike]: searchPattern } },
+          { description: { [Op.iLike]: searchPattern } },
+        ],
+      });
     }
+    if (condiciones.length > 0) query[Op.and] = condiciones;
 
     // Location - will be handled with post-processing for normalized matching
     // Just ensure location exists (not null/empty)
@@ -237,7 +278,10 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
           required: false // LEFT JOIN (doer can be null)
         }
       ],
-      order: sortOrder
+      order: sortOrder,
+      // En SQL cuando se puede. Con filtro de ubicación hay que traer candidatos y filtrar en memoria (la
+      // normalización no se puede hacer en la consulta), pero con un techo: antes se traía toda la tabla.
+      limit: location && typeof location === 'string' ? 2000 : limiteFinal,
     });
 
     // Apply location filter with normalization if provided
@@ -251,8 +295,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Apply limit after filtering
-    const limitNum = Number(limit);
-    jobs = jobs.slice(0, limitNum);
+    jobs = jobs.slice(0, limiteFinal);
 
     // A objetos planos: las instancias de Sequelize no se serializan solas
     const plainJobs = jobs.map(job => {
