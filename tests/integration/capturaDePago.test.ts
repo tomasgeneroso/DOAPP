@@ -215,11 +215,19 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
     expect(apagado.body.message).not.toContain('se va a acreditar solo');
     expect(apagado.body.message).toContain('recargá');
 
-    const b = await crearPago('pagador');
     process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
     try {
-      const encendido = await capturar('pagador', b.pref, { paymentId: String(++contadorIdMp) });
-      expect(encendido.body.message).toContain('se va a acreditar solo');
+      // una membresía (como las publicaciones y los aumentos) la confirma capture-order: el webhook NO la acredita solo,
+      // aunque la llave esté encendida
+      const b = await crearPago('pagador');
+      const membresia = await capturar('pagador', b.pref, { paymentId: String(++contadorIdMp) });
+      expect(membresia.body.message).not.toContain('se va a acreditar solo');
+      expect(membresia.body.message).toContain('recargá');
+
+      // un pago de contrato sí lo acredita el webhook cuando se aprueba
+      const c = await crearPago('pagador', { paymentType: 'contract_payment' });
+      const contrato = await capturar('pagador', c.pref, { paymentId: String(++contadorIdMp) });
+      expect(contrato.body.message).toContain('se va a acreditar solo');
     } finally {
       delete process.env.MP_WEBHOOK_PROCESA_PAGOS;
     }
@@ -269,6 +277,43 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
     expect(r.body.code).toBe('PAYMENT_UNDER_REVIEW');
     expect(await estadoDe(id)).toBe('pending_verification');
     await nadaSeActivo('pagador');
+  });
+
+  it('el monto se compara EXACTO: un centavo de diferencia ya no pasa (antes se toleraba y se redondeaba)', async () => {
+    for (const cobrado of [PRECIO_ARS + 0.01, PRECIO_ARS - 0.01, PRECIO_ARS + 0.004]) {
+      const { id, pref } = await crearPago('pagador');
+      mockObtenerPago.mockResolvedValue(aprobado({ transaction_amount: cobrado }));
+
+      const r = await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+      expect([cobrado, r.status, r.body.code]).toEqual([cobrado, 409, 'PAYMENT_UNDER_REVIEW']);
+      expect(await estadoDe(id)).toBe('pending_verification');
+      await nadaSeActivo('pagador');
+    }
+  });
+
+  it('un pago hecho en cuotas queda en revisión y no activa nada (DOAPP sólo cobra en un pago)', async () => {
+    const { id, pref } = await crearPago('pagador');
+    mockObtenerPago.mockResolvedValue(aprobado({ installments: 3 }));
+
+    const r = await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('PAYMENT_UNDER_REVIEW');
+    expect(r.body.message).toContain('cuotas');
+    expect(await estadoDe(id)).toBe('pending_verification');
+    await nadaSeActivo('pagador');
+  });
+
+  it('un pago con cupón o descuento de MercadoPago queda en revisión y no activa nada', async () => {
+    for (const extra of [{ coupon_amount: 1500 }, { campaign_id: 987654 }]) {
+      const { id, pref } = await crearPago('pagador');
+      mockObtenerPago.mockResolvedValue(aprobado(extra));
+
+      const r = await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+      expect([JSON.stringify(extra), r.status, r.body.code]).toEqual([JSON.stringify(extra), 409, 'PAYMENT_UNDER_REVIEW']);
+      expect(r.body.message).toContain('cupón');
+      expect(await estadoDe(id)).toBe('pending_verification');
+      await nadaSeActivo('pagador');
+    }
   });
 
   it('un pago aprobado en otra moneda queda en revisión', async () => {

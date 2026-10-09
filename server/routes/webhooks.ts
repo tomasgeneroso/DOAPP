@@ -12,7 +12,7 @@ import logger from '../services/logger.js';
 import { MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { Op } from 'sequelize';
 import crypto from 'crypto';
-import { esIdDePagoMp, ESTADOS_YA_PROCESADOS } from '../services/pagoMercadoPago.js';
+import { esIdDePagoMp, ESTADOS_YA_PROCESADOS, TIPOS_QUE_CONFIRMA_EL_RETORNO, condicionesNoPermitidas } from '../services/pagoMercadoPago.js';
 
 const router = express.Router();
 
@@ -26,15 +26,19 @@ const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * escribe) y el handler lo tragaba. El único camino vivo para dar un pago por cobrado era
  * POST /payments/capture-order, cuando el comprador vuelve a la página de éxito.
  *
- * Arreglar la búsqueda activa un flujo que nunca corrió y que decide distinto: deja el trabajo en
- * "pendiente de aprobación" y el pago en "pendiente de verificación" de un administrador, en vez de
- * publicar al instante como capture-order. Es una decisión de producto, no un bug, así que queda detrás
- * de MP_WEBHOOK_PROCESA_PAGOS=true, apagada por defecto: el comportamiento de hoy no cambia. Mientras esté
- * apagada el webhook igual verifica la firma y registra lo que informa MercadoPago.
+ * Arreglar la búsqueda activa un flujo que nunca corrió y que decide distinto: deja el pago en "pendiente de
+ * verificación" de un administrador. Por eso queda detrás de MP_WEBHOOK_PROCESA_PAGOS=true, apagada por defecto.
+ * Mientras esté apagada el webhook igual verifica la firma, registra lo que informa MercadoPago y GUARDA el id del pago.
+ *
+ * Encendida procesa SÓLO lo que capture-order no confirma: los pagos de contrato (escrow), de cotización y las
+ * órdenes de pago al terminar. Las publicaciones, las membresías y los aumentos de presupuesto los sigue
+ * confirmando capture-order cuando el comprador vuelve a DOAPP: si el webhook también los procesara, llegaría
+ * primero (llega a los segundos) y dejaría el pago en revisión, y al volver el comprador vería un error aunque pagó.
  */
 function webhookProcesaPagos(): boolean {
   return process.env.MP_WEBHOOK_PROCESA_PAGOS === 'true';
 }
+
 
 /**
  * Verifica la firma `x-signature` de MercadoPago (HMAC-SHA256).
@@ -583,7 +587,8 @@ async function handlePaymentWebhook(data: any, ip: string) {
 
     // Apagado por defecto (ver webhookProcesaPagos): se registra lo que informa MercadoPago y se deja que
     // el pago lo confirme capture-order, que es lo que viene funcionando.
-    if (!webhookProcesaPagos()) {
+    const loConfirmaElRetorno = TIPOS_QUE_CONFIRMA_EL_RETORNO.includes(String(foundPayment.paymentType));
+    if (!webhookProcesaPagos() || loConfirmaElRetorno) {
       // Aunque el webhook no haga avanzar el pago, GUARDA el id del pago de MercadoPago. Sin ese vínculo, un pago
       // cobrado cuyo comprador cerró la pestaña antes de volver (efectivo, tarjeta que quedó pendiente) no lo ve
       // nadie: la conciliación busca pagos con ese id. No cambia el estado ni ejecuta lo que el pago compra.
@@ -599,7 +604,9 @@ async function handlePaymentWebhook(data: any, ip: string) {
           });
         }
       }
-      logger.payment('WEBHOOK_IGNORED', 'Webhook de pago recibido: el procesamiento por webhook está apagado (MP_WEBHOOK_PROCESA_PAGOS)', {
+      logger.payment('WEBHOOK_IGNORED', loConfirmaElRetorno && webhookProcesaPagos()
+        ? 'Webhook de pago recibido: este tipo de pago lo confirma capture-order cuando el comprador vuelve a DOAPP'
+        : 'Webhook de pago recibido: el procesamiento por webhook está apagado (MP_WEBHOOK_PROCESA_PAGOS)', {
         paymentId: foundPayment.id?.toString(),
         data: { mpPaymentId: String(paymentId), estadoMp: status, estadoNuestro: foundPayment.status },
       });
@@ -725,20 +732,23 @@ async function handlePaymentWebhook(data: any, ip: string) {
        * que apunta al pago equivocado. Ninguna de esas es probable; todas
        * terminan con un contrato creado por menos plata de la que dice.
        *
-       * Se compara con un centavo de tolerancia, no exacto: los importes van y
-       * vuelven como decimales y un redondeo no puede frenar un pago legítimo.
+       * Se compara EXACTO, sin redondeo ni tolerancia, y un monto o una moneda que no llegan cuentan como
+       * "no coincide" (antes, un aviso sin monto pasaba). Tampoco se acepta que se haya pagado en cuotas ni con
+       * cupones o descuentos de MercadoPago: queda en revisión de una persona.
        */
-      const esperado = Number(foundPayment.amount) || 0;
-      const recibido = Number(transaction_amount) || 0;
-      const monedaOk = !currency_id || String(currency_id) === String(foundPayment.currency);
+      const esperado = Number(foundPayment.amount);
+      const recibido = Number(transaction_amount);
+      const monedaOk = !!currency_id && String(currency_id).toUpperCase() === String(foundPayment.currency).toUpperCase();
+      const condicion = condicionesNoPermitidas(mpPaymentData);
+      const montoOk = Number.isFinite(recibido) && recibido > 0 && recibido === esperado;
 
-      if (recibido > 0 && (Math.abs(recibido - esperado) > 0.01 || !monedaOk)) {
+      if (!montoOk || !monedaOk || condicion) {
         foundPayment.status = 'pending_verification';
         await foundPayment.save();
 
         logger.payment('ERROR', 'Monto o moneda del webhook no coinciden con el pago esperado', {
           paymentId: foundPayment.id?.toString(),
-          data: { esperado, recibido, moneda: currency_id, monedaEsperada: foundPayment.currency },
+          data: { esperado, recibido, moneda: currency_id, monedaEsperada: foundPayment.currency, condicion: condicion?.detalle },
           userId: foundPayment.payerId?.toString(),
         });
 
@@ -750,9 +760,11 @@ async function handlePaymentWebhook(data: any, ip: string) {
             recipientId: admin.id,
             type: 'error',
             category: 'admin',
-            title: 'Pago con monto inesperado',
+            title: condicion && montoOk && monedaOk ? 'Pago en cuotas o con cupón' : 'Pago con monto inesperado',
             message:
-              `Se esperaban ${foundPayment.currency} ${esperado} y MercadoPago informó ${currency_id} ${recibido}. ` +
+              (condicion && montoOk && monedaOk
+                ? `El pago se hizo distinto de lo permitido: ${condicion.detalle}. `
+                : `Se esperaban ${foundPayment.currency} ${esperado} y MercadoPago informó ${currency_id} ${recibido}. `) +
               'El pago quedó pendiente de verificación y no se ejecutó ninguna acción.',
             relatedModel: 'Payment',
             relatedId: foundPayment.id,

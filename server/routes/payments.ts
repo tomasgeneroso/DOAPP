@@ -28,6 +28,7 @@ import {
   evaluarPagoMercadoPago,
   esIdDePagoMp,
   ESTADOS_CAPTURABLES,
+  TIPOS_QUE_CONFIRMA_EL_RETORNO,
   ESTADOS_YA_PROCESADOS,
   type VeredictoMp,
 } from "../services/pagoMercadoPago.js";
@@ -673,7 +674,7 @@ async function manejarCapturaNoAprobada(
       }));
       // Sólo se promete que se acredita solo si el webhook procesa pagos. Con la llave apagada no es cierto: la
       // confirmación depende de que la persona vuelva a esta página cuando MercadoPago apruebe.
-      const seAcreditaSolo = process.env.MP_WEBHOOK_PROCESA_PAGOS === 'true';
+      const seAcreditaSolo = process.env.MP_WEBHOOK_PROCESA_PAGOS === 'true' && !TIPOS_QUE_CONFIRMA_EL_RETORNO.includes(String(payment.paymentType));
       res.status(409).json({
         success: false,
         code: 'PAYMENT_PENDING',
@@ -691,8 +692,12 @@ async function manejarCapturaNoAprobada(
       });
       return;
     case 'monto':
-    case 'moneda': {
-      // El pago existe y está aprobado, pero no es lo que esperábamos: lo decide una persona.
+    case 'moneda':
+    case 'cuotas':
+    case 'cupon': {
+      // El pago existe y está aprobado, pero no es lo que esperábamos (otro monto o moneda, o se pagó en cuotas o con
+      // un cupón, que DOAPP no acepta): lo decide una persona.
+      const porCondiciones = veredicto.motivo === 'cuotas' || veredicto.motivo === 'cupon';
       await Payment.update(
         { status: 'pending_verification', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
         { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
@@ -705,7 +710,7 @@ async function manejarCapturaNoAprobada(
           recipientId: admin.id,
           type: 'error',
           category: 'admin',
-          title: 'Pago con monto inesperado',
+          title: porCondiciones ? 'Pago en cuotas o con cupón' : 'Pago con monto inesperado',
           message: `El pago ${payment.id} se confirmó con MercadoPago pero no coincide con lo esperado (${veredicto.detalle}). Quedó en revisión y no se ejecutó ninguna acción.`,
           relatedModel: 'Payment',
           relatedId: payment.id,
@@ -717,7 +722,9 @@ async function manejarCapturaNoAprobada(
       res.status(409).json({
         success: false,
         code: 'PAYMENT_UNDER_REVIEW',
-        message: 'Tu pago quedó en revisión porque el monto no coincide con el esperado. Un administrador lo va a verificar; no hace falta que pagues de nuevo.',
+        message: porCondiciones
+          ? 'Tu pago se hizo en cuotas o con un cupón de MercadoPago, y DOAPP sólo cobra en un pago y sin descuentos. Quedó en revisión: un administrador lo va a resolver; no hace falta que pagues de nuevo.'
+          : 'Tu pago quedó en revisión porque el monto no coincide con el esperado. Un administrador lo va a verificar; no hace falta que pagues de nuevo.',
       });
       return;
     }

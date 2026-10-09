@@ -197,6 +197,14 @@ describe('webhooks de MercadoPago', () => {
       status: 'approved', status_detail: 'accredited', transaction_amount: 5000, currency_id: 'ARS', metadata: {}, ...extra,
     });
     const avisar = (idMp: string) => request(app).post('/api/webhooks/mercadopago').send({ type: 'payment', action: 'payment.updated', data: { id: idMp } });
+    /** Un administrador de prueba: el aviso de «pago en revisión» sólo se genera por el camino de rechazo, no por el de aprobación. */
+    const conAdmin = async (fn: (adminId: string) => Promise<void>) => {
+      const admin: any = await User.create({ email: 'admin-rev@mp.test', name: 'Admin revisión', username: 'adminrevmp', password: 'password123', role: 'admin', adminRole: 'admin' } as any);
+      try { await fn(admin.id); } finally {
+        await Notification.destroy({ where: { recipientId: admin.id } });
+        await User.destroy({ where: { id: admin.id }, force: true });
+      }
+    };
 
     it('apagado (por defecto): se acepta el aviso pero el pago NO avanza', async () => {
       const { id, idMp } = await crearPago();
@@ -220,9 +228,65 @@ describe('webhooks de MercadoPago', () => {
       expect(await estadoDe(id)).toBe('pending'); // sólo el vínculo: no se publica ni se activa nada
     });
 
+    it('encendido: las publicaciones, membresías y aumentos los sigue confirmando capture-order: el webhook sólo guarda el vínculo', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      for (const tipo of ['job_publication', 'membership', 'budget_increase']) {
+        const { id, idMp } = await crearPago({ paymentType: tipo, mercadopagoPaymentId: null });
+        mockObtenerPago.mockResolvedValue(aprobado({ metadata: { payment_id: id } }));
+
+        expect((await avisar(idMp)).status).toBe(200);
+        const guardado = await esperar(async () => ((await Payment.findByPk(id)) as any).mercadopagoPaymentId === idMp);
+
+        expect([tipo, guardado]).toEqual([tipo, true]);
+        // sigue pendiente: si el webhook llegara primero y lo pasara a revisión, al volver el comprador capture-order le mostraría un error
+        expect([tipo, await estadoDe(id)]).toEqual([tipo, 'pending']);
+      }
+    });
+
+    it('encendido: el monto se compara EXACTO (una diferencia menor a un centavo también deja el pago en revisión con aviso)', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      await conAdmin(async (adminId) => {
+        const { id, idMp } = await crearPago({ paymentType: 'contract_payment', amount: 5000 });
+        mockObtenerPago.mockResolvedValue(aprobado({ transaction_amount: 5000.004 })); // dentro de la vieja tolerancia de un centavo
+
+        expect((await avisar(idMp)).status).toBe(200);
+        await esperar(async () => (await estadoDe(id)) !== 'pending');
+        expect(await estadoDe(id)).toBe('pending_verification');
+        expect(await Notification.count({ where: { recipientId: adminId, title: 'Pago con monto inesperado' } })).toBe(1);
+      });
+    });
+
+    it('encendido: un aviso aprobado SIN monto o SIN moneda no pasa como bueno (antes se saltaba el control)', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      await conAdmin(async (adminId) => {
+        for (const roto of [{ transaction_amount: undefined }, { currency_id: undefined }]) {
+          const { id, idMp } = await crearPago({ paymentType: 'contract_payment' });
+          mockObtenerPago.mockResolvedValue(aprobado(roto));
+          expect((await avisar(idMp)).status).toBe(200);
+          await esperar(async () => (await estadoDe(id)) !== 'pending');
+          expect([JSON.stringify(roto), await estadoDe(id)]).toEqual([JSON.stringify(roto), 'pending_verification']);
+        }
+        expect(await Notification.count({ where: { recipientId: adminId, title: 'Pago con monto inesperado' } })).toBe(2);
+      });
+    });
+
+    it('encendido: un pago en cuotas o con cupón queda en revisión con aviso a administración', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      await conAdmin(async (adminId) => {
+        for (const extra of [{ installments: 3 }, { coupon_amount: 800 }]) {
+          const { id, idMp } = await crearPago({ paymentType: 'contract_payment' });
+          mockObtenerPago.mockResolvedValue(aprobado(extra));
+          expect((await avisar(idMp)).status).toBe(200);
+          await esperar(async () => (await estadoDe(id)) !== 'pending');
+          expect([JSON.stringify(extra), await estadoDe(id)]).toEqual([JSON.stringify(extra), 'pending_verification']);
+        }
+        expect(await Notification.count({ where: { recipientId: adminId, title: 'Pago en cuotas o con cupón' } })).toBe(2);
+      });
+    });
+
     it('encendido: la búsqueda del pago ya no lanza error y el pago avanza al flujo de verificación', async () => {
       process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
-      const { id, idMp } = await crearPago();
+      const { id, idMp } = await crearPago({ paymentType: 'contract_payment' });
       mockObtenerPago.mockResolvedValue(aprobado()); // sin metadata.external_reference: el caso que rompía
 
       expect((await avisar(idMp)).status).toBe(200);

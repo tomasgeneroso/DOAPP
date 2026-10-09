@@ -22,6 +22,10 @@ export type MotivoDeRechazoMp =
   | 'monto'
   /** Aprobado, pero en otra moneda. */
   | 'moneda'
+  /** Pagado en cuotas: DOAPP sólo cobra en un pago (la preferencia fija una sola cuota). */
+  | 'cuotas'
+  /** Pagado con un cupón o descuento de MercadoPago: lo que entra no es lo que se acordó cobrar. */
+  | 'cupon'
   /** El pago pertenece a otra persona. */
   | 'ajeno';
 
@@ -33,6 +37,12 @@ export interface PagoMpLeido {
   status?: unknown;
   transaction_amount?: unknown;
   currency_id?: unknown;
+  /** Cantidad de cuotas en que pagó el comprador (1 = un solo pago). */
+  installments?: unknown;
+  /** Monto descontado por un cupón de MercadoPago (0 o ausente = sin cupón). */
+  coupon_amount?: unknown;
+  /** Campaña de descuento de MercadoPago aplicada (null o ausente = ninguna). */
+  campaign_id?: unknown;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -43,13 +53,33 @@ export interface PagoEsperado {
   payerId: unknown;
 }
 
-/** Diferencia tolerada entre lo esperado y lo cobrado: los importes viajan como decimales. */
-export const TOLERANCIA_DE_MONTO = 0.01;
 
 const ESTADOS_PENDIENTES = new Set(['pending', 'in_process', 'authorized', 'in_mediation']);
 const ESTADOS_RECHAZADOS = new Set(['rejected', 'cancelled', 'refunded', 'charged_back']);
 
 const hayTexto = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
+
+/**
+ * Lo que DOAPP no acepta que se haya usado para pagar: cuotas y cupones o descuentos de MercadoPago.
+ *
+ * Las cuotas se cierran en la preferencia (`installments: 1`, ver mercadopago.ts); los cupones NO se pueden
+ * desactivar desde la preferencia (no hay un parámetro documentado), así que se detectan acá. Un pago así ya está
+ * cobrado: no se rechaza ni se ejecuta, queda en revisión de una persona. Devuelve null si el pago cumple.
+ */
+export function condicionesNoPermitidas(leido: PagoMpLeido | null | undefined): { motivo: 'cuotas' | 'cupon'; detalle: string } | null {
+  if (!leido || typeof leido !== 'object') return null;
+  const cuotas = Number(leido.installments);
+  if (Number.isFinite(cuotas) && cuotas > 1) {
+    return { motivo: 'cuotas', detalle: `pagado en ${cuotas} cuotas (DOAPP sólo cobra en un pago)` };
+  }
+  const cupon = Number(leido.coupon_amount);
+  const campania = leido.campaign_id;
+  const hayCampania = campania !== undefined && campania !== null && String(campania).trim() !== '' && String(campania) !== '0';
+  if ((Number.isFinite(cupon) && cupon > 0) || hayCampania) {
+    return { motivo: 'cupon', detalle: `pagado con un cupón o descuento de MercadoPago (cupón ${Number.isFinite(cupon) ? cupon : 0}${hayCampania ? `, campaña ${String(campania)}` : ''})` };
+  }
+  return null;
+}
 
 export function evaluarPagoMercadoPago(
   leido: PagoMpLeido | null | undefined,
@@ -83,9 +113,10 @@ export function evaluarPagoMercadoPago(
   if (typeof esperadoNum !== 'number' || !Number.isFinite(esperadoNum) || esperadoNum <= 0) {
     return { ok: false, motivo: 'datos_incompletos', detalle: 'el pago registrado no tiene un monto válido' };
   }
-  // En centavos enteros: restar decimales da 0,0100000000004 donde debería dar 0,01 y rechazaría un
-  // redondeo legítimo de un centavo.
-  if (Math.abs(Math.round(recibido * 100) - Math.round(esperadoNum * 100)) > Math.round(TOLERANCIA_DE_MONTO * 100)) {
+  // EXACTO: sin redondeo y sin tolerancia. Lo cobrado tiene que ser, centavo por centavo, lo que figura en el
+  // pago. Un importe distinto (aunque sea por un centavo) lo decide una persona. Los dos números salen de
+  // decimales escritos con dos cifras (la base devuelve "21000.00" y MercadoPago 21000), que se leen como el mismo valor.
+  if (recibido !== esperadoNum) {
     return { ok: false, motivo: 'monto', detalle: `esperado ${esperadoNum}, cobrado ${recibido}` };
   }
 
@@ -95,6 +126,12 @@ export function evaluarPagoMercadoPago(
   }
   if (leido.currency_id.trim().toUpperCase() !== esperado.currency.trim().toUpperCase()) {
     return { ok: false, motivo: 'moneda', detalle: `esperada ${esperado.currency}, cobrada ${leido.currency_id}` };
+  }
+
+  // 3b) Cómo se pagó: en un solo pago y sin cupón ni descuento de MercadoPago.
+  const condicion = condicionesNoPermitidas(leido);
+  if (condicion) {
+    return { ok: false, motivo: condicion.motivo, detalle: condicion.detalle };
   }
 
   // 4) Dueño. MercadoPago devuelve la metadata de la preferencia (con las claves en snake_case). Si trae
@@ -116,6 +153,13 @@ export function evaluarPagoMercadoPago(
 export function esIdDePagoMp(valor: unknown): valor is string {
   return typeof valor === 'string' && /^\d{3,20}$/.test(valor.trim());
 }
+
+/**
+ * Tipos de pago que confirma `capture-order` cuando el comprador vuelve a DOAPP. El aviso automático de MercadoPago
+ * (webhook) NO los procesa ni con la llave encendida: si llegara primero (llega a los segundos) los dejaría en
+ * revisión y al volver el comprador vería un error aunque pagó. El webhook sólo guarda su vínculo (el id de MercadoPago).
+ */
+export const TIPOS_QUE_CONFIRMA_EL_RETORNO: readonly string[] = ['job_publication', 'membership', 'budget_increase'];
 
 /** Estados desde los que `capture-order` puede completar un pago. Cualquier otro ya se procesó o terminó. */
 export const ESTADOS_CAPTURABLES = ['pending', 'processing'] as const;
