@@ -17,7 +17,8 @@ import {
   revokeRefreshToken,
   revokeAllUserTokens,
 } from "../utils/tokens.js";
-import { authLimiter } from "../middleware/security.js";
+import { authLimiter, limitadoresDeCorreos } from "../middleware/security.js";
+import { sanitizeEmail } from "../utils/sanitizer.js";
 import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
 import { BannedIdentity } from "../models/sql/BannedIdentity.model.js";
 import { Op } from "sequelize";
@@ -89,6 +90,7 @@ router.get("/check-availability", async (req: Request, res: Response): Promise<v
 router.post(
   "/register",
   authLimiter,
+  ...limitadoresDeCorreos,
   [
     body("name").trim().notEmpty().withMessage("El nombre es requerido"),
     body("username")
@@ -132,7 +134,11 @@ router.post(
         return;
       }
 
-      const { name, username, email, password, phone, dni, termsAccepted, referralCode, cbu } = req.body;
+      const { name, username, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu } = req.body;
+      // El correo se compara y se guarda en minúscula y sin espacios: el modelo ya lo pasaba a minúscula al crear, pero
+      // esta búsqueda no, así que "Juan@x.com" pasaba el control de duplicados y el INSERT chocaba después con el
+      // índice único (un 500 con el mensaje de la base).
+      const email = sanitizeEmail(emailCrudo);
 
       // Verificar si el usuario ya existe por email
       const existingUser = await User.findOne({ where: { email } });
@@ -299,39 +305,29 @@ router.post(
         return;
       }
 
-      const { email, password, deviceFingerprint } = req.body;
+      const { email: emailCrudo, password, deviceFingerprint } = req.body;
+      const email = sanitizeEmail(emailCrudo);
 
       // Buscar usuario con password
       const user = await User.findOne({
         where: { email },
         attributes: { include: ['password'] }
       });
-      if (!user) {
-        res.status(401).json({
-          success: false,
-          message: "No existe una cuenta con este email",
-          field: "email"
-        });
-        return;
-      }
-
-      // Verificar contraseña
-      if (!user.password) {
-        res.status(401).json({
-          success: false,
-          message: "Contraseña incorrecta",
-          field: "password"
-        });
-        return;
-      }
 
       const bcrypt = await import('bcryptjs');
-      const isMatch = await bcrypt.compare(password, user.password);
+      // UN solo mensaje para "no existe la cuenta", "la cuenta no tiene contraseña" y "contraseña incorrecta". Antes
+      // decía "No existe una cuenta con este email" o "Contraseña incorrecta" según el caso: cualquiera podía
+      // averiguar qué correos tienen cuenta. Y se compara SIEMPRE contra un hash (el de un usuario falso si no hay
+      // cuenta): sin eso, una cuenta inexistente respondía en milisegundos y una existente tardaba lo de bcrypt, y
+      // el tiempo de respuesta delataba lo mismo.
+      const HASH_DE_RELLENO = '$2b$12$hQ4it2sPDyqqRplaqoVA6.p6ARkmZktpF9qwN9RVR.TpYg1rUa6Nu';
+      const hashAComparar = user?.password || HASH_DE_RELLENO;
+      const isMatch = await bcrypt.compare(String(password), hashAComparar).catch(() => false);
 
-      if (!isMatch) {
+      if (!user || !user.password || !isMatch) {
         res.status(401).json({
           success: false,
-          message: "Contraseña incorrecta",
+          message: "Email o contraseña incorrectos",
           field: "password"
         });
         return;
@@ -1538,10 +1534,12 @@ router.get("/verify-email", async (req: Request, res: Response): Promise<void> =
 // @desc    Reenviar email de verificación
 // @access  Public
 router.post("/resend-verification",
+  // Sin límite: cualquiera podía mandarle correos de verificación a cualquier casilla, sin tope.
+  ...limitadoresDeCorreos,
   [body("email").isEmail().withMessage("Email inválido")],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email } = req.body;
+      const email = sanitizeEmail(req.body.email);
       const user = await User.findOne({ where: { email } });
       if (!user) {
         // Don't reveal if user exists
@@ -1566,6 +1564,7 @@ router.post("/resend-verification",
 router.post(
   "/forgot-password",
   authLimiter,
+  ...limitadoresDeCorreos,
   [
     body("email").isEmail().withMessage("Email inválido"),
   ],
@@ -1580,7 +1579,7 @@ router.post(
         return;
       }
 
-      const { email } = req.body;
+      const email = sanitizeEmail(req.body.email);
 
       // Buscar usuario
       const user = await User.findOne({ where: { email } });

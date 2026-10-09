@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 
@@ -17,6 +17,43 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
 });
+
+/**
+ * Límites para lo que MANDA CORREOS o CREA CUENTAS: registro, "olvidé mi contraseña" y reenvío de verificación.
+ *
+ * `authLimiter` tiene skipSuccessfulRequests: sólo cuenta los intentos FALLIDOS. Un registro exitoso, un
+ * "olvidé mi contraseña" (que responde 200 siempre, exista o no el correo) y un reenvío de verificación NO
+ * consumían cupo: se podían crear cuentas en masa y llenarle la casilla a una persona (mail-bombing) sin
+ * llegar nunca al límite. Estos cuentan TODO: un tope por IP y un tope más estricto por IP + correo.
+ */
+const mensajeDeCorreos = {
+  success: false,
+  message: "Demasiados pedidos. Probá de nuevo más tarde.",
+};
+
+export const limitadorDeCorreosPorIp = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  message: mensajeDeCorreos,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});
+
+export const limitadorDeCorreosPorDestinatario = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 3,
+  message: mensajeDeCorreos,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  keyGenerator: (req) => {
+    const correo = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 254) : "";
+    return `${ipKeyGenerator(req.ip || "desconocida")}|${correo}`;
+  },
+});
+
+export const limitadoresDeCorreos = [limitadorDeCorreosPorIp, limitadorDeCorreosPorDestinatario];
 
 /**
  * Rate limiter for general API endpoints
