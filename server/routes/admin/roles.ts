@@ -115,6 +115,7 @@ router.get("/permissions", async (req: AuthRequest, res: Response) => {
           { id: PERMISSIONS.DISPUTE_ASSIGN, category: "Disputes", description: "Assign disputes" },
           { id: PERMISSIONS.DISPUTE_RESOLVE, category: "Disputes", description: "Resolve disputes" },
           { id: PERMISSIONS.DISPUTE_DELETE, category: "Disputes", description: "Delete disputes" },
+          { id: PERMISSIONS.DISPUTE_CONFIRM_MANUAL_REFUND, category: "Disputes", description: "Confirm a refund was made outside the app (manual refund)" },
 
           // Admin Permissions
           { id: PERMISSIONS.ADMIN_DASHBOARD, category: "Admin", description: "Access admin dashboard" },

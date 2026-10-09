@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach, jest } from '@jest/globals
 import request from 'supertest';
 import express, { Express } from 'express';
 import jwt from 'jsonwebtoken';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * POST /api/admin/disputes/:id/resolve — la ruta que reparte la plata de un contrato en conflicto.
@@ -34,7 +36,8 @@ import { crearEscenario, crearUsuario, crearDisputa } from '../helpers/fixtures.
 
 describe('resolver una disputa: la plata sale por el servicio, no por una copia vieja', () => {
   let app: Express;
-  let admin: any, soporte: any, adminComun: any, moderador: any;
+  let admin: any, soporte: any, adminComun: any, moderador: any, sinPermiso: any, soporteConPermiso: any, dueno: any;
+  const PERMISO = 'dispute:confirm_manual_refund';
   const con = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
 
   /** Contrato de $50.000 pagado con $55.000 (precio + $5.000 de comisión) por MercadoPago, y una disputa abierta. */
@@ -58,7 +61,10 @@ describe('resolver una disputa: la plata sale por el servicio, no por una copia 
     app = express();
     app.use(express.json());
     app.use('/api/admin/disputes', (await import('../../server/routes/admin/disputes.js')).default);
-    admin = await crearUsuario({ role: 'admin', adminRole: 'super_admin' });
+    admin = await crearUsuario({ role: 'admin', adminRole: 'super_admin', permissions: [PERMISO] });
+    sinPermiso = await crearUsuario({ role: 'admin', adminRole: 'super_admin', permissions: [] });
+    soporteConPermiso = await crearUsuario({ role: 'admin', adminRole: 'support', permissions: [PERMISO] });
+    dueno = await crearUsuario({ role: 'admin', adminRole: 'owner' });
     soporte = await crearUsuario({ role: 'admin', adminRole: 'support' });
     adminComun = await crearUsuario({ role: 'admin', adminRole: 'admin' });
     moderador = await crearUsuario({ role: 'admin', adminRole: 'moderator' });
@@ -168,6 +174,44 @@ describe('resolver una disputa: la plata sale por el servicio, no por una copia 
     expect(r.status).toBe(403);
     expect(await estadoDe(disputa.id)).toBe('open');
     expect((await pagoDe(pago.id)).status).toBe('held_escrow');
+  });
+
+  describe('el permiso «confirmar devoluciones hechas por fuera» se concede desde Roles (no depende del rol)', () => {
+    it('un super_admin SIN el permiso no puede: 403 y no se cierra nada', async () => {
+      const { disputa, pago } = await armar({ mpId: null });
+      const r = await resolver(sinPermiso, disputa.id, { resolutionType: 'full_refund', devolucionManual: true });
+      expect(r.status).toBe(403);
+      expect(await estadoDe(disputa.id)).toBe('open');
+      expect((await pagoDe(pago.id)).status).toBe('held_escrow');
+    });
+
+    it('el mismo super_admin, con el permiso concedido, sí puede', async () => {
+      const { disputa } = await armar({ mpId: null });
+      const r = await resolver(admin, disputa.id, { resolutionType: 'full_refund', devolucionManual: true });
+      expect(r.status).toBe(200);
+      expect(await estadoDe(disputa.id)).toBe('resolved_refunded');
+    });
+
+    it('el owner siempre puede, sin tenerlo asignado', async () => {
+      const { disputa } = await armar({ mpId: null });
+      const r = await resolver(dueno, disputa.id, { resolutionType: 'full_refund', devolucionManual: true });
+      expect(r.status).toBe(200);
+    });
+
+    it('soporte con el permiso concedido puede confirmarla al ejecutar un acuerdo; sin él no', async () => {
+      const a = await armar({ mpId: null });
+      await Dispute.update({ agreementProposal: { tipo: 'reembolso_total' }, agreementAcceptedAt: new Date() } as any, { where: { id: a.disputa.id } });
+      const sin = await request(app).post(`/api/admin/disputes/${a.disputa.id}/ejecutar-acuerdo`).set(con(soporte)).send({ devolucionManual: true });
+      expect(sin.status).toBe(403);
+      const con_ = await request(app).post(`/api/admin/disputes/${a.disputa.id}/ejecutar-acuerdo`).set(con(soporteConPermiso)).send({ devolucionManual: true });
+      expect(con_.status).toBe(200);
+      expect(await estadoDe(a.disputa.id)).toBe('resolved_refunded');
+    });
+
+    it('el permiso figura en la lista del panel de Roles para poder concederlo', () => {
+      const roles = readFileSync(join(process.cwd(), 'server/routes/admin/roles.ts'), 'utf8');
+      expect(roles).toContain('PERMISSIONS.DISPUTE_CONFIRM_MANUAL_REFUND');
+    });
   });
 
   describe('ejecutar un acuerdo aceptado por las partes', () => {

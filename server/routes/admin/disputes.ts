@@ -10,6 +10,7 @@ import { logAudit } from "../../utils/auditLog.js";
 import emailService from "../../services/email.js";
 import mercadopagoService from "../../services/mercadopago.js";
 import { Op } from 'sequelize';
+import { ROLE_PERMISSIONS, PERMISSIONS } from "../../config/permissions.js";
 
 const router = Router();
 
@@ -277,12 +278,18 @@ router.post(
 
 /**
  * Quién puede confirmar que una devolución "se hizo por fuera" (pago que no pasó por MercadoPago). Es cerrar una
- * disputa como reembolsada SIN que ningún sistema mueva la plata: lo confirma una persona con autoridad sobre el
- * dinero. Soporte puede ejecutar un acuerdo (que sale por MercadoPago), pero no dar por hecha una devolución a mano.
+ * disputa como reembolsada SIN que ningún sistema mueva la plata, así que es un permiso aparte
+ * (`dispute:confirm_manual_refund`) que el owner concede o quita desde el panel de Roles. El owner siempre lo tiene.
+ * Ningún rol lo trae por defecto: soporte puede ejecutar un acuerdo (que sale por MercadoPago) sin poder dar por
+ * hecha una devolución a mano, salvo que se le conceda.
  */
-const ROLES_QUE_CONFIRMAN_DEVOLUCION_MANUAL = ['owner', 'super_admin', 'admin'];
 function puedeConfirmarDevolucionManual(req: AuthRequest): boolean {
-  return ROLES_QUE_CONFIRMAN_DEVOLUCION_MANUAL.includes(String((req.user as any)?.adminRole || ''));
+  const rol = String((req.user as any)?.adminRole || '');
+  if (rol === 'owner') return true;
+  const delRol = ((ROLE_PERMISSIONS as Record<string, readonly string[]>)[rol] || []) as readonly string[];
+  const propios = Array.isArray((req.user as any)?.permissions) ? ((req.user as any).permissions as string[]) : [];
+  const permisos = [...delRol, ...propios];
+  return permisos.includes('*') || permisos.includes(PERMISSIONS.DISPUTE_CONFIRM_MANUAL_REFUND);
 }
 
 /**
@@ -303,7 +310,7 @@ router.post(
       if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
       const pideManual = req.body?.devolucionManual === true;
       if (pideManual && !puedeConfirmarDevolucionManual(req)) {
-        res.status(403).json({ success: false, message: 'Sólo owner, super admin o admin pueden confirmar que una devolución se hizo por fuera.' });
+        res.status(403).json({ success: false, message: 'No tenés permiso para confirmar que una devolución se hizo por fuera. Lo concede el owner desde Roles («Confirm a refund was made outside the app»).' });
         return;
       }
       const { ejecutarAcuerdo } = await import('../../services/reclamoDirecto.js');
@@ -398,7 +405,7 @@ router.post(
 
       const pideManual = req.body.devolucionManual === true;
       if (pideManual && !puedeConfirmarDevolucionManual(req)) {
-        res.status(403).json({ success: false, message: 'Sólo owner, super admin o admin pueden confirmar que una devolución se hizo por fuera.' });
+        res.status(403).json({ success: false, message: 'No tenés permiso para confirmar que una devolución se hizo por fuera. Lo concede el owner desde Roles («Confirm a refund was made outside the app»).' });
         return;
       }
 

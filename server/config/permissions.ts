@@ -46,6 +46,10 @@ export const PERMISSIONS = {
   DISPUTE_ASSIGN: "dispute:assign",
   DISPUTE_RESOLVE: "dispute:resolve",
   DISPUTE_DELETE: "dispute:delete",
+  // Dar por hecha una devolución "por fuera" (pago que no pasó por MercadoPago): cierra la disputa como reembolsada
+  // sin que ningún sistema mueva la plata. NO está en los permisos por defecto de ningún rol: lo tiene el owner
+  // (comodín) y se concede a quien corresponda desde el panel de Roles.
+  DISPUTE_CONFIRM_MANUAL_REFUND: "dispute:confirm_manual_refund",
 
   // Admin permissions
   ADMIN_DASHBOARD: "admin:dashboard",
