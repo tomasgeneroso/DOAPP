@@ -264,8 +264,32 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
       expect(((await Contract.findByPk(c.id)) as any).pairingCode).toBe(real);
     });
 
+    it('un contrato YA iniciado: poner el código (bien o mal) o pedirlo no da error y no cambia nada', async () => {
+      const cod = codigo();
+      const c = await contratoEn('in_progress', { pairingCode: cod, pairingExpiry: new Date(Date.now() + 3_600_000) });
+      for (const intento of [cod, 'CODIGO-EQUIVOCADO']) {
+        for (const quien of [cliente, trabajador]) {
+          const r = await confirmarCodigo(c.id, quien, intento);
+          expect([intento, r.status]).toEqual([intento, 200]);
+          expect(r.body.alreadyStarted).toBe(true);
+        }
+      }
+      const g = await generar(c.id, cliente);
+      expect(g.status).toBe(200);
+      expect(g.body.alreadyStarted).toBe(true);
+      const despues: any = await Contract.findByPk(c.id);
+      expect(despues.status).toBe('in_progress');
+      expect(despues.pairingCode).toBe(cod); // no se pisó
+    });
+
+    it('un usuario ajeno no obtiene "ya iniciado": sigue siendo 403 aunque el contrato esté en curso', async () => {
+      const c = await contratoEn('in_progress', {});
+      expect((await confirmarCodigo(c.id, ajeno, 'XXXXXX')).status).toBe(403);
+      expect((await generar(c.id, ajeno)).status).toBe(403);
+    });
+
     it('generate-pairing: sólo en un contrato aceptado', async () => {
-      for (const st of ['pending', 'ready', 'in_progress', 'cancelled', 'completed']) {
+      for (const st of ['pending', 'ready', 'cancelled', 'completed']) {
         const c = await contratoEn(st, proximo);
         const r = await generar(c.id, cliente);
         expect([st, r.status]).toEqual([st, 409]);

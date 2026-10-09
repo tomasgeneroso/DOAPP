@@ -2830,7 +2830,14 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Sólo antes de empezar: un contrato ya en marcha, terminado o cancelado no necesita código.
+    // Un contrato que YA empezó no necesita código, pero pedirlo no es un error: la pantalla sigue mostrando dónde
+    // ponerlo (por ejemplo, cuando administración lo pasó a "en curso" al verificar la garantía).
+    if (String(contract.status) === 'in_progress') {
+      res.json({ success: true, alreadyStarted: true, message: 'El contrato ya está iniciado: no hace falta el código.' });
+      return;
+    }
+
+    // Sólo antes de empezar: un contrato terminado o cancelado no necesita código.
     if (String(contract.status) !== 'accepted') {
       res.status(409).json({
         success: false,
@@ -2910,6 +2917,13 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
 
     if (!isClient && !isDoer) {
       res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Si el contrato ya está iniciado se puede escribir el código igual, y no da error: no hay nada que confirmar y
+    // no se toca nada (se responde que ya está iniciado, sin comparar el código).
+    if (String(contract.status) === 'in_progress') {
+      res.json({ success: true, alreadyStarted: true, message: 'El contrato ya está iniciado.' });
       return;
     }
 
