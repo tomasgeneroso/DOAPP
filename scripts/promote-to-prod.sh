@@ -34,6 +34,14 @@ morir() { printf '\nABORTADO: %s\n' "$*" >&2; exit 1; }
 
 cd "$PROD_DIR"
 
+# El entorno de producción es el que lee de SU .env. Se descartan las variables de configuración que haya
+# heredado este proceso (si lo lanzó staging, son las de staging): dotenv NO pisa variables ya definidas, así
+# que sin esto las migraciones y el reinicio de pm2 (--update-env) usarían la base, el puerto y las claves de
+# staging. deployInfo.ts ya lo lanza con un entorno mínimo; esto cubre que lo lance otra cosa.
+for variable in $(compgen -e | grep -E '^(DB_|DATABASE_URL$|DEV_DATABASE_URL$|TEST_DATABASE_URL$|PORT$|APP_ENV$|NODE_ENV$|JWT_|ENCRYPTION_KEY$|MERCADOPAGO_|SMTP_|REDIS_URL$|CLIENT_URL$|SERVER_URL$|CORS_|DIDIT_|WHATSAPP_|GOOGLE_|FACEBOOK_)' || true); do
+  unset "$variable"
+done
+
 # Lo que producción está corriendo ahora. Es lo que hay que poder deshacer si
 # esto sale mal, así que se imprime antes que nada y queda en el registro.
 ANTERIOR="$(git rev-parse HEAD)"
@@ -91,7 +99,9 @@ pm2 restart "$PROD_PM2" --update-env
 paso "Esperando a que responda"
 ARRIBA=0
 for _ in $(seq 1 30); do
-  if curl -fsS --max-time 5 "http://127.0.0.1:${PROD_PORT:-5000}/api/health" >/dev/null 2>&1; then
+  # 3001: el puerto de producción (ecosystem.config.cjs). Con 5000 el chequeo daba "no responde" después de un
+  # deploy bueno, y el mensaje de abajo sugiere volver atrás.
+  if curl -fsS --max-time 5 "http://127.0.0.1:${PROD_PORT:-3001}/api/health" >/dev/null 2>&1; then
     ARRIBA=1
     break
   fi

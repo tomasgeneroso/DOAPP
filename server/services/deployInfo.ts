@@ -129,6 +129,32 @@ export async function infoDeDespliegue(): Promise<InfoDeDespliegue> {
   };
 }
 
+/**
+ * El entorno con el que corre el script de promoción: el MÍNIMO para que bash, git, npm y pm2 anden.
+ *
+ * Antes se le pasaba `{ ...process.env }`: todo el entorno de STAGING (DB_NAME, DB_USER, DB_PASSWORD, PORT=3002,
+ * APP_ENV=staging, las claves de MercadoPago de prueba...). El script corre en el directorio de producción
+ * `sequelize-cli db:migrate` y `pm2 restart --update-env`, y dotenv NO pisa variables que ya existen: las
+ * migraciones podían correr contra la base de staging y producción reiniciarse con la base, el puerto y las
+ * claves de staging. Producción tiene que leer SU .env, no el de quien aprieta el botón.
+ */
+const VARIABLES_QUE_NECESITA_EL_SCRIPT = [
+  'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'TMPDIR', 'TZ',
+  // pm2 busca su carpeta con ésta si no es la de por defecto; nvm/volta/fnm resuelven node con éstas.
+  'PM2_HOME', 'NVM_DIR', 'NVM_BIN', 'VOLTA_HOME', 'FNM_DIR',
+  // Lo que el script declara que se puede pisar desde afuera (ver scripts/promote-to-prod.sh).
+  'PROD_DIR', 'PROD_PM2', 'PROD_PORT',
+] as const;
+
+export function entornoLimpioParaPromover(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const limpio: Record<string, string | undefined> = {};
+  for (const nombre of VARIABLES_QUE_NECESITA_EL_SCRIPT) {
+    if (base[nombre] !== undefined) limpio[nombre] = base[nombre];
+  }
+  limpio.PROMOTED_BY_APP = '1';
+  return limpio as NodeJS.ProcessEnv;
+}
+
 export class PromocionInvalida extends Error {}
 
 /** Una promoción a la vez. Dos deploys pisándose dejan producción a medio construir. */
@@ -202,7 +228,7 @@ export async function promoverAProduccion(shaEsperado: string): Promise<Resultad
         // sigue siendo un techo: si se cuelga, se corta y queda el registro.
         timeout: 15 * 60 * 1000,
         maxBuffer: 8 * 1024 * 1024,
-        env: { ...process.env, PROMOTED_BY_APP: '1' },
+        env: entornoLimpioParaPromover(),
       });
       return { sha, salida: [stdout, stderr].filter(Boolean).join('\n').trim(), duracionMs: Date.now() - arranque };
     } catch (e: any) {
