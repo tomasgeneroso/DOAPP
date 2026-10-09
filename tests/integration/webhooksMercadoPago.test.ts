@@ -209,6 +209,17 @@ describe('webhooks de MercadoPago', () => {
       expect(await estadoDe(id)).toBe('pending');
     });
 
+    it('apagado: el aviso igual GUARDA el id de MercadoPago del pago (la conciliación lo necesita para ver un cobro que nadie confirmó)', async () => {
+      const { id, idMp } = await crearPago({ mercadopagoPaymentId: null });
+      mockObtenerPago.mockResolvedValue(aprobado({ metadata: { payment_id: id } }));
+
+      expect((await avisar(idMp)).status).toBe(200);
+      const guardado = await esperar(async () => ((await Payment.findByPk(id)) as any).mercadopagoPaymentId === idMp);
+
+      expect(guardado).toBe(true);
+      expect(await estadoDe(id)).toBe('pending'); // sólo el vínculo: no se publica ni se activa nada
+    });
+
     it('encendido: la búsqueda del pago ya no lanza error y el pago avanza al flujo de verificación', async () => {
       process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
       const { id, idMp } = await crearPago();

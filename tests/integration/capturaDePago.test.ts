@@ -193,6 +193,38 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
     await nadaSeActivo('pagador');
   });
 
+  it('un pago pendiente se confirma al volver a la página cuando MercadoPago ya lo aprobó (la promesa del mensaje)', async () => {
+    const { id, pref } = await crearPago('pagador');
+    const idMp = String(++contadorIdMp);
+    mockObtenerPago.mockResolvedValue(aprobado({ status: 'pending' }));
+    expect((await capturar('pagador', pref, { paymentId: idMp })).status).toBe(409);
+    expect(await estadoDe(id)).toBe('processing');
+
+    mockObtenerPago.mockResolvedValue(aprobado());
+    const r = await capturar('pagador', pref, { paymentId: idMp });
+    expect(r.status).toBe(200);
+    expect(await estadoDe(id)).toBe('completed');
+    expect(await esPro('pagador')).toBe(true);
+  });
+
+  it('el mensaje de "pendiente" sólo dice que se acredita solo si el webhook procesa pagos', async () => {
+    const a = await crearPago('pagador');
+    mockObtenerPago.mockResolvedValue(aprobado({ status: 'pending' }));
+    delete process.env.MP_WEBHOOK_PROCESA_PAGOS;
+    const apagado = await capturar('pagador', a.pref, { paymentId: String(++contadorIdMp) });
+    expect(apagado.body.message).not.toContain('se va a acreditar solo');
+    expect(apagado.body.message).toContain('recargá');
+
+    const b = await crearPago('pagador');
+    process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+    try {
+      const encendido = await capturar('pagador', b.pref, { paymentId: String(++contadorIdMp) });
+      expect(encendido.body.message).toContain('se va a acreditar solo');
+    } finally {
+      delete process.env.MP_WEBHOOK_PROCESA_PAGOS;
+    }
+  });
+
   it('"in_process" y "authorized" (reserva sin capturar) tampoco son plata cobrada', async () => {
     for (const estado of ['in_process', 'authorized']) {
       const { id, pref } = await crearPago('pagador');

@@ -94,6 +94,18 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
+      // Sólo se paga una publicación que está esperando el pago. Antes no se miraba el estado: se podía "pagar" un
+      // trabajo ya publicado (MercadoPago cobraba y capture-order no hacía nada: un cobro por nada) y, con contratos
+      // gratis, este mismo camino reabría como "open" un trabajo cancelado o terminado y gastaba un contrato gratis.
+      if (!["draft", "pending_payment"].includes(String(job.status))) {
+        res.status(409).json({
+          success: false,
+          code: "JOB_NOT_AWAITING_PAYMENT",
+          message: "Este trabajo no está esperando el pago de la publicación (ya está publicado, en revisión o dado de baja).",
+        });
+        return;
+      }
+
       // Get user's commission rate and free contracts
       const user = await User.findByPk(userId);
       if (!user) {
@@ -651,15 +663,23 @@ async function manejarCapturaNoAprobada(
 
   switch (veredicto.motivo) {
     case 'pendiente': {
-      // Se guarda el id de MercadoPago para que el webhook pueda completarlo cuando se acredite.
+      // Se guarda el id de MercadoPago: es lo que deja volver a confirmar el pago cuando se acredite (y lo que
+      // le permite a la conciliación ver un pago cobrado que quedó pendiente en la base).
       await Payment.update(
         { status: 'processing', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
         { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
-      ).catch(() => undefined);
+      ).catch((e: unknown) => logger.error('payments', 'No se pudo guardar el id de MercadoPago de un pago pendiente: la conciliación no lo va a ver', {
+        data: { paymentId: String(payment.id), mpPaymentId, error: (e as Error)?.message },
+      }));
+      // Sólo se promete que se acredita solo si el webhook procesa pagos. Con la llave apagada no es cierto: la
+      // confirmación depende de que la persona vuelva a esta página cuando MercadoPago apruebe.
+      const seAcreditaSolo = process.env.MP_WEBHOOK_PROCESA_PAGOS === 'true';
       res.status(409).json({
         success: false,
         code: 'PAYMENT_PENDING',
-        message: 'MercadoPago todavía no confirmó tu pago. Si ya pagaste, no pagues de nuevo: se va a acreditar solo en unos minutos.',
+        message: seAcreditaSolo
+          ? 'MercadoPago todavía no confirmó tu pago. Si ya pagaste, no pagues de nuevo: se va a acreditar solo en unos minutos.'
+          : 'MercadoPago todavía no confirmó tu pago. Si ya pagaste, no pagues de nuevo: cuando MercadoPago lo apruebe, volvé a abrir o recargá esta página y se confirma.',
       });
       return;
     }
@@ -676,7 +696,9 @@ async function manejarCapturaNoAprobada(
       await Payment.update(
         { status: 'pending_verification', mercadopagoPaymentId: mpPaymentId, mercadopagoStatus: String(mpData?.status ?? '') } as any,
         { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
-      ).catch(() => undefined);
+      ).catch((e: unknown) => logger.error('payments', 'No se pudo dejar en revisión un pago con monto o moneda inesperados: nadie lo va a ver en el panel', {
+        data: { paymentId: String(payment.id), mpPaymentId, motivo: veredicto.motivo, error: (e as Error)?.message },
+      }));
       const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
       for (const admin of admins) {
         await Notification.create({
@@ -688,7 +710,9 @@ async function manejarCapturaNoAprobada(
           relatedModel: 'Payment',
           relatedId: payment.id,
           sentVia: ['in_app'],
-        } as any).catch(() => undefined);
+        } as any).catch((e: unknown) => logger.error('payments', 'No se pudo avisar a un administrador de un pago en revisión', {
+          data: { paymentId: String(payment.id), adminId: String(admin.id), error: (e as Error)?.message },
+        }));
       }
       res.status(409).json({
         success: false,

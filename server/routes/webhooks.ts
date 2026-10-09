@@ -584,6 +584,21 @@ async function handlePaymentWebhook(data: any, ip: string) {
     // Apagado por defecto (ver webhookProcesaPagos): se registra lo que informa MercadoPago y se deja que
     // el pago lo confirme capture-order, que es lo que viene funcionando.
     if (!webhookProcesaPagos()) {
+      // Aunque el webhook no haga avanzar el pago, GUARDA el id del pago de MercadoPago. Sin ese vínculo, un pago
+      // cobrado cuyo comprador cerró la pestaña antes de volver (efectivo, tarjeta que quedó pendiente) no lo ve
+      // nadie: la conciliación busca pagos con ese id. No cambia el estado ni ejecuta lo que el pago compra.
+      if (!foundPayment.mercadopagoPaymentId) {
+        try {
+          await Payment.update(
+            { mercadopagoPaymentId: String(paymentId), mercadopagoStatus: String(status ?? '') } as any,
+            { where: { id: foundPayment.id, mercadopagoPaymentId: null } },
+          );
+        } catch (e: any) {
+          logger.error('webhooks', 'No se pudo guardar el id de MercadoPago de un pago (webhook sin procesamiento): la conciliación no lo va a ver', {
+            data: { paymentId: String(foundPayment.id), mpPaymentId: String(paymentId), error: e?.message },
+          });
+        }
+      }
       logger.payment('WEBHOOK_IGNORED', 'Webhook de pago recibido: el procesamiento por webhook está apagado (MP_WEBHOOK_PROCESA_PAGOS)', {
         paymentId: foundPayment.id?.toString(),
         data: { mpPaymentId: String(paymentId), estadoMp: status, estadoNuestro: foundPayment.status },
