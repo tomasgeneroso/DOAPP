@@ -168,4 +168,14 @@ describe('.env.example (el único .env que se versiona)', () => {
     expect(texto).not.toMatch(/\bgh[pousr]_[A-Za-z0-9]{30,}\b/);
     expect(texto).not.toMatch(/\b(?:postgres(?:ql)?|mysql|mongodb|redis):\/\/[^\s:@]+:[^\s@]{4,}@(?!localhost|127\.0\.0\.1)/);
   });
+
+  it('la cabecera del esquema no usa anotaciones como texto (el CLI de varlock las toma como decoradores y falla)', () => {
+    // Lo encontró el CLI real de varlock (1.20.0): "@required" y "@type" escritos en un comentario de la cabecera son un
+    // error ("Item decorator cannot be used in the file header"). Sólo se admiten las del propio archivo.
+    const lineas = leer('.env.schema').split(/\r?\n/);
+    const finCabecera = lineas.findIndex((l) => l.trim() === '');
+    const cabecera = lineas.slice(0, finCabecera);
+    const conArroba = cabecera.filter((l) => /@\w/.test(l) && !/^#\s*@(defaultSensitive|defaultRequired)\b/.test(l));
+    expect(conArroba).toEqual([]);
+  });
 });
