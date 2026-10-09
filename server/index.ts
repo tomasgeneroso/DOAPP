@@ -5,6 +5,7 @@ import fs from "fs";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import { protegerArchivosPrivados } from "./middleware/archivosPrivados.js";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import path from "path";
@@ -328,10 +329,12 @@ const uploadsCors = (req: express.Request, res: express.Response, next: express.
   next();
 };
 const uploadsStatic = express.static(path.join(__dirname, "../uploads"));
-app.use("/uploads", uploadsCors, uploadsStatic);
+// Las carpetas privadas (DNI, selfie, matrícula, seguro, comprobantes de pago, facturas, recibos) sólo las ve su
+// dueño o un administrador; el resto (avatares, fotos de trabajos, blog, portfolio) sigue siendo público.
+app.use("/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic);
 // Also under /api/uploads so images load through nginx's /api proxy (nginx often
 // doesn't proxy /uploads). getImageUrl() points here.
-app.use("/api/uploads", uploadsCors, uploadsStatic);
+app.use("/api/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic);
 
 // Feature Flags
 import { features } from './featureFlags.js';

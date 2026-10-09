@@ -55,12 +55,12 @@ describe('entornoLimpioParaPromover', () => {
   });
 
   it('no inventa variables que el entorno de origen no tenía', () => {
-    const e = entornoLimpioParaPromover({ PATH: '/bin' } as NodeJS.ProcessEnv);
+    const e = entornoLimpioParaPromover({ PATH: '/bin' } as unknown as NodeJS.ProcessEnv);
     expect(Object.keys(e).sort()).toEqual(['PATH', 'PROMOTED_BY_APP']);
   });
 
   it('permite pisar desde afuera sólo lo que el script declara (dónde vive producción y su puerto)', () => {
-    const e = entornoLimpioParaPromover({ PATH: '/bin', PROD_DIR: '/srv/doapp', PROD_PM2: 'doapp', PROD_PORT: '3001' } as NodeJS.ProcessEnv);
+    const e = entornoLimpioParaPromover({ PATH: '/bin', PROD_DIR: '/srv/doapp', PROD_PM2: 'doapp', PROD_PORT: '3001' } as unknown as NodeJS.ProcessEnv);
     expect(e.PROD_DIR).toBe('/srv/doapp');
     expect(e.PROD_PM2).toBe('doapp');
     expect(e.PROD_PORT).toBe('3001');
