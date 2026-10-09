@@ -276,6 +276,16 @@ router.post(
 );
 
 /**
+ * Quién puede confirmar que una devolución "se hizo por fuera" (pago que no pasó por MercadoPago). Es cerrar una
+ * disputa como reembolsada SIN que ningún sistema mueva la plata: lo confirma una persona con autoridad sobre el
+ * dinero. Soporte puede ejecutar un acuerdo (que sale por MercadoPago), pero no dar por hecha una devolución a mano.
+ */
+const ROLES_QUE_CONFIRMAN_DEVOLUCION_MANUAL = ['owner', 'super_admin', 'admin'];
+function puedeConfirmarDevolucionManual(req: AuthRequest): boolean {
+  return ROLES_QUE_CONFIRMAN_DEVOLUCION_MANUAL.includes(String((req.user as any)?.adminRole || ''));
+}
+
+/**
  * Ejecutar el acuerdo que las partes ya aceptaron.
  * POST /api/admin/disputes/:id/ejecutar-acuerdo
  *
@@ -286,14 +296,19 @@ router.post(
 router.post(
   "/:id/ejecutar-acuerdo",
   protect,
-  authorize("owner", "super_admin", "moderator", "support"),
+  authorize("owner", "super_admin", "admin", "moderator", "support"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const dispute = await Dispute.findByPk(req.params.id);
       if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
+      const pideManual = req.body?.devolucionManual === true;
+      if (pideManual && !puedeConfirmarDevolucionManual(req)) {
+        res.status(403).json({ success: false, message: 'Sólo owner, super admin o admin pueden confirmar que una devolución se hizo por fuera.' });
+        return;
+      }
       const { ejecutarAcuerdo } = await import('../../services/reclamoDirecto.js');
-      const r = await ejecutarAcuerdo(dispute, String(req.user.id), { devolucionManual: req.body?.devolucionManual === true });
-      if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+      const r = await ejecutarAcuerdo(dispute, String(req.user.id), { devolucionManual: pideManual });
+      if (!r.ok) { res.status(400).json({ success: false, message: r.motivo, code: r.codigo }); return; }
       await logAudit({
         req,
         action: 'DISPUTE_AGREEMENT_EXECUTED',
@@ -318,7 +333,7 @@ router.post(
 router.post(
   "/:id/resolve",
   protect,
-  authorize("owner", "super_admin", "moderator"),
+  authorize("owner", "super_admin", "admin", "moderator"),
   [
     body("resolution").notEmpty().withMessage("La resolución es requerida"),
     body("resolutionType")
@@ -381,6 +396,12 @@ router.post(
         return;
       }
 
+      const pideManual = req.body.devolucionManual === true;
+      if (pideManual && !puedeConfirmarDevolucionManual(req)) {
+        res.status(403).json({ success: false, message: 'Sólo owner, super admin o admin pueden confirmar que una devolución se hizo por fuera.' });
+        return;
+      }
+
       const r = await resolverDisputa({
         disputeId: String(dispute.id),
         tipo: resolutionType,
@@ -393,7 +414,7 @@ router.post(
       if (!r.ok) {
         res.status(409).json({
           success: false,
-          code: 'DISPUTE_NOT_RESOLVED',
+          code: r.codigo || 'DISPUTE_NOT_RESOLVED',
           message: r.motivo || 'No se pudo resolver la disputa.',
         });
         return;

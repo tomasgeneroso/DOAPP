@@ -42,7 +42,7 @@ export interface ResolucionParams {
  * acumulado de refunded_amount que impide devolver dos veces. Una disputa es
  * exactamente el momento en que esas dos protecciones mas hacen falta.
  */
-export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolean; motivo?: string }> {
+export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolean; motivo?: string; codigo?: string }> {
   const dispute = await Dispute.findByPk(p.disputeId);
   if (!dispute) return { ok: false, motivo: 'disputa inexistente' };
 
@@ -105,9 +105,11 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
       if (!esMp && !p.devolucionManual) {
         return {
           ok: false,
+          // Lo lee la pantalla de administración para pedir la confirmación en vez de mostrar un error de API.
+          codigo: 'DEVOLUCION_MANUAL_REQUERIDA',
           motivo:
             'El pago no se hizo por MercadoPago, así que la devolución no se puede ejecutar desde acá. ' +
-            'Hacela por fuera y volvé a resolver con devolucionManual: true; hasta entonces la disputa sigue abierta.',
+            'Hacela por fuera y confirmalo al resolver (casillero «La devolución se hizo por fuera», devolucionManual: true); hasta entonces la disputa sigue abierta.',
         };
       }
 

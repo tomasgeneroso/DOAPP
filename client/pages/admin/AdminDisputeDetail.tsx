@@ -93,6 +93,8 @@ const AdminDisputeDetail: React.FC = () => {
   const [resolution, setResolution] = useState('');
   const [resolutionType, setResolutionType] = useState('');
   const [refundAmount, setRefundAmount] = useState<number | ''>('');
+  // El pago no pasó por MercadoPago: la devolución se hizo por fuera y el admin lo confirma.
+  const [devolucionManual, setDevolucionManual] = useState(false);
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [note, setNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
@@ -127,6 +129,7 @@ const AdminDisputeDetail: React.FC = () => {
         resolution,
         resolutionType,
         refundAmount: resolutionType === 'partial_refund' ? refundAmount : undefined,
+        devolucionManual: devolucionManual && (resolutionType === 'full_refund' || resolutionType === 'partial_refund') ? true : undefined,
       }, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -165,10 +168,23 @@ const AdminDisputeDetail: React.FC = () => {
     const p = (dispute as any)?.agreementProposal;
     const monto = p?.monto ? `$${Math.round(p.monto).toLocaleString('es-AR')}` : 'el precio del trabajo';
     if (!window.confirm(`¿Ejecutar el acuerdo? Se le devuelven ${monto} al cliente por Mercado Pago. No se puede deshacer.`)) return;
+    const ejecutar = (manual: boolean) =>
+      axios.post(`${API_URL}/admin/disputes/${id}/ejecutar-acuerdo`, manual ? { devolucionManual: true } : {}, { headers: { Authorization: `Bearer ${token}` } });
     try {
-      await axios.post(`${API_URL}/admin/disputes/${id}/ejecutar-acuerdo`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await ejecutar(false);
       await fetchDispute();
     } catch (error: any) {
+      // Un pago que no pasó por MercadoPago no se devuelve solo: se pide confirmar que la devolución se hizo por fuera.
+      if (error?.response?.data?.code === 'DEVOLUCION_MANUAL_REQUERIDA') {
+        if (!window.confirm('El pago no se hizo por Mercado Pago, así que no se devuelve desde acá. ¿Confirmás que la devolución YA SE HIZO por fuera? La disputa se cierra como reembolsada.')) return;
+        try {
+          await ejecutar(true);
+          await fetchDispute();
+        } catch (e2: any) {
+          alert(e2?.response?.data?.message || 'No se pudo ejecutar el acuerdo');
+        }
+        return;
+      }
       alert(error?.response?.data?.message || 'No se pudo ejecutar el acuerdo');
     }
   };
@@ -875,6 +891,23 @@ const AdminDisputeDetail: React.FC = () => {
                       required
                     />
                   </div>
+                )}
+
+                {(resolutionType === 'full_refund' || resolutionType === 'partial_refund') && (
+                  <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={devolucionManual}
+                      onChange={(e) => setDevolucionManual(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <span>
+                      {t('admin.disputes.manualRefund', 'La devolución se hizo por fuera')}
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        {t('admin.disputes.manualRefundHint', 'Marcalo solo si el pago no fue por Mercado Pago (transferencia, otro medio) y ya devolviste la plata a mano. Si el pago fue por Mercado Pago, dejalo sin marcar: se devuelve solo.')}
+                      </span>
+                    </span>
+                  </label>
                 )}
 
                 <div>

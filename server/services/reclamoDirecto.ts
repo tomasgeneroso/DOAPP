@@ -209,7 +209,7 @@ export async function ejecutarAcuerdo(
   d: Dispute,
   adminId: string,
   opciones: { devolucionManual?: boolean } = {},
-): Promise<{ ok: boolean; motivo?: string }> {
+): Promise<{ ok: boolean; motivo?: string; codigo?: string }> {
   const p = d.agreementProposal;
   if (!p || !d.agreementAcceptedAt) return { ok: false, motivo: 'No hay un acuerdo aceptado por las dos partes.' };
   if (p.tipo === 'rehacer') return { ok: false, motivo: 'Un acuerdo de rehacer el trabajo no mueve plata: ya se aplicó.' };
@@ -227,7 +227,7 @@ export async function ejecutarAcuerdo(
     // Un pago que no pasó por MercadoPago no tiene devolución automática: el admin confirma que la hizo por fuera.
     devolucionManual: opciones.devolucionManual === true,
   });
-  if (!r.ok) return { ok: false, motivo: r.motivo };
+  if (!r.ok) return { ok: false, motivo: r.motivo, codigo: r.codigo };
 
   await d.reload();
   log(d, 'Acuerdo ejecutado', adminId, `${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` · ${$(p.monto)}` : ''}`);
