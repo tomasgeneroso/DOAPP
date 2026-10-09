@@ -10,6 +10,11 @@ on:
   pull_request:
     branches: [main, master]
 
+# Permisos mínimos del GITHUB_TOKEN: ningún job de este workflow necesita escribir en el repositorio.
+# Sin este bloque el token tiene los permisos por defecto del repositorio (a menudo de escritura).
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '20'
 
@@ -23,10 +28,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -90,10 +94,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -137,10 +140,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -180,7 +182,7 @@ jobs:
 
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -203,6 +205,21 @@ jobs:
 
             echo "📋 Current commit before deploy:"
             git rev-parse --short HEAD
+            ANTERIOR="$(git rev-parse HEAD)"
+
+            # Si el deploy falla después de mover el código, se vuelve al commit anterior en vez de dejar
+            # producción caída con el código nuevo roto. Las migraciones NO se deshacen (son aditivas y
+            # una migración ya aplicada puede tener datos nuevos): el código anterior tiene que convivir con ellas.
+            volver_atras() {
+              echo "↩️  Rollback automático al commit anterior: $ANTERIOR"
+              git reset --hard "$ANTERIOR" || return 1
+              npm install --legacy-peer-deps || true
+              npm run build:client || true
+              pm2 stop doapp 2>/dev/null || true
+              pm2 delete doapp 2>/dev/null || true
+              pm2 start ecosystem.config.cjs || true
+              echo "↩️  Rollback terminado. Revisá por qué falló el commit nuevo."
+            }
 
             echo "📥 Pulling latest code..."
             git fetch origin && git reset --hard origin/master
@@ -236,6 +253,7 @@ jobs:
             if [ "$started" = "false" ]; then
               echo "❌ Server did not start within 3 minutes"
               pm2 logs doapp --lines 50 --nostream || true
+              volver_atras || true
               exit 1
             fi
 
@@ -246,6 +264,7 @@ jobs:
                 echo "❌ Server crashed during stability check (attempt $j)"
                 pm2 status
                 pm2 logs doapp --lines 30 --nostream || true
+                volver_atras || true
                 exit 1
               fi
               echo "  Stable ($j/6)"

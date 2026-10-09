@@ -20,6 +20,11 @@ on:
   push:
     branches: [staging]            # or auto-deploy a dedicated 'staging' branch
 
+# Permisos mínimos del GITHUB_TOKEN: ningún job de este workflow necesita escribir en el repositorio.
+# Sin este bloque el token tiene los permisos por defecto del repositorio (a menudo de escritura).
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '20'
 
@@ -29,8 +34,8 @@ jobs:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -44,12 +49,19 @@ jobs:
     needs: lint
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          # GITHUB_REF_NAME es una variable del runner de GitHub: NO existe en la sesión SSH del servidor salvo
+          # que se la pase. Sin esto `origin/${GITHUB_REF_NAME:-master}` caía siempre en master y staging
+          # desplegaba master aunque se hubiera disparado desde otra rama.
+          envs: GITHUB_REF_NAME
+          command_timeout: 25m
           script: |
             set -e
             cd /var/www/doapp-staging
