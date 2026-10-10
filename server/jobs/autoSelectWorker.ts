@@ -6,6 +6,7 @@ import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import emailService from '../services/email.js';
+import { calculateCommission } from '../services/commissionService.js';
 import { getIO } from '../services/socket.js';
 import { Op, fn, col } from 'sequelize';
 
@@ -185,8 +186,8 @@ export function startAutoSelectWorkerJob() {
 
           // Crear contrato para cada trabajador seleccionado
           for (const proposal of pendingProposals) {
-            const PLATFORM_COMMISSION = 0.1;
-            const commission = proposal.proposedPrice * PLATFORM_COMMISSION;
+            // Comisión del embudo único (0 en la beta). Antes un 10% fijo que ignoraba la beta.
+            const commission = (await calculateCommission(String(job.clientId), Number(proposal.proposedPrice))).commission;
             const totalPrice = proposal.proposedPrice + commission;
 
             const startDate = new Date();

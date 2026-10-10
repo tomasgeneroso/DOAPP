@@ -21,6 +21,7 @@ import cacheService from "../services/cacheService.js";
 import { sequelize } from "../config/database.js";
 import { logger } from "../services/logger.js";
 import { settleQuote, acreditarSaldo } from "../services/quotePayment.js";
+import { calculateCommission } from "../services/commissionService.js";
 
 
 const router = express.Router();
@@ -965,8 +966,9 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     }
 
     // Crear contrato automáticamente con el monto asignado
-    const PLATFORM_COMMISSION = 0.1;
-    const commission = workerAllocation * PLATFORM_COMMISSION;
+    // La comisión sale del embudo único (calculateCommission): 0 durante la beta y la vigente después. Antes era un 10%
+    // fijo acá: en la beta el contrato salía con comisión y el cliente pagaba de más (la beta es sin comisión).
+    const commission = (await calculateCommission(String(proposal.clientId), workerAllocation)).commission;
     const totalPrice = workerAllocation + commission;
 
     // Use job dates or calculate from estimatedDuration

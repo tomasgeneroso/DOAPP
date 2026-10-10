@@ -2950,8 +2950,8 @@ router.put("/:id/worker-allocations", protect, async (req: AuthRequest, res: Res
 
       if (contract) {
         const newAmount = parseFloat(allocation.allocatedAmount);
-        const PLATFORM_COMMISSION = 0.1;
-        const newCommission = newAmount * PLATFORM_COMMISSION;
+        // Comisión del embudo único (0 en la beta). Antes un 10% fijo que ignoraba la beta.
+        const newCommission = (await calculateCommission(String(job.clientId), newAmount)).commission;
 
         // Add to price modification history
         contract.addPriceModification(
@@ -3090,8 +3090,8 @@ router.delete("/:id/workers/:workerId", protect, async (req: AuthRequest, res: R
 
         if (contract) {
           const newAmount = allocation.allocatedAmount;
-          const PLATFORM_COMMISSION = 0.1;
-          const newCommission = newAmount * PLATFORM_COMMISSION;
+          // Comisión del embudo único (0 en la beta). Antes un 10% fijo que ignoraba la beta.
+          const newCommission = (await calculateCommission(String(job.clientId), Number(newAmount))).commission;
 
           contract.addPriceModification(
             Number(contract.price),

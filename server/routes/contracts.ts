@@ -42,8 +42,6 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Comisión de la plataforma (10%) - DEPRECATED: usar currentCommissionRate del usuario
-const PLATFORM_COMMISSION = 0.1;
 
 /**
  * Check if user has admin privileges for viewing contracts
