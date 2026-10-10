@@ -484,10 +484,16 @@ export default function ContractDetailScreen() {
                 */}
                 {contract.paymentMode === 'on_completion'
                   ? 'Se paga al terminar (sin retencion)'
-                  : contract.paymentStatus === 'held_escrow'
+                  : contract.paymentStatus === 'pending_verification'
+                  ? 'Pago recibido: un administrador lo verifica'
+                  : contract.paymentStatus === 'held_escrow' || contract.paymentStatus === 'escrow'
                   ? 'Retenido en escrow'
                   : contract.paymentStatus === 'released'
                   ? 'Liberado'
+                  : contract.paymentStatus === 'completed'
+                  ? 'Pagado'
+                  : contract.paymentStatus === 'pending'
+                  ? 'Pendiente de pago'
                   : contract.paymentStatus}
               </Text>
             </View>

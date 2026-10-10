@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { ShieldOff, ShieldCheck, ExternalLink, Upload, Clock, AlertTriangle, Check } from 'lucide-react-native';
 import { get, post, upload } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
@@ -71,6 +72,12 @@ export default function OrdenDePago({
   esCliente: boolean;
 }) {
   const { colors: themeColors } = useTheme();
+  const router = useRouter();
+
+  // Mercado Pago devuelve a una página web, no a la app: la app sigue el pago por su cuenta y muestra cuándo llegó.
+  const seguirElPago = useCallback(() => {
+    router.push({ pathname: '/pago-en-curso', params: { tipo: 'contrato', contractId } } as any);
+  }, [router, contractId]);
 
   const [cargando, setCargando] = useState(true);
   const [modo, setModo] = useState('escrow');
@@ -116,9 +123,11 @@ export default function OrdenDePago({
       // El link se abre solo: el cliente pidió pagar, no pidió un link.
       const link = (res.data as any)?.linkDePago;
       if (metodo === 'mercadopago' && link && esCliente) {
-        Linking.openURL(link).catch(() => {
-          Alert.alert('No se pudo abrir el link', 'Podés copiarlo desde el botón de pagar.');
-        });
+        Linking.openURL(link)
+          .then(seguirElPago)
+          .catch(() => {
+            Alert.alert('No se pudo abrir el link', 'Podés copiarlo desde el botón de pagar.');
+          });
       }
     } catch (e: any) {
       Alert.alert('No se pudo generar la orden', e?.message || 'Intentá de nuevo.');
@@ -308,7 +317,7 @@ export default function OrdenDePago({
               {orden.linkDePago && (
                 <TouchableOpacity
                   style={[styles.boton, styles.botonPrimario]}
-                  onPress={() => Linking.openURL(orden.linkDePago!).catch(() => {})}
+                  onPress={() => Linking.openURL(orden.linkDePago!).then(seguirElPago).catch(() => {})}
                 >
                   <ExternalLink size={15} color="#fff" />
                   <Text style={styles.botonPrimarioTexto}>Pagar {pesos(orden.total)}</Text>

@@ -115,6 +115,12 @@ export default function PaymentsScreen() {
       case 'completed': return { label: 'Completado', color: colors.success[500], icon: CheckCircle };
       case 'held_escrow': return { label: 'En escrow', color: colors.warning[500], icon: Clock };
       case 'pending': return { label: 'Pendiente', color: colors.warning[500], icon: Clock };
+      // El pago llegó y un administrador lo verifica (hoy todo pago de Mercado Pago pasa por ahí).
+      case 'pending_verification': return { label: 'En revisión', color: colors.warning[500], icon: Clock };
+      case 'verified': return { label: 'Verificado', color: colors.success[500], icon: CheckCircle };
+      case 'confirmed_for_payout': return { label: 'Listo para pagar al trabajador', color: colors.success[500], icon: CheckCircle };
+      case 'rejected': return { label: 'Rechazado', color: colors.danger[500], icon: XCircle };
+      case 'cancelled': return { label: 'Cancelado', color: colors.slate[500], icon: XCircle };
       case 'failed': return { label: 'Fallido', color: colors.danger[500], icon: XCircle };
       case 'refunded': return { label: 'Reembolsado', color: colors.primary[500], icon: ArrowDownLeft };
       default: return { label: status, color: colors.slate[500], icon: Clock };

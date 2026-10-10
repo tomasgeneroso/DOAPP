@@ -169,6 +169,17 @@ export default function NotificationsScreen() {
       router.push(`/contracts/${data.contractId}`);
     } else if (data?.conversationId) {
       router.push(`/chat/${data.conversationId}`);
+    } else if (notif.relatedId) {
+      // La mayoría de los avisos de pagos, contratos y trabajos traen el vínculo en relatedModel/relatedId, no en data.
+      const rutas: Record<string, string> = {
+        Job: '/job',
+        Contract: '/contracts',
+        Proposal: '/proposals',
+        Dispute: '/disputes',
+        Ticket: '/tickets',
+      };
+      const base = notif.relatedModel ? rutas[notif.relatedModel] : undefined;
+      if (base) router.push(`${base}/${notif.relatedId}` as any);
     }
   };
 

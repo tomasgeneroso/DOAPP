@@ -270,6 +270,12 @@ export default function CreateJobScreen() {
         }
       };
 
+      // Mercado Pago devuelve a una página web, no a la app: la app sigue el pago por su cuenta y muestra cuándo llegó.
+      const seguirElPago = (jobId: string, preferenceId?: string) => {
+        if (Platform.OS === 'web' || !preferenceId) return;
+        router.replace({ pathname: '/pago-en-curso', params: { tipo: 'publicacion', preferenceId, jobId } } as any);
+      };
+
       if (response.success && job) {
         if (requiresPayment === false) {
           // Job published for free (user has free contracts)
@@ -307,7 +313,13 @@ export default function CreateJobScreen() {
                   `Para publicar tu trabajo necesitás pagar $${amount?.toLocaleString('es-AR') || ''} ARS.`,
                   [
                     { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Pagar con MercadoPago', onPress: () => openUrl(checkoutUrl) },
+                    {
+                      text: 'Pagar con MercadoPago',
+                      onPress: () => {
+                        openUrl(checkoutUrl);
+                        seguirElPago(job.id, (paymentResponse as any).preferenceId);
+                      },
+                    },
                   ]
                 );
               }
@@ -359,8 +371,7 @@ export default function CreateJobScreen() {
           {/* Info Banner */}
           <View style={[styles.infoBanner, { backgroundColor: themeColors.primary[50] }]}>
             <Text style={[styles.infoBannerText, { color: themeColors.primary[600] }]}>
-              Los trabajos requieren el pago de una comisión para ser publicados.
-              Una vez publicado, tu dinero estará protegido en la plataforma hasta que el trabajo se complete.
+              Antes de pagar vas a ver el desglose de lo que se cobra. Una vez publicado, tu dinero estará protegido en la plataforma hasta que el trabajo se complete.
             </Text>
           </View>
 

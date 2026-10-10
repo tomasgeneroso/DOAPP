@@ -201,7 +201,8 @@ export interface Contract {
   commission: number;
   totalPrice: number;
   status: 'pending' | 'ready' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'awaiting_confirmation' | 'disputed';
-  paymentStatus: 'pending' | 'held' | 'held_escrow' | 'released' | 'refunded' | 'disputed';
+  // 'pending_verification': el pago llegó y un administrador lo verifica; 'escrow': retenido; 'completed': pagado.
+  paymentStatus: 'pending' | 'pending_verification' | 'held' | 'held_escrow' | 'escrow' | 'pending_payout' | 'released' | 'completed' | 'refunded' | 'disputed';
   startDate: string;
   endDate: string;
   actualStartDate?: string;
@@ -304,6 +305,9 @@ export interface Notification {
   title: string;
   message: string;
   data?: Record<string, any>;
+  /** A qué se refiere el aviso (Job, Contract, Proposal, Dispute, Ticket…), para llevar a esa pantalla al tocarlo. */
+  relatedModel?: string;
+  relatedId?: string;
   read: boolean;
   createdAt: string;
 }

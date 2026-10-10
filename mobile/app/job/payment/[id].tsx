@@ -72,13 +72,25 @@ export default function JobPaymentScreen() {
     setProcessing(true);
     setError('');
     try {
+      // El servidor espera `paymentType` y contesta `approvalUrl` (antes esta pantalla mandaba `type` y buscaba
+      // `initPoint`, así que nunca llegaba a abrir el checkout).
       const res = await post<any>(`/payments/create-order`, {
         jobId: id,
-        type: 'job_publication',
+        paymentType: 'job_publication',
+        paymentMethod: 'mercadopago',
       });
-      if (res.success && (res as any).initPoint) {
-        await Linking.openURL((res as any).initPoint);
-        router.back();
+      if (res.success && (res as any).requiresPayment === false) {
+        Alert.alert('Trabajo publicado', 'Tu trabajo ya está publicado.', [
+          { text: 'OK', onPress: () => router.replace(`/job/${id}` as any) },
+        ]);
+      } else if (res.success && (res as any).approvalUrl) {
+        await Linking.openURL((res as any).approvalUrl);
+        // Mercado Pago devuelve a una página web, no a la app: la app sigue el pago por su cuenta.
+        if ((res as any).preferenceId) {
+          router.replace({ pathname: '/pago-en-curso', params: { tipo: 'publicacion', preferenceId: (res as any).preferenceId, jobId: String(id) } } as any);
+        } else {
+          router.back();
+        }
       } else {
         setError((res as any).message || 'Error al iniciar el pago');
       }

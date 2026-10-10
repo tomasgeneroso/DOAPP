@@ -72,6 +72,8 @@ export default function ProposalDetailScreen() {
       const pago = await post<any>(`/payments/quote/${proposal.id || id}`, {});
       if (pago.success && (pago as any).paymentUrl) {
         await Linking.openURL((pago as any).paymentUrl);
+        // Mercado Pago devuelve a una página web, no a la app: la app sigue el pago por su cuenta y muestra cuándo llegó.
+        router.push({ pathname: '/pago-en-curso', params: { tipo: 'cotizacion', proposalId: String(proposal.id || id) } } as any);
       } else {
         Alert.alert('Error', (pago as any).message || 'No se pudo iniciar el pago');
       }
