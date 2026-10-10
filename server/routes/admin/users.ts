@@ -13,7 +13,7 @@ import { logAudit, getSeverityForAction, detectChanges } from "../../utils/audit
 import type { AuthRequest } from "../../types/index.js";
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
-import { limpiarCampos } from "../../utils/limpiarCampos.js";
+import { limpiarCampos, valoresAnteriores } from "../../utils/limpiarCampos.js";
 import { isDiditConfigured, getDiditMedia } from "../../services/didit.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
@@ -435,6 +435,18 @@ router.post(
         return;
       }
 
+      // El baneo que se levanta queda anotado entero (motivo, fecha, quién lo puso y hasta cuándo): al vaciar los
+      // campos del usuario esos datos dejan de estar en su ficha, y el historial es lo único que los conserva.
+      const baneoAnterior = valoresAnteriores(user, 'banReason', 'bannedAt', 'bannedBy', 'banExpiresAt');
+      let baneadoPorNombre: string | null = null;
+      if (baneoAnterior.bannedBy) {
+        try {
+          const quien = await User.findByPk(String(baneoAnterior.bannedBy), { attributes: ['id', 'name', 'email'] });
+          baneadoPorNombre = quien ? `${quien.name || ''} <${quien.email}>`.trim() : null;
+        } catch { /* el nombre es un dato de apoyo: el id ya queda anotado */ }
+      }
+      const motivoDelDesbaneo = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) || null : null;
+
       user.isBanned = false;
       limpiarCampos(user, 'banReason', 'bannedAt', 'bannedBy', 'banExpiresAt');
 
@@ -456,10 +468,25 @@ router.post(
         action: "unban_user",
         category: "user",
         severity: getSeverityForAction("unban_user"),
-        description: `Usuario ${user.email} desbaneado`,
+        description:
+          `Usuario ${user.email} desbaneado` +
+          (baneoAnterior.banReason ? `. Había sido baneado por: ${baneoAnterior.banReason}` : '') +
+          (motivoDelDesbaneo ? `. Motivo del desbaneo: ${motivoDelDesbaneo}` : ''),
         targetModel: "User",
         targetId: user.id,
         targetIdentifier: user.email,
+        changes: [
+          { field: 'isBanned', oldValue: true, newValue: false },
+          { field: 'banReason', oldValue: baneoAnterior.banReason, newValue: null },
+          { field: 'bannedAt', oldValue: baneoAnterior.bannedAt, newValue: null },
+          { field: 'bannedBy', oldValue: baneoAnterior.bannedBy, newValue: null },
+          { field: 'banExpiresAt', oldValue: baneoAnterior.banExpiresAt, newValue: null },
+        ],
+        metadata: {
+          baneoAnterior: { ...baneoAnterior, baneadoPorNombre },
+          desbaneadoPor: String(req.user.id),
+          motivoDelDesbaneo,
+        },
       });
 
       res.json({

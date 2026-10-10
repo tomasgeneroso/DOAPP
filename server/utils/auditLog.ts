@@ -251,6 +251,63 @@ export const logMoneyEvent = async (params: MoneyEventParams): Promise<void> => 
   }
 };
 
+export interface EventoParams {
+  /** Que paso: 'CONTRACT_EXTENSION_REJECTED', 'REFERRAL_DISCOUNT_EXPIRED'... */
+  action: string;
+  /** Quien lo disparo: 'user:<id>', 'cron:resetReferralDiscounts', 'system'. */
+  actor: string;
+  category: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'payment' | 'system';
+  description: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  /** Usuario que lo hizo, si fue una persona (no necesariamente administrador). */
+  performedBy?: string;
+  targetModel?: string;
+  targetId?: string;
+  targetIdentifier?: string;
+  changes?: Array<{ field: string; oldValue: any; newValue: any }>;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Asienta en el registro de auditoria algo que paso SIN un administrador de por medio.
+ *
+ * Existe aparte de logAudit porque este se sale en silencio si el que actua no es un administrador, y hay cosas que
+ * hace cualquier usuario (rechazar una ampliacion de contrato) o que corren solas (vence un descuento) y que despues
+ * hay que poder reconstruir: quien, cuando, contra quien, por que y que valia lo que se borro. Un dato que se vacia
+ * sin dejar rastro no se puede recuperar.
+ *
+ * Nunca lanza: un fallo al registrar no puede tumbar la accion que estaba registrando, pero se loguea a consola.
+ */
+export const logEvento = async (params: EventoParams): Promise<void> => {
+  try {
+    const {
+      action, actor, category, description, severity = 'medium', performedBy,
+      targetModel, targetId, targetIdentifier, changes, metadata,
+    } = params;
+
+    await AuditLog.create({
+      performedBy,
+      adminRole: undefined,
+      actor,
+      action,
+      category,
+      severity,
+      description,
+      targetModel,
+      targetId,
+      targetIdentifier,
+      changes,
+      ...prepararMetadata({ ...metadata, registradoEl: new Date().toISOString() }),
+      ip: 'system',
+      userAgent: actor,
+      passwordVerified: false,
+      twoFactorVerified: false,
+    } as any);
+  } catch (error) {
+    console.error('No se pudo registrar el evento de auditoria:', error, params.action);
+  }
+};
+
 /**
  * Helper para crear objeto de cambio para el audit log
  */

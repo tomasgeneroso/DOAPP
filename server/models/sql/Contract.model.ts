@@ -107,6 +107,11 @@ interface ExtensionRecord {
   approvedBy?: string; // UUID
   approvedAt?: Date;
   notes?: string;
+  /** Una solicitud queda anotada aunque se rechace: quien la rechazo, cuando y por que no se pierden. */
+  status?: 'approved' | 'rejected';
+  rejectedBy?: string; // UUID
+  rejectedAt?: Date;
+  rejectionReason?: string | null;
 }
 
 interface ConfirmationHistoryEntry {

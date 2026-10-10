@@ -5,7 +5,8 @@ import emailService from '../services/email.js';
 import { isBetaPhase } from '../services/platformPhase.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { Op } from 'sequelize';
-import { limpiarCampos } from '../utils/limpiarCampos.js';
+import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
+import { logEvento } from '../utils/auditLog.js';
 
 /**
  * Cron job para resetear los descuentos de comisión por referidos que expiraron.
@@ -74,11 +75,32 @@ export function startResetReferralDiscountsJob() {
 
       for (const user of usersWithExpiredDiscount) {
         try {
+          // Lo que se va a vaciar se anota antes: cuándo vencía y qué tasa tenía.
+          const vencia = valoresAnteriores(user, 'referralDiscountExpiresAt');
+          const tasaAnterior = user.currentCommissionRate;
+
           // Resetear a la tasa estándar
           user.currentCommissionRate = COMMISSION_RATES.free;
           user.hasReferralDiscount = false;
           limpiarCampos(user, 'referralDiscountExpiresAt');
           await user.save();
+
+          await logEvento({
+            action: 'REFERRAL_DISCOUNT_EXPIRED',
+            actor: 'cron:resetReferralDiscounts',
+            category: 'user',
+            severity: 'low',
+            description: `Venció el descuento de referidos de ${user.email}: la tasa vuelve de ${tasaAnterior}% a ${COMMISSION_RATES.free}%`,
+            targetModel: 'User',
+            targetId: String(user.id),
+            targetIdentifier: user.email,
+            changes: [
+              { field: 'hasReferralDiscount', oldValue: true, newValue: false },
+              { field: 'currentCommissionRate', oldValue: tasaAnterior, newValue: COMMISSION_RATES.free },
+              { field: 'referralDiscountExpiresAt', oldValue: vencia.referralDiscountExpiresAt, newValue: null },
+            ],
+            metadata: { venciaEl: vencia.referralDiscountExpiresAt, tasaAnterior, tasaNueva: COMMISSION_RATES.free },
+          });
 
           // Crear notificación
           await Notification.create({

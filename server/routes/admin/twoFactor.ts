@@ -213,6 +213,11 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
+    // Lo que se va a borrar se anota ANTES (sólo su cantidad: el secreto y los códigos no se copian a ningún lado).
+    const habiaSecreto = Boolean(user.twoFactorSecret);
+    const codigosSinUsar = Array.isArray(user.twoFactorBackupCodes) ? user.twoFactorBackupCodes.length : 0;
+    const motivo = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) || null : null;
+
     // Deshabilitar 2FA
     user.twoFactorEnabled = false;
     // En NULL: con undefined, Sequelize no los borraba y el secreto y los códigos de respaldo quedaban en la base.
@@ -225,10 +230,21 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
       action: "disable_2fa",
       category: "user",
       severity: "high",
-      description: "2FA deshabilitado",
+      description: `2FA deshabilitado por ${user.email} en su propia cuenta${motivo ? `: ${motivo}` : ''}`,
       targetModel: "User",
       targetId: user.id.toString(),
       targetIdentifier: user.email,
+      changes: [
+        { field: 'twoFactorEnabled', oldValue: true, newValue: false },
+        { field: 'twoFactorSecret', oldValue: habiaSecreto ? '[había un secreto: borrado]' : null, newValue: null },
+        { field: 'twoFactorBackupCodes', oldValue: `${codigosSinUsar} código(s) de respaldo sin usar`, newValue: null },
+      ],
+      metadata: {
+        desactivadoPor: user.id.toString(),
+        paraUsuario: user.id.toString(),
+        motivo,
+        codigosDeRespaldoSinUsar: codigosSinUsar,
+      },
     });
 
     res.json({

@@ -31,6 +31,8 @@ import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import { Contract } from '../../server/models/sql/Contract.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
+import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
+import { leerMetadata } from '../../server/utils/auditLog.js';
 import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
 
 describe('contratos: cada ruta mira el estado antes de mover nada', () => {
@@ -372,6 +374,104 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
       const aprobacion = await request(app).post(`/api/contracts/${c.id}/approve-extension`).set(como(trabajador)).send({});
       expect(aprobacion.status).toBe(400);
       expect(aprobacion.body.message).toContain('No hay solicitud de extensión pendiente');
+    });
+
+    it('queda anotado qué se pidió, quién lo pidió, quién lo rechazó, cuándo y por qué (no se pierde al vaciar la solicitud)', async () => {
+      const c = await contratoEn('in_progress');
+      const pedidaEl = new Date(Date.now() - 3_600_000);
+      await Contract.update(
+        { extensionRequestedBy: cliente.id, extensionRequestedAt: pedidaEl, extensionDays: 3, extensionAmount: 6000 } as any,
+        { where: { id: c.id } },
+      );
+
+      const rechazo = await request(app).post(`/api/contracts/${c.id}/reject-extension`).set(como(trabajador)).send({ reason: 'No tengo lugar esa semana' });
+      expect(rechazo.status).toBe(200);
+
+      // en el propio contrato
+      const fila: any = await Contract.findByPk(c.id);
+      expect(fila.extensionHistory).toHaveLength(1);
+      const h = fila.extensionHistory[0];
+      expect(h).toMatchObject({
+        status: 'rejected',
+        extensionDays: 3,
+        requestedBy: String(cliente.id),
+        rejectedBy: String(trabajador.id),
+        rejectionReason: 'No tengo lugar esa semana',
+      });
+      expect(Number(h.extensionAmount)).toBe(6000);
+      expect(new Date(h.requestedAt).getTime()).toBe(pedidaEl.getTime());
+      expect(h.rejectedAt).toBeTruthy();
+
+      // y en el registro de auditoría, con la fecha que pone la base
+      const evento: any = await AuditLog.findOne({ where: { action: 'CONTRACT_EXTENSION_REJECTED', targetId: String(c.id) } });
+      expect(evento).not.toBeNull();
+      expect(evento.createdAt).toBeTruthy();
+      expect(String(evento.performedBy)).toBe(String(trabajador.id));
+      const meta: any = leerMetadata(evento);
+      expect(meta).toMatchObject({
+        rechazadaPor: String(trabajador.id),
+        pedidaPor: String(cliente.id),
+        clienteId: String(cliente.id),
+        trabajadorId: String(trabajador.id),
+        motivo: 'No tengo lugar esa semana',
+      });
+      expect(Number(meta.dias)).toBe(3);
+      expect(Number(meta.monto)).toBe(6000);
+    });
+
+    it('un segundo rechazo AGREGA al historial, no lo pisa', async () => {
+      const c = await contratoEn('in_progress');
+      const pedir = (dias: number) => Contract.update(
+        { extensionRequestedBy: cliente.id, extensionRequestedAt: new Date(), extensionDays: dias, extensionAmount: 1000 } as any,
+        { where: { id: c.id } },
+      );
+
+      await pedir(2);
+      await request(app).post(`/api/contracts/${c.id}/reject-extension`).set(como(trabajador)).send({ reason: 'Primero no' });
+      await pedir(5);
+      await request(app).post(`/api/contracts/${c.id}/reject-extension`).set(como(trabajador)).send({ reason: 'Tampoco' });
+
+      const fila: any = await Contract.findByPk(c.id);
+      expect(fila.extensionHistory.map((h: any) => [h.extensionDays, h.rejectionReason])).toEqual([[2, 'Primero no'], [5, 'Tampoco']]);
+    });
+
+    it('sin motivo igual queda anotado el rechazo (motivo vacío, no perdido)', async () => {
+      const c = await contratoEn('in_progress');
+      await Contract.update(
+        { extensionRequestedBy: cliente.id, extensionRequestedAt: new Date(), extensionDays: 1, extensionAmount: 0 } as any,
+        { where: { id: c.id } },
+      );
+
+      const r = await request(app).post(`/api/contracts/${c.id}/reject-extension`).set(como(trabajador)).send({});
+
+      expect(r.status).toBe(200);
+      const fila: any = await Contract.findByPk(c.id);
+      expect(fila.extensionHistory[0]).toMatchObject({ status: 'rejected', rejectedBy: String(trabajador.id) });
+      expect(fila.extensionHistory[0].rejectionReason ?? null).toBeNull();
+    });
+  });
+
+  describe('POST /api/contracts/:id/approve-extension', () => {
+    it('una ampliación aprobada también queda en el historial del contrato, con quién la pidió y quién la aprobó', async () => {
+      const c = await contratoEn('in_progress');
+      const pedidaEl = new Date(Date.now() - 3_600_000);
+      await Contract.update(
+        { extensionRequestedBy: cliente.id, extensionRequestedAt: pedidaEl, extensionDays: 2, extensionAmount: 0 } as any,
+        { where: { id: c.id } },
+      );
+
+      const r = await request(app).post(`/api/contracts/${c.id}/approve-extension`).set(como(trabajador)).send({});
+      expect(r.status).toBe(200);
+
+      const fila: any = await Contract.findByPk(c.id);
+      expect(fila.hasBeenExtended).toBe(true);
+      expect(fila.extensionHistory).toHaveLength(1);
+      expect(fila.extensionHistory[0]).toMatchObject({
+        status: 'approved',
+        extensionDays: 2,
+        requestedBy: String(cliente.id),
+        approvedBy: String(trabajador.id),
+      });
     });
   });
 

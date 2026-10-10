@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
-import { limpiarCampos } from '../utils/limpiarCampos.js';
+import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
@@ -23,7 +23,7 @@ import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
 import { uploadDailyLogAttachments } from "../middleware/upload.js";
-import { logAudit, getSeverityForAction } from "../utils/auditLog.js";
+import { logAudit, logEvento, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
@@ -2610,6 +2610,7 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
 
     // Add to extension history
     const extensionRecord = {
+      status: 'approved' as const,
       previousEndDate: previousEndDate,
       newEndDate: newEndDate,
       extensionDays: contract.extensionDays || 0,
@@ -2621,8 +2622,10 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
       notes: contract.extensionNotes,
     };
 
-    const extensionHistory = contract.extensionHistory || [];
-    extensionHistory.push(extensionRecord);
+    // Un arreglo NUEVO y changed(): antes se hacía push sobre el arreglo que ya tenía el contrato y se lo volvía a
+    // asignar, y Sequelize compara el JSON por valor, así que no veía ningún cambio y el historial de ampliaciones
+    // aprobadas nunca llegaba a la base (quedaba vacío).
+    const extensionHistory = [...(contract.extensionHistory || []), extensionRecord];
 
     // Aplicar la extensión
     contract.hasBeenExtended = true;
@@ -2630,6 +2633,7 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
     contract.extensionApprovedAt = new Date();
     contract.endDate = newEndDate;
     contract.extensionHistory = extensionHistory;
+    contract.changed('extensionHistory', true);
     contract.extensionCount = (contract.extensionCount || 0) + 1;
 
     // Los días se aplican ahora; la plata, recién cuando el cliente la pague.
@@ -2758,12 +2762,58 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
     // Guardar datos de extensión para la notificación antes de limpiar
     const extensionDaysRequested = contract.extensionDays;
 
+    // Antes de vaciar la solicitud se anota qué se pidió, quién la pidió, quién la rechazó, cuándo y por qué: el dato
+    // que se vacía sin dejar rastro no se puede recuperar. El historial vive en el propio contrato.
+    const solicitud = valoresAnteriores(contract, 'extensionRequestedBy', 'extensionRequestedAt', 'extensionDays', 'extensionAmount');
+    const rechazadaEn = new Date();
+    const finActual = new Date(contract.endDate);
+    const finPedido = new Date(finActual);
+    finPedido.setDate(finPedido.getDate() + (Number(contract.extensionDays) || 0));
+    const registroDelRechazo = {
+      status: 'rejected' as const,
+      previousEndDate: finActual,
+      newEndDate: finPedido,
+      extensionDays: Number(contract.extensionDays) || 0,
+      extensionAmount: Number(contract.extensionAmount) || 0,
+      requestedBy: String(contract.extensionRequestedBy),
+      requestedAt: contract.extensionRequestedAt || rechazadaEn,
+      rejectedBy: String(userId),
+      rejectedAt: rechazadaEn,
+      rejectionReason: reason || null,
+    };
+    // Un arreglo NUEVO y changed(): Sequelize compara el JSON por valor y un push sobre el mismo arreglo no se nota.
+    contract.extensionHistory = [...(contract.extensionHistory || []), registroDelRechazo];
+    contract.changed('extensionHistory', true);
+
     // Limpiar la solicitud de extensión. En NULL, no en undefined: Sequelize ignora los undefined al guardar, y con
     // extensionRequestedBy todavía puesto, una extensión rechazada se podía aprobar después.
     limpiarCampos(contract, 'extensionRequestedBy', 'extensionRequestedAt', 'extensionDays', 'extensionAmount');
     contract.extensionNotes = reason || "Solicitud de extensión rechazada";
 
     await contract.save();
+
+    await logEvento({
+      action: 'CONTRACT_EXTENSION_REJECTED',
+      actor: `user:${userId}`,
+      performedBy: String(userId),
+      category: 'contract',
+      severity: 'low',
+      description: `El ${isClient ? 'cliente' : 'trabajador'} rechazó la ampliación de ${registroDelRechazo.extensionDays} día(s) del contrato ${contract.id}${reason ? `: ${reason}` : ''}`,
+      targetModel: 'Contract',
+      targetId: String(contract.id),
+      metadata: {
+        contractId: String(contract.id),
+        jobId: String(contract.jobId),
+        clienteId: String(contract.clientId),
+        trabajadorId: String(contract.doerId),
+        rechazadaPor: String(userId),
+        pedidaPor: solicitud.extensionRequestedBy,
+        pedidaEl: solicitud.extensionRequestedAt,
+        dias: solicitud.extensionDays,
+        monto: solicitud.extensionAmount,
+        motivo: reason || null,
+      },
+    });
 
     // *** Crear notificación persistente para el cliente (quien solicitó) ***
     await NotificationModel.create({

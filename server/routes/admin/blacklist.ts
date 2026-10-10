@@ -7,6 +7,7 @@ import { BannedIdentity } from '../../models/sql/BannedIdentity.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { body, validationResult } from 'express-validator';
 import { logAudit } from '../../utils/auditLog.js';
+import { valoresAnteriores } from '../../utils/limpiarCampos.js';
 
 const router = Router();
 router.use(protect, authorize('admin', 'super_admin', 'owner'));
@@ -171,13 +172,19 @@ router.post(
         { where: { userId, isActive: true } }
       );
 
+      // El baneo que se levanta se anota antes de vaciar los campos del usuario: después no queda otro rastro.
+      const baneoAnterior = valoresAnteriores(user, 'banReason', 'bannedAt', 'bannedBy', 'banExpiresAt');
+
       // Unban the user
       await user.unban();
 
       void logAudit({
         req, action: 'blacklist.remove', category: 'user', severity: 'medium',
-        description: `Quitó a ${user.name || userId} de la lista negra y lo desbaneó${notes ? `: ${notes}` : ''}`,
-        targetModel: 'User', targetId: userId, targetIdentifier: user.name, metadata: { notes: notes || null },
+        description:
+          `Quitó a ${user.name || userId} de la lista negra y lo desbaneó${notes ? `: ${notes}` : ''}` +
+          (baneoAnterior.banReason ? `. Había sido baneado por: ${baneoAnterior.banReason}` : ''),
+        targetModel: 'User', targetId: userId, targetIdentifier: user.name,
+        metadata: { notes: notes || null, baneoAnterior, desbaneadoPor: String(adminId) },
       });
 
       res.json({
