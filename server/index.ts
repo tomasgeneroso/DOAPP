@@ -41,6 +41,7 @@ import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
+import { startAprobarAumentosDePrecioJob } from "./jobs/aprobarAumentosDePrecio.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
 import { startLicenseExpiryReminderJob } from "./jobs/licenseExpiryReminders.js";
 import { startMonotributoRecategorizationReminderJob } from "./jobs/monotributoRecategorizationReminders.js";
@@ -511,6 +512,7 @@ startResetReferralDiscountsJob();
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();
 startVencerOrdenesDePagoJob();
+startAprobarAumentosDePrecioJob();
 
 // Initialize confirmation reminders (when job ends, remind both parties to confirm)
 startConfirmationReminderJob();

@@ -1057,7 +1057,10 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     //     follow the same escrow flow (NOT jump straight to "completed").
     // Other payments (job_publication, membership, ...) finish at "completed".
     const isEscrowFlow = ['contract_payment', 'escrow_deposit', 'budget_increase'].includes(payment.paymentType);
-    const newStatus = isEscrowFlow ? 'verified' : 'completed';
+    // Un aumento de precio ya cobrado por Mercado Pago (tiene la marca de que MP lo confirmó bien) termina en
+    // "completed", igual que cuando se aplicaba al volver el comprador; no hay escrow que verificar después.
+    const esAumentoCobradoPorMp = payment.paymentType === 'budget_increase' && !payment.contractId && !!payment.mercadopagoVerifiedAt;
+    const newStatus = isEscrowFlow && !esAumentoCobradoPorMp ? 'verified' : 'completed';
 
     // Update payment
     payment.status = newStatus;
@@ -1137,49 +1140,15 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       }
     }
 
-    // Handle budget increase payment
-    if (payment.paymentType === 'budget_increase') {
-      const job = await Job.findOne({
-        where: { publicationPaymentId: paymentId }
-      });
-
-      if (job && job.pendingNewPrice) {
-        const oldPrice = Number(job.price);
-        const newPrice = Number(job.pendingNewPrice);
-        const previousStatus = job.previousStatus || 'open';
-
-        // Agregar al historial de cambios
-        const priceHistory = job.priceHistory || [];
-        priceHistory.push({
-          oldPrice,
-          newPrice,
-          reason: job.priceChangeReason || 'Aumento de presupuesto',
-          changedAt: new Date(),
-        });
-
-        // Aplicar el nuevo precio y reactivar el trabajo
-        await job.update({
-          price: newPrice,
-          priceChangedAt: new Date(),
-          priceHistory,
-          pendingNewPrice: null,
-          pendingPaymentAmount: 0,
-          previousStatus: null,
-          status: previousStatus,
-        });
-
-        console.log(`✅ [ADMIN APPROVE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
-
-        // Notify job owner
-        await Notification.create({
-          recipientId: job.clientId,
-          title: 'Presupuesto actualizado',
-          message: `Tu pago fue aprobado. El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
-          type: 'success',
-          category: 'payment',
-          relatedId: job.id,
-          relatedModel: 'Job',
-        });
+    // Aumento de presupuesto de un trabajo: se aplica con el camino común (descuenta el saldo reservado, deja el
+    // historial y reactiva el trabajo). El de un contrato se aplicó arriba.
+    if (payment.paymentType === 'budget_increase' && !payment.contractId) {
+      const { aplicarAumentoDePrecio } = await import('../../services/aumentoDePrecio.js');
+      const aplicado = await aplicarAumentoDePrecio(payment, 'admin', adminId);
+      if (aplicado.aplicado) {
+        console.log(`✅ [ADMIN APPROVE] Budget increase applied: $${aplicado.precioAnterior} -> $${aplicado.precioNuevo} for job ${aplicado.trabajoId}`);
+      } else {
+        console.warn(`⚠️ [ADMIN APPROVE] Pago de aumento ${paymentId} aprobado pero no hay aumento pendiente en el trabajo: ${aplicado.motivo}`);
       }
     }
 
@@ -1355,7 +1324,28 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
         where: { publicationPaymentId: paymentId }
       });
 
-      if (job) {
+      if (job && payment.mercadopagoVerifiedAt) {
+        // Cobrado por Mercado Pago: no hay comprobante que volver a subir. El trabajo vuelve a su estado y precio de antes
+        // (si no, quedaría pausado para siempre) y la devolución del dinero la coordina un administrador.
+        const estadoAnterior = (job as any).previousStatus || 'open';
+        await job.update({
+          pendingNewPrice: null,
+          pendingPaymentAmount: 0,
+          pendingBalanceDeduction: 0,
+          previousStatus: null,
+          priceChangeReason: null,
+          status: estadoAnterior,
+        } as any);
+        await Notification.create({
+          recipientId: job.clientId,
+          title: 'Aumento de presupuesto rechazado',
+          message: `El aumento de presupuesto de "${job.title}" fue rechazado. Motivo: ${reason}. El trabajo vuelve a su estado y precio anteriores. Si ya pagaste, escribinos desde el Centro de ayuda para coordinar la devolución.`,
+          type: 'warning',
+          category: 'payment',
+          relatedId: job.id,
+          relatedModel: 'Job',
+        });
+      } else if (job) {
         // Job stays paused, user can upload a new proof
         console.log(`⚠️ [ADMIN REJECT] Budget increase proof rejected for job ${job.id}, waiting for new proof`);
 

@@ -32,6 +32,13 @@ export const POLITICAS = {
   AUTO_CONFIRMACION_HORAS: 24,
 
   /**
+   * Horas que un aumento de precio pagado por Mercado Pago espera a un administrador. Pasado el plazo se aprueba solo,
+   * siempre que Mercado Pago haya confirmado bien el pago (monto exacto, sin cuotas ni cupón). Un pago en revisión
+   * por no coincidir no se aprueba solo nunca.
+   */
+  APROBACION_AUTOMATICA_DEL_AUMENTO_HORAS: 24,
+
+  /**
    * Dias corridos despues de terminado el contrato en los que todavia se puede
    * abrir una disputa. Pasado eso, se considera aceptado. T&C 10.7.
    */

@@ -22,6 +22,8 @@ import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { avisarPagoRecibido } from "../services/avisoDePago.js";
+import { aplicarAumentoDePrecio, dejarAumentoEnRevision } from "../services/aumentoDePrecio.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
@@ -637,12 +639,18 @@ async function responderPagoYaProcesado(res: Response, payment: any): Promise<vo
   };
   if (payment.paymentType === 'membership') data.membershipActivated = true;
   if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
-    const job = await Job.findOne({ where: { publicationPaymentId: payment.id }, attributes: ['id', 'status'] });
+    const job = await Job.findOne({ where: { publicationPaymentId: payment.id }, attributes: ['id', 'status', 'pendingNewPrice'] });
     if (job) {
       data.jobId = job.id;
       if (payment.paymentType === 'job_publication') {
         data.jobPublished = job.status === 'open';
         data.jobPendingApproval = job.status === 'pending_approval';
+      }
+      if (payment.paymentType === 'budget_increase') {
+        // Esperando al administrador: el pago está confirmado, el precio todavía no cambió.
+        data.budgetPendingApproval = payment.status === 'pending_verification' && Boolean((job as any).pendingNewPrice);
+        data.budgetUpdated = !data.budgetPendingApproval && payment.status === 'completed';
+        data.approvalHours = POLITICAS.APROBACION_AUTOMATICA_DEL_AUMENTO_HORAS;
       }
     }
   }
@@ -805,8 +813,11 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
     console.log("🔍 [CAPTURE] Step 3 - Authorization verified");
 
-    // Un pago que ya se procesó no se rehace: se responde lo mismo que la primera vez.
-    if ((ESTADOS_YA_PROCESADOS as readonly string[]).includes(String(payment.status))) {
+    // Un pago que ya se procesó no se rehace: se responde lo mismo que la primera vez. También cuenta como procesado el que
+    // Mercado Pago ya confirmó bien y espera a un administrador (un aumento de precio): al recargar la página de éxito se
+    // responde que sigue en revisión, no un error de "no se puede volver a confirmar".
+    const confirmadoPorMpEnRevision = String(payment.status) === 'pending_verification' && Boolean(payment.mercadopagoVerifiedAt);
+    if (confirmadoPorMpEnRevision || (ESTADOS_YA_PROCESADOS as readonly string[]).includes(String(payment.status))) {
       await responderPagoYaProcesado(res, payment);
       return;
     }
@@ -1190,103 +1201,34 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     // Handle budget increase payment
     if (payment.paymentType === "budget_increase") {
       console.log("🔍 [CAPTURE] Step 7 - Detected budget increase payment");
-      // Find the job and apply the new price
-      const job = await Job.findOne({
-        where: { publicationPaymentId: payment.id },
-        include: [
-          {
-            model: User,
-            as: 'client',
-            attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
-          }
-        ]
-      });
+      const job = await Job.findOne({ where: { publicationPaymentId: payment.id } });
       if (job && job.pendingNewPrice) {
-        const oldPrice = Number(job.price);
-        const newPrice = Number(job.pendingNewPrice);
-        const previousStatus = job.previousStatus || 'open';
-
-        /**
-         * La parte que se reservo del saldo a favor se descuenta AHORA, con
-         * asiento. Se guardaba en pendingBalanceDeduction al pedir el aumento
-         * y nunca se debitaba: el cliente pagaba por la pasarela solo el resto
-         * y el saldo le quedaba entero. Si no alcanza (lo gasto mientras
-         * pagaba), el aumento se aplica igual -- la pasarela ya cobro -- y se
-         * avisa a administracion, que es quien puede reclamar la diferencia.
-         */
-        const reservado = Number((job as any).pendingBalanceDeduction) || 0;
-        let saldoDebitado = 0;
-        if (reservado > 0) {
-          const { debitarSaldo } = await import('../services/quotePayment.js');
-          try {
-            await debitarSaldo(String(job.clientId), reservado, `Aumento de precio de "${job.title}": parte cubierta con saldo`, {
-              relatedModel: 'Job',
-              relatedId: job.id,
-              metadata: { oldPrice, newPrice, paymentId: payment.id, origen: 'aumento_de_precio' },
-            });
-            saldoDebitado = reservado;
-          } catch (e: any) {
-            logger.payment('ERROR', 'Aumento pagado por la pasarela pero el saldo reservado no se pudo debitar', {
-              paymentId: payment.id?.toString(),
-              data: { jobId: job.id, reservado, motivo: e?.message },
-              userId: String(job.clientId),
-            });
-            const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
-            for (const admin of admins) {
-              await Notification.create({
-                recipientId: admin.id,
-                type: 'error',
-                category: 'admin',
-                title: 'Saldo reservado que no se pudo debitar',
-                message: `El aumento de "${job.title}" se pago por la pasarela, pero los $${reservado.toLocaleString('es-AR')} que iban a salir del saldo del cliente no se pudieron debitar: ${e?.message}. El cliente debe esa diferencia.`,
-                relatedModel: 'Job',
-                relatedId: job.id,
-                sentVia: ['in_app'],
-              } as any);
-            }
-          }
+        // Etapa de lanzamiento: todo pago confirmado por Mercado Pago lo confirma un administrador (módulo «Aprobación de
+        // publicaciones pagadas», encendido por defecto). El aumento queda esperando; si nadie lo revisa en el plazo, un
+        // proceso programado lo aprueba solo porque el pago está confirmado. Con el módulo apagado se aplica al volver.
+        const requiereAprobacion = await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true);
+        if (requiereAprobacion) {
+          await dejarAumentoEnRevision(payment, job);
+          res.json({
+            success: true,
+            data: {
+              paymentId: payment.id,
+              captureId: captureResult.captureId,
+              status: payment.status,
+              amount: payment.amount,
+              jobId: job.id,
+              budgetUpdated: false,
+              budgetPendingApproval: true,
+              approvalHours: POLITICAS.APROBACION_AUTOMATICA_DEL_AUMENTO_HORAS,
+              oldPrice: Number(job.price),
+              newPrice: Number(job.pendingNewPrice),
+            },
+          });
+          return;
         }
 
-        // Agregar al historial de cambios
-        const priceHistory = job.priceHistory || [];
-        priceHistory.push({
-          oldPrice,
-          newPrice,
-          reason: job.priceChangeReason || 'Aumento de presupuesto',
-          changedAt: new Date(),
-          paidFromBalance: saldoDebitado,
-          paidViaGateway: Number(payment.amount) || 0,
-        });
-
-        // Aplicar el nuevo precio y reactivar el trabajo
-        await job.update({
-          price: newPrice,
-          priceChangedAt: new Date(),
-          priceHistory,
-          pendingNewPrice: null,
-          pendingPaymentAmount: 0,
-          pendingBalanceDeduction: 0,
-          previousStatus: null,
-          status: previousStatus, // Restaurar estado anterior (usualmente 'open')
-        } as any);
-
-        console.log(`✅ [CAPTURE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
-
-        // Notify user that budget was updated
-        await Notification.create({
-          recipientId: payment.payerId,
-          type: "success",
-          category: "payment",
-          title: "Presupuesto actualizado",
-          message: `El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
-          relatedModel: "Job",
-          relatedId: job.id,
-          sentVia: ["in_app"],
-        });
-
-        // Real-time notification
-        socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
-
+        const aplicado = await aplicarAumentoDePrecio(payment, 'retorno');
+        console.log(`✅ [CAPTURE] Budget increase applied: $${aplicado.precioAnterior} -> $${aplicado.precioNuevo} for job ${job.id}`);
         res.json({
           success: true,
           data: {
@@ -1295,9 +1237,9 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
             status: payment.status,
             amount: payment.amount,
             jobId: job.id,
-            budgetUpdated: true,
-            oldPrice,
-            newPrice,
+            budgetUpdated: aplicado.aplicado,
+            oldPrice: aplicado.precioAnterior,
+            newPrice: aplicado.precioNuevo,
           },
         });
         return;

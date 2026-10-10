@@ -9,6 +9,7 @@ import { Proposal } from "../models/sql/Proposal.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
+import { Payment } from "../models/sql/Payment.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
@@ -2064,6 +2065,16 @@ router.post("/:id/initiate-payment", protect, requireKyc, async (req: AuthReques
   }
 });
 
+/** ¿Este trabajo tiene un aumento de precio ya pagado que espera la revisión de un administrador? */
+async function aumentoPagadoEnRevision(job: Job): Promise<boolean> {
+  if (!job.publicationPaymentId) return false;
+  const pago = await Payment.findOne({
+    where: { id: job.publicationPaymentId, paymentType: 'budget_increase', status: 'pending_verification' },
+    attributes: ['id'],
+  });
+  return Boolean(pago);
+}
+
 // @route   PATCH /api/jobs/:id/budget
 // @desc    Cambiar el presupuesto de un trabajo (solo el dueño)
 // @access  Private (only job owner)
@@ -2103,6 +2114,16 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       res.status(403).json({
         success: false,
         message: "No tienes permiso para modificar este trabajo",
+      });
+      return;
+    }
+
+    // Un aumento ya pagado que espera al administrador no se puede pisar con otro monto: el pago corresponde al anterior.
+    if (await aumentoPagadoEnRevision(job)) {
+      res.status(409).json({
+        success: false,
+        code: 'AUMENTO_PAGADO_EN_REVISION',
+        message: "Ya pagaste un aumento de este trabajo y está en revisión. Cuando se apruebe podés cambiar el presupuesto de nuevo.",
       });
       return;
     }
@@ -2361,6 +2382,17 @@ router.patch("/:id/cancel-budget-change", protect, async (req: AuthRequest, res:
       res.status(400).json({
         success: false,
         message: "No hay cambio de presupuesto pendiente",
+      });
+      return;
+    }
+
+    // Con el aumento ya pagado y esperando al administrador no se cancela: la plata está cobrada y el precio se aplica
+    // al aprobarse (o solo, pasado el plazo). Si no, quedaría un pago confirmado sin nada que lo respalde.
+    if (await aumentoPagadoEnRevision(job)) {
+      res.status(409).json({
+        success: false,
+        code: 'AUMENTO_PAGADO_EN_REVISION',
+        message: "Ya pagaste este aumento y está en revisión: no se puede cancelar. Si querés deshacerlo, escribinos desde el Centro de ayuda.",
       });
       return;
     }

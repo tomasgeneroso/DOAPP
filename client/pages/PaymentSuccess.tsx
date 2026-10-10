@@ -14,6 +14,9 @@ interface PaymentConfirmation {
   jobId?: string;
   /** La publicación quedó pagada pero un administrador todavía la tiene que aprobar. */
   jobPendingApproval?: boolean;
+  /** El aumento de precio quedó pagado pero espera a un administrador (o a las horas de plazo). */
+  budgetPendingApproval?: boolean;
+  approvalHours?: number;
   amount?: number;
   message?: string;
 }
@@ -160,6 +163,8 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           contractId: data.data?.contractId,
           jobId: data.data?.jobId,
           jobPendingApproval: data.data?.jobPendingApproval === true,
+          budgetPendingApproval: data.data?.budgetPendingApproval === true,
+          approvalHours: data.data?.approvalHours,
           amount: paymentAmount,
         });
       } catch (error: any) {
@@ -396,6 +401,44 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                   </div>
                 </div>
               </>
+            ) : paymentType === 'budget_increase' ? (
+              // Aumento de precio de un trabajo ya publicado
+              <>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                      {confirmation.budgetPendingApproval ? '1. Recibimos tu pago: el aumento está en revisión' : '1. El presupuesto de tu trabajo ya está actualizado'}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      {confirmation.budgetPendingApproval
+                        ? `Un administrador revisa el aumento y, apenas lo apruebe, el precio nuevo se aplica y el trabajo se reactiva. Si pasan ${confirmation.approvalHours || 24} horas sin revisión, se aprueba solo porque tu pago ya está confirmado. Te avisamos con una notificación y un email.`
+                        : 'El precio nuevo ya está aplicado y el trabajo vuelve a estar visible para los profesionales.'}
+                    </p>
+                  </div>
+                </div>
+                {confirmation.budgetPendingApproval && (
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900 rounded-full flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        2. Mientras tanto, el trabajo sigue pausado
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        Conserva el precio anterior y no recibe propuestas nuevas hasta que se apruebe el aumento. No hace falta que pagues de nuevo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               // Contenido original para pago de contrato
               <>
@@ -473,7 +516,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           </div>
 
           {/* Nota importante sobre escrow - Solo para contratos */}
-          {paymentType !== 'membership' && (
+          {paymentType !== 'membership' && paymentType !== 'budget_increase' && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 mb-8">
             <div className="flex gap-3">
               <div className="flex-shrink-0">
