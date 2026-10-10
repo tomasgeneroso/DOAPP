@@ -474,6 +474,17 @@ router.post(
         notes: adminNotes ? `${contract.notes || ''}\n[Admin] ${adminNotes}`.trim() : contract.notes,
       });
 
+      // Cotización pagada por MercadoPago: aprobar el contrato también verifica el pago y lo deja en garantía (un solo paso
+      // del administrador). Sólo con un pago que ya pasó todos los controles; si algo falla, el contrato queda aprobado y
+      // el pago sigue esperando verificación manual.
+      let pagoDeCotizacion: { verificado: boolean; pagoId?: string } = { verificado: false };
+      try {
+        const { verificarPagoDeCotizacionAlAprobar } = await import('../../services/quotePayment.js');
+        pagoDeCotizacion = await verificarPagoDeCotizacionAlAprobar(contract, String(req.user.id));
+      } catch (e: any) {
+        console.error(`[approve-contract] No se pudo verificar el pago de la cotización del contrato ${contract.id}: ${e?.message}`);
+      }
+
       const client = contract.client as any;
       const doer = contract.doer as any;
       const job = contract.job as any;
@@ -552,12 +563,15 @@ router.post(
         description: `Admin ${req.user.name} aprobó contrato ${contract.id}. Estado: ${previousStatus} → ready`,
         targetModel: "Contract",
         targetId: contract.id.toString(),
-        metadata: { previousStatus, newStatus: 'ready', adminNotes },
+        metadata: { previousStatus, newStatus: 'ready', adminNotes, pagoDeCotizacionVerificado: pagoDeCotizacion.verificado },
       });
 
       res.json({
         success: true,
-        message: "Contrato aprobado correctamente. Las partes han sido notificadas.",
+        message: pagoDeCotizacion.verificado
+          ? "Contrato aprobado y pago de la cotización verificado en garantía. Las partes han sido notificadas."
+          : "Contrato aprobado correctamente. Las partes han sido notificadas.",
+        pagoDeCotizacionVerificado: pagoDeCotizacion.verificado,
         data: contract,
       });
     } catch (error: any) {

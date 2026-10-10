@@ -2,6 +2,7 @@ import { Job } from '../models/sql/Job.model.js';
 import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { Op } from 'sequelize';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -94,6 +95,83 @@ export async function settleQuote(job: Job, precioCotizado: number): Promise<Quo
     trabajadorRecibe: acordado,
     listoParaContratar: false,
   };
+}
+
+/**
+ * Un solo paso del administrador al aceptar una cotización pagada.
+ *
+ * El cliente pagó la cotización por MercadoPago ANTES de que exista el contrato. El webhook dejó ese pago en
+ * "pendiente de verificación" y creó el contrato pendiente de aprobación. Antes el administrador tenía que hacer dos
+ * cosas: verificar el pago (y pasarlo a garantía) y aprobar el contrato. Ahora, al aprobar el contrato, el pago de la
+ * cotización queda verificado y en garantía, y se vincula al contrato.
+ *
+ * Sólo lo hace con un pago que ya pasó TODOS los controles contra MercadoPago: es el único que tiene
+ * `mercadopagoVerifiedAt` (el webhook lo pone después de comprobar monto exacto, moneda, y que no sea en cuotas ni con
+ * cupón). Un pago que quedó en revisión por no coincidir NO se toca: sigue esperando a una persona. El estado del
+ * contrato no cambia (sigue el flujo: aceptan las partes, emparejan, empieza).
+ *
+ * Escrow SYNC: pago, escrow del contrato y estado de pago del contrato cambian juntos.
+ */
+export async function verificarPagoDeCotizacionAlAprobar(
+  contract: any,
+  adminId: string,
+): Promise<{ verificado: boolean; pagoId?: string }> {
+  const { Proposal } = await import('../models/sql/Proposal.model.js');
+  const { Payment } = await import('../models/sql/Payment.model.js');
+
+  const propuestas: any[] = await Proposal.findAll({
+    where: { jobId: contract.jobId, freelancerId: contract.doerId },
+    attributes: ['id'],
+  });
+  const ids = new Set(propuestas.map((p) => String(p.id)));
+  if (ids.size === 0) return { verificado: false };
+
+  const candidatos: any[] = await Payment.findAll({
+    where: {
+      payerId: contract.clientId,
+      paymentType: 'contract_payment',
+      status: 'pending_verification',
+      contractId: null,
+      mercadopagoVerifiedAt: { [Op.ne]: null },
+    } as any,
+    order: [['createdAt', 'DESC']],
+  });
+  const pago = candidatos.find((p) => p.metadata?.tipo === 'aceptacion_cotizacion' && ids.has(String(p.metadata?.proposalId)));
+  if (!pago) return { verificado: false };
+
+  // El UPDATE es condicional al estado: dos aprobaciones simultáneas verifican una sola vez.
+  const [filas] = await Payment.update(
+    {
+      contractId: contract.id,
+      status: 'held_escrow',
+      escrowVerifiedBy: adminId,
+      escrowVerifiedAt: new Date(),
+      adminNotes: `${pago.adminNotes || ''}\n[Escrow] Verificado al aprobar el contrato (cotización pagada y confirmada por MercadoPago).`.trim(),
+    } as any,
+    { where: { id: pago.id, status: 'pending_verification', contractId: null } as any },
+  );
+  if (filas === 0) return { verificado: false };
+
+  contract.escrowStatus = 'held_escrow';
+  contract.paymentStatus = 'escrow';
+  contract.paymentDate = new Date();
+  await contract.save();
+
+  try {
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
+    await logMoneyEvent({
+      action: 'QUOTE_PAYMENT_VERIFIED_ON_APPROVAL',
+      actor: `admin:${adminId}`,
+      severity: 'medium',
+      description: 'Se aprobó el contrato de una cotización pagada: el pago quedó verificado y en garantía en un solo paso.',
+      contractId: String(contract.id),
+      paymentId: String(pago.id),
+      monto: Number(pago.amount),
+      moneda: 'ARS',
+    });
+  } catch { /* el asiento accesorio no puede deshacer la verificación */ }
+
+  return { verificado: true, pagoId: String(pago.id) };
 }
 
 export interface AumentoSettlement {
