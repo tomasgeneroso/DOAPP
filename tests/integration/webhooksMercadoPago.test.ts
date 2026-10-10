@@ -19,9 +19,19 @@ jest.mock('../../server/services/mercadopago.js', () => ({
   __esModule: true,
   default: { getPayment: (...a: unknown[]) => mockObtenerPago(...a), createPayment: async () => ({}) },
 }));
+// El flujo de la cotización avisa al trabajador por socket: sin esto cargaría el servidor entero dentro de la prueba.
+jest.mock('../../server/index.js', () => {
+  const nada: any = new Proxy(function () {}, { get: () => nada, apply: () => nada });
+  return { __esModule: true, socketService: nada };
+});
+const mockEnviarPagoRecibido = jest.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined);
 jest.mock('../../server/services/email.js', () => ({
   __esModule: true,
-  default: { sendEmail: async () => true, sendBalanceRefundEmail: async () => true },
+  default: {
+    sendEmail: async () => true,
+    sendBalanceRefundEmail: async () => true,
+    sendPagoRecibido: (...a: unknown[]) => mockEnviarPagoRecibido(...a),
+  },
 }));
 jest.mock('../../server/services/currencyExchange.js', () => ({
   __esModule: true,
@@ -33,6 +43,10 @@ import { User } from '../../server/models/sql/User.model.js';
 import { Membership } from '../../server/models/sql/Membership.model.js';
 import { Payment } from '../../server/models/sql/Payment.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
+import { Contract } from '../../server/models/sql/Contract.model.js';
+import { Job } from '../../server/models/sql/Job.model.js';
+import { Proposal } from '../../server/models/sql/Proposal.model.js';
+import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
 
 const SECRETO = 'secreto-de-prueba-del-webhook';
 
@@ -92,7 +106,18 @@ describe('webhooks de MercadoPago', () => {
     usuario = { id: u.id };
   });
 
+  const trabajosCreados: string[] = [];
+  const usuariosCreados: string[] = [];
+
   afterAll(async () => {
+    try {
+      await Notification.destroy({ where: { recipientId: [usuario.id, ...usuariosCreados] } });
+      await Payment.destroy({ where: { payerId: usuario.id } });
+      await Contract.destroy({ where: { jobId: trabajosCreados }, force: true });
+      await Proposal.destroy({ where: { jobId: trabajosCreados }, force: true });
+      await Job.destroy({ where: { id: trabajosCreados }, force: true });
+      await User.destroy({ where: { id: usuariosCreados }, force: true });
+    } catch { /* la limpieza no puede hacer fallar el test */ }
     await Notification.destroy({ where: { recipientId: usuario.id } });
     await Membership.destroy({ where: { userId: usuario.id } });
     await Payment.destroy({ where: { payerId: usuario.id } });
@@ -101,6 +126,7 @@ describe('webhooks de MercadoPago', () => {
 
   beforeEach(async () => {
     mockObtenerPago.mockReset();
+    mockEnviarPagoRecibido.mockClear();
     await Notification.destroy({ where: { recipientId: usuario.id } });
     await Membership.destroy({ where: { userId: usuario.id } });
     await Payment.destroy({ where: { payerId: usuario.id } });
@@ -292,6 +318,70 @@ describe('webhooks de MercadoPago', () => {
       expect((await avisar(idMp)).status).toBe(200);
       const avanzo = await esperar(async () => (await estadoDe(id)) !== 'pending');
       expect(avanzo).toBe(true);
+      expect(await estadoDe(id)).toBe('pending_verification');
+    });
+
+    it('encendido: el pago de un contrato avisa a quien pagó por dentro de la app Y por email', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      const doer: any = await crearUsuario({ role: 'doer' });
+      usuariosCreados.push(doer.id);
+      const trabajo: any = await crearTrabajo(usuario.id, { status: 'in_progress', price: 5000 });
+      trabajosCreados.push(trabajo.id);
+      const contrato: any = await crearContrato({ jobId: trabajo.id, clientId: usuario.id, doerId: doer.id }, { status: 'ready', paymentStatus: 'pending', price: 5000 });
+      const { id, idMp } = await crearPago({ paymentType: 'contract_payment', contractId: contrato.id, recipientId: doer.id });
+      mockObtenerPago.mockResolvedValue(aprobado());
+
+      expect((await avisar(idMp)).status).toBe(200);
+      await esperar(async () => (await estadoDe(id)) !== 'pending');
+
+      expect(await estadoDe(id)).toBe('pending_verification');
+      expect(await Notification.count({ where: { recipientId: usuario.id, title: 'Pago recibido' } })).toBe(1);
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledTimes(1);
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledWith(String(usuario.id), expect.objectContaining({ titulo: 'Recibimos tu pago', monto: 5000 }));
+
+      // Mercado Pago suele mandar el mismo aviso dos veces: el segundo no vuelve a avisar a nadie
+      delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+      expect((await avisar(idMp)).status).toBe(200);
+      await pausa(400);
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledTimes(1);
+      expect(await Notification.count({ where: { recipientId: usuario.id, title: 'Pago recibido' } })).toBe(1);
+      expect(await Notification.count({ where: { recipientId: doer.id, title: 'Pago pendiente de verificación' } })).toBe(1);
+    });
+
+    it('encendido: la cotización pagada avisa a quien pagó (antes sólo se enteraba el trabajador) y un aviso repetido no avisa de nuevo', async () => {
+      process.env.MP_WEBHOOK_PROCESA_PAGOS = 'true';
+      const doer: any = await crearUsuario({ role: 'doer' });
+      usuariosCreados.push(doer.id);
+      const trabajo: any = await crearTrabajo(usuario.id, { status: 'open', price: 10000, pricingMode: 'quote' });
+      trabajosCreados.push(trabajo.id);
+      const propuesta: any = await Proposal.create({
+        jobId: trabajo.id, clientId: usuario.id, freelancerId: doer.id, proposedPrice: 12000,
+        coverLetter: 'Cotización', estimatedDuration: 3, status: 'pending',
+      } as any);
+      const { id, idMp } = await crearPago({
+        paymentType: 'contract_payment', recipientId: doer.id, amount: 5000, isEscrow: true,
+        metadata: { tipo: 'aceptacion_cotizacion', proposalId: propuesta.id, jobId: trabajo.id, montoAcordado: 12000 },
+      });
+      mockObtenerPago.mockResolvedValue(aprobado());
+
+      expect((await avisar(idMp)).status).toBe(200);
+      await esperar(async () => mockEnviarPagoRecibido.mock.calls.length > 0);
+
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledTimes(1);
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledWith(String(usuario.id), expect.objectContaining({ titulo: 'Recibimos tu pago' }));
+      const alComprador: any[] = await Notification.findAll({ where: { recipientId: usuario.id, title: 'Recibimos tu pago' } });
+      expect(alComprador).toHaveLength(1);
+      expect(alComprador[0].message).toMatch(/\$5\.?000/);
+      // y el trabajador sigue enterándose como antes
+      expect(await Notification.count({ where: { recipientId: doer.id, title: 'Te contrataron: el pago ya está acreditado' } })).toBe(1);
+
+      // el mismo aviso otra vez: no hay segundo mensaje. (Cargar las rutas de propuestas lee el .env real y puede
+      // inyectar el secreto del webhook en el proceso: aquí se vuelve a quitar para que el aviso sin firma pase.)
+      delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+      expect((await avisar(idMp)).status).toBe(200);
+      await pausa(400);
+      expect(mockEnviarPagoRecibido).toHaveBeenCalledTimes(1);
+      expect(await Notification.count({ where: { recipientId: usuario.id, title: 'Recibimos tu pago' } })).toBe(1);
       expect(await estadoDe(id)).toBe('pending_verification');
     });
 

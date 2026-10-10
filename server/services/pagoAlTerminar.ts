@@ -2,6 +2,8 @@ import { Op } from 'sequelize';
 import { Payment } from '../models/sql/Payment.model.js';
 import { PaymentProof } from '../models/sql/PaymentProof.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
+import { Job } from '../models/sql/Job.model.js';
+import { avisarPagoRecibido } from './avisoDePago.js';
 import { User } from '../models/sql/User.model.js';
 import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
@@ -279,8 +281,46 @@ export async function confirmarPagoDeOrden(
   });
 
   await reflejarEnElContrato(orden);
+  await avisarOrdenPagada(orden);
 
   return true;
+}
+
+/**
+ * Avisa a las dos partes que la orden quedó pagada. Sólo se llama en el momento en que la orden pasa a confirmada
+ * (no cuando Mercado Pago repite el aviso), así que cada parte recibe un solo aviso.
+ */
+async function avisarOrdenPagada(orden: Payment): Promise<void> {
+  if (!orden.contractId) return;
+  try {
+    const contrato = await Contract.findByPk(orden.contractId, { attributes: ['id', 'jobId', 'clientId', 'doerId'] });
+    if (!contrato) return;
+    const trabajo = await Job.findByPk(contrato.jobId, { attributes: ['id', 'title'] });
+    const titulo = trabajo?.title || 'el trabajo';
+    const monto = Number(orden.amount);
+
+    await avisarPagoRecibido({
+      userId: contrato.clientId,
+      titulo: 'Recibimos el pago de tu orden',
+      mensaje: `El pago de $${monto.toLocaleString('es-AR')} ARS de la orden de "${titulo}" quedó confirmado.`,
+      monto,
+      relatedModel: 'Contract',
+      relatedId: contrato.id,
+      actionText: 'Ver contrato',
+      ruta: `/contracts/${contrato.id}`,
+    });
+    await avisarPagoRecibido({
+      userId: contrato.doerId,
+      titulo: 'El cliente pagó la orden',
+      mensaje: `El cliente pagó la orden de "${titulo}". El pago quedó registrado en DOAPP.`,
+      relatedModel: 'Contract',
+      relatedId: contrato.id,
+      actionText: 'Ver contrato',
+      ruta: `/contracts/${contrato.id}`,
+    });
+  } catch (e: any) {
+    console.warn(`⚠️ Orden ${orden.id} confirmada pero no se pudo avisar a las partes: ${e?.message}`);
+  }
 }
 
 /**

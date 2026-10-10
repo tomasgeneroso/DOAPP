@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import MultipleRatings from "../components/user/MultipleRatings";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import AvisoDeRetornoDePago from "../components/pagos/AvisoDeRetornoDePago";
 
 interface Proposal {
   id?: string;
@@ -321,6 +322,13 @@ export default function ProposalDetail() {
             <ArrowLeft className="h-5 w-5" />
             Volver
           </button>
+
+          {/* Al volver de pagar la cotización en Mercado Pago (?pago=ok): confirma, espera y avisa qué sigue. */}
+          <AvisoDeRetornoDePago
+            confirmado={proposal.status === "approved"}
+            onActualizar={loadProposal}
+            textoConfirmado="Tu pago de la cotización quedó registrado y el contrato ya está creado. Un administrador lo revisa y te avisamos apenas esté aprobado."
+          />
 
           {/* Avance de la aceptación, en vivo. Sólo aparece cuando hay algo
               que contar: el trabajador necesita saber que alguien está pagando

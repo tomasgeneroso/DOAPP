@@ -21,6 +21,7 @@ import fs from 'fs';
 import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
+import { avisarPagoRecibido } from "../services/avisoDePago.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
@@ -1157,6 +1158,18 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           socketService.notifyNewJob(job.toJSON());
           socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
         }
+
+        // La notificación dentro de la app ya se creó arriba; falta el email para quien pagó.
+        await avisarPagoRecibido({
+          userId: payment.payerId,
+          titulo: requiereAprobacion ? 'Recibimos tu pago: tu publicación está en revisión' : 'Recibimos tu pago: tu trabajo está publicado',
+          mensaje: requiereAprobacion
+            ? `Recibimos el pago de "${job.title}". Un administrador la revisa y, apenas la apruebe, queda visible para los profesionales. Te avisamos.`
+            : `Recibimos el pago de "${job.title}" y ya está publicado: los profesionales pueden enviar propuestas.`,
+          monto: Number(payment.amount),
+          ruta: `/jobs/${job.id}`,
+          notificarEnLaApp: false,
+        });
 
         res.json({
           success: true,

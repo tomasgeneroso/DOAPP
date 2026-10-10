@@ -42,6 +42,7 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import OrdenDePago from "@/components/pagos/OrdenDePago";
 import BotonReclamo from "@/components/pagos/BotonReclamo";
+import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -535,6 +536,17 @@ export default function ContractDetail() {
             <ArrowLeft className="h-5 w-5" />
             {t('common.back', 'Back')}
           </button>
+
+          {/* Al volver de pagar en Mercado Pago (?pago=ok): confirma, espera y avisa qué sigue. */}
+          <AvisoDeRetornoDePago
+            confirmado={["pending_verification", "held_escrow", "held", "escrow", "pending_payout", "released", "completed"].includes(contract.paymentStatus)}
+            onActualizar={loadContract}
+            textoConfirmado={
+              contract.paymentMode === "on_completion"
+                ? "El pago de la orden quedó confirmado."
+                : "Tu pago quedó registrado y está pendiente de que un administrador lo verifique; te avisamos apenas pase a garantía."
+            }
+          />
 
           {/* Header */}
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">

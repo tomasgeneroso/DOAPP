@@ -1,5 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
+
+// Sin salida real: confirmar una orden ahora avisa por email a las dos partes, y en las pruebas no sale nada.
+const mockEnviarPagoRecibido = jest.fn<(...a: unknown[]) => Promise<boolean>>().mockResolvedValue(true);
+jest.mock('../../server/services/email.js', () => ({
+  __esModule: true,
+  default: new Proxy({}, {
+    get: (_t, prop) => (prop === 'sendPagoRecibido' ? (...a: unknown[]) => mockEnviarPagoRecibido(...a) : async () => true),
+  }),
+}));
+
 import { Contract } from '../../server/models/sql/Contract.model.js';
+import { Notification } from '../../server/models/sql/Notification.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import { Payment } from '../../server/models/sql/Payment.model.js';
 import { User } from '../../server/models/sql/User.model.js';
@@ -44,6 +55,7 @@ describe('reclamo: hace falta un pago confirmado cuando se paga al terminar', ()
 
   afterAll(async () => {
     try {
+      await Notification.destroy({ where: { recipientId: [cliente.id, trabajador.id] } });
       await Payment.destroy({ where: { contractId: contrato.id } });
       await Contract.destroy({ where: { id: contrato.id }, force: true });
       await Job.destroy({ where: { id: trabajo.id }, force: true });
@@ -112,6 +124,12 @@ describe('reclamo: hace falta un pago confirmado cuando se paga al terminar', ()
     const recargado = await Contract.findByPk(contrato.id);
     expect(recargado!.paymentStatus).toBe('completed');
     expect(puedeReclamar(recargado as any)).toBe(true);
+
+    // Las dos partes se enteran del pago: antes esta orden se confirmaba sin avisarle a nadie.
+    expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Recibimos el pago de tu orden' } })).toBe(1);
+    expect(await Notification.count({ where: { recipientId: trabajador.id, title: 'El cliente pagó la orden' } })).toBe(1);
+    expect(mockEnviarPagoRecibido).toHaveBeenCalledWith(String(cliente.id), expect.objectContaining({ titulo: 'Recibimos el pago de tu orden' }));
+    expect(mockEnviarPagoRecibido).toHaveBeenCalledWith(String(trabajador.id), expect.objectContaining({ titulo: 'El cliente pagó la orden' }));
   });
 
   it('un webhook repetido no rompe nada', async () => {
@@ -122,6 +140,10 @@ describe('reclamo: hace falta un pago confirmado cuando se paga al terminar', ()
       mercadopagoPaymentId: 'mp-test-1',
       estado: 'approved',
     })).toBe(true);
+
+    // y no vuelve a avisar: cada parte recibió un solo aviso
+    expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Recibimos el pago de tu orden' } })).toBe(1);
+    expect(await Notification.count({ where: { recipientId: trabajador.id, title: 'El cliente pagó la orden' } })).toBe(1);
   });
 
   it('un pago de OTRA preferencia no confirma la orden', async () => {
@@ -163,6 +185,8 @@ describe('reclamo: hace falta un pago confirmado cuando se paga al terminar', ()
 
     const recargada = await Payment.findByPk(orden.id);
     expect(recargada!.status).toBe('pending');
+    // una orden que no se confirmó no avisa de ningún pago
+    expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Recibimos el pago de tu orden' } })).toBe(1);
     // Y queda anotado, que es lo que permite revisarlo a mano.
     expect((recargada!.metadata as any)?.preferenciaQueNoCoincide).toBe('pref-de-otra-cosa');
 

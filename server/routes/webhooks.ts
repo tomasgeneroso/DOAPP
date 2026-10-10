@@ -8,6 +8,7 @@ import { Notification } from "../models/sql/Notification.model.js";
 import mercadopagoService from '../services/mercadopago.js';
 import membershipService from '../services/membershipService.js';
 import emailService from '../services/email.js';
+import { avisarPagoRecibido } from '../services/avisoDePago.js';
 import logger from '../services/logger.js';
 import { MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { Op } from 'sequelize';
@@ -915,6 +916,17 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       return;
     }
 
+    // MercadoPago repite el aviso de un mismo pago (suele mandar dos) y este pago queda en "pendiente de verificación",
+    // que no cuenta como "ya procesado": sin esta marca el trabajador y quien pagó recibirían cada aviso dos veces.
+    if ((payment.metadata as any)?.avisoDePagoEnviado) {
+      logger.payment('WEBHOOK_DUPLICATE', 'Cotización pagada: los avisos de este pago ya se habían enviado', {
+        paymentId: payment.id?.toString(),
+      });
+      return;
+    }
+    payment.metadata = { ...(payment.metadata || {}), avisoDePagoEnviado: true };
+    await payment.save();
+
     // El aviso al trabajador va por dos vias y las dos hacen falta: el socket
     // solo llega si esta con la pantalla abierta, y esto es justamente lo que no
     // se puede perder por no estar mirando.
@@ -944,6 +956,22 @@ async function handleApprovedPayment(payment: any, metadata: any) {
         estado: 'pagado_y_aceptado',
       });
     }
+
+    // Quien pagó también se entera, por dentro de la app y por email: volvió de Mercado Pago y, si cerró la pestaña,
+    // no tiene otra forma de saber que su pago quedó registrado. Antes sólo se avisaba al trabajador.
+    const trabajoPagado = await Job.findByPk(infoCotizacion.jobId).catch(() => null);
+    await avisarPagoRecibido({
+      userId: payment.payerId,
+      titulo: 'Recibimos tu pago',
+      mensaje:
+        `Tu pago de $${Number(payment.amount).toLocaleString('es-AR')} ARS por la cotización de "${trabajoPagado?.title || 'tu trabajo'}" ` +
+        'quedó registrado y el contrato ya está creado. Un administrador lo revisa y te avisamos apenas esté aprobado.',
+      monto: Number(payment.amount),
+      relatedModel: 'Contract',
+      relatedId: r.contractId,
+      actionText: 'Ver contrato',
+      ruta: r.contractId ? `/contracts/${r.contractId}` : '/contracts',
+    });
 
     logger.payment('SUCCESS', `Cotización pagada y aceptada`, {
       paymentId: payment.id?.toString(),
@@ -1005,6 +1033,14 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       });
     }
   } else {
+    // Un aviso repetido del mismo pago no vuelve a avisar a nadie (ver la marca más abajo).
+    if ((payment.metadata as any)?.avisoDePagoEnviado) {
+      logger.payment('WEBHOOK_DUPLICATE', 'Pago de contrato: los avisos de este pago ya se habían enviado', {
+        paymentId: payment.id?.toString(),
+      });
+      return;
+    }
+
     // *** CAMBIO CRÍTICO: Contract escrow payment también requiere verificación ***
     payment.status = 'pending_verification';
     payment.mercadopagoVerifiedAt = new Date();
@@ -1016,6 +1052,10 @@ async function handleApprovedPayment(payment: any, metadata: any) {
       (contract as any).paymentStatus = 'pending_verification';
       contract.paymentDate = new Date();
       await contract.save();
+
+      // Marca de que los avisos de este pago salen una sola vez, aunque MercadoPago repita el suyo.
+      payment.metadata = { ...(payment.metadata || {}), avisoDePagoEnviado: true };
+      await payment.save();
 
       const job = await Job.findByPk(contract.jobId);
       const jobTitle = job?.title || 'Contrato';
@@ -1063,6 +1103,16 @@ async function handleApprovedPayment(payment: any, metadata: any) {
           sentVia: ["in_app"],
         });
       }
+
+      // La notificación dentro de la app ya se creó arriba; falta el email para quien pagó.
+      await avisarPagoRecibido({
+        userId: contract.clientId,
+        titulo: 'Recibimos tu pago',
+        mensaje: `Tu pago de $${Number(payment.amount).toLocaleString('es-AR')} ARS para "${jobTitle}" quedó registrado y está pendiente de verificación. Te avisamos apenas pase a garantía.`,
+        monto: Number(payment.amount),
+        ruta: `/contracts/${contract.id}`,
+        notificarEnLaApp: false,
+      });
 
       logger.payment('PENDING_VERIFICATION', `Contract payment pending admin verification: ${contract.id}`, {
         paymentId: payment.id?.toString(),

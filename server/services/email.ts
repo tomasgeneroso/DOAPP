@@ -49,6 +49,10 @@ async function destinatario(id: unknown): Promise<any | null> {
   }
 }
 
+/** Escapa el texto que viene de usuarios (títulos de trabajos, nombres) antes de meterlo en el HTML de un correo. */
+const esc = (valor: unknown): string =>
+  String(valor ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
+
 class EmailService {
   private sendgridInitialized = false;
   private mailgunInitialized = false;
@@ -685,6 +689,28 @@ ${ctaBlock}
       cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
     });
     await this.sendToUser(userId, `Pago: $${numericAmount.toFixed(2)}`, html);
+  }
+
+  /**
+   * Aviso de que DOAPP registró un pago, para quien pagó (o para quien lo va a cobrar). Respeta las preferencias de
+   * avisos de pagos y de email del usuario, igual que el resto de los correos de pagos.
+   */
+  async sendPagoRecibido(
+    userId: string,
+    datos: { titulo: string; mensaje: string; monto?: number; ruta?: string },
+  ): Promise<void> {
+    const user = await destinatario(userId);
+    if (!user?.notificationPreferences?.paymentUpdate) return;
+    const monto = typeof datos.monto === 'number' && Number.isFinite(datos.monto) ? datos.monto : null;
+    const html = this.tpl({
+      eyebrow: 'Pago',
+      accent: 'green',
+      title: esc(datos.titulo),
+      body: `<p>Hola <strong>${esc(user.name)}</strong>,</p><p>${esc(datos.mensaje)}</p>`,
+      amount: monto !== null ? `$${monto.toLocaleString('es-AR')} ARS` : undefined,
+      cta: { label: 'Ver el detalle', url: `${config.clientUrl}${datos.ruta || '/balance'}` },
+    });
+    await this.sendToUser(userId, datos.titulo, html);
   }
 
   async sendContractCreatedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string, price: number, currency = 'ARS'): Promise<void> {

@@ -36,9 +36,12 @@ jest.mock('../../server/index.js', () => ({
   socketService: new Proxy({}, { get: () => () => undefined }),
 }));
 jest.mock('node-cron', () => ({ __esModule: true, default: { schedule: () => undefined } }));
+const mockEnviarPagoRecibido = jest.fn<(...a: unknown[]) => Promise<boolean>>().mockResolvedValue(true);
 jest.mock('../../server/services/email.js', () => ({
   __esModule: true,
-  default: new Proxy({}, { get: () => async () => true }),
+  default: new Proxy({}, {
+    get: (_t, prop) => (prop === 'sendPagoRecibido' ? (...a: unknown[]) => mockEnviarPagoRecibido(...a) : async () => true),
+  }),
 }));
 
 import { Job } from '../../server/models/sql/Job.model.js';
@@ -93,6 +96,7 @@ describe('publicación pagada: queda pendiente de aprobación', () => {
     olvidarModulos();
     mockObtenerPago.mockReset();
     mockObtenerPago.mockResolvedValue(aprobado());
+    mockEnviarPagoRecibido.mockClear();
   });
 
   afterEach(async () => {
@@ -133,6 +137,21 @@ describe('publicación pagada: queda pendiente de aprobación', () => {
 
     const alAdmin = await Notification.findAll({ where: { recipientId: admin.id } });
     expect(alAdmin.map((n: any) => n.title)).toContain('Publicación pagada para aprobar');
+  });
+
+  it('el cliente recibe también un email de que el pago llegó y la publicación está en revisión', async () => {
+    const { pref } = await armar();
+
+    await capturar(pref);
+
+    expect(mockEnviarPagoRecibido).toHaveBeenCalledTimes(1);
+    expect(mockEnviarPagoRecibido).toHaveBeenCalledWith(
+      String(cliente.id),
+      expect.objectContaining({ titulo: 'Recibimos tu pago: tu publicación está en revisión', monto: 10000 }),
+    );
+    // la notificación dentro de la app es una sola: el email no la duplica (ni con otro título)
+    expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Pago recibido: tu publicación está en revisión' } })).toBe(1);
+    expect(await Notification.count({ where: { recipientId: cliente.id } })).toBe(1);
   });
 
   it('el administrador la aprueba desde el panel y recién ahí queda abierta', async () => {
