@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ShieldOff, ShieldCheck, ExternalLink, Upload, Clock, AlertTriangle, Check } from 'lucide-react-native';
 import { get, post, upload } from '../services/api';
+import { origenDelPago } from '../services/pagos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
 import AvisoSinProteccion from './AvisoSinProteccion';
@@ -114,6 +115,7 @@ export default function OrdenDePago({
     try {
       const res = await post<{ linkDePago?: string }>(`/payment-orders/contract/${contractId}`, {
         metodo,
+        origen: origenDelPago(),
       });
       if (!res.success) {
         Alert.alert('No se pudo generar la orden', res.message || 'Intentá de nuevo.');

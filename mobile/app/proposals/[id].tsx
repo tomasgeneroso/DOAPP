@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, put, post } from '../../services/api';
 import { useQuoteStatus } from '../../hooks/useSocket';
+import { origenDelPago } from '../../services/pagos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -69,7 +70,7 @@ export default function ProposalDetailScreen() {
   const irAPagar = async () => {
     setActionLoading(true);
     try {
-      const pago = await post<any>(`/payments/quote/${proposal.id || id}`, {});
+      const pago = await post<any>(`/payments/quote/${proposal.id || id}`, { origen: origenDelPago() });
       if (pago.success && (pago as any).paymentUrl) {
         await Linking.openURL((pago as any).paymentUrl);
         // Mercado Pago devuelve a una página web, no a la app: la app sigue el pago por su cuenta y muestra cuándo llegó.

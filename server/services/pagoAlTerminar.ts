@@ -16,6 +16,7 @@ import {
 import { moduloActivo } from './moduleFlags.js';
 import mercadopagoService from './mercadopago.js';
 import { config } from '../config/env.js';
+import { urlsDeRetorno } from './urlsDeRetorno.js';
 
 /**
  * La orden de pago del modo sin protección.
@@ -114,6 +115,8 @@ export async function crearOrden(
   contractId: string,
   metodo: MetodoDeOrden,
   actorId: string,
+  /** `'app'` cuando la orden se pide desde el celular: Mercado Pago devuelve a una página que lleva a la app. */
+  origen?: unknown,
 ): Promise<{ orden: Payment; desglose: DesgloseDeOrden; linkDePago?: string }> {
   if (!(await moduloPagoAlTerminarActivo())) {
     throw new OrdenInvalida('El pago al terminar está desactivado.');
@@ -194,8 +197,11 @@ export async function crearOrden(
       description: `Trabajo terminado — contrato ${contractId.slice(0, 8)}`,
       provider: 'mercadopago',
       metadata: { paymentId: orden.id, contractId, tipo: TIPO_ORDEN },
-      successUrl: `${config.clientUrl}/contracts/${contractId}?pago=ok`,
-      cancelUrl: `${config.clientUrl}/contracts/${contractId}?pago=cancelado`,
+      ...urlsDeRetorno(
+        origen,
+        { exito: `${config.clientUrl}/contracts/${contractId}?pago=ok`, cancelado: `${config.clientUrl}/contracts/${contractId}?pago=cancelado` },
+        { tipo: 'orden', ids: { contractId: String(contractId) } },
+      ),
       customerEmail: (contrato as any).client?.email,
     } as any);
 

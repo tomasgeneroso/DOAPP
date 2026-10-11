@@ -17,6 +17,9 @@ import {
   ChevronRight,
   TrendingUp,
   Clock,
+  CreditCard,
+  FileCheck,
+  Briefcase,
 } from 'lucide-react-native';
 
 interface AdminStats {
@@ -124,6 +127,30 @@ export default function AdminDashboard() {
       color: '#10b981',
       route: '/admin/withdrawals',
       count: stats?.pendingWithdrawals,
+      roles: ['owner', 'super_admin', 'admin'],
+    },
+    {
+      title: 'Pagos a verificar',
+      icon: CreditCard,
+      color: '#0ea5e9',
+      route: '/admin/payments',
+      count: undefined,
+      roles: ['owner', 'super_admin', 'admin'],
+    },
+    {
+      title: 'Contratos a aprobar',
+      icon: FileCheck,
+      color: '#14b8a6',
+      route: '/admin/contracts',
+      count: undefined,
+      roles: ['owner', 'super_admin', 'admin'],
+    },
+    {
+      title: 'Publicaciones a aprobar',
+      icon: Briefcase,
+      color: '#6366f1',
+      route: '/admin/jobs',
+      count: undefined,
       roles: ['owner', 'super_admin', 'admin'],
     },
   ];

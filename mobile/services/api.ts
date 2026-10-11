@@ -261,6 +261,24 @@ export async function put<T>(
 }
 
 /**
+ * PATCH request
+ */
+export async function patch<T>(
+  endpoint: string,
+  body: any,
+  includeAuth: boolean = true
+): Promise<ApiResponse<T>> {
+  return request<T>(
+    endpoint,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    },
+    includeAuth
+  );
+}
+
+/**
  * DELETE request
  */
 export async function del<T>(endpoint: string, includeAuth: boolean = true): Promise<ApiResponse<T>> {

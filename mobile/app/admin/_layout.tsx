@@ -51,6 +51,10 @@ export default function AdminLayout() {
           title: 'Retiros',
         }}
       />
+      <Stack.Screen name="payments" options={{ title: 'Pagos a verificar' }} />
+      <Stack.Screen name="contracts" options={{ title: 'Contratos a aprobar' }} />
+      <Stack.Screen name="jobs" options={{ title: 'Publicaciones a aprobar' }} />
+      <Stack.Screen name="dispute/[id]" options={{ title: 'Disputa' }} />
     </Stack>
   );
 }

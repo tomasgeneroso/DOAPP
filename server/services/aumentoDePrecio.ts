@@ -44,7 +44,36 @@ export interface ResultadoAumento {
   trabajoId?: string;
 }
 
-const pesos = (n: number) => `$${Number(n).toLocaleString('es-AR')}`;
+const pesos = (n: number) => `${Number(n).toLocaleString('es-AR')}`;
+
+/** ¿Este trabajo tiene un aumento de precio ya pagado que espera la revisión de un administrador? */
+export async function aumentoPagadoEnRevision(job: { publicationPaymentId?: string | null }): Promise<boolean> {
+  if (!job.publicationPaymentId) return false;
+  const pago = await Payment.findOne({
+    where: { id: job.publicationPaymentId, paymentType: 'budget_increase', status: 'pending_verification' },
+    attributes: ['id'],
+  });
+  return Boolean(pago);
+}
+
+/**
+ * Qué se le muestra al dueño de un trabajo con un cambio de precio a medias: si falta pagar o si ya pagó y espera.
+ * La pantalla (web y celular) lo necesita para no ofrecer pagar dos veces lo que ya se pagó.
+ */
+export async function describirAumentoPendiente(job: any): Promise<{
+  estado: 'sin_pagar' | 'pagado_en_revision';
+  precioNuevo: number;
+  montoAPagar: number;
+  horasDeEspera: number;
+} | null> {
+  if (!job?.pendingNewPrice) return null;
+  return {
+    estado: (await aumentoPagadoEnRevision(job)) ? 'pagado_en_revision' : 'sin_pagar',
+    precioNuevo: Number(job.pendingNewPrice),
+    montoAPagar: Number(job.pendingPaymentAmount) || 0,
+    horasDeEspera: POLITICAS.APROBACION_AUTOMATICA_DEL_AUMENTO_HORAS,
+  };
+}
 
 /** Avisa a todos los administradores; si la lista saliera vacía, queda en el registro de errores. */
 async function avisarAAdmins(titulo: string, mensaje: string, tipo: 'warning' | 'error', relatedModel: string, relatedId: string) {

@@ -1,5 +1,6 @@
 import { Job, PaginatedResponse, ApiResponse } from '../types';
 import { get, post, put, del } from './api';
+import { origenDelPago } from './pagos';
 import { JOB_CATEGORIES, getCategoryById } from '../../shared/constants/categories';
 
 export { getCategoryById };
@@ -137,6 +138,7 @@ export async function createJobPaymentOrder(jobId: string, paymentMethod: 'merca
     jobId,
     paymentType: 'job_publication',
     paymentMethod,
+    origen: origenDelPago(),
   });
 }
 

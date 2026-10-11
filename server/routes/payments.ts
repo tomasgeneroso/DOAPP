@@ -22,7 +22,8 @@ import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { avisarPagoRecibido } from "../services/avisoDePago.js";
-import { aplicarAumentoDePrecio, dejarAumentoEnRevision } from "../services/aumentoDePrecio.js";
+import { aplicarAumentoDePrecio, dejarAumentoEnRevision, aumentoPagadoEnRevision } from "../services/aumentoDePrecio.js";
+import { urlsDeRetorno } from "../services/urlsDeRetorno.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
@@ -245,8 +246,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Publicación: ${job.title}`,
           metadata: { jobId, userId, paymentType: 'job_publication' },
           customerEmail: req.user.email,
-          successUrl: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`,
-          cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
+          ...urlsDeRetorno(
+            req.body.origen,
+            { exito: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
+            { tipo: 'publicacion', ids: { jobId: String(jobId) } },
+          ),
         });
         const payment = await Payment.create({
           contractId: null,
@@ -283,8 +287,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentType: 'job_publication',
         },
         customerEmail: req.user.email,
-        successUrl: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
+        ...urlsDeRetorno(
+          req.body.origen,
+          { exito: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
+          { tipo: 'publicacion', ids: { jobId: String(jobId) } },
+        ),
       });
 
       if (!mpPayment.checkoutUrl) {
@@ -342,6 +349,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       const pendingAmount = parseFloat(job.pendingPaymentAmount as any) || 0;
       if (pendingAmount <= 0 || !job.pendingNewPrice) {
         res.status(400).json({ success: false, message: "No pending payment amount for this job" });
+        return;
+      }
+
+      // Un aumento ya pagado que espera al administrador no se paga de nuevo: quedaría cobrado dos veces.
+      if (await aumentoPagadoEnRevision(job)) {
+        res.status(409).json({
+          success: false,
+          code: 'AUMENTO_PAGADO_EN_REVISION',
+          message: "Ya pagaste este aumento y está en revisión. No hace falta que pagues de nuevo: cuando se apruebe, el precio se aplica solo.",
+        });
         return;
       }
 
@@ -428,8 +445,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Aumento de presupuesto: ${job.title}`,
           metadata: { jobId, userId, paymentType: 'budget_increase' },
           customerEmail: req.user.email,
-          successUrl: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`,
-          cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
+          ...urlsDeRetorno(
+            req.body.origen,
+            { exito: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
+            { tipo: 'aumento', ids: { jobId: String(jobId) } },
+          ),
         });
         const payment = await Payment.create({
           contractId: null,
@@ -465,8 +485,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentType: 'budget_increase',
         },
         customerEmail: req.user.email,
-        successUrl: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
+        ...urlsDeRetorno(
+          req.body.origen,
+          { exito: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
+          { tipo: 'aumento', ids: { jobId: String(jobId) } },
+        ),
       });
 
       if (!mpPayment.checkoutUrl) {
@@ -1850,11 +1873,14 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Check for existing payment
+    // Check for existing payment. También cuenta uno ya cobrado que espera al administrador (pendiente de verificación,
+    // verificado, en proceso o completado): antes sólo se miraban pending/approved/held_escrow, y quien ya había pagado y
+    // esperaba la verificación podía pagar una segunda vez.
     const existingPayment = await Payment.findOne({
       where: {
         contractId: contract.id,
-        status: { [Op.in]: ["pending", "approved", "held_escrow"] }
+        paymentType: { [Op.in]: ["contract_payment", "escrow_deposit", "contract"] },
+        status: { [Op.in]: ["pending", "processing", "pending_verification", "verified", "approved", "held_escrow", "completed"] }
       }
     });
 
@@ -1874,7 +1900,10 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
       amount: contract.totalPrice,
       currency: "ARS",
       status: "pending",
-      paymentType: "contract",
+      // "contract_payment" y no "contract": es el tipo que reconocen los pasos del administrador (aprobar, verificar la
+      // garantía, liberar). Con "contract" el pago aprobado quedaba "completed" sin retener nada y no se podía verificar la
+      // garantía: el contrato nunca arrancaba.
+      paymentType: "contract_payment",
       description: `Contrato: ${jobTitle}`,
       platformFee: contract.commission,
       platformFeePercentage: contract.commission > 0 ? ((contract.commission / contract.price) * 100) : 0,
@@ -1893,11 +1922,14 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
         type: 'contract',
         contract_id: contract.id,
       },
-      successUrl: `${config.clientUrl}/contracts/${contract.id}?pago=ok`,
-      cancelUrl: `${config.clientUrl}/contracts/${contract.id}?pago=cancelado`,
+      ...urlsDeRetorno(
+        req.body?.origen,
+        { exito: `${config.clientUrl}/contracts/${contract.id}?pago=ok`, cancelado: `${config.clientUrl}/contracts/${contract.id}?pago=cancelado` },
+        { tipo: 'contrato', ids: { contractId: String(contract.id) } },
+      ),
     });
 
-    (payment as any).mercadoPagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    (payment as any).mercadopagoPreferenceId = orden.providerPaymentId || orden.paymentId;
     await payment.save();
 
     // Update contract with payment reference
@@ -2003,11 +2035,14 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
         proposal_id: (proposal as any).id,
         job_id: job.id,
       },
-      successUrl: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=ok`,
-      cancelUrl: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=cancelado`,
+      ...urlsDeRetorno(
+        req.body?.origen,
+        { exito: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=ok`, cancelado: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=cancelado` },
+        { tipo: 'cotizacion', ids: { proposalId: String((proposal as any).id) } },
+      ),
     });
 
-    (payment as any).mercadoPagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    (payment as any).mercadopagoPreferenceId = orden.providerPaymentId || orden.paymentId;
     await payment.save();
 
     // El trabajador ve el proceso en vivo: saber que el cliente esta pagando

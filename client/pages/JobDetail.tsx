@@ -3892,10 +3892,12 @@ export default function JobDetail() {
                     </p>
                     <div className="space-y-2 text-xs text-blue-600 dark:text-blue-400">
                       <p>
-                        {t(
-                          "jobs.paymentProofBeingVerified",
-                          "Your payment proof for the budget increase is being verified by our team.",
-                        )}
+                        {(job as any).aumentoPendiente?.estado === "pagado_en_revision" && (job as any).aumentoPendiente?.horasDeEspera
+                          ? `Recibimos tu pago del aumento. Un administrador lo revisa; si no lo revisa en ${(job as any).aumentoPendiente.horasDeEspera} horas, se aprueba solo porque tu pago ya está confirmado. No hace falta que pagues de nuevo.`
+                          : t(
+                              "jobs.paymentProofBeingVerified",
+                              "Your payment proof for the budget increase is being verified by our team.",
+                            )}
                       </p>
                       <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
                         <p className="font-medium">
@@ -3914,12 +3916,14 @@ export default function JobDetail() {
                           "Once approved, the budget will update automatically and your job will be reactivated.",
                         )}
                       </p>
-                      <p className="text-blue-500 dark:text-blue-300">
-                        {t(
-                          "jobs.estimatedTime",
-                          "Estimated time: 24-48 business hours (transfer) or 5-15 minutes (Binance)",
-                        )}
-                      </p>
+                      {(job as any).aumentoPendiente?.estado !== "pagado_en_revision" && (
+                        <p className="text-blue-500 dark:text-blue-300">
+                          {t(
+                            "jobs.estimatedTime",
+                            "Estimated time: 24-48 business hours (transfer) or 5-15 minutes (Binance)",
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (

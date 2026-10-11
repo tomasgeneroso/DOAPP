@@ -71,6 +71,7 @@ const CookiesPolicy = lazy(() => import("./pages/legal/CookiesPolicy"));
 const DisputeResolution = lazy(() => import("./pages/legal/DisputeResolution"));
 const DataDeletionStatus = lazy(() => import("./pages/legal/DataDeletionStatus"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+const PagoDesdeApp = lazy(() => import("./pages/PagoDesdeApp"));
 const PaymentCancel = lazy(() => import("./pages/PaymentCancel"));
 const MembershipPaymentSuccess = lazy(() => import("./pages/MembershipPaymentSuccess"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
@@ -335,6 +336,8 @@ export default function App() {
                 }
               />
               <Route path="/payment/success" element={<PaymentSuccess />} />
+              {/* Pública (sin sesión): a donde vuelve Mercado Pago cuando se pagó desde la app del celular */}
+              <Route path="/payment/app-return" element={<PagoDesdeApp />} />
               <Route path="/payment/cancel" element={<PaymentCancel />} />
               <Route
                 path="/membership/pricing"

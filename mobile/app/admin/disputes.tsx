@@ -175,7 +175,7 @@ export default function AdminDisputes() {
           <TouchableOpacity
             key={dispute.id}
             style={[styles.disputeCard, { backgroundColor: colors.card }]}
-            onPress={() => {/* Navigate to dispute detail */}}
+            onPress={() => router.push(`/admin/dispute/${dispute.id}` as any)}
           >
             <View style={styles.disputeHeader}>
               <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(dispute.priority) + '20' }]}>
@@ -196,7 +196,7 @@ export default function AdminDisputes() {
 
             <View style={styles.disputeFooter}>
               <Text style={[styles.disputeParties, { color: colors.textSecondary }]}>
-                {dispute.initiatedBy?.name} vs {dispute.against?.name}
+                {(dispute as any).initiator?.name || dispute.initiatedBy?.name} vs {(dispute as any).defendant?.name || dispute.against?.name}
               </Text>
               <Text style={[styles.disputeDate, { color: colors.textSecondary }]}>
                 {new Date(dispute.createdAt).toLocaleDateString('es-AR')}

@@ -45,6 +45,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { SuspendedNotice } from '../../components/CancellationLadder';
 import AvisoSinProteccion from '../../components/AvisoSinProteccion';
+import CambiarPresupuesto from '../../components/CambiarPresupuesto';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
 import { getContractsByJob, confirmContract } from '../../services/contracts';
@@ -917,10 +918,13 @@ export default function JobDetailScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Cambiar el presupuesto, y el seguimiento de un aumento a medias (falta pagar / pagado en revisión) */}
+        <CambiarPresupuesto job={job} esDueno={isOwner} onChanged={fetchJob} />
+
         {/* Owner Action Buttons */}
         {isOwner && (job.status === 'open' || job.status === 'paused') && (
           <View style={styles.actionRow}>
-            {job.status === 'open' && (
+            {job.status === 'open' && !(job as any).aumentoPendiente && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.warning[100], borderColor: colors.warning[300] }]}
                 onPress={handlePause}
@@ -936,7 +940,7 @@ export default function JobDetailScreen() {
                 )}
               </TouchableOpacity>
             )}
-            {job.status === 'paused' && (
+            {job.status === 'paused' && !(job as any).aumentoPendiente && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.success[100], borderColor: colors.success[300] }]}
                 onPress={handleResume}

@@ -34,6 +34,9 @@ import { getContract, confirmContract, rejectConfirmation } from '../../services
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
 import OrdenDePago from '../../components/OrdenDePago';
+import PagoDelContrato from '../../components/PagoDelContrato';
+import EmparejamientoDelContrato from '../../components/EmparejamientoDelContrato';
+import { puedePagarElContrato } from '../../services/pagos';
 import EmergencyButton from '../../components/EmergencyButton';
 import CompartirContrato from '../../components/CompartirContrato';
 import { Contract, Job, User as UserType } from '../../types';
@@ -440,6 +443,19 @@ export default function ContractDetailScreen() {
             {job?.category}
           </Text>
         </TouchableOpacity>
+
+        {/* Aceptar el contrato y emparejarse con el código (cuando corresponde). */}
+        <EmparejamientoDelContrato contract={contract} isClient={isClient} isDoer={isDoer} onChanged={fetchContract} />
+
+        {/* El cliente paga la garantía por Mercado Pago (sólo con el contrato aprobado y sin pago hecho). */}
+        {puedePagarElContrato(contract, isClient) && (
+          <PagoDelContrato
+            contractId={contract.id || (contract as any)._id}
+            precio={Number(contract.price)}
+            comision={Number(contract.commission) || 0}
+            total={Number(contract.totalPrice ?? contract.price)}
+          />
+        )}
 
         {/* Contract Details */}
         <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>

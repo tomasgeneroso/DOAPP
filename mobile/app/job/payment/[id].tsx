@@ -6,6 +6,7 @@ import { ArrowLeft, CreditCard, DollarSign, CheckCircle, AlertCircle } from 'luc
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { get, post } from '../../../services/api';
+import { origenDelPago } from '../../../services/pagos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
 
 export default function JobPaymentScreen() {
@@ -78,6 +79,7 @@ export default function JobPaymentScreen() {
         jobId: id,
         paymentType: 'job_publication',
         paymentMethod: 'mercadopago',
+        origen: origenDelPago(),
       });
       if (res.success && (res as any).requiresPayment === false) {
         Alert.alert('Trabajo publicado', 'Tu trabajo ya está publicado.', [

@@ -9,7 +9,7 @@ import { Proposal } from "../models/sql/Proposal.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
-import { Payment } from "../models/sql/Payment.model.js";
+import { aumentoPagadoEnRevision, describirAumentoPendiente } from "../services/aumentoDePrecio.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
@@ -807,6 +807,12 @@ router.get("/:id",
         ...w.toJSON(),
         rating: w.rating ? parseFloat(w.rating) : 0
       }));
+    }
+
+    // El dueño con un cambio de precio a medias ve si falta pagar o si ya pagó y espera al administrador (así ninguna
+    // pantalla le ofrece pagar dos veces lo que ya pagó).
+    if (req.user && String((req.user as any).id) === String(job.clientId) && job.pendingNewPrice) {
+      jobData.aumentoPendiente = await describirAumentoPendiente(job);
     }
 
     res.json({
@@ -2064,16 +2070,6 @@ router.post("/:id/initiate-payment", protect, requireKyc, async (req: AuthReques
     });
   }
 });
-
-/** ¿Este trabajo tiene un aumento de precio ya pagado que espera la revisión de un administrador? */
-async function aumentoPagadoEnRevision(job: Job): Promise<boolean> {
-  if (!job.publicationPaymentId) return false;
-  const pago = await Payment.findOne({
-    where: { id: job.publicationPaymentId, paymentType: 'budget_increase', status: 'pending_verification' },
-    attributes: ['id'],
-  });
-  return Boolean(pago);
-}
 
 // @route   PATCH /api/jobs/:id/budget
 // @desc    Cambiar el presupuesto de un trabajo (solo el dueño)

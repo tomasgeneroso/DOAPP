@@ -24,6 +24,14 @@ export interface Job {
   neighborhood?: string;
   postalCode?: string;
   status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused' | 'suspended';
+  /** Un aumento de precio a medias (sólo lo ve el dueño): falta pagarlo, o ya se pagó y espera al administrador. */
+  pendingNewPrice?: number;
+  aumentoPendiente?: {
+    estado: 'sin_pagar' | 'pagado_en_revision';
+    precioNuevo: number;
+    montoAPagar: number;
+    horasDeEspera: number;
+  };
   postedBy: string;
   client?: UserSummary | string;
   doer?: UserSummary | string;
@@ -208,6 +216,13 @@ export interface Contract {
   actualStartDate?: string;
   actualEndDate?: string;
   termsAccepted: boolean;
+  termsAcceptedByClient?: boolean;
+  termsAcceptedByDoer?: boolean;
+  // Emparejamiento: las dos partes confirman un código dentro de las 24 horas antes del inicio.
+  pairingCode?: string | null;
+  pairingExpiry?: string;
+  clientConfirmedPairing?: boolean;
+  doerConfirmedPairing?: boolean;
   clientConfirmed?: boolean;
   doerConfirmed?: boolean;
   clientConfirmedAt?: string;

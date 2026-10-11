@@ -43,6 +43,7 @@ export default function PagoEnCursoScreen() {
       const resultado = await consultarPago({
         tipo,
         preferenceId: params.preferenceId,
+        jobId: params.jobId,
         proposalId: params.proposalId,
         contractId: params.contractId,
       });
@@ -53,7 +54,7 @@ export default function PagoEnCursoScreen() {
       consultando.current = false;
       setConsultas((n) => n + 1);
     }
-  }, [tipo, params.preferenceId, params.proposalId, params.contractId]);
+  }, [tipo, params.preferenceId, params.jobId, params.proposalId, params.contractId]);
 
   // El ciclo: mientras espera y no se agotó el minuto, una consulta cada pocos segundos.
   const agotado = estado.fase === 'esperando' && consultas >= MAX_CONSULTAS;
@@ -72,7 +73,7 @@ export default function PagoEnCursoScreen() {
   }, [consultar]);
 
   const destino = (): { etiqueta: string; ruta: string } | null => {
-    if (tipo === 'publicacion' && params.jobId) return { etiqueta: 'Ver mi trabajo', ruta: `/job/${params.jobId}` };
+    if ((tipo === 'publicacion' || tipo === 'aumento') && params.jobId) return { etiqueta: 'Ver mi trabajo', ruta: `/job/${params.jobId}` };
     if (tipo === 'cotizacion' && params.proposalId) return { etiqueta: 'Ver la propuesta', ruta: `/proposals/${params.proposalId}` };
     if (tipo === 'contrato' && params.contractId) return { etiqueta: 'Ver el contrato', ruta: `/contracts/${params.contractId}` };
     return null;

@@ -102,6 +102,7 @@ router.post('/contract/:contractId', protect, async (req: AuthRequest, res: Resp
       req.params.contractId,
       metodo,
       req.user.id,
+      req.body?.origen,
     );
 
     /**

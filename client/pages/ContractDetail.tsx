@@ -1307,12 +1307,12 @@ export default function ContractDetail() {
                           value={pairingCode}
                           onChange={(e) => { setPairingCode(e.target.value.toUpperCase()); setPairingFailed(false); }}
                           placeholder={t('contracts.enterCode', 'Enter the code')}
-                          maxLength={4}
+                          maxLength={8}
                           className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white font-mono text-lg"
                         />
                         <button
                           onClick={handleConfirmPairing}
-                          disabled={loadingPairing || !pairingCode || pairingCode.length !== 4}
+                          disabled={loadingPairing || !pairingCode || pairingCode.length < 4}
                           className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
                           {loadingPairing ? t('contracts.confirming', 'Confirming...') : t('common.confirm', 'Confirm')}
