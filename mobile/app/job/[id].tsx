@@ -47,6 +47,7 @@ import { SuspendedNotice } from '../../components/CancellationLadder';
 import AvisoSinProteccion from '../../components/AvisoSinProteccion';
 import CambiarPresupuesto from '../../components/CambiarPresupuesto';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
+import { leerLista, contratosDelTrabajo } from '../../services/respuesta';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
 import { getContractsByJob, confirmContract } from '../../services/contracts';
 import { Job, Proposal, UserSummary, Contract } from '../../types';
@@ -128,9 +129,10 @@ export default function JobDetailScreen() {
     if (!id || !isAuthenticated) return;
     try {
       const response = await getProposalsByJob(id);
-      if (response.success && response.data) {
-        setProposals(response.data.proposals);
-        const userProposal = response.data.proposals.find((p) => {
+      const lista = leerLista<any>(response, 'proposals');
+      if (lista) {
+        setProposals(lista);
+        const userProposal = lista.find((p: any) => {
           const doer = p.doer as UserSummary;
           return doer?.id === user?.id || doer?.id === user?.id;
         });
@@ -145,9 +147,8 @@ export default function JobDetailScreen() {
     if (!id || !isAuthenticated) return;
     try {
       const response = await getContractsByJob(id);
-      if (response.success && response.data) {
-        setContracts(response.data.contracts || []);
-      }
+      // by-job devuelve UN contrato ({ success, contract }); la pantalla trabaja con una lista.
+      setContracts(contratosDelTrabajo(response));
     } catch (error) {
       console.error('Error fetching contracts:', error);
     }

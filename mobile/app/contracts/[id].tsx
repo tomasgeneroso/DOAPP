@@ -31,6 +31,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
+import { leerClave } from '../../services/respuesta';
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
 import OrdenDePago from '../../components/OrdenDePago';
@@ -68,8 +69,10 @@ export default function ContractDetailScreen() {
 
     try {
       const response = await getContract(id);
-      if (response.success && response.data) {
-        setContract(response.data.contract);
+      // El servidor manda { success, contract }: ver services/respuesta.ts.
+      const encontrado = leerClave(response, 'contract');
+      if (encontrado) {
+        setContract(encontrado);
       }
     } catch (error) {
       console.error('Error fetching contract:', error);

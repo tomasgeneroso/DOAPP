@@ -172,6 +172,42 @@ jobs:
           echo "✅ Build output verified"
 
   # ============================================
+  # App móvil: pruebas y empaquetado
+  # El deploy NO depende de este job (la app se compila aparte, con EAS y llega a los teléfonos recién con una versión
+  # nueva), pero un push que la rompa deja la corrida en rojo. Antes nadie la miraba y estuvo sin poder compilar:
+  # shared/legal/terms.structure.ts importa '../constants/membershipPricing.js' (Node exige el .js) y Metro no lo
+  # resolvía. `expo export` corre el mismo empaquetado que una compilación (Hermes).
+  # ============================================
+  mobile:
+    name: Mobile (tests + bundle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Mobile tests
+        run: npx jest
+
+      - name: Bundle the app (Android, Hermes)
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export-android"
+
+  # ============================================
   # Deploy to Hostinger VPS
   # ============================================
   deploy:

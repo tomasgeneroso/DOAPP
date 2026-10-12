@@ -5,6 +5,10 @@ import { useTheme } from '../../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
 import {
   admiteDevolucionManual,
+  etiquetaDelEstadoDeDisputa,
+  etiquetaDelEstadoDePago,
+  etiquetaDelMotivoDeDisputa,
+  etiquetaDeLaPrioridad,
   interpretarResolucion,
   requiereMonto,
   resolverDisputa,
@@ -99,15 +103,15 @@ export default function AdminDisputa() {
   return (
     <ScrollView style={{ backgroundColor: themeColors.background }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['4xl'] }} keyboardShouldPersistTaps="handled">
       <View style={[styles.caja, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-        <Text style={[styles.titulo, { color: themeColors.text.primary }]}>{disputa.reason || 'Disputa'}</Text>
+        <Text style={[styles.titulo, { color: themeColors.text.primary }]}>{disputa.reason ? etiquetaDelMotivoDeDisputa(disputa.reason) : 'Disputa'}</Text>
         <Text style={[styles.dato, { color: themeColors.text.secondary }]}>
           {disputa.initiator?.name || 'Quien reclama'} vs {disputa.defendant?.name || 'la otra parte'}
         </Text>
-        <Text style={[styles.dato, { color: themeColors.text.secondary }]}>Estado: {disputa.status} · Prioridad: {disputa.priority || '—'}</Text>
+        <Text style={[styles.dato, { color: themeColors.text.secondary }]}>Estado: {etiquetaDelEstadoDeDisputa(disputa.status)} · Prioridad: {etiquetaDeLaPrioridad(disputa.priority)}</Text>
         {!!disputa.contract?.price && <Text style={[styles.dato, { color: themeColors.text.secondary }]}>Contrato: {pesos(disputa.contract.price)}</Text>}
         {!!disputa.payment && (
           <Text style={[styles.dato, { color: themeColors.text.secondary }]}>
-            Pago: {pesos(disputa.payment.amount)} ({disputa.payment.status}){disputa.payment.mercadopagoPaymentId ? ' · Mercado Pago' : ' · no es de Mercado Pago'}
+            Pago: {pesos(disputa.payment.amount)} ({etiquetaDelEstadoDePago(disputa.payment.status)}){disputa.payment.mercadopagoPaymentId ? ' · Mercado Pago' : ' · no es de Mercado Pago'}
           </Text>
         )}
         {!!disputa.detailedDescription && <Text style={[styles.texto, { color: themeColors.text.primary }]}>{disputa.detailedDescription}</Text>}

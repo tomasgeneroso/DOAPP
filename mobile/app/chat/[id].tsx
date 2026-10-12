@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getMessages, sendMessage, sendMessageWithJob, markAsRead, getConversation } from '../../services/chat';
+import { leerClave, leerConversacion } from '../../services/respuesta';
 import { getJobs } from '../../services/jobs';
 import { Message, User as UserType, Conversation } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
@@ -66,8 +67,10 @@ export default function ChatScreen() {
     if (!id) return;
     try {
       const response = await getConversation(id);
-      if (response.success && response.data) {
-        setConversation(response.data.conversation);
+      // El servidor manda la conversación como `data`: ver services/respuesta.ts.
+      const conv = leerConversacion(response);
+      if (conv) {
+        setConversation(conv);
       }
     } catch (error) {
       console.error('Error fetching conversation:', error);
@@ -153,8 +156,9 @@ export default function ChatScreen() {
         setShowJobPicker(false);
       } else {
         const response = await sendMessage(id!, { content: text, type: 'text' });
-        if (response.success && response.data) {
-          setMessages((prev) => [response.data!.message, ...prev]);
+        const enviado = leerClave(response, 'message');
+        if (enviado) {
+          setMessages((prev) => [enviado, ...prev]);
           flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         } else {
           setMessageText(text);

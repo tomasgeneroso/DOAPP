@@ -26,6 +26,9 @@ import {
   tituloDelPago,
   validarResolucion,
   verificarGarantia,
+  etiquetaDeLaPrioridad,
+  etiquetaDelEstadoDeDisputa,
+  etiquetaDelMotivoDeDisputa,
 } from '../services/admin';
 
 describe('qué se le puede hacer a un pago', () => {
@@ -174,5 +177,27 @@ describe('resolver una disputa', () => {
     mockPost.mockResolvedValue({ success: true });
     await resolverDisputa('d1', { resolution: 'x', resolutionType: 'full_release' });
     expect(mockPost).toHaveBeenCalledWith('/admin/disputes/d1/resolve', { resolution: 'x', resolutionType: 'full_release' });
+  });
+});
+
+describe("textos de la disputa (antes la pantalla mostraba los códigos en crudo)", () => {
+  it("el motivo se cuenta en castellano y lo desconocido se muestra tal cual", () => {
+    expect(etiquetaDelMotivoDeDisputa("service_not_delivered")).toBe("El trabajo no se entregó");
+    expect(etiquetaDelMotivoDeDisputa("breach_of_contract")).toBe("Incumplimiento del contrato");
+    expect(etiquetaDelMotivoDeDisputa("algo_nuevo")).toBe("algo_nuevo");
+    expect(etiquetaDelMotivoDeDisputa(undefined)).toBe("");
+  });
+
+  it("el estado se cuenta en castellano, con el resultado de las resueltas", () => {
+    expect(etiquetaDelEstadoDeDisputa("open")).toBe("Abierta");
+    expect(etiquetaDelEstadoDeDisputa("awaiting_info")).toBe("Esperando información");
+    expect(etiquetaDelEstadoDeDisputa("resolved_refunded")).toBe("Resuelta: se reembolsó al cliente");
+    expect(etiquetaDelEstadoDeDisputa("resolved_partial")).toBe("Resuelta: reembolso parcial");
+    expect(etiquetaDelEstadoDeDisputa("raro")).toBe("raro");
+  });
+
+  it("la prioridad se cuenta en castellano y la ausencia es un guion", () => {
+    expect(etiquetaDeLaPrioridad("high")).toBe("Alta");
+    expect(etiquetaDeLaPrioridad(undefined)).toBe("—");
   });
 });

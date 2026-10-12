@@ -48,6 +48,39 @@ export function etiquetaDelTipoDePago(tipo: unknown): string {
   return mapa[t] || t || 'Pago';
 }
 
+export function etiquetaDelMotivoDeDisputa(motivo: unknown): string {
+  const m = String(motivo ?? '');
+  const mapa: Record<string, string> = {
+    service_not_delivered: 'El trabajo no se entregó',
+    incomplete_work: 'Trabajo incompleto',
+    quality_issues: 'Problemas de calidad',
+    payment_issues: 'Problemas con el pago',
+    breach_of_contract: 'Incumplimiento del contrato',
+    other: 'Otro motivo',
+  };
+  return mapa[m] || m;
+}
+
+export function etiquetaDelEstadoDeDisputa(estado: unknown): string {
+  const e = String(estado ?? '');
+  const mapa: Record<string, string> = {
+    open: 'Abierta',
+    in_review: 'En revisión',
+    awaiting_info: 'Esperando información',
+    resolved_released: 'Resuelta: se liberó al trabajador',
+    resolved_refunded: 'Resuelta: se reembolsó al cliente',
+    resolved_partial: 'Resuelta: reembolso parcial',
+    cancelled: 'Cancelada',
+  };
+  return mapa[e] || e;
+}
+
+export function etiquetaDeLaPrioridad(prioridad: unknown): string {
+  const p = String(prioridad ?? '');
+  const mapa: Record<string, string> = { low: 'Baja', medium: 'Media', high: 'Alta', urgent: 'Urgente' };
+  return mapa[p] || p || '—';
+}
+
 export function etiquetaDelEstadoDePago(estado: unknown): string {
   const e = String(estado ?? '');
   const mapa: Record<string, string> = {

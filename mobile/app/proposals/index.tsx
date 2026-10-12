@@ -15,6 +15,7 @@ import { ArrowLeft, FileText, MapPin, Calendar, DollarSign, ChevronRight, X } fr
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getMyProposals, withdrawProposal } from '../../services/proposals';
+import { leerLista } from '../../services/respuesta';
 import { Proposal, Job } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -31,8 +32,9 @@ export default function ProposalsScreen() {
   const fetchProposals = async () => {
     try {
       const response = await getMyProposals();
-      if (response.success && response.data) {
-        setProposals(response.data.proposals || []);
+      const lista = leerLista(response, 'proposals');
+      if (lista) {
+        setProposals(lista);
       }
     } catch (error) {
       console.error('Error fetching proposals:', error);

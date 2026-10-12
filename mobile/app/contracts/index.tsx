@@ -14,6 +14,7 @@ import { ArrowLeft, FileText, Calendar, DollarSign, User, ChevronRight, Plus, Se
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContracts } from '../../services/contracts';
+import { leerLista } from '../../services/respuesta';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import AvisoSinProteccion from '../../components/AvisoSinProteccion';
@@ -34,8 +35,10 @@ export default function ContractsScreen() {
   const fetchContracts = async () => {
     try {
       const response = await getContracts();
-      if (response.success && response.data) {
-        setContracts(response.data.contracts);
+      // El servidor manda { success, contracts }: ver services/respuesta.ts.
+      const lista = leerLista(response, 'contracts');
+      if (lista) {
+        setContracts(lista);
       }
     } catch (error) {
       console.error('Error fetching contracts:', error);
