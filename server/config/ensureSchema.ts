@@ -48,6 +48,9 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'contracts.fraud_hold_reason', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_reason TEXT` },
   { label: 'contracts.fraud_hold_cleared_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_at TIMESTAMPTZ` },
   { label: 'contracts.fraud_hold_cleared_by', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_by UUID` },
+  // --- matrícula profesional encriptada (ver migración 20261012100000) ---
+  { label: 'users.license_number text', sql: `ALTER TABLE users ALTER COLUMN license_number TYPE TEXT` },
+  { label: 'users.license_document_back_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document_back_url TEXT` },
   { label: 'users.banking_info_updated_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS banking_info_updated_at TIMESTAMPTZ` },
   // Sin esta columna no hay techo contra el que verificar una devolución, y la
   // protección contra devoluciones dobles deja de existir. Se me había pasado

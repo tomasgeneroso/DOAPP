@@ -24,14 +24,13 @@ import { estaBaneadoAhora } from './auth.js';
  *
  * Qué NO se toca: avatars, blogs, job-images, portfolio, proposals, disputes y documents (publicaciones y
  * adjuntos que se muestran a otras personas; las evidencias de disputas y de posts comparten carpeta y requieren
- * una decisión aparte) y licenses: la matrícula profesional se le muestra A PROPÓSITO a quien contrata (link en el
- * detalle del trabajo, JobDetail.tsx). Si el dueño decide que no, se agrega 'licenses' a CARPETAS_PRIVADAS.
+ * una decisión aparte) y licenses (hoy sólo el seguro del profesional; la matrícula pasó a license-docs, encriptada).
  *
  * Falla cerrado: sin sesión 401; con sesión pero sin relación con el archivo 403. La sesión es la misma de la
  * app (cookie httpOnly o Bearer): un <img> del navegador manda la cookie solo.
  */
 
-export const CARPETAS_PRIVADAS = ['dni', 'payment-proofs', 'worker-payment-proofs', 'invoices', 'receipts'] as const;
+export const CARPETAS_PRIVADAS = ['dni', 'payment-proofs', 'worker-payment-proofs', 'invoices', 'receipts', 'license-docs'] as const;
 type CarpetaPrivada = (typeof CARPETAS_PRIVADAS)[number];
 
 const ROLES_QUE_VEN_ARCHIVOS_PRIVADOS = ['owner', 'super_admin', 'admin', 'support', 'dpo'];
@@ -105,6 +104,10 @@ async function esElDuenoDelArchivo(user: any, carpeta: CarpetaPrivada, archivo: 
       }
       return false;
     }
+    case 'license-docs':
+      // Los archivos de la matrícula están ENCRIPTADOS y se entregan por GET /api/users/:id/license-document/:lado
+      // (services/matricula.ts), que decide el acceso y los desencripta. Por la ruta de archivos sólo los ve administración.
+      return false;
     case 'invoices':
     case 'receipts': {
       const { Invoice } = await import('../models/sql/Invoice.model.js');

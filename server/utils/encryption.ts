@@ -114,6 +114,32 @@ export function decrypt(encryptedText: string): string {
 }
 
 /**
+ * Encripta un archivo (o cualquier binario) con AES-256-GCM.
+ * Formato: iv (16 bytes) | authTag (16 bytes) | datos encriptados.
+ */
+export function encryptBuffer(data: Buffer): Buffer {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]);
+}
+
+/** Desencripta lo que produjo encryptBuffer. Lanza si la clave no es la misma o el archivo fue alterado. */
+export function decryptBuffer(blob: Buffer): Buffer {
+  if (!Buffer.isBuffer(blob) || blob.length < IV_LENGTH + AUTH_TAG_LENGTH + 1) {
+    throw new Error("Invalid encrypted file");
+  }
+  const key = getEncryptionKey();
+  const iv = blob.subarray(0, IV_LENGTH);
+  const authTag = blob.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+  const data = blob.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(data), decipher.final()]);
+}
+
+/**
  * Hashea un string usando SHA-256 (para comparaciones sin revelar el original)
  * Útil para verificar CBU sin necesidad de desencriptar
  * @param text - El texto a hashear

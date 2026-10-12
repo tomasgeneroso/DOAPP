@@ -7,7 +7,9 @@ import { Job } from "../models/sql/Job.model.js";
 import { Review } from "../models/sql/Review.model.js";
 import { JOB_CATEGORIES } from "../constants/categories.js";
 import { dataMinimizationMiddleware } from "../middleware/dataMinimization.js";
-import type { AuthRequest } from "../middleware/auth.js";
+import { protect, type AuthRequest } from "../middleware/auth.js";
+import { puedeVerLosArchivosDeLaMatricula, leerArchivoDeMatricula } from "../services/matricula.js";
+import { logEvento } from "../utils/auditLog.js";
 
 const router = express.Router();
 
@@ -187,7 +189,9 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
         licenseNumber: user.licenseNumber,
         licenseCategory: user.licenseCategory,
         licenseCertNumber: user.licenseCertNumber,
-        licenseDocumentUrl: user.licenseDocumentUrl,
+        // La referencia del archivo (encriptado) nunca sale por una ruta pública: sólo si hay uno cargado. Los archivos se piden
+        // por GET /api/users/:id/license-document/:lado, que decide quién puede verlos.
+        hasLicenseDocument: !!(user.licenseDocumentUrl || (user as any).licenseDocumentBackUrl),
         licenseVerified: user.licenseVerified,
       },
     });
@@ -253,7 +257,9 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
         licenseNumber: user.licenseNumber,
         licenseCategory: user.licenseCategory,
         licenseCertNumber: user.licenseCertNumber,
-        licenseDocumentUrl: user.licenseDocumentUrl,
+        // La referencia del archivo (encriptado) nunca sale por una ruta pública: sólo si hay uno cargado. Los archivos se piden
+        // por GET /api/users/:id/license-document/:lado, que decide quién puede verlos.
+        hasLicenseDocument: !!(user.licenseDocumentUrl || (user as any).licenseDocumentBackUrl),
         licenseVerified: user.licenseVerified,
         insuranceVerified: user.insuranceVerified,
         phoneVerified: user.phoneVerified,
@@ -272,6 +278,72 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
 // @route   GET /api/users/:id/completed-by-category
 // @desc    Get user's completed jobs grouped by category with average ratings
 // @access  Public
+/**
+ * Entrega un archivo de la matrícula (desencriptado al vuelo).
+ * GET /api/users/:id/license-document/:lado   (lado = front | back)
+ *
+ * Lo ven: el dueño, administración, y el cliente que ya tiene un contrato con él (una vez que ambas partes se
+ * encuentran, para que pueda verificar la matrícula por su cuenta). Cualquier otro: 403. Falla cerrado.
+ * La sesión es la de siempre (cookie httpOnly o Bearer), así que un <img> o un enlace del navegador la manda solo.
+ */
+router.get("/:id/license-document/:lado", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const lado = req.params.lado;
+    if (lado !== "front" && lado !== "back") {
+      res.status(400).json({ success: false, message: "El lado tiene que ser front o back" });
+      return;
+    }
+    const dueno: any = await User.findByPk(req.params.id, { attributes: ["id", "email", "licenseDocumentUrl", "licenseDocumentBackUrl"] });
+    if (!dueno) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
+    }
+    if (!(await puedeVerLosArchivosDeLaMatricula(req.user as any, String(dueno.id)))) {
+      res.status(403).json({ success: false, message: "No tenés permiso para ver este archivo" });
+      return;
+    }
+    const ref = lado === "front" ? dueno.licenseDocumentUrl : dueno.licenseDocumentBackUrl;
+    if (!ref) {
+      res.status(404).json({ success: false, message: "No hay un archivo cargado de ese lado" });
+      return;
+    }
+
+    let archivo: { datos: Buffer; mime: string };
+    try {
+      archivo = await leerArchivoDeMatricula(ref);
+    } catch (error: any) {
+      console.error("[matrícula] no se pudo leer el archivo de", dueno.id, "-", error?.message);
+      res.status(404).json({ success: false, message: "El archivo no está disponible" });
+      return;
+    }
+
+    // Quien no es el dueño deja constancia: es un dato sensible y después hay que poder reconstruir quién lo miró.
+    if (String(req.user!.id) !== String(dueno.id)) {
+      await logEvento({
+        action: "LICENSE_DOCUMENT_VIEWED",
+        actor: `user:${req.user!.id}`,
+        category: "user",
+        severity: "low",
+        description: `${(req.user as any).email} vio ${lado === "front" ? "el frente" : "el reverso"} de la matrícula de ${dueno.email}`,
+        performedBy: String(req.user!.id),
+        targetModel: "User",
+        targetId: String(dueno.id),
+        targetIdentifier: dueno.email,
+        metadata: { lado },
+      });
+    }
+
+    res.setHeader("Content-Type", archivo.mime);
+    res.setHeader("Content-Disposition", `inline; filename="matricula-${lado}.${archivo.mime === "application/pdf" ? "pdf" : archivo.mime.split("/")[1]}"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    res.send(archivo.datos);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
 router.get("/:id/completed-by-category", async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.params.id;

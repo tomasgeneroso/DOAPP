@@ -33,7 +33,7 @@ export const TERMS_BODY_KEYS: string[] = [
   's1Title', 's1p',
   's2Title', 's2p', 's2li1', 's2li2', 's2note',
   's3Title', 's3p1', 's3p2', 's3p3',
-  's4Title', 's4p1', 's4p2', 's4p3', 's4p4', 's4p5',
+  's4Title', 's4p1', 's4p2', 's4p3', 's4p4', 's4p5', 's4p6',
   's5Title', 's5p', 's5li1', 's5li2', 's5li3', 's5li4', 's5li5', 's5li6', 's5note',
   's6Title', 's6p1', 's6p2', 's6p3', 's6p4', 's6p5', 's6p6', 's6p7',
   's7Title', 's7p1', 's7p2', 's7p3', 's7p4', 's7p5', 's7p6', 's7p7', 's7p8', 's7p9', 's7p10',

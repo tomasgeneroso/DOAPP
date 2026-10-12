@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Op } from 'sequelize';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { User } from '../../models/sql/User.model.js';
+import { presentarArchivosDeLaMatricula, esAdministracionQueVeMatriculas } from "../../services/matricula.js";
 import { Job } from '../../models/sql/Job.model.js';
 import { Contract } from '../../models/sql/Contract.model.js';
 import { Dispute } from '../../models/sql/Dispute.model.js';
@@ -405,19 +406,15 @@ const PROFESSIONAL_SCOPE = [
   { insuranceDocumentUrl: { [Op.ne]: null } },
 ];
 
-async function licenseRecords(search: string, status: string) {
+async function licenseRecords(search: string, status: string, verArchivos: boolean) {
   const where: any = { [Op.or]: PROFESSIONAL_SCOPE };
-  if (search?.trim()) {
-    where[Op.and] = [{
-      [Op.or]: [
-        { name: { [Op.iLike]: `%${search.trim()}%` } },
-        { email: { [Op.iLike]: `%${search.trim()}%` } },
-        { licenseNumber: { [Op.iLike]: `%${search.trim()}%` } },
-      ],
-    }];
-  }
-
-  const users = await User.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  // El número de matrícula está encriptado en la base: no se puede buscar con iLike. Se busca acá, ya desencriptado, sobre el
+  // universo de profesionales (que es acotado); nombre y correo se siguen comparando igual.
+  const todos = await User.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const q = search?.trim().toLowerCase();
+  const users = q
+    ? todos.filter((u: any) => [u.name, u.email, u.licenseNumber].some((v) => String(v ?? '').toLowerCase().includes(q)))
+    : todos;
   const verifiers = await nameMap(users.map((u: any) => u.licenseVerifiedBy));
 
   const rows = users.map((u: any) => ({
@@ -430,7 +427,10 @@ async function licenseRecords(search: string, status: string) {
     licenseCertNumber: u.licenseCertNumber,
     licenseStatus: verificationLabel(!!u.licenseVerified, u.licenseVerificationStatus, !!u.licenseDocumentUrl, 'matrícula'),
     hasLicenseDoc: !!u.licenseDocumentUrl,
-    licenseDocumentUrl: u.licenseDocumentUrl,
+    // La referencia es interna (archivo encriptado): se entrega la dirección que lo desencripta, sólo a quien tiene permiso.
+    ...presentarArchivosDeLaMatricula(u, verArchivos),
+    licenseDocumentIsPdf: /\.pdf\.enc$/.test(String(u.licenseDocumentUrl || '')),
+    licenseDocumentBackIsPdf: /\.pdf\.enc$/.test(String(u.licenseDocumentBackUrl || '')),
     licenseRejectedReason: u.licenseRejectedReason,
     licenseVerifiedByName: verifiers[u.licenseVerifiedBy] || '',
     licenseVerifiedAt: u.licenseVerifiedAt,
@@ -447,13 +447,13 @@ async function licenseRecords(search: string, status: string) {
 router.get('/licenses', async (req: AuthRequest, res: Response) => {
   try {
     const { search = '', status = '' } = req.query as any;
-    respondPaged(req, res, await licenseRecords(search, status));
+    respondPaged(req, res, await licenseRecords(search, status, esAdministracionQueVeMatriculas(req.user)));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/licenses/export.csv', async (req: AuthRequest, res: Response) => {
   try {
     const q = req.query as any;
-    const all = await licenseRecords(q.search || '', q.status || '');
+    const all = await licenseRecords(q.search || '', q.status || '', esAdministracionQueVeMatriculas(req.user));
     sendCsv(res, 'matriculas', LICENSE_COLS as any, all.map((r: any) => LICENSE_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });

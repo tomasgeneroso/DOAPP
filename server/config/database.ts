@@ -100,6 +100,18 @@ export async function initDatabase() {
       console.warn('⚠️  ensureCriticalSchema failed (non-fatal):', err?.message);
     }
 
+    // Matrícula profesional: encripta lo que quedó guardado en claro antes de que el cifrado existiera (número y archivos).
+    // Idempotente (lo ya encriptado no se toca) y no fatal: un problema se informa pero no impide arrancar.
+    try {
+      const { encriptarMatriculasExistentes } = await import('../services/matricula.js');
+      const r = await encriptarMatriculasExistentes();
+      if (r.numeros || r.archivos || r.errores) {
+        console.log(`🔐 Matrículas: ${r.numeros} números y ${r.archivos} archivos encriptados${r.errores ? `, ${r.errores} con problemas` : ''}`);
+      }
+    } catch (err: any) {
+      console.warn('⚠️  No se pudo encriptar lo anterior de las matrículas (no fatal):', err?.message);
+    }
+
     // Sync models in development (use migrations in production)
     if (!isProduction) {
       await sequelize.sync({ force: false, alter: false });

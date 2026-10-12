@@ -114,6 +114,8 @@ export interface User {
   profession?: string;
   licenseNumber?: string;
   licenseDocumentUrl?: string;
+  licenseDocumentBackUrl?: string;
+  hasLicenseDocument?: boolean;
   licenseVerified?: boolean;
   licenseVerificationStatus?: 'pending' | 'approved' | 'rejected';
   insuranceDocumentUrl?: string;

@@ -1380,21 +1380,28 @@ export default function AdminUsers() {
                   </div>
                 </div>
 
-                {/* Document preview */}
-                {licenseDetail.licenseDocumentUrl && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Documento</p>
-                    {licenseDetail.licenseDocumentUrl.endsWith('.pdf') ? (
-                      <a href={getImageUrl(licenseDetail.licenseDocumentUrl)} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
-                        <FileText className="h-5 w-5" /> Ver PDF
-                      </a>
-                    ) : (
-                      <a href={getImageUrl(licenseDetail.licenseDocumentUrl)} target="_blank" rel="noopener noreferrer">
-                        <img src={getImageUrl(licenseDetail.licenseDocumentUrl)} alt="Documento matrícula"
-                          className="w-full max-h-52 object-contain rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity bg-gray-50 dark:bg-gray-700" />
-                      </a>
-                    )}
+                {/* Archivos de la matrícula (están encriptados: la dirección es la que los desencripta para administración) */}
+                {(licenseDetail.licenseDocumentUrl || licenseDetail.licenseDocumentBackUrl) && (
+                  <div className="space-y-3">
+                    {([
+                      { titulo: "Frente", url: licenseDetail.licenseDocumentUrl, esPdf: licenseDetail.licenseDocumentIsPdf },
+                      { titulo: "Reverso", url: licenseDetail.licenseDocumentBackUrl, esPdf: licenseDetail.licenseDocumentBackIsPdf },
+                    ] as Array<{ titulo: string; url?: string | null; esPdf?: boolean }>).filter((x) => x.url).map((x) => (
+                      <div key={x.titulo}>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Documento · {x.titulo}</p>
+                        {x.esPdf ? (
+                          <a href={x.url!} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                            <FileText className="h-5 w-5" /> Ver PDF
+                          </a>
+                        ) : (
+                          <a href={x.url!} target="_blank" rel="noopener noreferrer">
+                            <img src={x.url!} alt={"Matrícula · " + x.titulo}
+                              className="w-full max-h-52 object-contain rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity bg-gray-50 dark:bg-gray-700" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
 

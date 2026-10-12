@@ -64,7 +64,7 @@ const LICENSE_DIR = path.join(UPLOAD_DIR, "licenses");
  * allowed image/video/document formats. Anything else (HTML, scripts, polyglots)
  * is deleted and rejected. Use it AFTER a multer middleware.
  */
-function magicOk(b: Buffer): boolean {
+export function magicOk(b: Buffer): boolean {
   const starts = (sig: number[]) => sig.every((v, i) => b[i] === v);
   const at = (off: number, s: string) => b.slice(off, off + s.length).toString("latin1") === s;
   return (
@@ -533,25 +533,20 @@ export const uploadDniPhotos = multer({
   { name: "selfie", maxCount: 1 },
 ]);
 
-// License document storage (foto o PDF de matrícula)
-const licenseStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, LICENSE_DIR),
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `license-${uniqueSuffix}${ext}`);
-  },
-});
-
-export const uploadLicenseDocument = multer({
-  storage: licenseStorage,
+// Matrícula profesional: hasta dos archivos (frente y reverso), EN MEMORIA. El original nunca se escribe en disco: se
+// valida por contenido, se encripta y recién entonces se guarda (services/matricula.ts).
+export const uploadMatricula = multer({
+  storage: multer.memoryStorage(),
   fileFilter: (_req, file, cb) => {
-    const allowed = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
+    const allowed = [...ALLOWED_IMAGE_TYPES, "application/pdf"];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF'));
+    else cb(new Error("Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF"));
   },
-  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
-}).single('licenseDocument');
+  limits: { fileSize: 10 * 1024 * 1024, files: 2 },
+}).fields([
+  { name: "licenseDocument", maxCount: 1 },
+  { name: "licenseDocumentBack", maxCount: 1 },
+]);
 
 // Insurance document storage (foto o PDF del seguro del profesional)
 export const uploadInsuranceDocument = multer({

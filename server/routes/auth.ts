@@ -25,7 +25,12 @@ import { Op } from "sequelize";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
-import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
+import { logEvento } from "../utils/auditLog.js";
+import {
+  guardarArchivoDeMatricula, borrarArchivoDeMatricula, tipoDeContenido, presentarArchivosDeLaMatricula,
+  type LadoDeLaMatricula,
+} from "../services/matricula.js";
+import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
@@ -570,7 +575,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         licenseNumber: user?.licenseNumber,
         licenseCategory: user?.licenseCategory,
         licenseCertNumber: user?.licenseCertNumber,
-        licenseDocumentUrl: user?.licenseDocumentUrl,
+        // Nunca la referencia interna: sólo las direcciones por las que el dueño puede abrir sus archivos encriptados.
+        ...presentarArchivosDeLaMatricula(user as any, true),
         licenseVerified: user?.licenseVerified,
         licenseVerificationStatus: (user as any)?.licenseVerificationStatus,
         licenseRejectedReason: (user as any)?.licenseRejectedReason,
@@ -2258,38 +2264,115 @@ router.post("/dni-photos", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 // @route   POST /api/auth/license-document
-// @desc    Upload matrícula/certificado (imagen o PDF)
+// @desc    Subir la matrícula: hasta dos archivos, `licenseDocument` (frente) y `licenseDocumentBack` (reverso). Imagen o PDF.
+//          Se validan por contenido y se guardan ENCRIPTADOS: el original no se escribe en disco.
 // @access  Private
 router.post("/license-document", protect, (req: AuthRequest, res: Response): void => {
-  uploadLicenseDocument(req as any, res, async (err: any) => {
+  uploadMatricula(req as any, res, async (err: any) => {
     if (err) {
       res.status(400).json({ success: false, message: err.message });
       return;
     }
-    verifyMagicBytes(req as any, res, async () => {
     try {
-      const file = (req as any).file as Express.Multer.File | undefined;
-      if (!file) {
-        res.status(400).json({ success: false, message: "Debés subir un documento (imagen o PDF)" });
+      const archivos = ((req as any).files || {}) as Record<string, Express.Multer.File[]>;
+      const frente = archivos.licenseDocument?.[0];
+      const dorso = archivos.licenseDocumentBack?.[0];
+      if (!frente && !dorso) {
+        res.status(400).json({ success: false, message: "Debés subir al menos un archivo (imagen o PDF)" });
         return;
+      }
+      for (const a of [frente, dorso]) {
+        if (a && !tipoDeContenido(a.buffer)) {
+          res.status(400).json({ success: false, message: "Archivo inválido: el contenido no coincide con una imagen (JPG, PNG, WEBP) ni un PDF." });
+          return;
+        }
       }
       const user = await User.findByPk(req.user!.id);
       if (!user) {
         res.status(404).json({ success: false, message: "Usuario no encontrado" });
         return;
       }
-      const docUrl = `/uploads/licenses/${file.filename}`;
-      await user.update({ licenseDocumentUrl: docUrl });
+      if (dorso && !frente && !user.licenseDocumentUrl) {
+        res.status(400).json({ success: false, message: "Subí primero el frente de la matrícula" });
+        return;
+      }
+
+      const anteriores = { frente: user.licenseDocumentUrl, dorso: user.licenseDocumentBackUrl };
+      const cambios: Record<string, string> = {};
+      if (frente) cambios.licenseDocumentUrl = await guardarArchivoDeMatricula(frente.buffer);
+      if (dorso) cambios.licenseDocumentBackUrl = await guardarArchivoDeMatricula(dorso.buffer);
+      await user.update(cambios);
+
+      // Los archivos reemplazados se borran recién cuando los nuevos ya quedaron guardados.
+      if (frente && anteriores.frente) await borrarArchivoDeMatricula(anteriores.frente);
+      if (dorso && anteriores.dorso) await borrarArchivoDeMatricula(anteriores.dorso);
+      await logEvento({
+        action: "LICENSE_DOCUMENT_UPLOADED",
+        actor: `user:${user.id}`,
+        category: "user",
+        severity: "low",
+        description: `${user.email} subió ${[frente && "el frente", dorso && "el reverso"].filter(Boolean).join(" y ")} de su matrícula (encriptado)`,
+        performedBy: String(user.id),
+        targetModel: "User",
+        targetId: String(user.id),
+        targetIdentifier: user.email,
+        metadata: { frente: !!frente, reverso: !!dorso, reemplazoFrente: !!(frente && anteriores.frente), reemplazoReverso: !!(dorso && anteriores.dorso) },
+      });
+
       res.json({
         success: true,
         message: "Documento de matrícula subido correctamente.",
-        licenseDocumentUrl: docUrl,
+        ...presentarArchivosDeLaMatricula(user as any, true),
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }
-    });
   });
+});
+
+// @route   DELETE /api/auth/license-document/:lado   (lado = front | back)
+// @desc    Quitar un archivo de la matrícula propia. El frente sólo se puede quitar si no hay reverso.
+// @access  Private
+router.delete("/license-document/:lado", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const lado = req.params.lado as LadoDeLaMatricula;
+    if (lado !== "front" && lado !== "back") {
+      res.status(400).json({ success: false, message: "El lado tiene que ser front o back" });
+      return;
+    }
+    const user = await User.findByPk(req.user!.id);
+    if (!user) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
+    }
+    const campo = lado === "front" ? "licenseDocumentUrl" : "licenseDocumentBackUrl";
+    const ref = (user as any)[campo];
+    if (!ref) {
+      res.status(404).json({ success: false, message: "No hay un archivo cargado de ese lado" });
+      return;
+    }
+    if (lado === "front" && user.licenseDocumentBackUrl) {
+      res.status(400).json({ success: false, message: "Quitá primero el reverso" });
+      return;
+    }
+    await user.update({ [campo]: null } as any);
+    await borrarArchivoDeMatricula(ref);
+    await logEvento({
+      action: "LICENSE_DOCUMENT_REMOVED",
+      actor: `user:${user.id}`,
+      category: "user",
+      severity: "low",
+      description: `${user.email} quitó ${lado === "front" ? "el frente" : "el reverso"} de su matrícula`,
+      performedBy: String(user.id),
+      targetModel: "User",
+      targetId: String(user.id),
+      targetIdentifier: user.email,
+      changes: [{ field: campo, oldValue: "archivo encriptado", newValue: null }],
+    });
+    res.json({ success: true, message: "Archivo quitado.", ...presentarArchivosDeLaMatricula(user as any, true) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // @route   POST /api/auth/insurance-document

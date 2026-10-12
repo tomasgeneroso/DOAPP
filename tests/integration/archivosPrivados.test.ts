@@ -51,7 +51,7 @@ describe('/uploads: carpetas privadas', () => {
   const U: Record<string, any> = {};
   const con = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
 
-  const archivos = ['dni/dni-frente.jpg', 'licenses/matricula.pdf', 'payment-proofs/comprobante.png', 'worker-payment-proofs/transferencia.png', 'invoices/factura.pdf', 'avatars/avatar.png', 'job-images/foto.jpg'];
+  const archivos = ['dni/dni-frente.jpg', 'licenses/matricula.pdf', 'payment-proofs/comprobante.png', 'worker-payment-proofs/transferencia.png', 'invoices/factura.pdf', 'license-docs/license-1-0123456789ab.jpg.enc', 'avatars/avatar.png', 'job-images/foto.jpg'];
 
   beforeAll(async () => {
     raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'doapp-uploads-'));
@@ -112,7 +112,7 @@ describe('/uploads: carpetas privadas', () => {
   });
 
   describe('sin sesión', () => {
-    it.each(['/uploads/dni/dni-frente.jpg', '/uploads/payment-proofs/comprobante.png', '/uploads/worker-payment-proofs/transferencia.png', '/uploads/invoices/factura.pdf', '/api/uploads/dni/dni-frente.jpg'])(
+    it.each(['/uploads/dni/dni-frente.jpg', '/uploads/payment-proofs/comprobante.png', '/uploads/worker-payment-proofs/transferencia.png', '/uploads/invoices/factura.pdf', '/api/uploads/dni/dni-frente.jpg', '/uploads/license-docs/license-1-0123456789ab.jpg.enc'])(
       '%s → 401',
       async (ruta) => {
         const r = await request(app).get(ruta);
@@ -121,7 +121,7 @@ describe('/uploads: carpetas privadas', () => {
       },
     );
 
-    it.each(['/uploads/avatars/avatar.png', '/uploads/job-images/foto.jpg', '/api/uploads/avatars/avatar.png', '/uploads/licenses/matricula.pdf'])('lo público sigue público (la matrícula se le muestra a propósito a quien contrata): %s → 200', async (ruta) => {
+    it.each(['/uploads/avatars/avatar.png', '/uploads/job-images/foto.jpg', '/api/uploads/avatars/avatar.png', '/uploads/licenses/matricula.pdf'])('lo público sigue público (en licenses/ queda el seguro; la matrícula, encriptada, está en license-docs/ y se pide por la API): %s → 200', async (ruta) => {
       expect((await request(app).get(ruta)).status).toBe(200);
     });
 
@@ -154,6 +154,17 @@ describe('/uploads: carpetas privadas', () => {
     it('un token inválido es 401', async () => {
       const r = await request(app).get('/uploads/dni/dni-frente.jpg').set({ Authorization: 'Bearer token-roto' });
       expect(r.status).toBe(401);
+    });
+  });
+
+  describe('la matrícula encriptada (license-docs)', () => {
+    it('ni el dueño la baja por la ruta de archivos: se pide por GET /api/users/:id/license-document/:lado (403)', async () => {
+      expect((await request(app).get('/uploads/license-docs/license-1-0123456789ab.jpg.enc').set(con(U.dueno))).status).toBe(403);
+      expect((await request(app).get('/uploads/license-docs/license-1-0123456789ab.jpg.enc').set(con(U.ajeno))).status).toBe(403);
+    });
+
+    it('administración sí (lo que ve es el archivo encriptado)', async () => {
+      expect((await request(app).get('/uploads/license-docs/license-1-0123456789ab.jpg.enc').set(con(U.admin))).status).toBe(200);
     });
   });
 

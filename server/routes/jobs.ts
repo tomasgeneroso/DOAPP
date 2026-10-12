@@ -10,6 +10,7 @@ import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { aumentoPagadoEnRevision, describirAumentoPendiente } from "../services/aumentoDePrecio.js";
+import { puedeVerLosArchivosDeLaMatricula, presentarArchivosDeLaMatricula } from "../services/matricula.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
@@ -772,7 +773,7 @@ router.get("/:id",
           model: User,
           as: 'doer',
           attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
-            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified',
+            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseDocumentBackUrl', 'licenseVerified',
             'cancellationMarkUntil'],
           required: false
         }
@@ -801,12 +802,24 @@ router.get("/:id",
       const selectedWorkersData = await User.findAll({
         where: { id: { [Op.in]: jobData.selectedWorkers } },
         attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
-          'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified']
+          'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseDocumentBackUrl', 'licenseVerified']
       });
       jobData.selectedWorkersData = selectedWorkersData.map((w: any) => ({
         ...w.toJSON(),
         rating: w.rating ? parseFloat(w.rating) : 0
       }));
+    }
+
+    // Los archivos de la matrícula van encriptados: acá nunca sale la referencia interna, sólo la dirección para quien puede verlos.
+    const conArchivosDeMatriculaParaQuienMira = async (u: any) => {
+      if (!u) return u;
+      const { licenseDocumentUrl, licenseDocumentBackUrl, ...resto } = u;
+      const puede = await puedeVerLosArchivosDeLaMatricula(req.user as any, String(u.id));
+      return { ...resto, ...presentarArchivosDeLaMatricula({ id: u.id, licenseDocumentUrl, licenseDocumentBackUrl }, puede) };
+    };
+    if (jobData.doer) jobData.doer = await conArchivosDeMatriculaParaQuienMira(jobData.doer);
+    if (Array.isArray(jobData.selectedWorkersData)) {
+      jobData.selectedWorkersData = await Promise.all(jobData.selectedWorkersData.map(conArchivosDeMatriculaParaQuienMira));
     }
 
     // El dueño con un cambio de precio a medias ve si falta pagar o si ya pagó y espera al administrador (así ninguna

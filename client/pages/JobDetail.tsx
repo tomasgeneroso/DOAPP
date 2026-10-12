@@ -2618,6 +2618,12 @@ export default function JobDetail() {
                             {t('jobs.viewDocument', 'Ver documento')}
                           </a>
                         )}
+                        {isReg && job.doer.licenseDocumentBackUrl && (
+                          <a href={job.doer.licenseDocumentBackUrl} target="_blank" rel="noreferrer"
+                            className="text-sky-600 dark:text-sky-400 hover:underline font-medium">
+                            {t('jobs.viewDocumentBack', 'Ver reverso')}
+                          </a>
+                        )}
                         {job.doer.licenseVerified && (
                           // Declared, not verified — DOAPP does not check licences
                           // against any official registry yet (see Terms 4.4).

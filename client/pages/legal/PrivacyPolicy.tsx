@@ -84,6 +84,15 @@ export default function PrivacyPolicy() {
                   <li>{t('privacy.s1_3li3', 'Calificaciones y reseñas')}</li>
                   <li>{t('privacy.s1_3li4', 'Actividad de navegación y preferencias')}</li>
                 </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+                  {t('privacy.s1_4Title', '1.4 Matrícula Profesional (opcional)')}
+                </h3>
+                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
+                  <li>{t('privacy.s1_4li1', 'Número de matrícula, que declarás vos')}</li>
+                  <li>{t('privacy.s1_4li2', 'Hasta dos archivos de la matrícula (frente y reverso, si corresponde)')}</li>
+                  <li>{t('privacy.s1_4li3', 'DOAPP no verifica la matrícula: se basa en tu buena fe. El usuario que te contrata puede verificarla por sus propios medios una vez que ambos están vinculados en un contrato')}</li>
+                </ul>
               </section>
 
               <section className="mb-8">
@@ -117,6 +126,7 @@ export default function PrivacyPolicy() {
                   <li><Trans i18nKey="privacy.s3li5" components={{ b: <strong /> }} defaults="<b>Verificación de identidad:</b> Didit (didit.me) actúa como encargado del tratamiento para verificar tu identidad. Le transmitimos las imágenes de tu documento y de tu rostro, junto con los datos biométricos derivados necesarios para la prueba de vida, con la única finalidad de comprobar que sos vos y prevenir el fraude. No utilizamos esos datos para ningún otro fin ni los cedemos a terceros." /></li>
                   <li><Trans i18nKey="privacy.s3li3" components={{ b: <strong /> }} defaults="<b>Cumplimiento legal:</b> Cuando sea requerido por ley o para proteger nuestros derechos" /></li>
                   <li><Trans i18nKey="privacy.s3li4" components={{ b: <strong /> }} defaults="<b>Transferencias empresariales:</b> En caso de fusión, venta o reorganización" /></li>
+                  <li><Trans i18nKey="privacy.s3li6" components={{ b: <strong /> }} defaults="<b>Matrícula profesional:</b> el número que declarás puede verse en tu perfil y en tus propuestas. Los archivos de la matrícula solo los ve el personal autorizado de administración y, una vez que ambas partes están vinculadas en un contrato, el usuario contratante, para que pueda verificarla" /></li>
                 </ul>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mt-6 mb-2">
                   {t('privacy.s3intlTitle', 'Transferencia internacional de datos')}
@@ -139,6 +149,7 @@ export default function PrivacyPolicy() {
                   <li>{t('privacy.s4li3', 'Conexiones seguras mediante HTTPS/SSL')}</li>
                   <li>{t('privacy.s4li4', 'Monitoreo continuo de seguridad')}</li>
                   <li>{t('privacy.s4li5', 'Acceso restringido a información personal')}</li>
+                  <li>{t('privacy.s4li6', 'Cifrado de la matrícula profesional (número y archivos) en el almacenamiento, con acceso restringido')}</li>
                 </ul>
               </section>
 

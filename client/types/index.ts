@@ -47,6 +47,8 @@ export interface Job {
     licenseCategory?: string;
     licenseCertNumber?: string;
     licenseDocumentUrl?: string;
+    licenseDocumentBackUrl?: string;
+    hasLicenseDocument?: boolean;
     licenseVerified?: boolean;
   } | string;
   rejectedReason?: string;
@@ -167,6 +169,8 @@ export interface User {
   licenseCategory?: string;
   licenseCertNumber?: string;
   licenseDocumentUrl?: string;
+  licenseDocumentBackUrl?: string;
+  hasLicenseDocument?: boolean;
   licenseVerified?: boolean;
   address?: {
     street?: string;

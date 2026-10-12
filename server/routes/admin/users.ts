@@ -6,6 +6,7 @@ import { Job } from "../../models/sql/Job.model.js";
 import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
 import { BannedIdentity } from "../../models/sql/BannedIdentity.model.js";
 import emailService from "../../services/email.js";
+import { presentarArchivosDeLaMatricula, esAdministracionQueVeMatriculas } from "../../services/matricula.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
@@ -716,10 +717,18 @@ router.get(
         }),
       ]);
 
+      // La referencia de los archivos de la matrícula es interna (están encriptados): se entrega la dirección que los desencripta
+      // para quien tiene permiso, y si es PDF, para que la pantalla elija cómo mostrarlo.
+      const datosDelUsuario: any = user.toJSON();
+      Object.assign(datosDelUsuario, presentarArchivosDeLaMatricula(user as any, esAdministracionQueVeMatriculas(req.user)), {
+        licenseDocumentIsPdf: /\.pdf\.enc$/.test(String((user as any).licenseDocumentUrl || '')),
+        licenseDocumentBackIsPdf: /\.pdf\.enc$/.test(String((user as any).licenseDocumentBackUrl || '')),
+      });
+
       res.json({
         success: true,
         data: {
-          user: user.toJSON(),
+          user: datosDelUsuario,
           jobs: jobs.map((j: any) => ({ id: j.id, title: j.title, status: j.status, price: j.price, createdAt: j.createdAt })),
           contracts: contracts.map((c: any) => ({ id: c.id, status: c.status, price: c.price, createdAt: c.createdAt })),
         },

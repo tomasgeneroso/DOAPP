@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import InsuranceUpload from "../components/InsuranceUpload";
+import MatriculaArchivos from "../components/MatriculaArchivos";
 import AttentionDot from "../components/AttentionDot";
 import CredibilityBadge from "../components/CredibilityBadge";
 import KycButton from "../components/KycButton";
@@ -215,11 +216,10 @@ function ProfessionTab({
   licenseCategory, setLicenseCategory,
   licenseCertNumber, setLicenseCertNumber,
   licenseDocumentUrl, setLicenseDocumentUrl,
+  licenseDocumentBackUrl, setLicenseDocumentBackUrl,
   licenseVerified,
   licenseVerificationStatus,
   licenseRejectedReason,
-  licenseFile, setLicenseFile,
-  licenseUploading, setLicenseUploading,
   token,
 }: {
   profession: string; setProfession: (v: string) => void;
@@ -227,36 +227,14 @@ function ProfessionTab({
   licenseCategory: string; setLicenseCategory: (v: string) => void;
   licenseCertNumber: string; setLicenseCertNumber: (v: string) => void;
   licenseDocumentUrl: string; setLicenseDocumentUrl: (v: string) => void;
+  licenseDocumentBackUrl: string; setLicenseDocumentBackUrl: (v: string) => void;
   licenseVerified: boolean;
   licenseVerificationStatus?: string;
   licenseRejectedReason?: string;
-  licenseFile: File | null; setLicenseFile: (f: File | null) => void;
-  licenseUploading: boolean; setLicenseUploading: (v: boolean) => void;
   token: string;
 }) {
   const { t } = useTranslation();
   const isRegulated = REGULATED_PROFESSIONS.includes(profession);
-
-  const handleUpload = async () => {
-    if (!licenseFile) return;
-    setLicenseUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('licenseDocument', licenseFile);
-      const res = await fetch('/api/auth/license-document', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      const data = await res.json();
-      if (data.success) {
-        setLicenseDocumentUrl(data.licenseDocumentUrl);
-        setLicenseFile(null);
-      }
-    } finally {
-      setLicenseUploading(false);
-    }
-  };
 
   const profLabel = t(`professions.${profession || 'unspecified'}`, PROFESSION_OPTIONS.find(p => p.value === profession)?.label || '');
 
@@ -363,66 +341,14 @@ function ProfessionTab({
             </div>
           </div>
 
-          {/* Upload documento */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-              Foto o PDF del certificado <span className="text-red-500">*</span>
-            </label>
-            {licenseDocumentUrl ? (
-              <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
-                <ShieldCheck className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span className="text-sm text-green-700 dark:text-green-300 flex-1 truncate">
-                  Documento cargado
-                </span>
-                <a
-                  href={licenseDocumentUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-sky-600 hover:text-sky-700 underline"
-                >
-                  Ver
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setLicenseDocumentUrl('')}
-                  className="text-red-400 hover:text-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="flex flex-col items-center justify-center gap-2 h-28 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
-                  <Upload className="w-6 h-6 text-slate-400" />
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {licenseFile ? licenseFile.name : t('settings.dropFileHere')}
-                  </span>
-                  <span className="text-xs text-slate-400">{t('settings.fileHint10mb')}</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                    onChange={e => setLicenseFile(e.target.files?.[0] ?? null)}
-                  />
-                </label>
-                {licenseFile && (
-                  <button
-                    type="button"
-                    onClick={handleUpload}
-                    disabled={licenseUploading}
-                    className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
-                  >
-                    {licenseUploading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4" />
-                    )}
-                    {licenseUploading ? 'Subiendo...' : 'Subir documento'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Archivos de la matrícula: frente y reverso, encriptados */}
+          <MatriculaArchivos
+            token={token}
+            frente={licenseDocumentUrl}
+            dorso={licenseDocumentBackUrl}
+            setFrente={setLicenseDocumentUrl}
+            setDorso={setLicenseDocumentBackUrl}
+          />
         </div>
       )}
 
@@ -507,11 +433,10 @@ export default function UserSettings() {
   const [licenseCategory, setLicenseCategory] = useState("");
   const [licenseCertNumber, setLicenseCertNumber] = useState("");
   const [licenseDocumentUrl, setLicenseDocumentUrl] = useState("");
+  const [licenseDocumentBackUrl, setLicenseDocumentBackUrl] = useState("");
   const [licenseVerified, setLicenseVerified] = useState(false);
   const [licenseVerificationStatus, setLicenseVerificationStatus] = useState<string>('pending');
   const [licenseRejectedReason, setLicenseRejectedReason] = useState("");
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const [licenseUploading, setLicenseUploading] = useState(false);
 
   // Notifications
   const [notifPrefs, setNotifPrefs] = useState({
@@ -553,6 +478,7 @@ export default function UserSettings() {
       setLicenseCategory(user.licenseCategory || "");
       setLicenseCertNumber(user.licenseCertNumber || "");
       setLicenseDocumentUrl(user.licenseDocumentUrl || "");
+      setLicenseDocumentBackUrl((user as any).licenseDocumentBackUrl || "");
       setLicenseVerified(user.licenseVerified || false);
       setLicenseVerificationStatus((user as any).licenseVerificationStatus || 'pending');
       setLicenseRejectedReason((user as any).licenseRejectedReason || "");
@@ -954,11 +880,10 @@ export default function UserSettings() {
                   licenseCategory={licenseCategory} setLicenseCategory={setLicenseCategory}
                   licenseCertNumber={licenseCertNumber} setLicenseCertNumber={setLicenseCertNumber}
                   licenseDocumentUrl={licenseDocumentUrl} setLicenseDocumentUrl={setLicenseDocumentUrl}
+                  licenseDocumentBackUrl={licenseDocumentBackUrl} setLicenseDocumentBackUrl={setLicenseDocumentBackUrl}
                   licenseVerified={licenseVerified}
                   licenseVerificationStatus={licenseVerificationStatus}
                   licenseRejectedReason={licenseRejectedReason}
-                  licenseFile={licenseFile} setLicenseFile={setLicenseFile}
-                  licenseUploading={licenseUploading} setLicenseUploading={setLicenseUploading}
                   token={token || ''}
                 />
               )}

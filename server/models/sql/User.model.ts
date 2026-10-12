@@ -16,6 +16,7 @@ import {
 } from 'sequelize-typescript';
 import * as bcrypt from 'bcryptjs';
 import { encryptCBU, decryptCBU, maskCBU, encrypt, decrypt, isEncrypted } from '../../utils/encryption.js';
+import { matriculaLeida, matriculaParaGuardar } from '../../utils/matriculaCifrada.js';
 import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
 import { limpiarCampos } from '../../utils/limpiarCampos.js';
 
@@ -210,7 +211,17 @@ export class User extends Model {
   @Column(DataType.STRING(100))
   profession?: string;
 
-  @Column(DataType.STRING(100))
+  // Se guarda ENCRIPTADO (AES-256-GCM): el get/set lo hace acá para que el resto del código siga viendo el número en
+  // claro. Ver server/utils/matriculaCifrada.ts. Por eso la columna es TEXT: lo encriptado es más largo que el número.
+  @Column({
+    type: DataType.TEXT,
+    get(this: any) {
+      return matriculaLeida(this.getDataValue("licenseNumber"));
+    },
+    set(this: any, valor: unknown) {
+      this.setDataValue("licenseNumber", matriculaParaGuardar(valor));
+    },
+  })
   licenseNumber?: string;
 
   @Column(DataType.STRING(100))
@@ -219,8 +230,14 @@ export class User extends Model {
   @Column(DataType.STRING(100))
   licenseCertNumber?: string;
 
+  // Referencia interna al archivo ENCRIPTADO de la matrícula (frente). No es una dirección que se pueda abrir: el
+  // archivo se entrega por GET /api/users/:id/license-document/front, que decide quién lo puede ver.
   @Column(DataType.TEXT)
   licenseDocumentUrl?: string;
+
+  // Idem, reverso (opcional).
+  @Column(DataType.TEXT)
+  licenseDocumentBackUrl?: string;
 
   @Default(false)
   @AllowNull(false)
