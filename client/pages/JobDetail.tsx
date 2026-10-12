@@ -673,7 +673,7 @@ export default function JobDetail() {
     setLoadingChat(true);
     try {
       const response = await fetch(
-        `/api/chat/conversations/by-contract/${contractData.id}`,
+        `/api/chat/contract/${contractData.id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -681,8 +681,8 @@ export default function JobDetail() {
         },
       );
       const data = await response.json();
-      if (data.success && data.conversation) {
-        navigate(`/chat/${data.conversation.id || data.conversation.id}`);
+      if (data.success && data.data?.id) {
+        navigate(`/chat/${data.data.id}`);
       } else {
         setErrorMessage(t("chat.couldNotOpen", "Could not open chat"));
         setShowErrorModal(true);

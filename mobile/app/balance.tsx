@@ -30,6 +30,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { getBalance, getTransactions, requestWithdrawal, getWithdrawals } from '../services/balance';
+import { extraerFacturas, pedirDireccionDeDescarga } from '../services/facturas';
 import { get } from '../services/api';
 import { BalanceTransaction, WithdrawalRequest, Invoice } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
@@ -67,7 +68,7 @@ export default function BalanceScreen() {
         getBalance(),
         getTransactions(),
         getWithdrawals(),
-        get<{ success: boolean; data: { invoices: Invoice[] } }>('/payments/invoices').catch(() => null),
+        get<any>('/payments/invoices').catch(() => null),
       ]);
 
       if (balanceRes.success && balanceRes.data) {
@@ -83,9 +84,8 @@ export default function BalanceScreen() {
         setWithdrawals(withdrawalsRes.data.withdrawals || []);
       }
 
-      if (invoicesRes?.success && invoicesRes?.data) {
-        setInvoices(invoicesRes.data.invoices || []);
-      }
+      // El servidor responde { success, invoices }: ver services/facturas.ts.
+      setInvoices(extraerFacturas(invoicesRes) as Invoice[]);
     } catch (error) {
       console.error('Error fetching balance data:', error);
     } finally {
@@ -221,15 +221,20 @@ export default function BalanceScreen() {
 
   const handleDownloadInvoice = async (invoiceId: string) => {
     try {
-      const { API_URL } = await import('../services/api');
-      const url = `${API_URL}/payments/invoices/${invoiceId}/download`;
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank');
-      } else {
-        Linking.openURL(url);
+      // La descarga protegida pide sesión y el navegador del teléfono no la manda: se pide una dirección firmada de 5 minutos.
+      const r = await pedirDireccionDeDescarga(invoiceId);
+      if (!r.ok) {
+        Alert.alert('No se pudo descargar la factura', r.mensaje);
+        return;
       }
-    } catch (error) {
+      if (Platform.OS === 'web') {
+        window.open(r.url, '_blank');
+      } else {
+        await Linking.openURL(r.url);
+      }
+    } catch (error: any) {
       console.error('Error downloading invoice:', error);
+      Alert.alert('No se pudo descargar la factura', error?.message || 'Probá de nuevo en un momento.');
     }
   };
 

@@ -24,6 +24,8 @@ import logger from "../services/logger.js";
 import { avisarPagoRecibido } from "../services/avisoDePago.js";
 import { aplicarAumentoDePrecio, dejarAumentoEnRevision, aumentoPagadoEnRevision } from "../services/aumentoDePrecio.js";
 import { urlsDeRetorno } from "../services/urlsDeRetorno.js";
+import { firmarDescargaDeFactura, verificarDescargaDeFactura } from "../services/descargaDeFactura.js";
+import { clasificarPagoExistente, anularPagoHuerfano, direccionDePagoGuardada } from "../services/pagoDeContrato.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
@@ -1876,17 +1878,35 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
     // Check for existing payment. También cuenta uno ya cobrado que espera al administrador (pendiente de verificación,
     // verificado, en proceso o completado): antes sólo se miraban pending/approved/held_escrow, y quien ya había pagado y
     // esperaba la verificación podía pagar una segunda vez.
-    const existingPayment = await Payment.findOne({
+    const existentes = await Payment.findAll({
       where: {
         contractId: contract.id,
         paymentType: { [Op.in]: ["contract_payment", "escrow_deposit", "contract"] },
         status: { [Op.in]: ["pending", "processing", "pending_verification", "verified", "approved", "held_escrow", "completed"] }
-      }
+      },
+      order: [["createdAt", "DESC"]],
     });
 
-    if (existingPayment) {
+    // Se miran TODOS los pagos del contrato: si uno solo es plata en movimiento, no se crea otro. Un «pending» limpio se
+    // anula (si nunca llegó a Mercado Pago) o se reanuda (misma dirección de pago, mismo registro); ver pagoDeContrato.ts.
+    const clasificados = existentes.map((p) => ({ p, tipo: clasificarPagoExistente(p as any, contract as any) }));
+    if (clasificados.some((x) => x.tipo === "bloquea")) {
       res.status(400).json({ success: false, message: "Payment already exists for this contract" });
       return;
+    }
+    const reanudable = clasificados.find((x) => x.tipo === "reanudable");
+    if (reanudable) {
+      res.json({
+        success: true,
+        reanudado: true,
+        paymentUrl: direccionDePagoGuardada(reanudable.p as any),
+        paymentId: reanudable.p.id,
+        preferenceId: (reanudable.p as any).mercadopagoPreferenceId,
+      });
+      return;
+    }
+    for (const x of clasificados) {
+      await anularPagoHuerfano(x.p, "Se había iniciado el pago pero nunca llegó a Mercado Pago; el cliente pidió pagar de nuevo.", `user:${userId}`);
     }
 
     const jobTitle = (contract.job as any).title || 'Contrato';
@@ -1912,24 +1932,34 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
     });
 
     const mercadoPagoService = (await import('../services/mercadopago.js')).default;
-    const orden = await mercadoPagoService.createPayment({
-      amount: Number(contract.totalPrice),
-      currency: "ARS",
-      description: `Contrato: ${jobTitle}`,
-      provider: 'mercadopago',
-      metadata: {
-        payment_id: payment.id,
-        type: 'contract',
-        contract_id: contract.id,
-      },
-      ...urlsDeRetorno(
-        req.body?.origen,
-        { exito: `${config.clientUrl}/contracts/${contract.id}?pago=ok`, cancelado: `${config.clientUrl}/contracts/${contract.id}?pago=cancelado` },
-        { tipo: 'contrato', ids: { contractId: String(contract.id) } },
-      ),
-    });
+    let orden: Awaited<ReturnType<typeof mercadoPagoService.createPayment>>;
+    try {
+      orden = await mercadoPagoService.createPayment({
+        amount: Number(contract.totalPrice),
+        currency: "ARS",
+        description: `Contrato: ${jobTitle}`,
+        provider: 'mercadopago',
+        metadata: {
+          payment_id: payment.id,
+          type: 'contract',
+          contract_id: contract.id,
+        },
+        ...urlsDeRetorno(
+          req.body?.origen,
+          { exito: `${config.clientUrl}/contracts/${contract.id}?pago=ok`, cancelado: `${config.clientUrl}/contracts/${contract.id}?pago=cancelado` },
+          { tipo: 'contrato', ids: { contractId: String(contract.id) } },
+        ),
+      });
+    } catch (errorDeMp: any) {
+      // El registro se creó antes de hablar con Mercado Pago; si la preferencia no se armó, nadie lo puede pagar y no
+      // tiene que quedar «pending» bloqueando el próximo intento.
+      await anularPagoHuerfano(payment, `Mercado Pago no pudo armar la preferencia: ${errorDeMp?.message || 'error desconocido'}`, 'system');
+      throw errorDeMp;
+    }
 
     (payment as any).mercadopagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    // La dirección de pago queda guardada: si el cliente cierra el checkout, se la puede devolver (mismo pago, sin cobrar dos veces).
+    (payment as any).metadata = { ...((payment as any).metadata || {}), checkoutUrl: orden.checkoutUrl };
     await payment.save();
 
     // Update contract with payment reference
@@ -2804,6 +2834,57 @@ router.get("/invoices/:id/download", protect, async (req: AuthRequest, res: Resp
     const filename = `factura_${invoice.invoiceNumber}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    fs.createReadStream(invoice.pdfUrl).pipe(res);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error descargando factura" });
+  }
+});
+
+/**
+ * Pedir una dirección de descarga de corta vida (5 minutos) para una factura propia.
+ * POST /api/payments/invoices/:id/download-link
+ *
+ * La app abre el PDF con el navegador del teléfono, que no manda la sesión: ver services/descargaDeFactura.ts.
+ */
+router.post("/invoices/:id/download-link", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const invoice = await getInvoiceById(req.params.id, req.user.id);
+    if (!invoice) {
+      res.status(404).json({ success: false, message: "Factura no encontrada" });
+      return;
+    }
+    const firma = firmarDescargaDeFactura(String(invoice.id), String(req.user.id));
+    res.json({
+      success: true,
+      // Relativa a /api: cada cliente (la app) la completa con su propia dirección base.
+      ruta: `/payments/invoices/${invoice.id}/download-signed?t=${encodeURIComponent(firma)}`,
+      venceEnSegundos: 300,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error preparando la descarga" });
+  }
+});
+
+/**
+ * Descargar el PDF con una dirección firmada (sin sesión: la firma es la autorización).
+ * GET /api/payments/invoices/:id/download-signed?t=<firma>
+ */
+router.get("/invoices/:id/download-signed", async (req, res: Response): Promise<void> => {
+  try {
+    const autorizado = verificarDescargaDeFactura(req.query.t, req.params.id);
+    if (!autorizado) {
+      res.status(401).json({ success: false, message: "El enlace de descarga no es válido o venció. Pedí uno nuevo desde la app." });
+      return;
+    }
+    // La factura tiene que seguir siendo de la persona que firmó (no sólo existir).
+    const invoice = await getInvoiceById(req.params.id, autorizado.usuarioId);
+    if (!invoice || !invoice.pdfUrl || !fs.existsSync(invoice.pdfUrl)) {
+      res.status(404).json({ success: false, message: "Archivo PDF no encontrado" });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="factura_${invoice.invoiceNumber}.pdf"`);
+    res.setHeader('Cache-Control', 'no-store');
     fs.createReadStream(invoice.pdfUrl).pipe(res);
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || "Error descargando factura" });

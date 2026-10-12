@@ -176,16 +176,34 @@ export default function ContractDetail() {
 
     setLoadingChat(true);
     try {
-      const response = await api.get(`/chat/conversations/by-contract/${id}`);
-      if (response.data.success && response.data.conversation) {
+      const response = await api.get(`/chat/contract/${id}`);
+      if (response.success && response.data?.id) {
         // Navigate to chat with conversation ID
-        navigate(`/chat/${response.data.conversation.id}`);
+        navigate(`/chat/${response.data.id}`);
       }
     } catch (error) {
       console.error("Error opening chat:", error);
       notify(t('contracts.errorOpeningChat', 'Error opening chat. Please try again.'));
     } finally {
       setLoadingChat(false);
+    }
+  };
+
+  const [acceptingContract, setAcceptingContract] = useState(false);
+  // Cuando administración aprueba el contrato ("ready"), las dos partes lo aceptan; recién ahí pasa a "accepted".
+  const handleAcceptContract = async () => {
+    if (!id || acceptingContract) return;
+    setAcceptingContract(true);
+    try {
+      const response = await api.put(`/contracts/${id}/accept`);
+      if (response.success) {
+        notify(response.message || t('contracts.contractAcceptedNotice', 'Aceptaste el contrato.'), 'success');
+        loadContract();
+      }
+    } catch (error: any) {
+      notify(error.message || t('contracts.errorAcceptingContract', 'No se pudo aceptar el contrato.'));
+    } finally {
+      setAcceptingContract(false);
     }
   };
 
@@ -196,12 +214,12 @@ export default function ContractDetail() {
     setPairingMessage("");
     try {
       const response = await api.post(`/contracts/${id}/generate-pairing`);
-      if (response.data.success) {
+      if (response.success) {
         setPairingMessage(t('contracts.pairingCodeGenerated', 'Code generated successfully'));
         loadContract(); // Reload to get the new code
       }
     } catch (error: any) {
-      setPairingMessage(error.response?.data?.message || t('contracts.errorGeneratingCode', 'Error generating code'));
+      setPairingMessage(error.message || t('contracts.errorGeneratingCode', 'Error generating code'));
     } finally {
       setLoadingPairing(false);
     }
@@ -216,13 +234,13 @@ export default function ContractDetail() {
       const response = await api.post(`/contracts/${id}/confirm-pairing`, {
         code: pairingCode.toUpperCase()
       });
-      if (response.data.success) {
+      if (response.success) {
         setPairingMessage(t('contracts.pairingCodeConfirmed', 'Code confirmed successfully!'));
         setPairingCode("");
         loadContract();
       }
     } catch (error: any) {
-      const msg = error.response?.data?.message || t('contracts.errorConfirmingCode', 'Error confirming code');
+      const msg = error.message || t('contracts.errorConfirmingCode', 'Error confirming code');
       setPairingMessage(msg);
       if (msg.toLowerCase().includes('incorrecto') || msg.toLowerCase().includes('expirado')) {
         setPairingFailed(true);
@@ -251,13 +269,13 @@ export default function ContractDetail() {
     setPairingMessage('');
     try {
       const response = await api.post(`/contracts/${id}/force-start-pairing`);
-      if (response.data.success) {
-        setPairingMessage(response.data.message);
+      if (response.success) {
+        setPairingMessage(response.message);
         setPairingFailed(false);
         loadContract();
       }
     } catch (error: any) {
-      setPairingMessage(error.response?.data?.message || 'Error al iniciar');
+      setPairingMessage(error.message || 'Error al iniciar');
     } finally {
       setLoadingPairing(false);
     }
@@ -310,7 +328,7 @@ export default function ContractDetail() {
         loadContract();
       }
     } catch (error: any) {
-      notify(error.response?.data?.message || t('contracts.errorConfirming', 'Error confirming'));
+      notify(error.message || t('contracts.errorConfirming', 'Error confirming'));
     } finally {
       setConfirmingWork(false);
     }
@@ -345,7 +363,7 @@ export default function ContractDetail() {
         }
       }
     } catch (error: any) {
-      notify(error.response?.data?.message || t('contracts.errorConfirmingCompletion', 'Error confirming work completion'));
+      notify(error.message || t('contracts.errorConfirmingCompletion', 'Error confirming work completion'));
     } finally {
       setConfirmingWork(false);
     }
@@ -368,7 +386,7 @@ export default function ContractDetail() {
         loadContract();
       }
     } catch (error: any) {
-      notify(error.response?.data?.message || t('contracts.errorRejecting', 'Error rejecting'));
+      notify(error.message || t('contracts.errorRejecting', 'Error rejecting'));
     } finally {
       setConfirmingWork(false);
     }
@@ -812,6 +830,20 @@ export default function ContractDetail() {
                       <span className="text-sm">{t('contracts.worker', 'Worker')}: {contract.termsAcceptedByDoer ? t('contracts.accepted', 'Accepted') : t('contracts.pending', 'Pending')}</span>
                     </div>
                   </div>
+                  {contract.status === 'ready' && ((isClient && !contract.termsAcceptedByClient) || (isDoer && !contract.termsAcceptedByDoer)) && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        {t('contracts.acceptHint', 'Administración ya revisó el contrato. Para avanzar, las dos partes tienen que aceptarlo.')}
+                      </p>
+                      <button
+                        onClick={handleAcceptContract}
+                        disabled={acceptingContract}
+                        className="w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {acceptingContract ? t('contracts.accepting', 'Aceptando...') : t('contracts.acceptContract', 'Aceptar el contrato')}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Verificación de Código de Emparejamiento */}
