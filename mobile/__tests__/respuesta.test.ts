@@ -112,3 +112,14 @@ describe('las pantallas leen las respuestas con el lector común', () => {
     expect(leer(rel)).toMatch(/from '\.\.\/\.\.\/services\/respuesta'/);
   });
 });
+
+describe('DailyLogPanel no se cae con una respuesta rara', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const path = require('path');
+  it('sale sin dibujar si no hay `dias` en forma de lista o no hay total', () => {
+    const t = fs.readFileSync(path.join(__dirname, '..', 'components/DailyLogPanel.tsx'), 'utf8').replace(/\r\n/g, '\n');
+    expect(t).toMatch(/if \(!vista \|\| !Array\.isArray\(vista\.dias\) \|\| !vista\.total\) return null;/);
+  });
+});

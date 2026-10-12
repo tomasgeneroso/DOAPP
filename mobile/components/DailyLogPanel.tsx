@@ -163,7 +163,8 @@ export default function DailyLogPanel({ contractId, rol, soloLectura = false }: 
     );
   }
 
-  if (!vista || vista.total === 0) return null;
+  // Una respuesta sin `dias` (o sin días) no tiene nada que dibujar: no tiene que tumbar la pantalla del contrato.
+  if (!vista || !Array.isArray(vista.dias) || !vista.total) return null;
 
   const hayPendientes = vista.dias.some(
     (d) => d.editable && !(rol === 'client' ? d.marcoCliente : d.marcoTrabajador),
