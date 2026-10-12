@@ -95,6 +95,7 @@ export { ContactMessage } from './ContactMessage.model.js';
 
 // Family/Friends codes
 export { FamilyCode } from './FamilyCode.model.js';
+export { InfluencerInvite } from './InfluencerInvite.model.js';
 
 // ============================================
 // TYPE EXPORTS

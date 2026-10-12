@@ -167,6 +167,7 @@ async function registerModels() {
   const { ContactMessage } = await import('../models/sql/ContactMessage.model.js');
   const { default: PaymentProof } = await import('../models/sql/PaymentProof.model.js');
   const { FamilyCode } = await import('../models/sql/FamilyCode.model.js');
+  const { InfluencerInvite } = await import('../models/sql/InfluencerInvite.model.js');
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
   const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
@@ -216,6 +217,7 @@ async function registerModels() {
     BlogPost,
     ContactMessage,
     FamilyCode,
+    InfluencerInvite,
     Invoice,
     Quote,
     BlacklistEntry,

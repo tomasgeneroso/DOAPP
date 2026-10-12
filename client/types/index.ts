@@ -243,6 +243,8 @@ export interface RegisterData {
   dni: string;
   termsAccepted: boolean;
   referralCode?: string;
+  /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un año desde el canje. */
+  invitationCode?: string;
   cbu?: string;
 }
 

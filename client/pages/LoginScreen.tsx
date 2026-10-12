@@ -44,6 +44,19 @@ export default function LoginScreen() {
   const initialMode: FormMode = location.pathname === '/register' ? 'register' : 'login';
 
   const [mode, setMode] = useState<FormMode>(initialMode);
+  // Invitación de un creador de contenido: llega por /invitacion/<código> → /register?invitacion=<código> (y se guarda un rato
+  // por si la persona da una vuelta antes de registrarse). Sólo se manda al servidor; él valida y canjea.
+  const [invitationCode] = useState<string>(() => {
+    const deLaDireccion = new URLSearchParams(location.search).get("invitacion");
+    let guardada = "";
+    try {
+      guardada = sessionStorage.getItem("doapp:invitacion") || "";
+    } catch {
+      /* sin almacenamiento */
+    }
+    return String(deLaDireccion || guardada || "").trim().toUpperCase().slice(0, 24);
+  });
+  const [invitacionResultado, setInvitacionResultado] = useState<{ aplicada: boolean; mensaje: string } | null>(null);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -221,9 +234,18 @@ export default function LoginScreen() {
           phone: formData.phone,
           dni: formData.dni,
           referralCode: formData.referralCode || undefined,
+          invitationCode: invitationCode || undefined,
           cbu: formData.cbu || undefined,
           termsAccepted: formData.termsAccepted,
         });
+
+        // Si venía con una invitación, se le cuenta si se aplicó (o por qué no) y se deja de recordarla.
+        if ((newUser as any)?.invitacion) setInvitacionResultado((newUser as any).invitacion);
+        try {
+          sessionStorage.removeItem("doapp:invitacion");
+        } catch {
+          /* sin almacenamiento */
+        }
 
         // Track signup event
         analytics.signup('email');
@@ -313,6 +335,17 @@ export default function LoginScreen() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             {t('auth.verificationSpamNote')}
           </p>
+          {invitacionResultado && (
+            <p
+              className={`text-sm mb-4 rounded-lg px-3 py-2 ${
+                invitacionResultado.aplicada
+                  ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                  : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+              }`}
+            >
+              {invitacionResultado.mensaje}
+            </p>
+          )}
           <BetaNotice className="mb-6 text-left" />
           {verificationSent && (
             <p className="text-sm text-green-600 dark:text-green-400 mb-4">{t('auth.newLinkSent')}</p>
@@ -711,6 +744,13 @@ export default function LoginScreen() {
                   </p>
                 </div>
 
+
+                {invitationCode && (
+                  <div className="rounded-lg border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-2 text-sm text-green-800 dark:text-green-300">
+                    <p className="font-medium">Venís con una invitación</p>
+                    <p className="text-xs mt-0.5">Al crear tu cuenta se aplica: no pagás comisión por tus contratos como Cliente durante el plazo de la invitación (Términos, punto 7.11). Código: <span className="font-mono">{invitationCode}</span></p>
+                  </div>
+                )}
 
                 <div>
                   <label

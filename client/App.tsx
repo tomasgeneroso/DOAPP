@@ -116,6 +116,8 @@ const AdminManual = lazy(() => import("./pages/admin/Manual"));
 const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
+const AdminInfluencerInvites = lazy(() => import("./pages/admin/InfluencerInvites"));
+const InvitacionPage = lazy(() => import("./pages/InvitacionPage"));
 const AdminBusinessPlan = lazy(() => import("./pages/admin/BusinessPlan"));
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMonitor"));
 const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
@@ -338,6 +340,7 @@ export default function App() {
               <Route path="/payment/success" element={<PaymentSuccess />} />
               {/* Pública (sin sesión): a donde vuelve Mercado Pago cuando se pagó desde la app del celular */}
               <Route path="/payment/app-return" element={<PagoDesdeApp />} />
+              <Route path="/invitacion/:codigo" element={<InvitacionPage />} />
               <Route path="/payment/cancel" element={<PaymentCancel />} />
               <Route
                 path="/membership/pricing"
@@ -715,6 +718,7 @@ export default function App() {
               <Route path="manual" element={<AdminManual />} />
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
+              <Route path="influencer-invites" element={<AdminInfluencerInvites />} />
               <Route path="business-plan" element={<AdminBusinessPlan />} />
               {/* La proyección dice "si pasa X, cuánto gano"; esto dice si el
                   negocio cierra. Dos preguntas, dos pantallas. */}

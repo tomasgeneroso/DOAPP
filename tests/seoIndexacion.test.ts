@@ -55,6 +55,7 @@ describe('decisión de indexación por ruta', () => {
     '/balance',
     '/forgot-password',
     '/payment/success',
+    '/invitacion/INF-ABCDEFGHJKMN', // enlace personal de un creador de contenido: no va a Google
     '/ruta-que-no-existe',
     '/blog/create',
   ])('%s NO se indexa', (ruta) => {

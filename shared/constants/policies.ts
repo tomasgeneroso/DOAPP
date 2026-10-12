@@ -26,6 +26,20 @@
 
 export const POLITICAS = {
   /**
+   * Invitaciones de creadores de contenido (influencers). Cada invitación es de UN solo uso y, al canjearla (al registrarse
+   * o desde la cuenta), esa cuenta no paga la comisión de la Plataforma por sus contratos como Cliente durante estos días
+   * corridos desde el canje. No alcanza el costo de procesamiento del pago ni los impuestos. T&C 7.11.
+   *
+   * Corre desde el canje, también durante la beta (en la que la comisión ya es 0): quien canjea antes del cierre de la beta
+   * tiene menos meses de beneficio real. Si se quisiera que el año empiece al cierre de la beta, se cambia en un solo lugar
+   * (server/services/invitacionesInfluencer.ts, calcularFinDelBeneficio).
+   */
+  INVITACION_DIAS_SIN_COMISION: 365,
+
+  /** Cuántas invitaciones recibe cada creador de contenido al darlo de alta. */
+  INVITACIONES_POR_INFLUENCER: 5,
+
+  /**
    * Horas en awaiting_confirmation antes de que el contrato se confirme solo y
    * el escrow se libere al trabajador. T&C 7.6.
    */

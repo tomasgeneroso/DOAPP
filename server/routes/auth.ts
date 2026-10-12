@@ -26,6 +26,7 @@ import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { logEvento } from "../utils/auditLog.js";
+import { canjearInvitacion } from "../services/invitacionesInfluencer.js";
 import {
   guardarArchivoDeMatricula, borrarArchivoDeMatricula, tipoDeContenido, presentarArchivosDeLaMatricula,
   type LadoDeLaMatricula,
@@ -139,7 +140,7 @@ router.post(
         return;
       }
 
-      const { name, username, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu } = req.body;
+      const { name, username, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu, invitationCode } = req.body;
       // El correo se compara y se guarda en minúscula y sin espacios: el modelo ya lo pasaba a minúscula al crear, pero
       // esta búsqueda no, así que "Juan@x.com" pasaba el control de duplicados y el INSERT chocaba después con el
       // índice único (un 500 con el mensaje de la base).
@@ -244,6 +245,21 @@ router.post(
         await referrer.save();
       }
 
+      // Invitación de un creador de contenido (T&C 7.11): se canjea con la cuenta recién creada. Si no sirve, la cuenta queda
+      // creada igual y se le cuenta el motivo (el enlace ya se validó antes de llegar acá, pero pudo usarse mientras tanto).
+      let invitacion: { aplicada: boolean; mensaje: string; hasta?: Date } | undefined;
+      if (invitationCode) {
+        try {
+          const r = await canjearInvitacion(String(user.id), invitationCode);
+          invitacion = r.ok === false
+            ? { aplicada: false, mensaje: r.mensaje }
+            : { aplicada: true, hasta: r.hasta, mensaje: `Invitación aplicada: no pagás comisión por tus contratos como Cliente hasta el ${r.hasta.toLocaleDateString('es-AR')}.` };
+        } catch (e: any) {
+          console.error('[register] no se pudo canjear la invitación:', e?.message);
+          invitacion = { aplicada: false, mensaje: 'No pudimos aplicar la invitación. Probá canjearla de nuevo desde el enlace con tu sesión iniciada.' };
+        }
+      }
+
       // Send email verification (non-blocking)
       await sendVerificationEmailToUser(user);
 
@@ -262,6 +278,7 @@ router.post(
         success: true,
         token, // Mantener para compatibilidad temporal
         requiresEmailVerification: true,
+        invitacion,
         user: {
           id: user.id, // Alias for compatibility
           name: user.name,

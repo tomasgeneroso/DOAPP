@@ -25,6 +25,7 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
   { key: 's6p6', valores: [POLITICAS.COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR], que: 'dias habiles antes de pausar' },
   { key: 's7p3', valores: [`${COMMISSION_RATES.free}%`], que: 'comision' },
   { key: 's7p4', valores: [`EUR ${MINIMUM_COMMISSION_EUR}`], que: 'piso de comision' },
+  { key: 's7p11', valores: [POLITICAS.INVITACION_DIAS_SIN_COMISION], que: 'dias sin comision de una invitacion de creador' },
   { key: 's7p6', valores: [POLITICAS.AUTO_CONFIRMACION_HORAS], que: 'horas de auto-confirmacion' },
   { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`], que: 'precio de la membresia' },
   { key: 's9p2', valores: [POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES], que: 'horas para cancelar con devolucion' },

@@ -25,7 +25,7 @@ const INSTAGRAM = 'doapparg';
 const TEXTO = {
   cliente: '¿Necesitás que te arreglen la canilla?',
   trabajador: '¿Estás buscando trabajo?',
-  beta: 'Aprovechá los 3 meses de beta gratis',
+  beta: 'Beta gratis hasta el 31 de diciembre',
 };
 
 const TEMAS = {

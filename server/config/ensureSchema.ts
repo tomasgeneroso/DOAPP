@@ -48,6 +48,12 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'contracts.fraud_hold_reason', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_reason TEXT` },
   { label: 'contracts.fraud_hold_cleared_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_at TIMESTAMPTZ` },
   { label: 'contracts.fraud_hold_cleared_by', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_by UUID` },
+  // --- invitaciones de creadores de contenido (ver migración 20261012110000) ---
+  { label: 'influencer_invites', sql: `CREATE TABLE IF NOT EXISTS influencer_invites (id UUID PRIMARY KEY, code VARCHAR(24) NOT NULL, batch_id UUID NOT NULL, influencer_name VARCHAR(120) NOT NULL, influencer_handle VARCHAR(160), free_days INTEGER NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, expires_at TIMESTAMPTZ, redeemed_by_id UUID REFERENCES users(id) ON DELETE SET NULL, redeemed_at TIMESTAMPTZ, benefit_ends_at TIMESTAMPTZ, created_by_id UUID NOT NULL REFERENCES users(id), notes TEXT, deactivated_reason TEXT, deactivated_at TIMESTAMPTZ, deactivated_by_id UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())` },
+  { label: 'influencer_invites.code unique', sql: `CREATE UNIQUE INDEX IF NOT EXISTS influencer_invites_code_unique ON influencer_invites (code)` },
+  { label: 'influencer_invites.batch_id', sql: `CREATE INDEX IF NOT EXISTS influencer_invites_batch_id ON influencer_invites (batch_id)` },
+  { label: 'users.commission_free_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS commission_free_until TIMESTAMPTZ` },
+  { label: 'users.influencer_invite_id', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS influencer_invite_id UUID` },
   // --- matrícula profesional encriptada (ver migración 20261012100000) ---
   { label: 'users.license_number text', sql: `ALTER TABLE users ALTER COLUMN license_number TYPE TEXT` },
   { label: 'users.license_document_back_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document_back_url TEXT` },

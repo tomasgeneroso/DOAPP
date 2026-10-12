@@ -241,6 +241,21 @@ async function computeCommissionBase(
     };
   }
 
+  // 1b. Invitación de creador de contenido (T&C 7.11): sin comisión hasta `commissionFreeUntil`. Vencida, la cuenta vuelve
+  // a la tasa que le corresponda (los pasos siguientes). No alcanza el costo de procesamiento del pago ni los impuestos.
+  const hastaInvitacion = (user as any).commissionFreeUntil ? new Date((user as any).commissionFreeUntil) : null;
+  if (hastaInvitacion && hastaInvitacion.getTime() > Date.now()) {
+    return {
+      rate: 0,
+      commission: 0,
+      monthlyVolume: 0,
+      tierDescription: `Invitación (sin comisión hasta el ${hastaInvitacion.toLocaleDateString('es-AR')})`,
+      isFamilyPlan: false,
+      isFreeContract: false,
+      minimumApplied: false,
+    };
+  }
+
   // 2. Free contract (passed as option) = 0% commission
   if (options.isFreeContract) {
     return {
@@ -331,6 +346,16 @@ export async function getUserCommissionRate(userId: string): Promise<{
       rate: 0,
       monthlyVolume: 0,
       tierDescription: 'Plan Familia',
+      nextTier: null,
+    };
+  }
+
+  const hastaInvitacion = (user as any)?.commissionFreeUntil ? new Date((user as any).commissionFreeUntil) : null;
+  if (hastaInvitacion && hastaInvitacion.getTime() > Date.now()) {
+    return {
+      rate: 0,
+      monthlyVolume: 0,
+      tierDescription: `Invitación (sin comisión hasta el ${hastaInvitacion.toLocaleDateString('es-AR')})`,
       nextTier: null,
     };
   }

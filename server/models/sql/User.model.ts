@@ -763,6 +763,14 @@ export class User extends Model {
   @Column(DataType.BOOLEAN)
   hasFamilyPlan!: boolean;
 
+  // Invitación de creador de contenido (T&C 7.11): hasta cuándo no paga la comisión de la Plataforma como Cliente, y la
+  // invitación que canjeó (una por cuenta). La lee services/commissionService.ts.
+  @Column(DataType.DATE)
+  commissionFreeUntil?: Date;
+
+  @Column(DataType.UUID)
+  influencerInviteId?: string;
+
   // ============================================
   // PROFILE SHARE STATS (for PRO users dashboard)
   // ============================================

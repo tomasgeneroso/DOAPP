@@ -212,7 +212,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({ ...responseData.user });
       console.log("✅ Registro exitoso, usuario:", responseData.user.name);
 
-      return responseData.user as User;
+      // `invitacion` (si el registro llevaba un enlace de invitación) cuenta si se aplicó o por qué no.
+      return { ...responseData.user, invitacion: responseData.invitacion } as User;
     } catch (error) {
       console.error("Register error:", error);
       throw error;

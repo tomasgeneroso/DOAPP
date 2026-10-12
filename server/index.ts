@@ -123,6 +123,8 @@ import quotesRoutes from "./routes/quotes.js";
 
 // Referral routes
 import referralsRoutes from "./routes/referrals.js";
+import invitacionesRoutes from "./routes/invitaciones.js";
+import adminInfluencerInvitesRoutes from "./routes/admin/influencerInvites.js";
 
 // Membership routes
 import membershipRoutes from "./routes/membership.js";
@@ -366,6 +368,7 @@ if (features.disputes) app.use("/api/disputes", disputesRoutes);
 if (features.proposals) app.use("/api/proposals", proposalsRoutes);
 app.use("/api/quotes", quotesRoutes);
 if (features.referrals) app.use("/api/referrals", referralsRoutes);
+app.use("/api/invitaciones", invitacionesRoutes);
 if (features.membership) app.use("/api/membership", membershipRoutes);
 if (features.advertisements) app.use("/api/advertisements", advertisementsRoutes);
 app.use("/api/profile-promotion", profilePromotionRoutes);
@@ -432,6 +435,7 @@ app.use("/api/admin/search", (await import('./routes/admin/search.js')).default)
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
+app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);
 app.use("/api/admin/hubs", adminHubsRoutes);
