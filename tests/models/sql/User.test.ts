@@ -173,8 +173,10 @@ describe('User Model', () => {
       await user.unban();
 
       expect(user.isBanned).toBe(false);
-      expect(user.bannedBy).toBeUndefined();
-      expect(user.banReason).toBeUndefined();
+      // null y no undefined: Sequelize ignora los undefined al guardar, así que los datos del baneo quedaban en la base
+      // (limpiarCampos escribe null a propósito).
+      expect(user.bannedBy).toBeNull();
+      expect(user.banReason).toBeNull();
     });
 
     it('should enable 2FA', async () => {

@@ -331,7 +331,8 @@ export default function HomeScreen() {
           )}
         </TouchableOpacity>
 
-        {(activeFilterCount > 0 || searchQuery) && (
+        {/* !!: con la búsqueda vacía esto devolvía "" y un texto suelto dentro de un View rompe la pantalla en la app nativa */}
+        {(activeFilterCount > 0 || !!searchQuery) && (
           <TouchableOpacity onPress={clearAllFilters} style={styles.clearFiltersBtn}>
             <X size={14} color={colors.danger[500]} strokeWidth={2} />
             <Text style={[styles.clearFiltersText, { color: colors.danger[500] }]}>Limpiar</Text>
@@ -652,7 +653,7 @@ export default function HomeScreen() {
             <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
               {(searchQuery || activeFilterCount > 0) ? 'Probá con otros filtros de búsqueda' : 'Vuelve a intentar más tarde'}
             </Text>
-            {(searchQuery || activeFilterCount > 0) && (
+            {(!!searchQuery || activeFilterCount > 0) && (
               <TouchableOpacity onPress={clearAllFilters} style={[styles.clearAllBtn, { borderColor: themeColors.primary[600] }]}>
                 <Text style={[styles.clearAllBtnText, { color: themeColors.primary[600] }]}>Limpiar filtros</Text>
               </TouchableOpacity>
