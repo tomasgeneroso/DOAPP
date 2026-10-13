@@ -213,6 +213,8 @@ export interface ResultadoDeAccion {
   mensaje: string;
   cotizacion?: Cotizacion;
   contractId?: string | null;
+  /** Aceptar una cotización de un trabajo deja una propuesta para confirmar (y pagar lo que falte); el contrato no se crea ahí. */
+  proposalId?: string | null;
   conversationId?: string | null;
 }
 
@@ -223,6 +225,7 @@ export function interpretarAccion(res: any, porDefecto: string): ResultadoDeAcci
       mensaje: String(res?.message || porDefecto),
       cotizacion: leerCotizacion(res) || undefined,
       contractId: res?.contractId || null,
+      proposalId: res?.proposalId || null,
       conversationId: res?.conversationId || null,
     };
   }

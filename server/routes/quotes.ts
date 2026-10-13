@@ -12,12 +12,25 @@ import { protect } from '../middleware/auth.js';
 import { generateQuotePDF } from '../services/pdfGenerator.js';
 import { getIO } from '../services/socket.js';
 import { calculateCommission } from '../services/commissionService.js';
+import { settleQuote } from '../services/quotePayment.js';
+import { requireKyc } from '../middleware/auth.js';
+import { requirePostWorkRating, requireNotSuspended } from '../middleware/postWorkRating.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
 import * as socketService from '../services/socket.js';
 import type { AuthRequest } from '../types/index.js';
 
 const router = express.Router();
 router.use(protect);
+
+/**
+ * Corre un middleware (las puertas de identidad, valoración pendiente y suspensión) desde dentro de una ruta.
+ * Devuelve true si dejó pasar; si no, el propio middleware ya contestó.
+ */
+async function pasaPuerta(puerta: (req: any, res: any, next: any) => any, req: AuthRequest, res: Response): Promise<boolean> {
+  let siguio = false;
+  await puerta(req, res, () => { siguio = true; });
+  return siguio && !res.headersSent;
+}
 
 // GET /api/quotes – list quotes sent and received by current user
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
@@ -124,6 +137,51 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       attributes: ['id', 'name', 'email', 'avatar'],
     });
 
+    /**
+     * Una cotización ligada a un trabajo tiene que ser entre el cliente de ESE trabajo y quien cotiza. Antes el
+     * jobId se aceptaba tal cual: cualquiera podía mandar una cotización "de" un trabajo ajeno, y al aceptarla se
+     * armaba un contrato sobre el trabajo de otra persona.
+     */
+    let trabajo: any = null;
+    if (jobId) {
+      trabajo = await Job.findByPk(jobId);
+      if (!trabajo) {
+        res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+        return;
+      }
+      const yo = String(req.user.id);
+      const delCliente = String(trabajo.clientId);
+      if (String(recipientId) !== delCliente && yo !== delCliente) {
+        res.status(400).json({ success: false, message: 'Esta cotización no corresponde a ese trabajo.' });
+        return;
+      }
+      if (String(recipientId) === yo) {
+        res.status(400).json({ success: false, message: 'No podés enviarte una cotización a vos mismo.' });
+        return;
+      }
+    }
+
+    // Postularse con una cotización es postularse: pasa por las mismas puertas que una propuesta común (identidad
+    // verificada, valoración pendiente, suspensión) y por las mismas reglas del trabajo.
+    if (applyMode && jobId) {
+      if (!(await pasaPuerta(requireKyc, req, res))) return;
+      if (!(await pasaPuerta(requirePostWorkRating, req, res))) return;
+      if (!(await pasaPuerta(requireNotSuspended, req, res))) return;
+      if (String(trabajo.clientId) !== String(recipientId)) {
+        res.status(400).json({ success: false, message: 'Para postularte con una cotización, tiene que ir dirigida al cliente del trabajo.' });
+        return;
+      }
+      if (trabajo.status !== 'open') {
+        res.status(400).json({ success: false, message: 'Este trabajo ya no está abierto para propuestas' });
+        return;
+      }
+      const yaPostulo: any = await Proposal.findOne({ where: { jobId, freelancerId: req.user.id } });
+      if (yaPostulo && yaPostulo.status !== 'pending') {
+        res.status(400).json({ success: false, message: 'Ya tenés una propuesta para este trabajo que no está pendiente.' });
+        return;
+      }
+    }
+
     // Calculate totals
     const itemsWithAmounts = items.map((item: any) => ({
       qty: Number(item.qty),
@@ -172,9 +230,14 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
         defaults: {
           jobId,
           freelancerId: req.user.id || req.user.id,
-          coverLetter: title,
+          // El modelo exige el cliente dueño del trabajo: sin esto la propuesta no se creaba y el pedido terminaba en 500
+          // con la cotización ya guardada.
+          clientId: trabajo.clientId,
+          coverLetter: String(title).slice(0, 1000),
           proposedPrice: total,
           estimatedDuration: 1,
+          isCounterOffer: Number(total) !== Number(trabajo.price),
+          originalJobPrice: trabajo.price,
           status: 'pending',
         } as any,
       });
@@ -338,6 +401,17 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // POST /api/quotes/:id/accept – recipient accepts the quote
+//
+// Aceptar una cotización NO crea el contrato. Antes, si la cotización estaba ligada a un trabajo, esta ruta armaba el
+// contrato, ponía el trabajo "en curso" con el trabajador asignado y daba la propuesta por aprobada, sin cobrar nada:
+//  - se saltaba la regla "primero se paga, después se selecciona al trabajador" (el contrato lo crea el cobro
+//    confirmado; si se crea acá, un pago abandonado deja al trabajador comprometido con un contrato que nadie pagó) y la
+//    cuenta de lo que falta pagar (settleQuote): el contrato salía por el total de la cotización con el trabajo
+//    cobrado por otro monto;
+//  - no miraba de quién era el trabajo: quien recibía la cotización podía quedarse con el trabajo de otra persona;
+//  - no era atómica: si algo fallaba a medias quedaba el contrato y el trabajo movidos y la respuesta decía que no.
+// Ahora acepta la cotización, deja la propuesta del trabajador pendiente con el precio acordado y le dice al cliente
+// cuánto falta pagar. Contratar se hace por la propuesta, que es el camino que cobra primero.
 router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const quote = await Quote.findByPk(req.params.id, {
@@ -362,111 +436,70 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    await quote.update({ status: 'accepted' });
+    // Una cotización ligada a un trabajo solo la acepta el cliente de ESE trabajo, y con el trabajo todavía abierto.
+    let job: any = null;
+    let propuestaExistente: any = null;
+    if (quote.jobId) {
+      job = await Job.findByPk(quote.jobId);
+      if (!job) {
+        res.status(400).json({ success: false, message: 'El trabajo de esta cotización ya no existe.' });
+        return;
+      }
+      if (String(job.clientId) !== String(req.user.id) || String(quote.senderId) === String(job.clientId)) {
+        res.status(403).json({ success: false, message: 'Esta cotización no es para un trabajo tuyo, así que no la podés aceptar.' });
+        return;
+      }
+      if (job.status !== 'open') {
+        res.status(400).json({ success: false, message: 'Este trabajo ya no está abierto: la cotización no se puede aceptar.' });
+        return;
+      }
+      propuestaExistente = quote.proposalId ? await Proposal.findByPk(quote.proposalId) : null;
+      if (!propuestaExistente || String((propuestaExistente as any).jobId) !== String(job.id)) {
+        propuestaExistente = await Proposal.findOne({ where: { jobId: job.id, freelancerId: quote.senderId } });
+      }
+      if (propuestaExistente && propuestaExistente.status !== 'pending') {
+        res.status(400).json({ success: false, message: 'La propuesta de este trabajador para el trabajo ya no está pendiente: no se puede aceptar esta cotización.' });
+        return;
+      }
+    }
+
+    // Atómico: si dos pedidos llegan juntos, solo uno cambia el estado.
+    const [filas] = await Quote.update({ status: 'accepted' } as any, { where: { id: quote.id, status: 'sent' } });
+    if (filas !== 1) {
+      res.status(400).json({ success: false, message: 'Solo se pueden aceptar cotizaciones pendientes' });
+      return;
+    }
+    await quote.reload();
 
     // Update chat message metadata if linked to conversation
     if (quote.conversationId) {
       await _updateQuoteChatMessageStatus(quote.id, quote.conversationId, 'accepted');
     }
 
-    // Auto-create contract if quote is linked to a job
-    let contractId: string | null = null;
-    if (quote.jobId) {
-      try {
-        const job = await Job.findByPk(quote.jobId);
-        if (job && job.status === 'open') {
-          const clientId = req.user.id || req.user.id;
-          const doerId = quote.senderId; // worker sent the quote
-          const price = Number(quote.total);
-
-          const commissionResult = await calculateCommission(clientId, price, {});
-          const contract = await Contract.create({
-            jobId: job.id,
-            clientId,
-            doerId,
-            type: 'trabajo',
-            price,
-            commission: commissionResult.commission,
-            commissionPercentage: commissionResult.rate,
-            totalPrice: price + commissionResult.commission,
-            startDate: job.startDate || new Date(),
-            endDate: job.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            status: 'pending',
-            termsAccepted: false,
-            termsAcceptedByClient: false,
-            termsAcceptedByDoer: false,
-          } as any);
-
-          // Mark job in_progress and assign worker
-          await job.update({
-            doerId,
-            status: 'in_progress',
-            selectedWorkers: [doerId],
-          } as any);
-
-          // Approve or create proposal
-          if (quote.proposalId) {
-            await Proposal.update({ status: 'approved' }, { where: { id: quote.proposalId } });
-          } else {
-            await Proposal.findOrCreate({
-              where: { jobId: job.id, freelancerId: doerId },
-              defaults: {
-                jobId: job.id,
-                freelancerId: doerId,
-                coverLetter: quote.title,
-                proposedPrice: price,
-                estimatedDuration: 1,
-                status: 'approved',
-              } as any,
-            }).then(([p, created]) => {
-              if (!created) p.update({ status: 'approved' });
-            });
-          }
-
-          contractId = contract.id;
-
-          // Notify worker of auto-created contract
-          await Notification.create({
-            recipientId: doerId,
-            type: 'success',
-            category: 'system',
-            title: 'Contrato creado automáticamente',
-            message: `${req.user.name} aceptó tu cotización y se generó un contrato para "${job.title}"`,
-            relatedModel: 'Contract',
-            relatedId: contractId,
-            actionUrl: `/contracts/${contractId}`,
-            actionText: 'Ver contrato',
-            sentVia: ['in_app'],
-          });
-
-          const io = getIO();
-          if (io) {
-            io.emit(`user:${doerId}`, {
-              event: 'notification:new',
-              title: 'Contrato generado',
-              message: `Tu cotización fue aceptada. Revisá el contrato en Mis Contratos.`,
-            });
-          }
-
-          // Post system message in chat
-          if (quote.conversationId) {
-            await ChatMessage.create({
-              conversationId: quote.conversationId,
-              senderId: clientId,
-              message: `Contrato generado||A partir de la cotización aceptada||Ver contrato: /contracts/${contractId}`,
-              type: 'system',
-              metadata: {
-                action: 'contract_from_quote',
-                contractId,
-                quoteId: quote.id,
-              },
-            } as any);
-          }
-        }
-      } catch (contractErr: any) {
-        console.error('[quotes/accept] Error creating contract from quote:', contractErr.message);
-        // Non-fatal: quote is already accepted, contract creation failed
+    // Con trabajo: la propuesta (no el contrato), y cuánto falta pagar para contratar.
+    let proposalId: string | null = null;
+    let liquidacion: Awaited<ReturnType<typeof settleQuote>> | null = null;
+    if (job) {
+      const total = Number(quote.total);
+      let propuesta: any = propuestaExistente;
+      if (!propuesta) {
+        propuesta = await Proposal.create({
+          jobId: job.id,
+          freelancerId: quote.senderId,
+          clientId: job.clientId,
+          coverLetter: String(quote.title).slice(0, 1000),
+          proposedPrice: total,
+          estimatedDuration: 1,
+          isCounterOffer: total !== Number(job.price),
+          originalJobPrice: job.price,
+          status: 'pending',
+        } as any);
+      } else {
+        await propuesta.update({ proposedPrice: total, isCounterOffer: total !== Number(job.price) } as any);
       }
+      proposalId = String(propuesta.id);
+      if (String(quote.proposalId || '') !== proposalId) await quote.update({ proposalId } as any);
+      liquidacion = await settleQuote(job, total);
     }
 
     // Notify sender (quote accepted notification)
@@ -474,12 +507,12 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       recipientId: quote.senderId,
       type: 'success',
       category: 'system',
-      title: contractId ? 'Cotización aceptada — contrato creado' : 'Cotización aceptada',
-      message: `${req.user.name} aceptó tu cotización "${quote.title}"`,
+      title: 'Cotización aceptada',
+      message: `${req.user.name} aceptó tu cotización "${quote.title}"${job ? '. Falta que confirme la contratación.' : ''}`,
       relatedModel: 'Quote',
       relatedId: quote.id,
-      actionUrl: contractId ? `/contracts/${contractId}` : `/quotes/${quote.id}`,
-      actionText: contractId ? 'Ver contrato' : 'Ver cotización',
+      actionUrl: `/quotes/${quote.id}`,
+      actionText: 'Ver cotización',
       sentVia: ['in_app'],
     });
 
@@ -487,16 +520,24 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
     if (io) {
       io.emit(`user:${quote.senderId}`, {
         event: 'notification:new',
-        title: contractId ? 'Cotización aceptada — contrato creado' : 'Cotización aceptada',
+        title: 'Cotización aceptada',
         message: `${req.user.name} aceptó "${quote.title}"`,
       });
     }
 
     res.json({
       success: true,
-      message: contractId ? 'Cotización aceptada y contrato creado automáticamente' : 'Cotización aceptada',
+      message: !job
+        ? 'Cotización aceptada'
+        : liquidacion?.listoParaContratar
+          ? 'Cotización aceptada. Para contratar, confirmá la propuesta.'
+          : 'Cotización aceptada. Para contratar hay que abonar la diferencia: seguí desde la propuesta.',
       data: quote,
-      contractId,
+      // El contrato ya no se crea acá: se mantiene la clave para quien la lea, siempre vacía.
+      contractId: null,
+      proposalId,
+      requierePago: liquidacion ? !liquidacion.listoParaContratar : false,
+      liquidacion,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });

@@ -63,7 +63,15 @@ export default function CotizacionScreen() {
             setTrabajando(true);
             try {
               const r = await aceptarCotizacion(String(id));
-              Alert.alert(r.ok ? 'Listo' : 'No se pudo', r.mensaje, r.ok && r.contractId ? [{ text: 'Ver el contrato', onPress: () => router.push(`/contracts/${r.contractId}` as any) }, { text: 'Cerrar' }] : undefined);
+              Alert.alert(
+                r.ok ? 'Listo' : 'No se pudo',
+                r.mensaje,
+                r.ok && r.contractId
+                  ? [{ text: 'Ver el contrato', onPress: () => router.push(`/contracts/${r.contractId}` as any) }, { text: 'Cerrar' }]
+                  : r.ok && r.proposalId
+                    ? [{ text: 'Ir a la propuesta', onPress: () => router.push(`/proposals/${r.proposalId}` as any) }, { text: 'Cerrar' }]
+                    : undefined,
+              );
               await cargar();
             } finally {
               setTrabajando(false);

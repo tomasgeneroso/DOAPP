@@ -55,6 +55,9 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(meta.quoteStatus || 'sent');
   const [contractId, setContractId] = useState<string | null>(null);
+  // Aceptar una cotización de un trabajo no crea el contrato: deja la propuesta lista para confirmar (y pagar lo que falte).
+  const [proposalId, setProposalId] = useState<string | null>(null);
+  const [requierePago, setRequierePago] = useState(false);
   // Replaces native alert()
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -76,9 +79,17 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
         if (data.contractId) {
           setContractId(data.contractId);
         }
+        if (data.proposalId) {
+          setProposalId(data.proposalId);
+          setRequierePago(data.requierePago === true);
+        }
         onRefresh?.();
+      } else {
+        setNotice(data.message || t('common.connectionError', 'Error de conexión'));
       }
-    } catch {}
+    } catch {
+      setNotice(t('common.connectionError', 'Error de conexión'));
+    }
     setActing(false);
   };
 
@@ -152,6 +163,22 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
           </div>
         </div>
 
+        {/* Con trabajo: la cotización aceptada deja la propuesta lista; el contrato se crea al confirmarla (y pagar lo que falte) */}
+        {localStatus === 'accepted' && proposalId && !contractId && (
+          <div className="mt-3 p-2.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+            <p className="text-xs font-semibold text-sky-700 dark:text-sky-300 mb-1.5">
+              ✓ Cotización aceptada. {requierePago ? 'Falta abonar la diferencia para contratar.' : 'Falta confirmar la contratación.'}
+            </p>
+            <button
+              onClick={() => navigate(`/proposals/${proposalId}`)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3 py-1.5 rounded-lg w-full justify-center"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+              Ir a la propuesta
+            </button>
+          </div>
+        )}
+
         {/* Contract auto-created banner */}
         {localStatus === 'accepted' && contractId && (
           <div className="mt-3 p-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -196,7 +223,7 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
                   className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg"
                 >
                   <Check className="h-3.5 w-3.5" />
-                  Aceptar y crear contrato
+                  Aceptar cotización
                 </button>
               ) : (
                 <button

@@ -35,6 +35,7 @@ export default function QuoteDetail() {
   const [loading, setLoading] = useState(true);
   const [rejecting, setRejecting] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -66,8 +67,14 @@ export default function QuoteDetail() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) setQuote(prev => prev ? { ...prev, status: 'accepted' } : prev);
-    } catch (_) { /* silenced */ }
+      if (data.success) {
+        setQuote(prev => prev ? { ...prev, status: 'accepted' } : prev);
+        // Con trabajo no se crea el contrato acá: se sigue por la propuesta, que es la que cobra lo que falte.
+        if (data.proposalId) navigate(`/proposals/${data.proposalId}`);
+      } else {
+        setNotice(data.message || 'No se pudo aceptar la cotización.');
+      }
+    } catch (_) { setNotice('No se pudo aceptar la cotización. Revisá tu conexión.'); }
     setAccepting(false);
   };
 
@@ -202,6 +209,10 @@ export default function QuoteDetail() {
               )}
             </div>
           </div>
+
+          {!!notice && (
+            <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{notice}</p>
+          )}
 
           {quote.rejectionReason && quote.status === 'rejected' && (
             <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">

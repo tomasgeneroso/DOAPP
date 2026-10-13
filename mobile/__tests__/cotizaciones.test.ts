@@ -174,6 +174,9 @@ describe('leer lo que responde el servidor', () => {
 
   it('interpretarAccion: éxito con el contrato creado, o el motivo del servidor', () => {
     expect(interpretarAccion({ success: true, message: 'Cotización aceptada y contrato creado automáticamente', data: { id: '1' }, contractId: 'c9' }, 'x')).toMatchObject({ ok: true, contractId: 'c9' });
+    // Con trabajo, el servidor ya no crea el contrato: devuelve la propuesta para confirmar (y pagar lo que falte)
+    expect(interpretarAccion({ success: true, message: 'Cotización aceptada. Para contratar, confirmá la propuesta.', data: { id: '1' }, contractId: null, proposalId: 'p7' }, 'x')).toMatchObject({ ok: true, contractId: null, proposalId: 'p7' });
+    expect(interpretarAccion({ success: true, data: { id: '1' } }, 'x')).toMatchObject({ ok: true, contractId: null, proposalId: null });
     expect(interpretarAccion({ success: false, message: 'Solo el destinatario puede aceptar la cotización' }, 'x')).toEqual({ ok: false, mensaje: 'Solo el destinatario puede aceptar la cotización' });
     expect(interpretarAccion(null, 'x').ok).toBe(false);
   });
