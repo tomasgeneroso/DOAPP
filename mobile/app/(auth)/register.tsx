@@ -9,19 +9,24 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useRouter, Link } from 'expo-router';
+import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
+import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { register } = useAuth();
   const { colors: themeColors } = useTheme();
+  // Viene de «Crear mi cuenta con la invitación» (enlace de un creador de contenido). El servidor valida y canjea.
+  const { invitacion } = useLocalSearchParams<{ invitacion?: string }>();
+  const invitationCode = normalizarCodigo(invitacion);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -74,11 +79,15 @@ export default function RegisterScreen() {
         dni: formData.dni,
         phone: formData.phone.trim() || undefined,
         referralCode: formData.referralCode.trim() || undefined,
+        invitationCode: invitationCode || undefined,
         termsAccepted: true,
       });
 
       if (response.success) {
-        router.replace('/(tabs)');
+        // Si venía con una invitación, se le cuenta si se aplicó (o por qué no).
+        const aviso = mensajeDelRegistro(response);
+        if (aviso) Alert.alert(aviso.aplicada ? 'Invitación aplicada' : 'La invitación no se aplicó', aviso.mensaje);
+        router.replace('/onboarding' as any);
       } else {
         setError(response.message || 'Error al registrarse');
       }
@@ -269,6 +278,15 @@ export default function RegisterScreen() {
                   Si alguien te invitó, ingresa su código aquí
                 </Text>
               </View>
+
+              {!!invitationCode && (
+                <View style={{ borderWidth: 1, borderColor: colors.success[400], backgroundColor: colors.success[50], borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md }}>
+                  <Text style={{ color: colors.success[700], fontWeight: fontWeight.semibold }}>Venís con una invitación</Text>
+                  <Text style={{ color: colors.success[700], fontSize: fontSize.sm, marginTop: 2 }}>
+                    Al crear tu cuenta se aplica: no pagás comisión por tus contratos como Cliente durante el plazo de la invitación (Términos, punto 7.11).
+                  </Text>
+                </View>
+              )}
 
               {/* Terms checkbox */}
               <View style={styles.termsContainer}>

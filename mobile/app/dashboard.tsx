@@ -326,12 +326,17 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
+          <TouchableOpacity onPress={() => router.push('/dashboard/ingresos' as any)}><Text style={{ color: colors.primary[600], fontSize: fontSize.sm }}>Ingresos por contrato</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/dashboard/gastos' as any)}><Text style={{ color: colors.primary[600], fontSize: fontSize.sm }}>Gastos por contrato</Text></TouchableOpacity>
+        </View>
+
         {/* Stats Grid */}
         <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Actividad</Text>
         <View style={styles.statsRow}>
           <TouchableOpacity
             style={[styles.statCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-            onPress={() => router.push('/contracts')}
+            onPress={() => router.push('/dashboard/activos' as any)}
           >
             <View style={[styles.statIconWrap, { backgroundColor: colors.primary[50] }]}>
               <FileText size={18} color={colors.primary[600]} />

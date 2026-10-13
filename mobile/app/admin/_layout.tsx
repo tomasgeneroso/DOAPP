@@ -55,6 +55,7 @@ export default function AdminLayout() {
       <Stack.Screen name="contracts" options={{ title: 'Contratos a aprobar' }} />
       <Stack.Screen name="jobs" options={{ title: 'Publicaciones a aprobar' }} />
       <Stack.Screen name="dispute/[id]" options={{ title: 'Disputa' }} />
+      <Stack.Screen name="influencer-invites" options={{ title: 'Invitaciones de creadores' }} />
     </Stack>
   );
 }

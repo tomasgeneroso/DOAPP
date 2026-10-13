@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, Eye, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { get, post } from '../../services/api';
+import { get } from '../../services/api';
+import { alternarMeGusta, autorDe, imagenesDeGaleria } from '../../services/publicaciones';
+import ComentariosDelPost from '../../components/ComentariosDelPost';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -45,10 +47,11 @@ export default function BlogDetailScreen() {
     if (!user || liking) return;
     setLiking(true);
     try {
-      const res = await post<any>(`/posts/${id}/like`, {});
-      if (res.success) {
-        setIsLiked(!isLiked);
-        setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+      // Se muestra lo que cuenta el servidor, no una cuenta hecha a mano acá.
+      const r = await alternarMeGusta(String(id));
+      if (r) {
+        setIsLiked(r.liked);
+        setLikesCount(r.likesCount);
       }
     } catch (err) {
       console.error('Error liking post:', err);
@@ -57,7 +60,7 @@ export default function BlogDetailScreen() {
     }
   };
 
-  const gallery = post2?.gallery || [];
+  const gallery = imagenesDeGaleria(post2);
   const hasImages = gallery.length > 0;
 
   if (loading) {
@@ -81,7 +84,7 @@ export default function BlogDetailScreen() {
     );
   }
 
-  const author = post2.author || {};
+  const author = autorDe(post2);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -93,12 +96,12 @@ export default function BlogDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {/* Image Gallery */}
         {hasImages && (
           <View style={styles.galleryContainer}>
             <Image
-              source={{ uri: gallery[imageIndex]?.url || gallery[imageIndex] }}
+              source={{ uri: gallery[imageIndex] }}
               style={styles.galleryImage}
               resizeMode="cover"
             />
@@ -162,7 +165,7 @@ export default function BlogDetailScreen() {
           <Text style={[styles.description, { color: themeColors.text.secondary }]}>{post2.description}</Text>
 
           {/* Price */}
-          {post2.price && (
+          {Number(post2.price) > 0 && (
             <View style={[styles.priceCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
               <Text style={[styles.priceLabel, { color: themeColors.text.secondary }]}>Precio del servicio</Text>
               <Text style={[styles.priceValue, { color: colors.primary[600] }]}>
@@ -174,7 +177,8 @@ export default function BlogDetailScreen() {
           {/* Author */}
           <TouchableOpacity
             style={[styles.authorCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-            onPress={() => router.push(`/user/${author.id}`)}
+            onPress={() => author.id && router.push(`/user/${author.id}` as any)}
+            disabled={!author.id}
             activeOpacity={0.8}
           >
             {author.avatar ? (
@@ -184,8 +188,8 @@ export default function BlogDetailScreen() {
             )}
             <View style={{ flex: 1 }}>
               <Text style={[styles.authorName, { color: themeColors.text.primary }]}>{author.name}</Text>
-              {author.bio && <Text style={[styles.authorBio, { color: themeColors.text.muted }]} numberOfLines={2}>{author.bio}</Text>}
-              {author.rating && <Text style={[styles.authorRating, { color: themeColors.text.secondary }]}>⭐ {Number(author.rating).toFixed(1)}</Text>}
+              {!!author.bio && <Text style={[styles.authorBio, { color: themeColors.text.muted }]} numberOfLines={2}>{author.bio}</Text>}
+              {!!author.rating && <Text style={[styles.authorRating, { color: themeColors.text.secondary }]}>⭐ {Number(author.rating).toFixed(1)}</Text>}
             </View>
             <Text style={{ color: colors.primary[600], fontSize: 18 }}>›</Text>
           </TouchableOpacity>
@@ -198,9 +202,11 @@ export default function BlogDetailScreen() {
           >
             <Heart size={20} color={isLiked ? '#ef4444' : themeColors.text.secondary} fill={isLiked ? '#ef4444' : 'none'} />
             <Text style={[styles.likeBtnText, { color: isLiked ? '#ef4444' : themeColors.text.secondary }]}>
-              {likesCount} {likesCount === 1 ? 'me gusta' : 'me gusta'}
+              {likesCount} me gusta
             </Text>
           </TouchableOpacity>
+
+          <ComentariosDelPost postId={String(id)} />
         </View>
       </ScrollView>
     </SafeAreaView>

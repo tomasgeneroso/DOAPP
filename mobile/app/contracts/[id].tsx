@@ -37,6 +37,7 @@ import DailyLogPanel from '../../components/DailyLogPanel';
 import OrdenDePago from '../../components/OrdenDePago';
 import PagoDelContrato from '../../components/PagoDelContrato';
 import EmparejamientoDelContrato from '../../components/EmparejamientoDelContrato';
+import SolicitudesDelContrato from '../../components/SolicitudesDelContrato';
 import { puedePagarElContrato } from '../../services/pagos';
 import EmergencyButton from '../../components/EmergencyButton';
 import CompartirContrato from '../../components/CompartirContrato';
@@ -448,6 +449,7 @@ export default function ContractDetailScreen() {
         </TouchableOpacity>
 
         {/* Aceptar el contrato y emparejarse con el código (cuando corresponde). */}
+        <SolicitudesDelContrato contractId={String(contract.id || (contract as any)._id)} userId={user?.id} />
         <EmparejamientoDelContrato contract={contract} isClient={isClient} isDoer={isDoer} onChanged={fetchContract} />
 
         {/* El cliente paga la garantía por Mercado Pago (sólo con el contrato aprobado y sin pago hecho). */}

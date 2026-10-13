@@ -17,6 +17,7 @@ export default function PedirMotivo({
   minimo,
   etiquetaConfirmar = 'Confirmar',
   trabajando = false,
+  placeholder,
   onCancelar,
   onConfirmar,
 }: {
@@ -26,6 +27,8 @@ export default function PedirMotivo({
   minimo: number;
   etiquetaConfirmar?: string;
   trabajando?: boolean;
+  /** Texto del campo. Por defecto cuenta el mínimo; con un motivo opcional conviene decirlo. */
+  placeholder?: string;
   onCancelar: () => void;
   onConfirmar: (motivo: string) => void;
 }) {
@@ -50,7 +53,7 @@ export default function PedirMotivo({
             onChangeText={setMotivo}
             multiline
             autoFocus
-            placeholder={`Motivo (mínimo ${minimo} caracteres)`}
+            placeholder={placeholder ?? `Motivo (mínimo ${minimo} caracteres)`}
             placeholderTextColor={themeColors.text.muted}
             style={[styles.input, { color: themeColors.text.primary, borderColor: themeColors.border }]}
           />
