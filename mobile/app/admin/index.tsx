@@ -20,6 +20,7 @@ import {
   CreditCard,
   FileCheck,
   Briefcase,
+  Gift,
 } from 'lucide-react-native';
 
 interface AdminStats {
@@ -128,6 +129,14 @@ export default function AdminDashboard() {
       route: '/admin/withdrawals',
       count: stats?.pendingWithdrawals,
       roles: ['owner', 'super_admin', 'admin'],
+    },
+    {
+      title: 'Invitaciones de creadores',
+      icon: Gift,
+      color: '#f59e0b',
+      route: '/admin/influencer-invites',
+      count: undefined,
+      roles: ['owner'],
     },
     {
       title: 'Pagos a verificar',

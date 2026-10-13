@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Send, User, Key, Copy, Check, Briefcase, MapPin, DollarSign, ExternalLink, X } from 'lucide-react-native';
+import { ArrowLeft, Send, User, Key, Copy, Check, Briefcase, MapPin, DollarSign, ExternalLink, X, FileText } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getMessages, sendMessage, sendMessageWithJob, markAsRead, getConversation } from '../../services/chat';
 import { leerClave, leerConversacion } from '../../services/respuesta';
+import { otroParticipante } from '../../services/cotizaciones';
 import { getJobs } from '../../services/jobs';
 import { Message, User as UserType, Conversation } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
@@ -524,7 +525,27 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <View style={{ width: 40 }} />
+        {/* Cotizar: arma una cotización con ítems para la otra persona de este chat */}
+        {otroParticipante(conversation, user?.id) ? (
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: '/quotes/new',
+                params: {
+                  recipientId: otroParticipante(conversation, user?.id) as string,
+                  conversationId: String(id),
+                  ...(conversation?.jobId ? { jobId: String(conversation.jobId) } : {}),
+                },
+              } as any)
+            }
+            style={styles.backButton}
+            accessibilityLabel="Cotizar"
+          >
+            <FileText size={22} color={themeColors.primary[600]} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       <KeyboardAvoidingView

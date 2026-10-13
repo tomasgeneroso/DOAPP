@@ -456,6 +456,7 @@ export default function ProfileScreen() {
           <MenuItem icon="💼" label="Agenda Do" onPress={() => router.push('/my-jobs')} themeColors={themeColors} />
           <MenuItem icon="📄" label="Mis contratos" onPress={() => router.push('/contracts')} themeColors={themeColors} />
           <MenuItem icon="🖼️" label="Mi portfolio" onPress={() => router.push('/portfolio')} themeColors={themeColors} />
+          <MenuItem icon="📰" label="Blog de DOAPP" onPress={() => router.push('/articulos')} themeColors={themeColors} />
           <MenuItem icon="✍️" label="Mis articulos" onPress={() => router.push('/blog')} themeColors={themeColors} />
           <MenuItem icon="💰" label="Mi balance" onPress={() => router.push('/balance')} themeColors={themeColors} />
           <MenuItem icon="🏦" label="Retiro de saldo" onPress={() => router.push('/balance?tab=withdrawals')} themeColors={themeColors} />
@@ -465,6 +466,9 @@ export default function ProfileScreen() {
             <MenuItem icon="🏆" label={`Dashboard ${membershipBadge.label}`} onPress={() => router.push('/pro-dashboard')} themeColors={themeColors} />
           )}
           <MenuItem icon="🎁" label="Referidos" onPress={() => router.push('/referrals')} themeColors={themeColors} />
+          <MenuItem icon="🧾" label="Cotizaciones" onPress={() => router.push('/quotes')} themeColors={themeColors} />
+          <MenuItem icon="🎟️" label="Tengo una invitación" onPress={() => router.push('/invitacion')} themeColors={themeColors} />
+          <MenuItem icon="🛠️" label="Profesión y matrícula" onPress={() => router.push('/profesion')} themeColors={themeColors} />
           <MenuItem
             icon="⚙️"
             label="Configuracion"

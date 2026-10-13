@@ -402,6 +402,8 @@ export interface RegisterData {
   dni: string;
   termsAccepted: boolean;
   referralCode?: string;
+  /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un tiempo desde el canje. */
+  invitationCode?: string;
 }
 
 export interface AuthState {

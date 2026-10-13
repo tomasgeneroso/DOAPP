@@ -200,6 +200,18 @@ export default function HelpScreen() {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity
+        style={[styles.summaryCard, { backgroundColor: themeColors.card, borderColor: themeColors.border, marginTop: spacing.md, padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+        onPress={() => router.push('/contact' as any)}
+        accessibilityRole="button"
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.quickActionTitle, { color: themeColors.text.primary, textAlign: 'left' }]}>Contacto</Text>
+          <Text style={[styles.quickActionDesc, { color: themeColors.text.muted, textAlign: 'left' }]}>Consultas generales o soporte técnico por correo</Text>
+        </View>
+        <ChevronRight size={20} color={themeColors.text.muted} />
+      </TouchableOpacity>
+
       {/* Active Issues Summary */}
       <Text style={[styles.sectionTitle, { color: themeColors.text.muted, marginTop: spacing.xl }]}>
         Resumen
