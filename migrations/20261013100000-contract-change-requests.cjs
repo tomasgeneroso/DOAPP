@@ -6,7 +6,9 @@
  * El modelo existía (ContractChangeRequest) pero la tabla no tenía migración: en producción, que no sincroniza, no
  * existía, y todo el flujo fallaba. Idempotente: IF NOT EXISTS en todo, y la espeja `ensureSchema`.
  *
- * Una sola solicitud pendiente por contrato: lo garantiza el índice único parcial, no solo la ruta.
+ * Una sola solicitud pendiente por contrato: lo garantiza el índice único parcial, no solo la ruta. Ese índice se crea
+ * al final y sin poder frenar el despliegue: si por algún motivo la tabla ya tuviera dos pendientes del mismo contrato,
+ * el índice no se crea (queda el aviso) y la ruta sigue impidiendo la repetición; no se borra ni se toca ninguna fila.
  */
 module.exports = {
   async up(queryInterface) {
@@ -30,7 +32,14 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS contract_change_requests_status ON contract_change_requests (status);
       CREATE INDEX IF NOT EXISTS contract_change_requests_requested_by ON contract_change_requests (requested_by);
       CREATE INDEX IF NOT EXISTS contract_change_requests_created_at ON contract_change_requests (created_at);
-      CREATE UNIQUE INDEX IF NOT EXISTS contract_change_requests_one_pending ON contract_change_requests (contract_id) WHERE status = 'pending';
+    `);
+    await queryInterface.sequelize.query(`
+      DO $$
+      BEGIN
+        CREATE UNIQUE INDEX IF NOT EXISTS contract_change_requests_one_pending ON contract_change_requests (contract_id) WHERE status = 'pending';
+      EXCEPTION WHEN unique_violation THEN
+        RAISE NOTICE 'contract_change_requests_one_pending no se creó: hay contratos con más de una solicitud pendiente';
+      END $$;
     `);
   },
 
