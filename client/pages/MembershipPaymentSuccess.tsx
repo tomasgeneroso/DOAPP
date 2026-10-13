@@ -99,7 +99,7 @@ export default function MembershipPaymentSuccess() {
         console.log("📡 Capturing PayPal order:", token);
         const authToken = localStorage.getItem("token");
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/capture-order`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

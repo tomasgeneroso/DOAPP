@@ -5,7 +5,6 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "./Header";
 import BetaBanner from "../BetaBanner";
 import Footer from "./Footer";
-import MobileBottomNav from "./MobileBottomNav";
 import ErrorBoundary from "../ErrorBoundary";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
 import KycWelcomeModal from "../KycWelcomeModal";
@@ -26,7 +25,7 @@ export default function Layout() {
   }, [user, isAuthenticated, navigate, location.pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F5F5F5] dark:bg-slate-900 pb-16 md:pb-0">
+    <div className="flex min-h-screen flex-col bg-[#F5F5F5] dark:bg-slate-900">
       {/* Skip to content link for keyboard users */}
       <a
         href="#main-content"
@@ -49,9 +48,6 @@ export default function Layout() {
       </main>
       <ErrorBoundary>
         <Footer />
-      </ErrorBoundary>
-      <ErrorBoundary>
-        <MobileBottomNav />
       </ErrorBoundary>
     </div>
   );

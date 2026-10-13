@@ -133,6 +133,7 @@ const GrowthHub = lazy(() => import("./pages/admin/GrowthHub"));
 const EditJobScreen = lazy(() => import("./pages/EditJobScreen"));
 const NotificationsScreen = lazy(() => import("./pages/NotificationsScreen"));
 const CompleteRegistration = lazy(() => import("./pages/CompleteRegistration"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 const SiteMap = lazy(() => import("./pages/SiteMap"));
 const QuoteForm = lazy(() => import("./pages/QuoteForm"));
 const QuoteDetail = lazy(() => import("./pages/QuoteDetail"));
@@ -732,6 +733,8 @@ export default function App() {
               <Route path="hubs/financial" element={<FinancialHub />} />
               <Route path="hubs/growth" element={<GrowthHub />} />
             </Route>
+            {/* Cualquier dirección que no sea de ninguna pantalla: antes quedaba una página vacía, sin salida. */}
+            <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>
               </OnboardingProvider>

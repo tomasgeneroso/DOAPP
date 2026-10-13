@@ -113,7 +113,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
         const authToken = localStorage.getItem("token");
         console.log("🔑 Auth token exists:", !!authToken);
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/capture-order`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
