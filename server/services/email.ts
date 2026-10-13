@@ -524,7 +524,7 @@ ${ctaBlock}
   }
 
   /** Admin verified the user's identity (DNI). */
-  async sendAccountVerifiedEmail(email: string, userName: string): Promise<boolean> {
+  async sendAccountVerifiedEmail(email: string, userName: string, userId?: string): Promise<boolean> {
     const html = this.tpl({
       eyebrow: 'Identidad verificada',
       accent: 'green',
@@ -534,7 +534,8 @@ ${ctaBlock}
         <p>Buenas noticias <strong>${userName}</strong>: confirmamos tu identidad. Tu perfil ahora muestra la insignia de <strong>verificado</strong>, lo que genera más confianza con clientes y Doers.</p>
         ${this.callout('success', 'Subió tu confianza', 'Los perfiles verificados reciben en promedio más propuestas. Completá tu portafolio para sumar todavía más confianza.')}
       `,
-      cta: { label: 'Ver mi perfil', url: `${config.clientUrl}/profile` },
+      // /profile solo no es una pantalla (pide el id de la persona): sin id se lleva al inicio.
+      cta: userId ? { label: 'Ver mi perfil', url: `${config.clientUrl}/profile/${userId}` } : { label: 'Ir a DOAPP', url: `${config.clientUrl}/` },
     });
     return await this.sendEmail({ to: email, subject: 'Tu identidad fue verificada · DOAPP', html });
   }

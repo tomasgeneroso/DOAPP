@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { PaymentModal } from "@/components/payments/PaymentModal";
 import ContractExtensionRequest from "@/components/contracts/ContractExtensionRequest";
+import SolicitudesDeCambioCard from "@/components/contracts/SolicitudesDeCambioCard";
 import ContractExtensionApproval from "@/components/contracts/ContractExtensionApproval";
 import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
@@ -1442,6 +1443,9 @@ export default function ContractDetail() {
           )}
 
           {/* Contract Extension Section */}
+          {/* Pedir un cambio o la cancelación, y ver/responder la solicitud pendiente (solo las dos partes) */}
+          <SolicitudesDeCambioCard contractId={String(contract.id)} status={String(contract.status)} esParte={isClient || isDoer} />
+
           {(contract.status === 'accepted' || contract.status === 'in_progress') && (
             <>
               {/* Show extension approval if there's a pending request */}

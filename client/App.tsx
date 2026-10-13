@@ -29,6 +29,7 @@ const JobApplicationSummary = lazy(() => import("./pages/JobApplicationSummary")
 const ContractDetail = lazy(() => import("./pages/ContractDetail"));
 const ContractSummary = lazy(() => import("./pages/ContractSummary"));
 const ContractChangeRequestDetail = lazy(() => import("./pages/ContractChangeRequestDetail"));
+const ContractRequestChange = lazy(() => import("./pages/ContractRequestChange"));
 const ContractsScreen = lazy(() => import("./pages/ContractsScreen"));
 const MyJobsScreen = lazy(() => import("./pages/MyJobsScreen"));
 const PaymentsScreen = lazy(() => import("./pages/PaymentsScreen"));
@@ -85,6 +86,7 @@ const AdminBannedIdentities = lazy(() => import("./pages/admin/BannedIdentities"
 const AdminUserData = lazy(() => import("./pages/admin/UserData"));
 const AdminPadron = lazy(() => import("./pages/admin/Padron"));
 const AdminPlatformPhase = lazy(() => import("./pages/admin/PlatformPhase"));
+const AdminPlatformPhaseReset = lazy(() => import("./pages/admin/PlatformPhaseReset"));
 const AdminContentAgent = lazy(() => import("./pages/admin/ContentAgent"));
 const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
@@ -134,6 +136,7 @@ const EditJobScreen = lazy(() => import("./pages/EditJobScreen"));
 const NotificationsScreen = lazy(() => import("./pages/NotificationsScreen"));
 const CompleteRegistration = lazy(() => import("./pages/CompleteRegistration"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const KycCallback = lazy(() => import("./pages/KycCallback"));
 const SiteMap = lazy(() => import("./pages/SiteMap"));
 const QuoteForm = lazy(() => import("./pages/QuoteForm"));
 const QuoteDetail = lazy(() => import("./pages/QuoteDetail"));
@@ -248,6 +251,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ContractDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/contracts/:id/request-changes"
+                element={
+                  <ProtectedRoute>
+                    <ContractRequestChange />
                   </ProtectedRoute>
                 }
               />
@@ -543,6 +554,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/kyc/callback" element={<KycCallback />} />
             <Route
               path="/complete-registration"
               element={
@@ -678,6 +690,7 @@ export default function App() {
                 { value: 'falta seguro', label: 'Sin póliza cargada' },
               ]} />} />
               <Route path="platform" element={<AdminPlatformPhase />} />
+              <Route path="platform/reset" element={<AdminPlatformPhaseReset />} />
               <Route path="content-agent" element={<AdminContentAgent />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
