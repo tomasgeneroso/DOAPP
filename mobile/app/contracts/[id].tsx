@@ -449,7 +449,7 @@ export default function ContractDetailScreen() {
         </TouchableOpacity>
 
         {/* Aceptar el contrato y emparejarse con el código (cuando corresponde). */}
-        <SolicitudesDelContrato contractId={String(contract.id || (contract as any)._id)} userId={user?.id} />
+        <SolicitudesDelContrato contractId={String(contract.id || (contract as any)._id)} userId={user?.id} estado={String((contract as any).status || '')} />
         <EmparejamientoDelContrato contract={contract} isClient={isClient} isDoer={isDoer} onChanged={fetchContract} />
 
         {/* El cliente paga la garantía por Mercado Pago (sólo con el contrato aprobado y sin pago hecho). */}

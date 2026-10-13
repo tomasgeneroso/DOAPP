@@ -54,6 +54,8 @@ export interface INewTerms {
   underscored: true,
   indexes: [
     { fields: ['contract_id', 'status'] },
+    // Una sola solicitud pendiente por contrato: la ruta lo mira, pero dos pedidos a la vez pasan los dos esa mirada.
+    { name: 'contract_change_requests_one_pending', fields: ['contract_id'], unique: true, where: { status: 'pending' } },
     { fields: ['status'] },
     { fields: ['requested_by'] },
     { fields: ['created_at'] },

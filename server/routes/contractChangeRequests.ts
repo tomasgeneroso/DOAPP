@@ -1,20 +1,27 @@
 import express, { Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import { ContractChangeRequest } from "../models/sql/ContractChangeRequest.model.js";
-import { Contract } from "../models/sql/Contract.model.js";
-import { Ticket } from "../models/sql/Ticket.model.js";
-import { User } from "../models/sql/User.model.js";
-import { Job } from "../models/sql/Job.model.js";
+import { ContractChangeRequest } from '../models/sql/ContractChangeRequest.model.js';
+import { Contract } from '../models/sql/Contract.model.js';
 import { protect, authorize } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
-import emailService from '../services/email.js';
-import { Op } from 'sequelize';
+import {
+  INCLUIR_CONTRATO,
+  INCLUIR_PERSONAS,
+  crearSolicitud,
+  escalarSolicitudesVencidas,
+  responderSolicitud,
+  serializarSolicitud,
+} from '../services/solicitudesDeCambio.js';
 
+/**
+ * Solicitudes de cambio o cancelación de un contrato. La lógica (y el porqué de cada regla) está en
+ * `services/solicitudesDeCambio.ts`; acá solo se valida la forma del pedido y se contesta.
+ */
 const router = express.Router();
 
 /**
  * POST /api/contract-change-requests
- * Crear solicitud de cambio o cancelación de contrato
+ * Crear una solicitud de cancelación o de modificación (fechas y nota; el precio no se cambia por acá).
  */
 router.post(
   '/',
@@ -28,245 +35,93 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        res.status(400).json({
-          success: false,
-          errors: errors.array(),
-        });
+        res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
         return;
       }
 
-      const { contractId, type, reason, newTerms } = req.body;
-      const userId = req.user.id;
-
-      // Verificar que el contrato existe
-      const contract = await Contract.findByPk(contractId, {
-        include: [
-          { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-          { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
-          { model: Job, as: 'job', attributes: ['id', 'title'] }
-        ]
+      const r = await crearSolicitud({
+        contractId: String(req.body.contractId),
+        userId: String(req.user.id),
+        type: req.body.type,
+        reason: req.body.reason,
+        newTerms: req.body.newTerms,
       });
-
-      if (!contract) {
-        res.status(404).json({
-          success: false,
-          message: 'Contrato no encontrado',
-        });
+      if (r.ok === false) {
+        res.status(r.status).json({ success: false, message: r.mensaje });
         return;
       }
 
-      // Verificar que el usuario es parte del contrato
-      const isClient = contract.clientId === userId;
-      const isDoer = contract.doerId === userId;
-
-      if (!isClient && !isDoer) {
-        res.status(403).json({
-          success: false,
-          message: 'No tienes permiso para solicitar cambios en este contrato',
-        });
-        return;
-      }
-
-      // Verificar que no haya otra solicitud pendiente
-      const existingRequest = await ContractChangeRequest.findOne({
-        where: {
-          contractId: contractId,
-          status: 'pending',
-        }
-      });
-
-      if (existingRequest) {
-        res.status(400).json({
-          success: false,
-          message: 'Ya existe una solicitud pendiente para este contrato',
-        });
-        return;
-      }
-
-      // Crear la solicitud
-      const changeRequest = await ContractChangeRequest.create({
-        contractId: contractId,
-        requestedById: userId,
-        type,
-        reason,
-        newTerms: type === 'modify' ? newTerms : undefined,
-      });
-
-      // Enviar email a la otra parte
-      const otherParty = isClient ? contract.doer : contract.client;
-      const requester = isClient ? contract.client : contract.doer;
-      const jobTitle = (contract.job as any)?.title || 'Contrato';
-
-      await emailService.sendEmail({
-        to: (otherParty as any).email,
-        subject: type === 'cancel'
-          ? `Solicitud de cancelación de contrato - ${jobTitle}`
-          : `Solicitud de modificación de contrato - ${jobTitle}`,
-        html: `
-          <h2>Solicitud de ${type === 'cancel' ? 'cancelación' : 'modificación'} de contrato</h2>
-          <p><strong>${(requester as any).name}</strong> ha solicitado ${
-          type === 'cancel' ? 'cancelar' : 'modificar'
-        } el contrato para <strong>${jobTitle}</strong>.</p>
-
-          <p><strong>Razón:</strong></p>
-          <p>${reason}</p>
-
-          ${
-            type === 'modify' && newTerms
-              ? `
-          <p><strong>Nuevos términos propuestos:</strong></p>
-          <ul>
-            ${newTerms.price ? `<li>Precio: $${newTerms.price}</li>` : ''}
-            ${newTerms.startDate ? `<li>Fecha de inicio: ${new Date(newTerms.startDate).toLocaleDateString('es-AR')}</li>` : ''}
-            ${newTerms.endDate ? `<li>Fecha de fin: ${new Date(newTerms.endDate).toLocaleDateString('es-AR')}</li>` : ''}
-            ${newTerms.description ? `<li>Descripción: ${newTerms.description}</li>` : ''}
-          </ul>
-          `
-              : ''
-          }
-
-          <p style="color: #d97706; font-weight: bold;">⏰ Tienes 2 días para responder. Si no respondes, la solicitud se escalará automáticamente a soporte.</p>
-
-          <p>
-            <a href="${process.env.CLIENT_URL}/contracts/${contractId}/change-requests/${changeRequest.id}"
-               style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-              Ver solicitud y responder
-            </a>
-          </p>
-        `,
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Solicitud enviada exitosamente',
-        changeRequest,
-      });
+      res.status(201).json({ success: true, message: 'Solicitud enviada exitosamente', changeRequest: serializarSolicitud(r.solicitud) });
     } catch (error: any) {
       console.error('Error creating contract change request:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Error del servidor',
-      });
+      res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
     }
-  }
+  },
 );
 
 /**
  * GET /api/contract-change-requests/contract/:contractId
- * Obtener solicitudes de cambio de un contrato
+ * Las solicitudes de un contrato (solo para sus dos partes).
  */
 router.get('/contract/:contractId', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { contractId } = req.params;
-    const userId = req.user.id;
+    const userId = String(req.user.id);
 
-    // Verificar que el contrato existe y el usuario es parte
-    const contract = await Contract.findByPk(contractId);
+    const contract: any = await Contract.findByPk(contractId);
     if (!contract) {
-      res.status(404).json({
-        success: false,
-        message: 'Contrato no encontrado',
-      });
+      res.status(404).json({ success: false, message: 'Contrato no encontrado' });
       return;
     }
-
-    const isClient = contract.clientId === userId;
-    const isDoer = contract.doerId === userId;
-
-    if (!isClient && !isDoer) {
-      res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para ver estas solicitudes',
-      });
+    if (String(contract.clientId) !== userId && String(contract.doerId) !== userId) {
+      res.status(403).json({ success: false, message: 'No tenés permiso para ver estas solicitudes' });
       return;
     }
 
     const changeRequests = await ContractChangeRequest.findAll({
-      where: {
-        contractId: contractId,
-      },
-      include: [
-        { model: User, as: 'requestedBy', attributes: ['id', 'name', 'email', 'avatar'] },
-        { model: User, as: 'respondedBy', attributes: ['id', 'name', 'email', 'avatar'] }
-      ],
-      order: [['createdAt', 'DESC']]
+      where: { contractId },
+      include: INCLUIR_PERSONAS as any,
+      order: [['createdAt', 'DESC']],
     });
-
-    res.json({
-      success: true,
-      changeRequests,
-    });
+    res.json({ success: true, changeRequests: changeRequests.map(serializarSolicitud) });
   } catch (error: any) {
     console.error('Error fetching contract change requests:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error del servidor',
-    });
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });
 
 /**
  * GET /api/contract-change-requests/:id
- * Obtener una solicitud de cambio específica
+ * Una solicitud, con el contrato y las dos personas (solo para las partes del contrato).
  */
 router.get('/:id', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    const changeRequest = await ContractChangeRequest.findByPk(id, {
-      include: [
-        { model: User, as: 'requestedBy', attributes: ['id', 'name', 'email', 'avatar'] },
-        { model: User, as: 'respondedBy', attributes: ['id', 'name', 'email', 'avatar'] },
-        {
-          model: Contract,
-          as: 'contract',
-          include: [
-            { model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] },
-            { model: User, as: 'doer', attributes: ['id', 'name', 'email', 'avatar'] },
-            { model: Job, as: 'job', attributes: ['id', 'title'] }
-          ]
-        }
-      ]
+    const changeRequest: any = await ContractChangeRequest.findByPk(req.params.id, {
+      include: [...(INCLUIR_PERSONAS as any[]), INCLUIR_CONTRATO as any],
     });
-
     if (!changeRequest) {
-      res.status(404).json({
-        success: false,
-        message: 'Solicitud no encontrada',
-      });
+      res.status(404).json({ success: false, message: 'Solicitud no encontrada' });
       return;
     }
 
-    // Verificar permisos
-    const contract = changeRequest.contract as any;
-    const isClient = contract.client.id === userId;
-    const isDoer = contract.doer.id === userId;
-
-    if (!isClient && !isDoer) {
-      res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para ver esta solicitud',
-      });
+    const contract = changeRequest.contract;
+    const userId = String(req.user.id);
+    if (!contract || (String(contract.clientId) !== userId && String(contract.doerId) !== userId)) {
+      res.status(403).json({ success: false, message: 'No tenés permiso para ver esta solicitud' });
       return;
     }
 
-    res.json({
-      success: true,
-      changeRequest,
-    });
+    res.json({ success: true, changeRequest: serializarSolicitud(changeRequest) });
   } catch (error: any) {
     console.error('Error fetching contract change request:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error del servidor',
-    });
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });
 
 /**
  * PUT /api/contract-change-requests/:id/respond
- * Responder a una solicitud de cambio (aceptar o rechazar)
+ * Aceptar o rechazar. Aceptar una cancelación NO cancela el contrato: abre la cancelación oficial de mutuo acuerdo,
+ * que resuelve un administrador (es quien decide el dinero). Aceptar una modificación aplica las fechas y la nota.
  */
 router.put(
   '/:id/respond',
@@ -276,261 +131,48 @@ router.put(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        res.status(400).json({
-          success: false,
-          errors: errors.array(),
-        });
+        res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
         return;
       }
 
-      const { id } = req.params;
-      const { accept } = req.body;
-      const userId = req.user.id;
-
-      const changeRequest = await ContractChangeRequest.findByPk(id, {
-        include: [
-          {
-            model: Contract,
-            as: 'contract',
-            include: [
-              { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-              { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
-              { model: Job, as: 'job', attributes: ['id', 'title'] }
-            ]
-          }
-        ]
-      });
-
-      if (!changeRequest) {
-        res.status(404).json({
-          success: false,
-          message: 'Solicitud no encontrada',
-        });
+      const r = await responderSolicitud({ id: req.params.id, userId: String(req.user.id), accept: req.body.accept === true || req.body.accept === 'true' });
+      if (r.ok === false) {
+        res.status(r.status).json({ success: false, message: r.mensaje });
         return;
       }
 
-      if (changeRequest.status !== 'pending') {
-        res.status(400).json({
-          success: false,
-          message: 'Esta solicitud ya ha sido procesada',
-        });
-        return;
-      }
-
-      const contract = changeRequest.contract as any;
-      const requester = changeRequest.requestedBy;
-
-      // Verificar que quien responde NO es quien solicitó
-      if (requester === userId) {
-        res.status(400).json({
-          success: false,
-          message: 'No puedes responder a tu propia solicitud',
-        });
-        return;
-      }
-
-      // Verificar que quien responde es parte del contrato
-      const isClient = contract.client.id === userId;
-      const isDoer = contract.doer.id === userId;
-
-      if (!isClient && !isDoer) {
-        res.status(403).json({
-          success: false,
-          message: 'No tienes permiso para responder esta solicitud',
-        });
-        return;
-      }
-
-      // Actualizar solicitud
-      changeRequest.status = accept ? 'accepted' : 'rejected';
-      changeRequest.respondedBy = req.user.id;
-      changeRequest.respondedAt = new Date();
-      await changeRequest.save();
-
-      // Si se aceptó
-      if (accept) {
-        if (changeRequest.type === 'cancel') {
-          // Cancelar el contrato
-          contract.status = 'cancelled';
-          await contract.save();
-        } else if (changeRequest.type === 'modify' && changeRequest.newTerms) {
-          // Aplicar los nuevos términos
-          if (changeRequest.newTerms.price !== undefined) {
-            contract.price = changeRequest.newTerms.price;
-            contract.totalPrice = changeRequest.newTerms.price * 1.1; // Recalcular con comisión
-          }
-          if (changeRequest.newTerms.startDate) {
-            contract.startDate = changeRequest.newTerms.startDate;
-          }
-          if (changeRequest.newTerms.endDate) {
-            contract.endDate = changeRequest.newTerms.endDate;
-          }
-          await contract.save();
-        }
-      }
-
-      // Enviar email al solicitante
-      const requesterUser = isClient ? contract.doer : contract.client;
-      const responderUser = isClient ? contract.client : contract.doer;
-      const jobTitle = contract.job?.title || 'Contrato';
-
-      await emailService.sendEmail({
-        to: requesterUser.email,
-        subject: accept
-          ? `Solicitud de ${changeRequest.type === 'cancel' ? 'cancelación' : 'modificación'} aceptada - ${jobTitle}`
-          : `Solicitud de ${changeRequest.type === 'cancel' ? 'cancelación' : 'modificación'} rechazada - ${jobTitle}`,
-        html: accept
-          ? `
-          <h2>✅ Tu solicitud ha sido aceptada</h2>
-          <p><strong>${responderUser.name}</strong> ha aceptado tu solicitud de ${
-              changeRequest.type === 'cancel' ? 'cancelación' : 'modificación'
-            } para <strong>${jobTitle}</strong>.</p>
-
-          ${
-            changeRequest.type === 'cancel'
-              ? '<p>El contrato ha sido cancelado.</p>'
-              : '<p>Los nuevos términos han sido aplicados al contrato.</p>'
-          }
-
-          <p>
-            <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
-               style="display: inline-block; padding: 12px 24px; background-color: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-              Ver contrato
-            </a>
-          </p>
-        `
-          : `
-          <h2>❌ Tu solicitud ha sido rechazada</h2>
-          <p><strong>${responderUser.name}</strong> ha rechazado tu solicitud de ${
-              changeRequest.type === 'cancel' ? 'cancelación' : 'modificación'
-            } para <strong>${jobTitle}</strong>.</p>
-
-          <p>Si tienes alguna duda o necesitas asistencia, puedes contactar a soporte.</p>
-
-          <p>
-            <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
-               style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-              Ver contrato
-            </a>
-          </p>
-        `,
-      });
-
+      const aceptada = r.solicitud.status === 'accepted';
+      const message = !aceptada
+        ? 'Solicitud rechazada'
+        : r.cancelacionOficialId
+          ? 'Solicitud aceptada. Se abrió una cancelación de mutuo acuerdo: un administrador la revisa y resuelve el dinero.'
+          : 'Solicitud aceptada';
       res.json({
         success: true,
-        message: accept ? 'Solicitud aceptada' : 'Solicitud rechazada',
-        changeRequest,
+        message,
+        changeRequest: serializarSolicitud(r.solicitud),
+        cancellationRequestId: r.cancelacionOficialId ?? null,
+        appliedChanges: r.cambiosAplicados ?? null,
       });
     } catch (error: any) {
       console.error('Error responding to contract change request:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Error del servidor',
-      });
+      res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
     }
-  }
+  },
 );
 
 /**
  * POST /api/contract-change-requests/escalate-expired
- * Job automático: Escalar solicitudes sin respuesta después de 2 días
- * (Este endpoint debe ser llamado por un cron job)
+ * Pasa a soporte las solicitudes sin respuesta (48 h). Solo administración: era una ruta SIN sesión que crea tickets
+ * y manda correos, así que cualquiera la disparaba. El cron la corre por su cuenta (jobs/escalateExpiredChangeRequests.ts).
  */
-// Sólo administración: era una ruta SIN sesión que crea tickets y manda correos, así que cualquiera la disparaba
-// (y dos llamadas juntas duplicaban tickets). El cron la llama por su cuenta (jobs/escalateExpiredChangeRequests.ts).
-router.post('/escalate-expired', protect, authorize('owner', 'super_admin', 'admin'), async (req, res: Response): Promise<void> => {
+router.post('/escalate-expired', protect, authorize('owner', 'super_admin', 'admin'), async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-
-    // Buscar solicitudes pendientes creadas hace más de 2 días
-    const expiredRequests = await ContractChangeRequest.findAll({
-      where: {
-        status: 'pending',
-        createdAt: { [Op.lte]: twoDaysAgo },
-      },
-      include: [
-        {
-          model: Contract,
-          as: 'contract',
-          include: [
-            { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
-            { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
-            { model: Job, as: 'job', attributes: ['id', 'title'] }
-          ]
-        }
-      ]
-    });
-
-    for (const request of expiredRequests) {
-      const contract = request.contract as any;
-      const requesterUser =
-        request.requestedBy === contract.client.id
-          ? contract.client
-          : contract.doer;
-      const jobTitle = contract.job?.title || 'Contrato';
-
-      // Crear ticket de soporte
-      const ticket = await Ticket.create({
-        userId: request.requestedBy,
-        subject: `Solicitud de ${request.type === 'cancel' ? 'cancelación' : 'modificación'} sin respuesta - ${jobTitle}`,
-        message: `
-          Solicitud automáticamente escalada después de 2 días sin respuesta.
-
-          Tipo: ${request.type === 'cancel' ? 'Cancelación' : 'Modificación'}
-          Razón: ${request.reason}
-
-          Contrato: ${contract.id}
-          Cliente: ${contract.client.name}
-          Doer: ${contract.doer.name}
-        `,
-        category: 'contract_issue',
-        priority: 'high',
-        status: 'open',
-      });
-
-      // Actualizar solicitud
-      request.status = 'escalated_to_support';
-      request.escalatedAt = new Date();
-      request.supportTicketId = ticket.id;
-      await request.save();
-
-      // Enviar emails a ambas partes
-      await emailService.sendEmail({
-        to: requesterUser.email,
-        subject: `Tu solicitud ha sido escalada a soporte - ${jobTitle}`,
-        html: `
-          <h2>Tu solicitud ha sido escalada a soporte</h2>
-          <p>No recibimos respuesta de la otra parte en 2 días, por lo que tu solicitud de ${
-            request.type === 'cancel' ? 'cancelación' : 'modificación'
-          } para <strong>${jobTitle}</strong> ha sido escalada a nuestro equipo de soporte.</p>
-
-          <p>Nuestro equipo revisará el caso y se pondrá en contacto contigo pronto.</p>
-
-          <p>Número de ticket: <strong>#${ticket.id}</strong></p>
-
-          <p>
-            <a href="${process.env.CLIENT_URL}/support/tickets/${ticket.id}"
-               style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-              Ver ticket de soporte
-            </a>
-          </p>
-        `,
-      });
-
-      console.log(`Escalated change request ${request.id} to support ticket ${ticket.id}`);
-    }
-
-    res.json({
-      success: true,
-      message: `Escaladas ${expiredRequests.length} solicitudes expiradas`,
-      count: expiredRequests.length,
-    });
+    const r = await escalarSolicitudesVencidas();
+    res.json({ success: true, message: `Escaladas ${r.escaladas} solicitudes vencidas`, count: r.escaladas, failed: r.fallidas });
   } catch (error: any) {
     console.error('Error escalating expired requests:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error del servidor',
-    });
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });
 
