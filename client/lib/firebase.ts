@@ -19,8 +19,10 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Sin la configuración completa (las variables VITE_FIREBASE_* no están en el build) no se inicializa nada: antes
+// initializeApp seguía y el aviso salía en la consola de todos los visitantes («Missing App configuration value: projectId»).
+const configuracionCompleta = !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId && firebaseConfig.messagingSenderId);
+const app = configuracionCompleta ? initializeApp(firebaseConfig) : null;
 
 // Initialize Firebase Cloud Messaging
 let messaging: Messaging | null = null;
@@ -51,9 +53,11 @@ const isValidEnvironmentForFCM = (): boolean => {
 };
 
 // Only initialize messaging if in valid environment
-if (isValidEnvironmentForFCM()) {
+if (!configuracionCompleta) {
+  if (typeof window !== 'undefined') console.info('ℹ️ Notificaciones push desactivadas: falta la configuración de Firebase');
+} else if (isValidEnvironmentForFCM()) {
   try {
-    messaging = getMessaging(app);
+    messaging = getMessaging(app!);
     console.log('✅ Firebase Messaging initialized');
   } catch (error) {
     console.warn('⚠️ Firebase Messaging initialization skipped:', (error as Error).message);

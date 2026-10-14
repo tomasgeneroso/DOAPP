@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();

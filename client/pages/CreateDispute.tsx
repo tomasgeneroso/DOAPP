@@ -7,7 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { api } from '@/lib/api';
 import { POLITICAS } from '../../shared/constants/policies';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface FileWithPreview extends File {
   preview?: string;

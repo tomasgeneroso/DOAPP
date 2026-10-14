@@ -9,7 +9,9 @@ const getSocketUrl = () => {
   if (import.meta.env.DEV) {
     return ""; // Empty string = same host (uses Vite proxy)
   }
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  // Sin VITE_API_URL (el build del servidor no la define) se usa el mismo sitio: nginx reenvía /socket.io al backend. El respaldo
+  // anterior, http://localhost:5000, hacía que en producción el tiempo real nunca conectara (todo figuraba «sin conexión»).
+  const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "");
   // Remove /api suffix if present to get base URL
   return apiUrl.replace(/\/api\/?$/, "");
 };

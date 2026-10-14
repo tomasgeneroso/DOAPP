@@ -47,6 +47,16 @@ describe('VITE_API_URL en el cliente', () => {
       .map((f) => f.slice(RAIZ.length + 1).replace(/\\/g, '/'));
     expect(infractores).toEqual([]);
   });
+
+  it('el respaldo nunca es una dirección de desarrollo (localhost:NNNN)', () => {
+    // `VITE_API_URL || 'http://localhost:5000'` en producción manda el pedido a la máquina de quien navega:
+    // crear una disputa desde la web no llegaba nunca, y el tiempo real figuraba «sin conexión».
+    const dev = /import\.meta\.env\.VITE_[A-Z_]+\s*(\|\||\?\?)\s*['"`]https?:\/\/localhost/;
+    const infractores = del_cliente
+      .filter((f) => dev.test(sinComentarios(readFileSync(f, 'utf8'))))
+      .map((f) => f.slice(RAIZ.length + 1).replace(/\\/g, '/'));
+    expect(infractores).toEqual([]);
+  });
 });
 
 describe('los botones de ingreso social', () => {
