@@ -856,16 +856,19 @@ export default function UserSettings() {
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                        Teléfono
-                      </h4>
-                      <PhoneVerification
-                        phone={(user as any)?.phone}
-                        verified={(user as any)?.phoneVerified}
-                        onVerified={() => refreshUser?.()}
-                      />
-                    </div>
+                    {/* Con la versión real: en la beta el servidor no ofrece la verificación del teléfono */}
+                    {(user as any)?.capabilities?.phoneVerification && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                          Teléfono
+                        </h4>
+                        <PhoneVerification
+                          phone={(user as any)?.phone}
+                          verified={(user as any)?.phoneVerified}
+                          onVerified={() => refreshUser?.()}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Password Section */}

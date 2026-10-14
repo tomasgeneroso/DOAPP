@@ -860,7 +860,8 @@ export default function ProfilePage() {
                   <KycButton verified={(user as any).dniVerified} kycStatus={(user as any).kycStatus} />
                 </div>
               )}
-              {!(user as any).phoneVerified && (
+              {/* Con la versión real: en la beta el servidor no ofrece la verificación del teléfono (capabilities.phoneVerification) */}
+              {!(user as any).phoneVerified && (currentUser as any)?.capabilities?.phoneVerification && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu teléfono</h3>
                   <PhoneVerification

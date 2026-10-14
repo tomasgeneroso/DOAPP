@@ -34,6 +34,7 @@ import {
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
+import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
@@ -465,7 +466,7 @@ router.post(
         platform: await getPhaseInfo(),
         effectiveMembershipTier: await getEffectiveTier(user.membershipTier, (user as any).adminRole),
         capabilities: {
-          phoneVerification: getWhatsAppStatus().ready,
+          phoneVerification: await telefonoSePuedeVerificar(),
           manualKyc: isManualKycUnlocked(user as any),
         },
         kycStatus: (user as any).kycStatus,
@@ -473,7 +474,7 @@ router.post(
         kycMaxAttempts: getKycMaxAttempts(),
         dniVerified: (user as any).dniVerified,
         phoneVerified: (user as any).phoneVerified,
-        credibility: user.getCredibilityInfo?.(),
+        credibility: user.getCredibilityInfo?.({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }),
       };
 
       const response: any = {
@@ -606,12 +607,12 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         insuranceVerificationStatus: (user as any)?.insuranceVerificationStatus,
         insuranceRejectedReason: (user as any)?.insuranceRejectedReason,
         kycStatus: (user as any)?.kycStatus,
-        credibility: user?.getCredibilityInfo(),
+        credibility: user?.getCredibilityInfo({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }),
         // Channels the deployment can actually deliver on. The clients gate
         // pending-task prompts on these so a task is never shown as required
         // while the backend has no way to let the user complete it.
         capabilities: {
-          phoneVerification: getWhatsAppStatus().ready,
+          phoneVerification: await telefonoSePuedeVerificar(),
           // Manual document upload stays hidden until Didit has actually failed
           // this user as many times as the Didit workflow allows.
           manualKyc: isManualKycUnlocked(user as any),
@@ -2434,10 +2435,14 @@ router.post("/insurance-document", protect, (req: AuthRequest, res: Response): v
 });
 
 // @route   POST /api/auth/phone/send-code
-// @desc    Send a 6-digit verification code to the user's phone via WhatsApp
+// @desc    Send a 6-digit verification code to the user's phone via WhatsApp (solo con la versión real; en la beta, 403)
 // @access  Private
 router.post("/phone/send-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (await isBetaPhase()) {
+      res.status(403).json({ success: false, code: "PHONE_VERIFICATION_NOT_IN_BETA", message: MENSAJE_TELEFONO_EN_BETA });
+      return;
+    }
     const user = await User.findByPk(req.user!.id);
     if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
 
@@ -2515,6 +2520,10 @@ router.post("/phone/send-code", protect, async (req: AuthRequest, res: Response)
 // @access  Private
 router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (await isBetaPhase()) {
+      res.status(403).json({ success: false, code: "PHONE_VERIFICATION_NOT_IN_BETA", message: MENSAJE_TELEFONO_EN_BETA });
+      return;
+    }
     const code = String(req.body?.code || '').trim();
     if (!code) { res.status(400).json({ success: false, message: "Ingresá el código" }); return; }
 
@@ -2538,7 +2547,7 @@ router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Respons
       phoneVerificationExpires: null as any,
     });
 
-    res.json({ success: true, message: "¡Teléfono verificado!", credibility: user.getCredibilityInfo() });
+    res.json({ success: true, message: "¡Teléfono verificado!", credibility: user.getCredibilityInfo({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -2595,7 +2604,7 @@ router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Prom
       }
     }
 
-    res.json({ success: true, kycStatus: user.kycStatus, dniVerified: user.dniVerified, credibility: user.getCredibilityInfo() });
+    res.json({ success: true, kycStatus: user.kycStatus, dniVerified: user.dniVerified, credibility: user.getCredibilityInfo({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

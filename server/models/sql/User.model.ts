@@ -909,7 +909,11 @@ export class User extends Model {
    * A normal user tops out at 2; a professional (has profession/license) can reach 4.
    * Higher tiers require the lower ones (you can't be level 3 without level 2).
    */
-  getCredibilityInfo(): {
+  /**
+   * `exigeTelefono` (por defecto sí): en la beta el teléfono no se puede verificar (se activa con la versión real), así que
+   * ahí el escalón 2 pide solo el correo. Lo decide quien llama según la fase (`telefonoCuentaParaLaCredibilidad`).
+   */
+  getCredibilityInfo(opciones: { exigeTelefono?: boolean } = {}): {
     score: number;
     max: number;
     isProfessional: boolean;
@@ -917,7 +921,8 @@ export class User extends Model {
   } {
     const isProfessional = !!(this.profession || this.licenseNumber || this.licenseDocumentUrl);
     const idOk = !!this.dniVerified;
-    const contactOk = !!this.phoneVerified && !!this.isVerified;
+    const exigeTelefono = opciones.exigeTelefono !== false;
+    const contactOk = (!exigeTelefono || !!this.phoneVerified) && !!this.isVerified;
     const licenseOk = !!this.licenseVerified;
     const insuranceOk = !!this.insuranceVerified;
 
@@ -929,7 +934,7 @@ export class User extends Model {
 
     const breakdown = [
       { level: 1, label: 'Identidad comprobada', achieved: idOk },
-      { level: 2, label: 'Teléfono y correo', achieved: contactOk },
+      { level: 2, label: exigeTelefono ? 'Teléfono y correo' : 'Correo', achieved: contactOk },
     ];
     if (isProfessional) {
       // "Declarada"/"declarado": levels 3 and 4 rest on a records check, not on

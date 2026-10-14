@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Op } from 'sequelize';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { User } from '../../models/sql/User.model.js';
+import { telefonoCuentaParaLaCredibilidad } from '../../services/verificacionDeTelefono.js';
 
 /**
  * Detailed user "registry" for admins: the full data profile of each user
@@ -51,8 +52,8 @@ function buildWhere(search?: string, status?: string): any {
   return where;
 }
 
-function toRecord(u: any) {
-  const cred = u.getCredibilityInfo?.() || { score: 0, max: 2 };
+function toRecord(u: any, exigeTelefono = true) {
+  const cred = u.getCredibilityInfo?.({ exigeTelefono }) || { score: 0, max: 2 };
   const kyc = u.kycData || {};
   const idv = kyc.id_verifications?.[0] || kyc.id_verification || {};
   return {
@@ -90,6 +91,7 @@ function toRecord(u: any) {
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { page = 1, limit = 25, search = '', status = '' } = req.query;
+    const exigeTelefono = await telefonoCuentaParaLaCredibilidad();
     const { rows, count } = await User.findAndCountAll({
       where: buildWhere(search as string, status as string),
       attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
@@ -99,7 +101,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     });
     res.json({
       success: true,
-      data: rows.map(toRecord),
+      data: rows.map((u) => toRecord(u, exigeTelefono)),
       pagination: { total: count, page: Number(page), limit: Number(limit), totalPages: Math.ceil(count / Number(limit)) },
     });
   } catch (error: any) {
@@ -156,8 +158,9 @@ router.get('/export.csv', async (req: AuthRequest, res: Response): Promise<void>
       order: [['createdAt', 'DESC']],
     });
     const header = CSV_COLUMNS.map((c) => c.label).join(',');
+    const exigeTelefono = await telefonoCuentaParaLaCredibilidad();
     const lines = users.map((u) => {
-      const rec = toRecord(u) as any;
+      const rec = toRecord(u, exigeTelefono) as any;
       return CSV_COLUMNS.map((c) => csvCell(rec[c.key])).join(',');
     });
     const csv = [header, ...lines].join('\n');

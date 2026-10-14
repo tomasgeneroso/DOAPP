@@ -241,7 +241,8 @@ export default function ProfileScreen() {
                 <Text style={{ fontSize: 12, color: '#92400e' }}>Hasta verificarte: podés crear trabajos pero no publicarlos, no podés postularte, ni cobrar o retirar dinero. Sí podés escribir en el blog.</Text>
               </View>
             )}
-            {!(user as any)?.phoneVerified && (
+            {/* Con la versión real: en la beta el servidor no ofrece la verificación del teléfono */}
+            {!(user as any)?.phoneVerified && !!(user as any)?.capabilities?.phoneVerification && (
               <View style={{ backgroundColor: themeColors.card, borderRadius: 14, borderWidth: 1, borderColor: themeColors.border, padding: 16, gap: 8 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: themeColors.text.primary }}>Verificá tu teléfono</Text>
                 <PhoneVerification

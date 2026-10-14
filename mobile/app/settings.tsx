@@ -422,13 +422,16 @@ export default function SettingsScreen() {
                 </View>
               )}
 
-              <View style={{ marginTop: spacing.sm }}>
-                <PhoneVerification
-                  phone={user?.phone}
-                  verified={user?.phoneVerified}
-                  onVerified={() => refreshUser?.()}
-                />
-              </View>
+              {/* Con la versión real: en la beta el servidor no ofrece la verificación del teléfono */}
+              {!!user?.capabilities?.phoneVerification && (
+                <View style={{ marginTop: spacing.sm }}>
+                  <PhoneVerification
+                    phone={user?.phone}
+                    verified={user?.phoneVerified}
+                    onVerified={() => refreshUser?.()}
+                  />
+                </View>
+              )}
             </View>
           </View>
         </View>

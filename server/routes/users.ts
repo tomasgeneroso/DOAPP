@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
+import { telefonoCuentaParaLaCredibilidad } from '../services/verificacionDeTelefono.js';
 import { Op, fn, col, literal } from "sequelize";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -264,7 +265,7 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
         insuranceVerified: user.insuranceVerified,
         phoneVerified: user.phoneVerified,
         dniVerified: user.dniVerified,
-        credibility: user.getCredibilityInfo(),
+        credibility: user.getCredibilityInfo({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }),
       },
     });
   } catch (error: any) {

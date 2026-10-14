@@ -683,7 +683,7 @@ export default function LoginScreen() {
                   error={errorField === 'phone' ? error : undefined}
                   help={t(
                     'auth.phoneHelp',
-                    'Con característica y sin el 15. Por ejemplo: +54 11 1234-5678. Lo verificamos con un código por WhatsApp.'
+                    'Con característica y sin el 15. Por ejemplo: +54 11 1234-5678.'
                   )}
                   privado
                   note={t(
