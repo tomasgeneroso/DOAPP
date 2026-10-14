@@ -1,4 +1,5 @@
 ﻿import 'reflect-metadata';
+import { Op } from 'sequelize';
 import {
   Table,
   Column,
@@ -94,6 +95,8 @@ export interface AvailabilitySchedule {
   indexes: [
     { fields: ['email'], unique: true },
     { fields: ['username'], unique: true },
+    // El DNI es la clave de la cuenta: no se repite (los que no tienen DNI cargado no cuentan)
+    { name: 'users_dni_unique', fields: ['dni'], unique: true, where: { dni: { [Op.ne]: null } } },
     { fields: ['google_id'] },
     { fields: ['facebook_id'] },
     { fields: ['twitter_id'] },

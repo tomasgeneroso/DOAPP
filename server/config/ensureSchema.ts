@@ -57,6 +57,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'contract_change_requests.requested_by', sql: `CREATE INDEX IF NOT EXISTS contract_change_requests_requested_by ON contract_change_requests (requested_by)` },
   { label: 'contract_change_requests.created_at', sql: `CREATE INDEX IF NOT EXISTS contract_change_requests_created_at ON contract_change_requests (created_at)` },
   { label: 'contract_change_requests one pending', sql: `CREATE UNIQUE INDEX IF NOT EXISTS contract_change_requests_one_pending ON contract_change_requests (contract_id) WHERE status = 'pending'` },
+  // El DNI no se repite (si hoy hubiera repetidos, el índice no se crea y la corrida lo anota en el log; nada se borra)
+  { label: 'users.dni unique', sql: `CREATE UNIQUE INDEX IF NOT EXISTS users_dni_unique ON users (dni) WHERE dni IS NOT NULL AND dni <> ''` },
   { label: 'influencer_invites.batch_id', sql: `CREATE INDEX IF NOT EXISTS influencer_invites_batch_id ON influencer_invites (batch_id)` },
   { label: 'users.commission_free_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS commission_free_until TIMESTAMPTZ` },
   { label: 'users.influencer_invite_id', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS influencer_invite_id UUID` },

@@ -34,6 +34,8 @@ import {
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
+import { aplicarIdentidadDeDidit } from "../services/identidadDeDidit.js";
+import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
@@ -167,11 +169,26 @@ router.post(
         return;
       }
 
+      // El DNI es la clave de la cuenta: no se repite. Se guarda solo el número (sin puntos ni espacios).
+      const dniLimpio = dni ? normalizarDni(dni) : dni;
+      if (dniLimpio) {
+        const dniUsado = await User.findOne({ where: { dni: dniLimpio }, attributes: ['id'] });
+        if (dniUsado) {
+          res.status(400).json({
+            success: false,
+            code: 'DNI_EN_USO',
+            field: 'dni',
+            message: "Este DNI ya está registrado en otra cuenta. Si es tuyo, iniciá sesión; si creés que es un error, escribinos desde el Centro de ayuda.",
+          });
+          return;
+        }
+      }
+
       // Bloquear el re-registro con una identidad (email o DNI) baneada.
       // El registro persiste para la historia de la app; recuperar la cuenta va por soporte.
       try {
         const bannedWhere: any[] = [{ email: (email || '').toLowerCase().trim() }];
-        if (dni) bannedWhere.push({ dni });
+        if (dniLimpio) bannedWhere.push({ dni: dniLimpio });
         const bannedIdentity = await BannedIdentity.findOne({
           where: { isActive: true, [Op.or]: bannedWhere },
         });
@@ -219,7 +236,7 @@ router.post(
         email,
         password,
         phone,
-        dni,
+        dni: dniLimpio,
         termsAccepted,
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
         referredBy: referrer?.id,
@@ -825,6 +842,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       bankingInfo,
       dontAskBankingInfo,
       legalInfo,
+      dni,
       interests,
       notificationPreferences,
       availabilitySchedule,
@@ -892,8 +910,61 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       });
     }
 
+    // DNI (la clave de la cuenta) y CUIL/CUIT. El DNI no se repite y, verificado con Didit, no se cambia a mano.
+    let dniFinal: string | null = oldUser.dni ? String(oldUser.dni) : null;
+    const errorDeDocumento = (message: string, code: string) => res.status(400).json({ success: false, code, message });
+    let nuevoDni: string | undefined;
+    if (dni !== undefined && dni !== null) {
+      const limpio = normalizarDni(dni);
+      // Algo escrito que no es un DNI (por ejemplo letras) se rechaza: no se ignora en silencio.
+      if (String(dni).trim() !== '' && !dniValido(dni)) {
+        errorDeDocumento('El DNI debe tener entre 7 y 9 dígitos, solo números.', 'DNI_INVALIDO');
+        return;
+      }
+      if (limpio !== (dniFinal || '')) {
+        if ((oldUser as any).dniVerified) {
+          errorDeDocumento('Tu DNI ya está verificado con Didit y no se puede cambiar desde acá. Si hay un error, escribinos desde el Centro de ayuda.', 'DNI_VERIFICADO');
+          return;
+        }
+        if (!dniValido(limpio)) {
+          errorDeDocumento('El DNI debe tener entre 7 y 9 dígitos, solo números.', 'DNI_INVALIDO');
+          return;
+        }
+        const usado = await User.findOne({ where: { dni: limpio, id: { [Op.ne]: oldUser.id } }, attributes: ['id'] });
+        if (usado) {
+          errorDeDocumento('Este DNI ya está registrado en otra cuenta.', 'DNI_EN_USO');
+          return;
+        }
+        changes.push({ field: 'dni', oldValue: dniFinal || 'N/A', newValue: limpio });
+        nuevoDni = limpio;
+        dniFinal = limpio;
+      }
+    }
+    let legalFinal: any = legalInfo;
+    if (legalInfo && typeof legalInfo === 'object') {
+      legalFinal = { ...legalInfo };
+      const taxId = legalFinal.taxId === undefined || legalFinal.taxId === null ? undefined : String(legalFinal.taxId).trim();
+      if (taxId) {
+        if (!cuilValido(taxId)) {
+          errorDeDocumento('El CUIL/CUIT no es válido: revisá los números (son 11 dígitos, con el verificador al final).', 'CUIL_INVALIDO');
+          return;
+        }
+        if (!cuilCoincideConDni(taxId, dniFinal)) {
+          errorDeDocumento('El CUIL no coincide con tu DNI: el CUIL lleva adentro el número de DNI.', 'CUIL_NO_COINCIDE');
+          return;
+        }
+        legalFinal.taxId = formatearCuil(taxId);
+      } else if (taxId === '') {
+        legalFinal.taxId = '';
+      }
+      // El documento de identidad de la cuenta es el DNI: no queda otro número de documento suelto en la información legal.
+      legalFinal.idType = 'dni';
+      if (dniFinal) legalFinal.idNumber = dniFinal;
+    }
+
     // Actualizar usuario
     const updateData: any = {};
+    if (nuevoDni) updateData.dni = nuevoDni;
     if (name) updateData.name = name;
     if (username && username !== oldUser.username) updateData.username = username.toLowerCase().trim();
     if (phone !== undefined) updateData.phone = phone;
@@ -941,7 +1012,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       }
     }
     if (dontAskBankingInfo !== undefined) updateData.dontAskBankingInfo = dontAskBankingInfo;
-    if (legalInfo) updateData.legalInfo = legalInfo;
+    if (legalInfo) updateData.legalInfo = legalFinal;
     if (interests) updateData.interests = interests;
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
     if (availabilitySchedule !== undefined) updateData.availabilitySchedule = availabilitySchedule;
@@ -2604,6 +2675,11 @@ router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Prom
       }
     }
 
+    // Aprobada: se completan el DNI y el CUIL con lo que Didit leyó (también para quien ya estaba aprobado y no los tenía).
+    if (user.kycStatus === 'Approved' && (user as any).kycData) {
+      try { await aplicarIdentidadDeDidit(user, (user as any).kycData); } catch (e: any) { console.warn('[kyc/status] no se pudo completar la identidad:', e?.message); }
+    }
+
     res.json({ success: true, kycStatus: user.kycStatus, dniVerified: user.dniVerified, credibility: user.getCredibilityInfo({ exigeTelefono: await telefonoCuentaParaLaCredibilidad() }) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -2641,6 +2717,9 @@ router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> =
         }
         if (decision) updates.kycData = decision;
         await user.update(updates);
+        if (updates.kycStatus === 'Approved' && decision) {
+          try { await aplicarIdentidadDeDidit(user, decision); } catch (e: any) { console.warn('[kyc/webhook] no se pudo completar la identidad:', e?.message); }
+        }
       }
     }
     // Always 200 so Didit doesn't retry a processed event.
