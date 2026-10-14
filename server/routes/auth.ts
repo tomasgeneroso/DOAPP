@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import { leerSignedRequestDeFacebook } from '../utils/facebookSignedRequest.js';
 import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
@@ -35,6 +35,7 @@ import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsu
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { aplicarIdentidadDeDidit } from "../services/identidadDeDidit.js";
+import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
 import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
@@ -660,8 +661,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
 // @access  Private
 router.put("/complete-registration", protect, [
   body("dni").notEmpty().withMessage("DNI es requerido")
-    .isLength({ min: 7, max: 8 }).withMessage("DNI debe tener entre 7 y 8 dígitos")
-    .isNumeric().withMessage("DNI debe contener solo números"),
+    .custom((v) => dniValido(v)).withMessage("El DNI debe tener entre 7 y 9 dígitos, solo números"),
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
@@ -673,13 +673,15 @@ router.put("/complete-registration", protect, [
       return;
     }
 
-    const { dni } = req.body;
+    const dni = normalizarDni(req.body.dni);
 
     // Check if DNI is already in use
     const existingUser = await User.findOne({ where: { dni } });
     if (existingUser && existingUser.id !== req.user.id) {
       res.status(400).json({
         success: false,
+        code: "DNI_EN_USO",
+        field: "dni",
         message: "Este DNI ya está registrado en otra cuenta",
       });
       return;
@@ -690,6 +692,16 @@ router.put("/complete-registration", protect, [
       res.status(404).json({
         success: false,
         message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Verificado con Didit, el DNI no se cambia desde acá (igual que en Configuración).
+    if ((user as any).dniVerified && user.dni && String(user.dni) !== dni) {
+      res.status(400).json({
+        success: false,
+        code: "DNI_VERIFICADO",
+        message: "Tu DNI ya está verificado con Didit y no se puede cambiar desde acá.",
       });
       return;
     }
@@ -1113,10 +1125,13 @@ router.put('/mode', protect, async (req: AuthRequest, res: Response): Promise<vo
 // --- Rutas de Autenticación Social ---
 
 // Google
-router.get(
-  "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
+// `?origen=app` lo manda la app del celular: el ingreso se hace en el navegador y al terminar se le entrega un código de un solo
+// uso para canjear por la sesión (ver services/ingresoDesdeApp.ts). Sin eso, todo sigue igual que para la web.
+router.get("/google", (req: Request, res: Response, next: NextFunction) => {
+  const opciones: Record<string, unknown> = { scope: ["profile", "email"] };
+  if (req.query.origen === "app") opciones.state = "app";
+  passport.authenticate("google", opciones)(req, res, next);
+});
 
 router.get(
   "/google/callback",
@@ -1126,6 +1141,13 @@ router.get(
   }),
   (req: Request, res: Response) => {
     const user = req.user as any;
+
+    // Desde la app: no se pone la sesión en ningún enlace, se entrega un código de un solo uso a una página puente.
+    if (req.query.state === "app") {
+      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id))}`);
+      return;
+    }
+
     const token = generateToken((user.id as unknown as string));
 
     // Set token in httpOnly cookie
@@ -1143,6 +1165,27 @@ router.get(
     res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
   }
 );
+
+// @route   POST /api/auth/app-login-code
+// @desc    La app canjea el código de un solo uso (que le dejó el ingreso con Google/X) por su sesión
+// @access  Public (el código es la credencial: 2 minutos, un solo uso)
+router.post("/app-login-code", authLimiter, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = canjearCodigoDeApp(req.body?.codigo);
+    if (!userId) {
+      res.status(400).json({ success: false, message: "El ingreso venció o ya se usó. Volvé a intentarlo." });
+      return;
+    }
+    const user = await User.findByPk(userId);
+    if (!user || (user as any).isBanned) {
+      res.status(400).json({ success: false, message: "No se pudo iniciar sesión con esta cuenta." });
+      return;
+    }
+    res.json({ success: true, token: generateToken(String(user.id)), needsDni: !user.dni });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // Facebook
 router.get(
@@ -1275,6 +1318,12 @@ router.get("/twitter", (req: Request, res: Response): void => {
       maxAge: 10 * 60 * 1000, // 10 minutes
       path: '/',
     });
+    // Desde la app del celular se entrega un código de un solo uso en vez de la sesión (ver services/ingresoDesdeApp.ts).
+    if (req.query.origen === 'app') {
+      res.cookie('twitter_oauth_origen', 'app', { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
+    } else {
+      res.clearCookie('twitter_oauth_origen', { path: '/' });
+    }
 
     res.redirect(url);
   } catch (error: any) {
@@ -1358,6 +1407,12 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
     user.lastLogin = new Date();
     user.lastLoginIp = getClientIp(req);
     await user.save();
+
+    if (req.cookies?.twitter_oauth_origen === 'app') {
+      res.clearCookie('twitter_oauth_origen', { path: '/' });
+      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id))}`);
+      return;
+    }
 
     // Generate JWT token
     const token = generateToken(user.id as string);

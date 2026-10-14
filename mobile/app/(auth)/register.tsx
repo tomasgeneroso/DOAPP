@@ -18,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
 import ContactarSoporte from '../../components/ContactarSoporte';
+import BotonesSociales from '../../components/BotonesSociales';
 import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
@@ -156,6 +157,9 @@ export default function RegisterScreen() {
             ) : null}
 
             {/* Form */}
+            {/* Google y X primero, el formulario después */}
+            <BotonesSociales accion="registrarte" />
+
             <View style={styles.form}>
               {/* Nombre completo */}
               <View style={styles.inputContainer}>
@@ -323,32 +327,6 @@ export default function RegisterScreen() {
                 ) : (
                   <Text style={styles.buttonText}>Registrarme</Text>
                 )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
-              <Text style={[styles.dividerText, { color: themeColors.text.muted }]}>o continúa con</Text>
-              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
-            </View>
-
-            {/* Social Login */}
-            <View style={styles.socialButtons}>
-              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
-                <View style={styles.googleLogo}>
-                  <Text style={styles.googleBlue}>G</Text>
-                  <Text style={styles.googleRed}>o</Text>
-                  <Text style={styles.googleYellow}>o</Text>
-                  <Text style={styles.googleBlue}>g</Text>
-                  <Text style={styles.googleGreen}>l</Text>
-                  <Text style={styles.googleRed}>e</Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
-                <View style={styles.xLogo}>
-                  <Text style={[styles.xText, { color: themeColors.text.primary }]}>𝕏</Text>
-                </View>
               </TouchableOpacity>
             </View>
 

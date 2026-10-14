@@ -5,6 +5,7 @@ import * as authService from '../services/auth';
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<ApiResponse<any>>;
   register: (data: RegisterData) => Promise<ApiResponse<any>>;
+  loginWithCode: (codigo: string) => Promise<ApiResponse<any>>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -77,6 +78,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return response;
   };
 
+  const loginWithCode = async (codigo: string): Promise<ApiResponse<any>> => {
+    const response = await authService.loginConCodigo(codigo);
+    if (response.success && response.data) {
+      setState({
+        user: response.data.user,
+        token: response.data.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    }
+    return response;
+  };
+
   const register = async (data: RegisterData): Promise<ApiResponse<any>> => {
     const response = await authService.register(data);
 
@@ -119,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...state,
         login,
         register,
+        loginWithCode,
         logout,
         refreshUser,
       }}

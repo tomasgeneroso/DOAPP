@@ -28,6 +28,24 @@ export async function login(credentials: LoginCredentials): Promise<ApiResponse<
 }
 
 /**
+ * Iniciar sesión con el código de un solo uso que dejó el ingreso con Google/X (ver services/ingresoSocial.ts)
+ */
+export async function loginConCodigo(codigo: string): Promise<ApiResponse<AuthResponse & { needsDni?: boolean }>> {
+  const response = await post<any>('/auth/app-login-code', { codigo }, false);
+  const raw = response.data || (response as any);
+  if (!response.success || !raw?.token) return response as any;
+
+  await setToken(raw.token);
+  const me = await getMe();
+  if (!me.success || !me.data?.user) {
+    await clearAuth();
+    return { success: false, message: me.message || 'No se pudo cargar tu cuenta' } as any;
+  }
+  await setUser(me.data.user);
+  return { success: true, data: { token: raw.token, user: me.data.user, needsDni: !!raw.needsDni } } as any;
+}
+
+/**
  * Registrar nuevo usuario
  */
 export async function register(data: RegisterData): Promise<ApiResponse<AuthResponse>> {
