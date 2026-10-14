@@ -108,12 +108,12 @@ export default function KycCallback() {
               <p className="text-slate-600 dark:text-slate-300 mb-6">
                 {t(
                   "kycCallback.noSessionText",
-                  "Si empezaste la verificación desde la app, volvé a abrirla: el resultado se actualiza solo. Si la hiciste desde la web, iniciá sesión para ver cómo salió."
+                  "Entrá a DOAPP e iniciá sesión para ver cómo salió. Si empezaste desde la app, el resultado también se actualiza solo cuando la abras."
                 )}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <a href="doapp://" className={principal}>{t("kycCallback.openApp", "Volver a la app")}</a>
-                <Link to="/login?redirect=/kyc/callback" className={secundario}>{t("kycCallback.login", "Iniciar sesión")}</Link>
+                <Link to="/login?redirect=/kyc/callback" className={principal}>{t("kycCallback.login", "Iniciar sesión")}</Link>
+                <Link to="/" className={secundario}>{t("kycCallback.goToSite", "Ir a DOAPP")}</Link>
               </div>
             </>
           ) : (

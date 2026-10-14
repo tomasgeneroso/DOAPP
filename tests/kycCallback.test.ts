@@ -31,6 +31,19 @@ describe('la dirección de retorno de Didit existe en la web', () => {
   });
 });
 
+describe('los botones de la pantalla de retorno van a doapparg.com', () => {
+  it('no usan el esquema doapp:// (que no lleva a ningún lado sin la app instalada)', () => {
+    const pantalla = readFileSync(join(RAIZ, 'client/pages/KycCallback.tsx'), 'utf8');
+    expect(pantalla).not.toContain('doapp://');
+  });
+
+  it('en el retorno de Mercado Pago desde la app, el botón principal es un enlace de la web y la app queda como opción secundaria', () => {
+    const pago = readFileSync(join(RAIZ, 'client/pages/PagoDesdeApp.tsx'), 'utf8');
+    expect(pago).toMatch(/<Link\s+to="\/login"[\s\S]*?Ir a DOAPP/);
+    expect(pago).not.toMatch(/Abrir la app de DOAPP/);
+  });
+});
+
 describe('estadoDeLaVerificacion', () => {
   it('solo cuenta como aprobada lo que el servidor confirma', () => {
     expect(estadoDeLaVerificacion('Approved')).toBe('aprobada');

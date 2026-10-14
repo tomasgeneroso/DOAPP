@@ -6,8 +6,9 @@ import { CheckCircle, Info, Smartphone } from "lucide-react";
  *
  * Mercado Pago devuelve al navegador del teléfono, que casi nunca tiene una sesión de DOAPP iniciada: la página de éxito
  * de la web (`/payment/success`) confirma el pago con esa sesión y mostraba un error aunque el pago hubiera salido bien.
- * Esta página es pública y NO confirma nada: sólo dice «volvé a la app», que es donde se confirma el pago y se ve cómo
- * sigue. El botón abre la app en la pantalla de seguimiento del pago (esquema `doapp://`).
+ * Esta página es pública y NO confirma nada: sólo manda a doapparg.com (el botón principal), donde se inicia sesión y se ve
+ * cómo sigue el pago. Abrir la app (esquema `doapp://`) queda como enlace secundario: el esquema solo funciona si la app está
+ * instalada y no lleva a ningún lado en un navegador de escritorio o sin la app, por eso ya no es el botón.
  */
 
 /** Cómo se llama cada tipo de pago en la pantalla de seguimiento de la app. */
@@ -58,24 +59,23 @@ export default function PagoDesdeApp() {
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mb-6">
           {cancelado
-            ? "No se cobró nada. Volvé a la app de DOAPP cuando quieras intentarlo de nuevo."
-            : "Abrí la app de DOAPP: ahí confirmamos tu pago y ves cómo sigue. No hace falta que pagues de nuevo."}
+            ? "No se cobró nada. Entrá a DOAPP cuando quieras intentarlo de nuevo."
+            : "Entrá a DOAPP para ver cómo sigue tu pago. No hace falta que pagues de nuevo."}
         </p>
 
-        <a
-          href={abrirLaApp}
+        <Link
+          to="/login"
           className="w-full inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold px-6 py-4 rounded-xl transition-colors"
         >
-          <Smartphone className="w-5 h-5" aria-hidden="true" />
-          Abrir la app de DOAPP
-        </a>
+          Ir a DOAPP
+        </Link>
 
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
-          ¿No tenés la app instalada en este teléfono?{" "}
-          <Link to="/login" className="text-sky-600 dark:text-sky-400 underline">
-            Iniciá sesión acá
-          </Link>{" "}
-          para ver el estado de tu pago.
+          ¿Pagaste desde la app y la tenés instalada en este teléfono?{" "}
+          <a href={abrirLaApp} className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 underline">
+            <Smartphone className="w-4 h-4" aria-hidden="true" />
+            Abrila desde acá
+          </a>
         </p>
       </div>
     </div>
