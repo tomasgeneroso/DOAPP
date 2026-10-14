@@ -202,7 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .join(", ");
           throw new Error(errorMessages);
         }
-        throw new Error(responseData.message || t('auth.registerError', 'Error registering'));
+        const errorDeRegistro: any = new Error(responseData.message || t('auth.registerError', 'Error registering'));
+        errorDeRegistro.field = responseData.field;
+        errorDeRegistro.code = responseData.code;
+        throw errorDeRegistro;
       }
 
       // El token ahora está en la cookie httpOnly

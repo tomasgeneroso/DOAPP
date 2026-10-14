@@ -11,6 +11,7 @@ import CredibilityBadge from "../components/CredibilityBadge";
 import KycButton from "../components/KycButton";
 import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
+import AddressAutocomplete from "../components/ui/AddressAutocomplete";
 import EmailVerification from "../components/EmailVerification";
 import MembershipStatus from "../components/MembershipStatus";
 import ProfilePromotion from "../components/profile/ProfilePromotion";
@@ -36,6 +37,7 @@ import {
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { FormField } from "../components/ui/FormField";
 import { useOnboarding } from "../hooks/useOnboarding";
+import { cuilCoincideConDni, cuilValido, formatearCuil } from "../../shared/identidad/documentos";
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 
@@ -387,6 +389,13 @@ export default function UserSettings() {
     }
   }, [searchParams]);
 
+  // El aviso «Configuración actualizada correctamente» se desvanece solo (el de error dura más: hay que poder leerlo).
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(null), message.type === "success" ? 4000 : 9000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   // End of the attention trail: /settings?tab=basic#verificacion scrolls the
   // user straight to the section that resolves the pending task.
   useEffect(() => {
@@ -419,8 +428,7 @@ export default function UserSettings() {
   const [alias, setAlias] = useState("");
 
   // Legal
-  const [idType, setIdType] = useState<"dni" | "passport" | "cuit" | "cuil">("dni");
-  const [idNumber, setIdNumber] = useState("");
+  const [dni, setDni] = useState("");
   const [taxStatus, setTaxStatus] = useState<"freelancer" | "autonomo" | "monotributo" | "responsable_inscripto">("freelancer");
   const [taxId, setTaxId] = useState("");
 
@@ -468,8 +476,7 @@ export default function UserSettings() {
       setCbuMasked(user.bankingInfo?.cbu || "");
       setCbu(""); // Start with empty, user needs to re-enter to change
       setAlias(user.bankingInfo?.alias || "");
-      setIdType(user.legalInfo?.idType || "dni");
-      setIdNumber(user.legalInfo?.idNumber || "");
+      setDni(user.dni || "");
       setTaxStatus(user.legalInfo?.taxStatus || "freelancer");
       setTaxId(user.legalInfo?.taxId || "");
       setInterests(user.interests || []);
@@ -487,6 +494,31 @@ export default function UserSettings() {
       }
     }
   }, [user]);
+
+  // Mensaje de error del CUIL mientras se escribe (la misma regla que aplica el servidor al guardar).
+  const cuilConError = (() => {
+    const limpio = taxId.trim();
+    if (!limpio) return null;
+    if (!cuilValido(limpio)) return t('settings.legal.cuilInvalido', 'El CUIL/CUIT no es válido: revisá los números (11 dígitos).');
+    if (!cuilCoincideConDni(limpio, dni)) return t('settings.legal.cuilNoCoincide', 'El CUIL no coincide con tu DNI: lleva adentro el número de DNI.');
+    return null;
+  })();
+
+  // Quien ya verificó con Didit y todavía no tiene el CUIL: al abrir la pestaña se le pide al servidor que lo complete con lo que Didit leyó.
+  useEffect(() => {
+    if (activeTab !== "legal" || !user?.dniVerified || user?.legalInfo?.taxId) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/kyc/status", { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (r.ok && !cancelado) await refreshUser();
+      } catch {
+        /* sin red: queda el campo para completar a mano */
+      }
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user?.dniVerified]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -543,7 +575,9 @@ export default function UserSettings() {
             ...(cbu && cbu.length === 22 ? { cbu } : {}),
             alias,
           },
-          legalInfo: { idType, idNumber, taxStatus, taxId },
+          // El DNI viaja aparte (es la clave de la cuenta; el servidor valida que no se repita). Verificado con Didit no se manda.
+          ...(dni && !user?.dniVerified ? { dni } : {}),
+          legalInfo: { taxStatus, taxId },
           interests,
           notificationPreferences: notifPrefs,
           profession: profession || null,
@@ -911,13 +945,19 @@ export default function UserSettings() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       {t('settings.address.street')}
                     </label>
-                    <input
-                      type="text"
+                    <AddressAutocomplete
                       value={street}
-                      onChange={(e) => setStreet(e.target.value)}
+                      onChange={setStreet}
+                      onSelect={(s) => {
+                        // Elegir una sugerencia completa la calle, la ciudad y la provincia (el código postal no lo da la API)
+                        setStreet(s.calle);
+                        if (s.ciudad) setCity(s.ciudad);
+                        if (s.provincia) setState(s.provincia);
+                      }}
                       placeholder={t('settings.address.streetPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Empezá a escribir la calle y el número y elegí una sugerencia: completa la ciudad y la provincia.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1108,30 +1148,23 @@ export default function UserSettings() {
                   </h2>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.legal.idType')}
-                    </label>
-                    <select
-                      value={idType}
-                      onChange={(e) => setIdType(e.target.value as "dni" | "passport" | "cuit" | "cuil")}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-                    >
-                      <option value="dni">{t('settings.legal.idTypeDni')}</option>
-                      <option value="passport">{t('settings.legal.idTypePassport')}</option>
-                      <option value="cuit">{t('settings.legal.idTypeCuit')}</option>
-                      <option value="cuil">{t('settings.legal.idTypeCuil')}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.legal.idNumber')}
+                      {t('settings.legal.dni', 'DNI')}
                     </label>
                     <input
                       type="text"
-                      value={idNumber}
-                      onChange={(e) => setIdNumber(e.target.value)}
-                      placeholder={t('settings.legal.idNumberPlaceholder')}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                      value={dni}
+                      readOnly={!!user?.dniVerified}
+                      onChange={(e) => setDni(e.target.value.replace(/[^\d.\s]/g, ""))}
+                      placeholder="12345678"
+                      maxLength={11}
+                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 read-only:bg-slate-100 dark:read-only:bg-slate-800 read-only:cursor-not-allowed"
                     />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {user?.dniVerified
+                        ? t('settings.legal.dniVerified', 'Verificado con Didit: no se puede cambiar. Si hay un error, escribinos desde el Centro de ayuda.')
+                        : t('settings.legal.dniHelp', 'Es la clave de tu cuenta: no se puede repetir. Si verificás tu identidad con Didit, se completa solo con el de tu documento.')}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
@@ -1150,15 +1183,25 @@ export default function UserSettings() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.banking.taxId')}
+                      {t('settings.legal.cuil', 'CUIL / CUIT')}
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={taxId}
-                      onChange={(e) => setTaxId(e.target.value)}
+                      onChange={(e) => setTaxId(e.target.value.replace(/[^\d\-\s]/g, ""))}
+                      onBlur={() => setTaxId((v) => formatearCuil(v))}
                       placeholder="XX-XXXXXXXX-X"
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                      maxLength={13}
+                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 ${cuilConError ? "border-red-400" : "border-slate-200 dark:border-slate-700"}`}
                     />
+                    {cuilConError ? (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">{cuilConError}</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {t('settings.legal.cuilHelp', 'Son 11 dígitos y lleva adentro tu DNI. Si verificás con Didit, se completa solo.')}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

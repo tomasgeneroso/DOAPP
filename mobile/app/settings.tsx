@@ -38,6 +38,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constant
 import AttentionDot from '../components/AttentionDot';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
+import DireccionConSugerencias from '../components/DireccionConSugerencias';
 import { usePendingTasks, type SettingsSection } from '../hooks/usePendingTasks';
 
 type SettingsTab = 'general' | 'banking' | 'address';
@@ -329,10 +330,12 @@ export default function SettingsScreen() {
             <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Calle y numero</Text>
-                <TextInput
+                <DireccionConSugerencias
                   style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
                   value={address.street}
                   onChangeText={(v) => setAddress({ ...address, street: v })}
+                  // Elegir una sugerencia completa la calle, la ciudad y la provincia (el código postal no lo da la API)
+                  onSelect={(sug) => setAddress((a) => ({ ...a, street: sug.calle, city: sug.ciudad || a.city, state: sug.provincia || a.state }))}
                   placeholder="Av. Corrientes 1234"
                   placeholderTextColor={themeColors.text.muted}
                 />

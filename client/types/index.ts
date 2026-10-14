@@ -133,6 +133,9 @@ export interface User {
   avatar?: string;
   coverImage?: string;
   phone?: string;
+  /** La clave de la cuenta: no se repite. Verificado con Didit, no se cambia a mano. */
+  dni?: string;
+  dniVerified?: boolean;
   bio?: string;
   rating: number;
   workQualityRating?: number;
