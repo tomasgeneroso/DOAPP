@@ -8,7 +8,7 @@ import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
 import { FormField } from "@/components/ui/FormField";
-import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, BadgeCheck } from "lucide-react";
+import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, BadgeCheck, LifeBuoy } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import { FacebookSDK } from "../components/FacebookSDK";
 import MembershipOfferModal from "../components/MembershipOfferModal";
@@ -16,6 +16,7 @@ import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import AuthHero from "../components/auth/AuthHero";
 import { rutaInternaSegura } from "../../shared/auth/rutaInterna";
+import { guardarDestino } from "../utils/destinoDespuesDeGoogle";
 
 type FormMode = "login" | "register";
 
@@ -94,6 +95,90 @@ export default function LoginScreen() {
   const [registrationPendingVerification, setRegistrationPendingVerification] = useState(false);
   const { login, register, user } = useAuth();
   const { loginWithFacebook, isLoading: fbLoading, error: fbError } = useFacebookLogin();
+
+  // Si el ingreso con Google/X falla, el servidor vuelve acá con `?error=…`. Antes se ignoraba: la persona veía el formulario de
+  // siempre sin saber qué pasó. Se explica y se ofrece contactar a soporte.
+  useEffect(() => {
+    const codigo = new URLSearchParams(location.search).get("error");
+    if (!codigo) return;
+    setError(
+      codigo === "twitter_oauth_denied"
+        ? t("auth.socialDenied", "Cancelaste el ingreso con X. Podés intentar de nuevo o ingresar con tu correo.")
+        : t("auth.socialFailed", "No pudimos iniciar sesión con ese servicio. Probá de nuevo o ingresá con tu correo; si sigue fallando, contactá a soporte."),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
+  // El ingreso social sale a otro sitio y vuelve a /auth/callback: se recuerda de dónde venía la persona (igual que el ingreso con correo).
+  const recordarDestino = () => guardarDestino(from);
+
+  const opcionesSociales = (
+    <>
+      <div className="flex items-center justify-center gap-3 sm:gap-4">
+        {/* Social Logins */}
+        {/* Facebook temporarily disabled
+        <button
+          type="button"
+          onClick={loginWithFacebook}
+          disabled={fbLoading || isLoading}
+          className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label={t('auth.signInWithFacebook')}
+        >
+          <Facebook className="h-5 w-5" />
+        </button>
+        */}
+        <a
+          href={`${import.meta.env.VITE_API_URL || "/api"}/auth/google`}
+          onClick={recordarDestino}
+          className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
+          aria-label={t('auth.signInWithGoogle')}
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+        </a>
+        <a
+          href={`${import.meta.env.VITE_API_URL || "/api"}/auth/twitter`}
+          onClick={recordarDestino}
+          className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-slate-900 dark:text-white transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
+          aria-label="Ingresar con X"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+        </a>
+      </div>
+
+      {fbError && <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>}
+
+      <div className="my-4 sm:my-6 flex items-center gap-3 sm:gap-4">
+        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+        <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{t('auth.orWithEmail', 'o con tu correo')}</span>
+        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+      </div>
+    </>
+  );
+
+  // Si algo no sale (el ingreso, el registro, el correo de verificación…), siempre hay a dónde pedir ayuda.
+  const ayudaDeSoporte = (
+    <div className="mt-6 flex flex-col items-center gap-2 border-t border-slate-200 dark:border-slate-700 pt-4 text-center">
+      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+        {mode === "register"
+          ? t('auth.supportHelpRegister', '¿Tenés problemas para registrarte?')
+          : t('auth.supportHelpLogin', '¿Tenés problemas para ingresar?')}
+      </p>
+      <Link
+        to="/contact"
+        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 transition"
+      >
+        <LifeBuoy className="h-4 w-4" />
+        {t('auth.contactSupport', 'Contactar soporte')}
+      </Link>
+    </div>
+  );
 
   // Check membership status after registration
   useEffect(() => {
@@ -267,10 +352,11 @@ export default function LoginScreen() {
 
       // Check if error is about existing user
       const errorLower = errorMessage.toLowerCase();
-      if (errorLower.includes('ya existe') ||
+      // «Este DNI ya está registrado…» es otro caso: no es que la cuenta (email) exista, y el mensaje del servidor es el que sirve.
+      if (err.code !== 'DNI_EN_USO' && (errorLower.includes('ya existe') ||
           errorLower.includes('ya está registrado') ||
           errorLower.includes('already exists') ||
-          errorLower.includes('already registered')) {
+          errorLower.includes('already registered'))) {
         setError('user_exists');
       } else {
         setError(errorMessage);
@@ -462,6 +548,8 @@ export default function LoginScreen() {
               </li>
             </ul>
           </div>
+
+          {opcionesSociales}
 
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {isRegister && (
@@ -906,6 +994,12 @@ export default function LoginScreen() {
                     <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
                   </div>
                 )}
+                {error !== 'user_exists' && (
+                  <Link to="/contact" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-300 underline underline-offset-2">
+                    <LifeBuoy className="h-4 w-4" />
+                    {t('auth.contactSupport', 'Contactar soporte')}
+                  </Link>
+                )}
               </div>
             )}
 
@@ -924,49 +1018,7 @@ export default function LoginScreen() {
             </div>
           </form>
 
-          <div className="my-4 sm:my-6 flex items-center gap-3 sm:gap-4">
-            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-            <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{t('auth.continueWith')}</span>
-            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-          </div>
-
-          <div className="flex items-center justify-center gap-3 sm:gap-4">
-            {/* Social Logins */}
-            {/* Facebook temporarily disabled
-            <button
-              type="button"
-              onClick={loginWithFacebook}
-              disabled={fbLoading || isLoading}
-              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label={t('auth.signInWithFacebook')}
-            >
-              <Facebook className="h-5 w-5" />
-            </button>
-            */}
-            <a
-              href={`${import.meta.env.VITE_API_URL || "/api"}/auth/google`}
-              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
-              aria-label={t('auth.signInWithGoogle')}
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-            </a>
-            <a
-              href={`${import.meta.env.VITE_API_URL || "/api"}/auth/twitter`}
-              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-slate-900 dark:text-white transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
-              aria-label="Ingresar con X"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-              </svg>
-            </a>
-          </div>
-
-          {fbError && <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>}
+          {ayudaDeSoporte}
         </div>
         </div>
       </div>

@@ -283,12 +283,14 @@ export default function AdminLayout() {
 
   return (
     <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
-      {/* Sidebar — stretches to the taller of the viewport or the page content
-          (flex `stretch` in the row makes the <aside> match the row height, which
-          is max(100vh, main content)). No fixed 100vh/sticky, so on long pages the
-          menu runs the full height and on short pages it just fills the viewport. */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col" style={{ minHeight: '100vh' }}>
-        <div className="p-4 flex flex-col flex-1">
+      {/* Sidebar — fijo a la altura de la pantalla (position: fixed + 100vh): los módulos hacen scroll
+          adentro y «Volver a la app» / «Cerrar sesión» quedan siempre al pie de la pantalla, después de los
+          módulos, aunque la página sea larga. No es `sticky` porque html/body tienen overflow (global.css) y
+          con eso sticky no se pega. El espaciador ocupa el lugar de la barra en la fila. (Sin zoom: 100vh directo.) */}
+      <div className="w-64 flex-shrink-0" aria-hidden="true" />
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex flex-col fixed inset-y-0 left-0 z-30 h-screen">
+        <div className="p-4 flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -402,9 +404,10 @@ export default function AdminLayout() {
               </div>
             ))}
           </nav>
+          </div>
 
-          {/* Bottom Actions */}
-          <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+          {/* Bottom Actions: fijas al pie de la pantalla, después de los módulos */}
+          <div className="shrink-0 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
             <Link
               to="/"
               className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-600"

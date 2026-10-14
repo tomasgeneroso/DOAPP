@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
+import ContactarSoporte from '../../components/ContactarSoporte';
 import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
@@ -350,6 +351,8 @@ export default function RegisterScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+
+            <ContactarSoporte tema="registrarte" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

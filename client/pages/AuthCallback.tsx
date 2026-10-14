@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { tomarDestino } from "../utils/destinoDespuesDeGoogle";
 
 export default function AuthCallback() {
   const { t } = useTranslation();
@@ -52,8 +53,9 @@ export default function AuthCallback() {
                */
               window.location.href = "/analisis";
             } else {
-              // Redirect to home and reload to update auth context
-              window.location.href = "/";
+              // Vuelve a donde estaba la persona antes de salir a Google/X (igual que el ingreso con correo);
+              // sin destino guardado, a la portada. Recarga completa para que el contexto de sesión se actualice.
+              window.location.href = tomarDestino() || "/";
             }
           } else {
             navigate("/login?error=auth_failed", { replace: true });

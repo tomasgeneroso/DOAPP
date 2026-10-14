@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
+import ContactarSoporte from '../../components/ContactarSoporte';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
@@ -197,6 +198,8 @@ export default function LoginScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+
+            <ContactarSoporte tema="ingresar" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
