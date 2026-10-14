@@ -132,13 +132,13 @@ router.get(
               { id: { [Op.in]: Array.from(userIds) } },
               { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
               { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
-              literal(`CAST("users"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+              literal(`CAST("User"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
             ];
           } else {
             where[Op.or] = [
               { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
               { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
-              literal(`CAST("users"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+              literal(`CAST("User"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
             ];
           }
         } else {
@@ -215,12 +215,19 @@ router.get(
       }
 
       // Get login devices
-      const { LoginDevice } = await import('../../models/sql/LoginDevice.model.js');
-      const devices = await LoginDevice.findAll({
-        where: { userId: user.id },
-        order: [['lastLoginAt', 'DESC']],
-        limit: 10,
-      });
+      // Los dispositivos son un dato accesorio: si su tabla falla (o no existe en este entorno), el detalle del usuario sigue
+      // saliendo. Antes un error acá hacía un 500 y la pantalla decía que el usuario no existía.
+      let devices: any[] = [];
+      try {
+        const { LoginDevice } = await import('../../models/sql/LoginDevice.model.js');
+        devices = await LoginDevice.findAll({
+          where: { userId: user.id },
+          order: [['lastLoginAt', 'DESC']],
+          limit: 10,
+        });
+      } catch (e: any) {
+        console.error('[admin/users/:id] no se pudieron leer los dispositivos:', e?.message);
+      }
 
       res.json({
         success: true,

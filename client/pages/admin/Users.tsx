@@ -123,7 +123,14 @@ export default function AdminUsers() {
         } else {
           setUsers([]);
           setTotalPages(1);
-          setNotFound(`No existe ningún usuario con el id ${search.trim()}.`);
+          // Solo es «no existe» si el servidor lo dice (404). Cualquier otro error (sin permiso, caído, base) se cuenta como
+          // lo que es: antes todo se mostraba como «no existe ningún usuario».
+          const motivo = (res as any)?.message;
+          setNotFound(
+            motivo && motivo !== 'Usuario no encontrado'
+              ? `No se pudo cargar el usuario: ${motivo}`
+              : `No existe ningún usuario con el id ${search.trim()}.`,
+          );
         }
         return;
       }
