@@ -416,6 +416,8 @@ export default function UserSettings() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  // Código postal que sugiere la ubicación de la dirección elegida (OpenStreetMap): se completa solo si el campo está vacío; si ya hay otro, se ofrece.
+  const [cpSugerido, setCpSugerido] = useState<string | null>(null);
   const [country, setCountry] = useState("Argentina");
 
   // Banking
@@ -953,11 +955,16 @@ export default function UserSettings() {
                         setStreet(s.calle);
                         if (s.ciudad) setCity(s.ciudad);
                         if (s.provincia) setState(s.provincia);
+                        setCpSugerido(null);
+                      }}
+                      onCodigoPostal={(cp) => {
+                        setCpSugerido(cp);
+                        setPostalCode((actual) => actual || cp);
                       }}
                       placeholder={t('settings.address.streetPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Empezá a escribir la calle y el número y elegí una sugerencia: completa la ciudad y la provincia.</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Escribí la calle: te mostramos las que existen y los números que tienen. Al elegir una dirección completa, se completan la ciudad, la provincia y el código postal.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -997,6 +1004,12 @@ export default function UserSettings() {
                         placeholder={t('settings.address.postalCodePlaceholder')}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
+                      {cpSugerido && postalCode !== cpSugerido && (
+                        <button type="button" onClick={() => setPostalCode(cpSugerido)} className="mt-1 text-xs text-sky-700 dark:text-sky-400 underline">
+                          Sugerido por la ubicación: {cpSugerido} · usar
+                        </button>
+                      )}
+                      {cpSugerido && postalCode === cpSugerido && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sugerido según la ubicación de la dirección: revisalo.</p>}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">

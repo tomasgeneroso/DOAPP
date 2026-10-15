@@ -109,6 +109,7 @@ export default function SettingsScreen() {
   });
 
   // Address
+  const [cpSugerido, setCpSugerido] = useState<string | null>(null);
   const [address, setAddress] = useState({
     street: user?.address?.street || '',
     city: user?.address?.city || '',
@@ -334,8 +335,9 @@ export default function SettingsScreen() {
                   style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
                   value={address.street}
                   onChangeText={(v) => setAddress({ ...address, street: v })}
-                  // Elegir una sugerencia completa la calle, la ciudad y la provincia (el código postal no lo da la API)
-                  onSelect={(sug) => setAddress((a) => ({ ...a, street: sug.calle, city: sug.ciudad || a.city, state: sug.provincia || a.state }))}
+                  // Elegir una sugerencia completa la calle, la ciudad y la provincia; con la dirección completa, también sugiere el código postal
+                  onSelect={(sug) => { setAddress((a) => ({ ...a, street: sug.calle, city: sug.ciudad || a.city, state: sug.provincia || a.state })); setCpSugerido(null); }}
+                  onCodigoPostal={(cp) => { setCpSugerido(cp); setAddress((a) => ({ ...a, postalCode: a.postalCode || cp })); }}
                   placeholder="Av. Corrientes 1234"
                   placeholderTextColor={themeColors.text.muted}
                 />
@@ -369,6 +371,12 @@ export default function SettingsScreen() {
                   placeholder="C1043"
                   placeholderTextColor={themeColors.text.muted}
                 />
+                {cpSugerido && address.postalCode !== cpSugerido && (
+                  <TouchableOpacity onPress={() => setAddress((a) => ({ ...a, postalCode: cpSugerido }))}>
+                    <Text style={{ color: colors.primary[600], fontSize: 12, marginTop: 4 }}>Sugerido por la ubicación: {cpSugerido} · usar</Text>
+                  </TouchableOpacity>
+                )}
+                {cpSugerido && address.postalCode === cpSugerido && <Text style={{ color: themeColors.text.muted, fontSize: 12, marginTop: 4 }}>Sugerido según la ubicación de la dirección: revisalo.</Text>}
               </View>
               <TouchableOpacity
                 style={[styles.saveBtn, { backgroundColor: colors.primary[600] }, saving && { opacity: 0.6 }]}
