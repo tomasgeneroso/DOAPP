@@ -195,6 +195,37 @@ router.get('/usuarios-marcados', async (req: AuthRequest, res: Response): Promis
   }
 });
 
+/**
+ * GET /admin/hubs/identidad-a-revisar
+ * Cuentas que verificaron con Didit un DNI que ya usa OTRA cuenta (no se cambió nada: falla cerrada). Es la lista de trabajo del
+ * evento KYC_DNI_EN_USO. `?revisados=1` suma las ya revisadas.
+ */
+router.get('/identidad-a-revisar', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { listarConflictosDeDni } = await import('../../services/identidadAReviser.js');
+    const data = await listarConflictosDeDni({ incluirRevisados: req.query.revisados === '1' });
+    res.json({ success: true, data, pendientes: data.filter((c: any) => c.estado === 'pendiente').length });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/** POST /admin/hubs/identidad-a-revisar/:userId/revisar — da por revisado el choque; la nota (10+ caracteres) queda en el registro. */
+router.post('/identidad-a-revisar/:userId/revisar', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { marcarConflictoRevisado, ErrorDeRevision } = await import('../../services/identidadAReviser.js');
+    try {
+      await marcarConflictoRevisado(String(req.params.userId), String(req.user.id), req.body?.nota);
+    } catch (e: any) {
+      if (e instanceof ErrorDeRevision) { res.status(e.estado).json({ success: false, message: e.message }); return; }
+      throw e;
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 /** GET /admin/hubs/usuarios-marcados/:userId — el perfil de uno, marcado o no. */
 router.get('/usuarios-marcados/:userId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {

@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { User } from '../models/sql/User.model.js';
 import { logEvento } from '../utils/auditLog.js';
+import { avisarConflictoDeDni, yaSeRegistroElConflicto } from './identidadAReviser.js';
 import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni, primerCuilValido, soloDigitos } from '../../shared/identidad/documentos.js';
 
 /**
@@ -58,16 +59,20 @@ export async function aplicarIdentidadDeDidit(user: any, decision: any): Promise
     const otra = await User.findOne({ where: { dni, id: { [Op.ne]: user.id } }, attributes: ['id'] });
     if (otra) {
       r.dniEnUsoPorOtraCuenta = true;
-      await logEvento({
-        action: 'KYC_DNI_EN_USO',
-        actor: 'system:didit',
-        category: 'user',
-        severity: 'high',
-        description: `Didit leyó un DNI que ya usa otra cuenta: no se cambió el de la cuenta ${user.id}. Hay que revisarlo a mano.`,
-        targetModel: 'User',
-        targetId: String(user.id),
-        metadata: { dniDeDidit: dni, dniDeLaCuenta: dniAnterior, otraCuenta: String(otra.id) },
-      });
+      // El estado de Didit se pregunta seguido: el mismo choque se registra y se avisa UNA vez (la lista de revisión no se llena de repetidos).
+      if (!(await yaSeRegistroElConflicto(String(user.id), dni))) {
+        await logEvento({
+          action: 'KYC_DNI_EN_USO',
+          actor: 'system:didit',
+          category: 'user',
+          severity: 'high',
+          description: `Didit leyó un DNI que ya usa otra cuenta: no se cambió el de la cuenta ${user.id}. Hay que revisarlo a mano (Administración → Identidad a revisar).`,
+          targetModel: 'User',
+          targetId: String(user.id),
+          metadata: { dniDeDidit: dni, dniDeLaCuenta: dniAnterior, otraCuenta: String(otra.id) },
+        });
+        await avisarConflictoDeDni(String(user.id), user.name);
+      }
     } else {
       cambios.dni = dni;
       dniFinal = dni;

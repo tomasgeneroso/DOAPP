@@ -114,6 +114,7 @@ const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
 const AdminJobBoard = lazy(() => import("./pages/admin/JobBoard"));
 const AdminChargebacks = lazy(() => import("./pages/admin/Chargebacks"));
 const AdminUsuariosMarcados = lazy(() => import("./pages/admin/UsuariosMarcados"));
+const AdminIdentidadARevisar = lazy(() => import("./pages/admin/IdentidadARevisar"));
 const AdminHistorialUsuario = lazy(() => import("./pages/admin/HistorialUsuario"));
 const AdminManual = lazy(() => import("./pages/admin/Manual"));
 const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
@@ -731,6 +732,7 @@ export default function App() {
               <Route path="jobs/board" element={<AdminJobBoard />} />
               <Route path="chargebacks" element={<AdminChargebacks />} />
               <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />
+              <Route path="identidad-a-revisar" element={<AdminIdentidadARevisar />} />
               <Route path="historial/:userId" element={<AdminHistorialUsuario />} />
               <Route path="manual" element={<AdminManual />} />
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />

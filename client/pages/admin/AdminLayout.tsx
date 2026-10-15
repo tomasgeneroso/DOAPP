@@ -23,6 +23,7 @@ import {
   WifiOff,
   AlertTriangle,
   ShieldAlert,
+  IdCard,
   BookOpen,
   CreditCard,
   Sliders,
@@ -79,6 +80,7 @@ export default function AdminLayout() {
    * cero y el panel sigue estando: nunca bloquea el menú.
    */
   const [urgentes, setUrgentes] = useState(0);
+  const [identidadesPendientes, setIdentidadesPendientes] = useState(0);
   /**
    * Si el modulo de pago al terminar esta encendido. Con el apagado la cola
    * de ordenes esta siempre vacia, y un item de menu que nunca tiene nada es
@@ -105,7 +107,19 @@ export default function AdminLayout() {
     if (!user?.adminRole) return;
     let vivo = true;
 
+    const traerIdentidades = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/admin/hubs/identidad-a-revisar', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (vivo && typeof data?.pendientes === 'number') setIdentidadesPendientes(data.pendientes);
+      } catch {
+        /* el contador es informativo */
+      }
+    };
+
     const traer = async () => {
+      void traerIdentidades();
       try {
         const token = localStorage.getItem('token');
         const res = await fetch('/api/admin/hubs/financial/overview', {
@@ -183,6 +197,8 @@ export default function AdminLayout() {
       items: [
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/banned-identities", icon: ShieldOff, label: t('admin.sidebar.bannedIdentities', 'Identidades baneadas'), roles: ["owner", "super_admin", "admin"] },
+        // DNI que Didit leyó y ya usa otra cuenta: el sistema no cambió nada y alguien tiene que mirarlo. Con contador, como los contracargos.
+        { path: "/admin/identidad-a-revisar", icon: IdCard, label: t('admin.sidebar.identityReview', 'Identidad a revisar'), roles: ["owner", "super_admin", "admin"], badge: identidadesPendientes > 0 ? String(identidadesPendientes) : undefined },
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/jobs/board", icon: Activity, label: t('admin.sidebar.jobBoard', 'Panel de publicaciones'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
