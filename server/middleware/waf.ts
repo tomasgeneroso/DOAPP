@@ -618,6 +618,37 @@ function checkHeaderInjection(req: Request): boolean {
 
 const WAF_EXEMPT_PATHS = ['/api/health'];
 
+/**
+ * Qué NO se inspecciona como si lo hubiera escrito una persona.
+ *
+ * Un token de sesión (JWT), el código y el state de Google son cadenas AL AZAR en base64url: llevan guiones, y un doble guion (--) es
+ * el comentario de SQL. Al volver de Google la pantalla de retorno trae el token en su dirección (`/auth/callback?token=…`) y desde
+ * ahí llama a /api/auth/me: el navegador manda esa dirección como Referer, y de vez en cuando el azar ponía «--» y el firewall
+ * contestaba 400 «Invalid request» («error auth, http400»). Las credenciales opacas se validan donde se usan (firma, un solo uso,
+ * vencimiento); acá solo se dejan de tratar como texto de una persona. Todo lo demás se sigue inspeccionando igual.
+ */
+const CLAVES_DE_TOKEN = new Set(['token', 'id_token', 'access_token', 'refresh_token', 'codigo', 'vincular', 'oauth_token', 'oauth_verifier']);
+const CLAVES_DE_RETORNO_OAUTH = new Set(['code', 'state', 'scope', 'authuser', 'prompt', 'hd', 'iss', 'session_state']);
+const CADENA_OPACA = /^[A-Za-z0-9._~+/=:-]{8,4096}$/;
+
+export function consultaParaInspeccionar(query: unknown, ruta: string): unknown {
+  if (!query || typeof query !== 'object') return query;
+  const esRetornoOAuth = /\/callback\/?$/.test(ruta);
+  const salida: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(query as Record<string, unknown>)) {
+    const clave = k.toLowerCase();
+    if (typeof v === 'string' && CLAVES_DE_TOKEN.has(clave) && CADENA_OPACA.test(v)) continue;
+    if (esRetornoOAuth && CLAVES_DE_RETORNO_OAUTH.has(clave)) continue;
+    salida[k] = v;
+  }
+  return salida;
+}
+
+/** Del referer y el origin se mira dónde estaba la persona (sitio y ruta), no los datos que viajaban en su dirección. */
+export function direccionSinDatos(url: unknown): unknown {
+  return typeof url === 'string' ? url.split(/[?#]/)[0] : url;
+}
+
 export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!WAF_CONFIG.enabled) {
     return next();
@@ -864,14 +895,14 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
 
   // 9. Inspect all inputs
   const allInputs = {
-    query: req.query,
+    query: consultaParaInspeccionar(req.query, req.path),
     body: req.body,
     params: req.params,
     path: req.path,
     headers: {
       host: req.headers['host'],
-      referer: req.headers['referer'],
-      origin: req.headers['origin'],
+      referer: direccionSinDatos(req.headers['referer']),
+      origin: direccionSinDatos(req.headers['origin']),
     },
   };
 
