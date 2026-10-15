@@ -24,14 +24,19 @@ import {
   CreditCard,
   Settings,
   ArrowRight,
+  ChevronDown,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 // La comisión mínima se muestra desde la constante, no escrita a mano.
 import { MINIMUM_COMMISSION_ARS } from "../../shared/pricing/minimums";
 import { POLITICAS } from "../../shared/constants/policies";
-import { CustomDateInput } from "@/components/ui/CustomDatePicker";
+import RangoDeFechas from "@/components/ui/RangoDeFechas";
+import TareasDelTrabajo from "@/components/jobs/TareasDelTrabajo";
+import { leerTareasDeCreacion, type TareaDeCreacion } from "../../shared/jobs/tareasDeCreacion";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
-import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
+import CalleYNumero from "@/components/ui/CalleYNumero";
+import MontoEnPesos from "@/components/ui/MontoEnPesos";
+import { detallesDeUbicacion, sanearCalle, sanearNumeroDePuerta, validarCalleYNumero, type LugarSugerido } from "../../shared/geo/lugares";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 
@@ -77,6 +82,8 @@ export default function CreateContractScreen() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [maxWorkers, setMaxWorkers] = useState(1);
   const [requirements, setRequirements] = useState(['', '', '']);
+  // Tareas (pasos para terminar, cada una con su día) con «entrega por tareas». Distintas de los requisitos de finalización.
+  const [tareas, setTareas] = useState<TareaDeCreacion[]>([{ title: '', dueDate: null }, { title: '', dueDate: null }]);
   const [vacancyTaskAssignments, setVacancyTaskAssignments] = useState<Array<{ slot: number; taskName: string }>>([]);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
   const [allowCounterOffers, setAllowCounterOffers] = useState(true);
@@ -86,6 +93,9 @@ export default function CreateContractScreen() {
   const [addressStreet, setAddressStreet] = useState("");
   const [addressNumber, setAddressNumber] = useState("");
   const [addressDetails, setAddressDetails] = useState("");
+  // Provincia y localidad de la «Ubicación» elegida: acotan las calles que se ofrecen.
+  const [contextoGeo, setContextoGeo] = useState<{ provincia?: string; ciudad?: string } | null>(null);
+  const [budget, setBudget] = useState("");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isQuotable, setIsQuotable] = useState(false); // "A cotizar" option
@@ -200,6 +210,47 @@ export default function CreateContractScreen() {
     setOverlapWarning(null);
   }, [startDate, endDate, endDateFlexible, selectedCategory, userJobs]);
 
+  /** Provincia y localidad que se usan para acotar las calles: la elegida, o la que se deduce de lo escrito («Ciudad, Provincia»). */
+  const contextoDeCalles = (() => {
+    if (contextoGeo?.provincia) return contextoGeo;
+    const partes = location.split(",").map((p) => p.trim()).filter(Boolean);
+    return partes.length >= 2 ? { ciudad: partes[0], provincia: partes[partes.length - 1] } : {};
+  })();
+
+  /** Elegir una dirección exacta completa calle, número, barrio y código postal; un barrio o una localidad, lo que tengan. */
+  const completarDesdeLugar = async (l: LugarSugerido) => {
+    setContextoGeo({ provincia: l.provincia || undefined, ciudad: l.ciudad || undefined });
+    if (l.calle) {
+      setAddressStreet(l.calle);
+      setAddressNumber(l.numero);
+    }
+    if (l.barrio) setNeighborhood(l.barrio);
+    if (l.codigoPostal) setPostalCode(l.codigoPostal);
+    // Lo que no vino en la sugerencia se pide por su ubicación (una consulta por elección).
+    if (!l.barrio || !l.codigoPostal) {
+      const d = await detallesDeUbicacion(l.lat, l.lon);
+      if (d) {
+        if (!l.barrio && d.barrio) setNeighborhood(d.barrio);
+        if (!l.codigoPostal && d.codigoPostal) setPostalCode(d.codigoPostal);
+      }
+    }
+  };
+
+  /** Al elegir una dirección en «Calle»: se completan la zona, el barrio, el código postal y el punto del mapa. */
+  const completarDesdeCalle = async (d: { calle: string; numero: string; ciudad: string; provincia: string; lat?: number; lon?: number }) => {
+    setContextoGeo((prev) => prev ?? { provincia: d.provincia || undefined, ciudad: d.ciudad || undefined });
+    if (!location.trim() && (d.ciudad || d.provincia)) setLocation([d.ciudad, d.provincia].filter((x, i, a) => x && a.indexOf(x) === i).join(", "));
+    if (d.lat !== undefined && d.lon !== undefined) {
+      setLatitude(d.lat);
+      setLongitude(d.lon);
+      const det = await detallesDeUbicacion(d.lat, d.lon);
+      if (det) {
+        if (det.barrio) setNeighborhood(det.barrio);
+        if (det.codigoPostal) setPostalCode(det.codigoPostal);
+      }
+    }
+  };
+
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
       setSelectedTags([...selectedTags, tag]);
@@ -240,8 +291,10 @@ export default function CreateContractScreen() {
     submitData.append("location", formDataFromForm.get("location") as string);
     if (neighborhood) submitData.append("neighborhood", neighborhood);
     if (postalCode) submitData.append("postalCode", postalCode);
-    submitData.append("addressStreet", addressStreet);
-    submitData.append("addressNumber", addressNumber);
+    // Calle sin el número adentro y número solo con dígitos (el servidor lo vuelve a revisar).
+    const direccionLimpia = sanearCalle(addressStreet);
+    submitData.append("addressStreet", direccionLimpia.numero && !addressNumber ? direccionLimpia.calle : addressStreet.trim());
+    submitData.append("addressNumber", sanearNumeroDePuerta(addressNumber) || (direccionLimpia.numero && !addressNumber ? direccionLimpia.numero : ""));
     submitData.append("addressDetails", addressDetails);
     if (latitude !== null && longitude !== null) {
       submitData.append("latitude", latitude.toString());
@@ -257,6 +310,10 @@ export default function CreateContractScreen() {
     submitData.append("singleDelivery", singleDelivery.toString());
     const filledReqs = requirements.filter(r => r.trim());
     submitData.append("completionRequirements", JSON.stringify(filledReqs));
+    if (!singleDelivery) {
+      const leidas = leerTareasDeCreacion(tareas, { inicio: startDate, fin: endDateFlexible ? null : endDate });
+      if (leidas.ok) submitData.append("tasks", JSON.stringify(leidas.tareas));
+    }
     submitData.append("vacancyTaskAssignments", JSON.stringify(
       vacancyTaskAssignments.filter(v => v.taskName.trim())
     ));
@@ -336,6 +393,22 @@ export default function CreateContractScreen() {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+
+    const problemaDeDireccion = validarCalleYNumero(sanearCalle(addressStreet).numero && !addressNumber ? sanearCalle(addressStreet).calle : addressStreet, addressNumber);
+    if (problemaDeDireccion) {
+      setError(problemaDeDireccion);
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!singleDelivery) {
+      const leidas = leerTareasDeCreacion(tareas, { inicio: startDate, fin: endDateFlexible ? null : endDate });
+      if (leidas.ok === false) {
+        setError(leidas.mensaje);
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     const formDataFromForm = new FormData(event.currentTarget);
     const submitData = buildFormData(formDataFromForm);
@@ -528,18 +601,12 @@ export default function CreateContractScreen() {
                 <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign}>
                   <div className="space-y-3">
                     {!isQuotable && (
-                      <input
+                      <MontoEnPesos
                         name="budget"
-                        type="number"
+                        value={budget}
+                        onChange={setBudget}
                         required={!isQuotable}
-                        min="0"
-                        step="1"
-                        placeholder="15000"
-                        onKeyPress={(e) => {
-                          if (!/[0-9]/.test(e.key)) {
-                            e.preventDefault();
-                          }
-                        }}
+                        placeholder="15.000"
                         className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                       />
                     )}
@@ -705,6 +772,7 @@ export default function CreateContractScreen() {
                       setLocation(val);
                       if (coords) { setLatitude(coords.lat); setLongitude(coords.lng); }
                     }}
+                    onPlaceSelect={completarDesdeLugar}
                     placeholder={t('jobs.locationPlaceholder')}
                     required
                     name="location"
@@ -713,30 +781,22 @@ export default function CreateContractScreen() {
               </div>
             </div>
 
-            {/* Address details */}
-            <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.streetLabel', 'Calle')} icon={Home}>
-                  <StreetAutocomplete
-                    value={addressStreet}
-                    onChange={setAddressStreet}
-                    location={location}
-                    placeholder={t('jobs.streetPlaceholder', 'Ej: Av. Corrientes')}
-                  />
-                </FormField>
-              </div>
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.numberLabel', 'Número de puerta')} icon={Hash}>
-                  <input
-                    type="text"
-                    value={addressNumber}
-                    onChange={(e) => setAddressNumber(e.target.value)}
-                    placeholder={t('jobs.numberPlaceholder', 'Ej: 1234')}
-                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
-                  />
-                </FormField>
-              </div>
-            </div>
+            {/* Address details: calles que existen, número solo con dígitos y los demás campos se completan al elegir una dirección */}
+            <CalleYNumero
+              street={addressStreet}
+              number={addressNumber}
+              onStreetChange={setAddressStreet}
+              onNumberChange={setAddressNumber}
+              provincia={contextoDeCalles.provincia}
+              ciudad={contextoDeCalles.ciudad}
+              onAddressResolved={completarDesdeCalle}
+              labels={{
+                street: t('jobs.streetLabel', 'Calle'),
+                number: t('jobs.numberLabel', 'Número de puerta'),
+                streetPlaceholder: t('jobs.streetPlaceholder', 'Ej: Av. Corrientes'),
+                numberPlaceholder: t('jobs.numberPlaceholder', 'Ej: 1234'),
+              }}
+            />
             <NeighborhoodAutocomplete
               locationValue={location}
               neighborhood={neighborhood}
@@ -777,57 +837,46 @@ export default function CreateContractScreen() {
               />
             </Suspense>
 
-            <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar}>
-                  <CustomDateInput
-                    name="startDate"
-                    type="datetime"
-                    required
-                    placeholder={t('jobs.startDatePlaceholder')}
-                    minDate={new Date()}
-                    onDateChange={(date) => setStartDate(date)}
-                  />
-                </FormField>
-              </div>
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.endDateLabel', 'Estimated end date')} icon={Clock}>
-                  {!endDateFlexible && (
-                    <CustomDateInput
-                      name="endDate"
-                      type="datetime"
-                      required
-                      placeholder={t('jobs.endDatePlaceholder')}
-                      minDate={new Date()}
-                      onDateChange={(date) => setEndDate(date)}
-                    />
-                  )}
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={endDateFlexible}
-                      onChange={(e) => setEndDateFlexible(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
-                    />
-                    <span className="text-sm text-gray-600 dark:text-slate-400">
-                      {t('jobs.dontKnowYet', "I don't know yet")}
-                    </span>
-                  </label>
-                  {endDateFlexible && (
-                    <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm text-amber-700 dark:text-amber-300">
-                        <AlertTriangle className="inline h-4 w-4 mr-1" />
-                        {t('jobs.flexibleEndDateWarning', 'You must define the end date before 24 hours prior to the job start, otherwise the job will be suspended.')}
-                      </p>
-                    </div>
-                  )}
-                </FormField>
-              </div>
-            </div>
+            <FormField
+              label={t('jobs.datesLabel', 'Fechas del trabajo')}
+              icon={Calendar}
+              description={t('jobs.datesDescription', 'Tocá el primer día y después el último; las horas se eligen debajo del calendario.')}
+            >
+              <RangoDeFechas
+                inicio={startDate}
+                fin={endDate}
+                onChange={(i, f) => { setStartDate(i); setEndDate(f); }}
+                nameInicio="startDate"
+                nameFin="endDate"
+                finOpcional={endDateFlexible}
+                required
+                minDate={new Date()}
+                placeholder={t('jobs.datesPlaceholder', 'Elegí cuándo empieza y cuándo termina')}
+              />
+              <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={endDateFlexible}
+                  onChange={(e) => { setEndDateFlexible(e.target.checked); if (e.target.checked) setEndDate(null); }}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                />
+                <span className="text-sm text-gray-600 dark:text-slate-400">
+                  {t('jobs.dontKnowYet', "Todavía no sé cuándo termina")}
+                </span>
+              </label>
+              {endDateFlexible && (
+                <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 animate-fadeIn">
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="inline h-4 w-4 mr-1" />
+                    {t('jobs.flexibleEndDateWarning', 'You must define the end date before 24 hours prior to the job start, otherwise the job will be suspended.')}
+                  </p>
+                </div>
+              )}
+            </FormField>
 
             {/* Overlap Warning */}
             {overlapWarning && (
-              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 animate-fadeIn">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
@@ -924,12 +973,7 @@ export default function CreateContractScreen() {
                 </label>
 
                 {!singleDelivery && (
-                  <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
-                    <p className="text-sm text-sky-700 dark:text-sky-300">
-                      <Info className="inline h-4 w-4 mr-1" />
-                      {t('contracts.addTasksAfterPublish', 'You can add tasks with individual delivery dates after publishing the job.')}
-                    </p>
-                  </div>
+                  <TareasDelTrabajo tareas={tareas} onChange={setTareas} inicio={startDate} fin={endDateFlexible ? null : endDate} />
                 )}
               </div>
             </FormField>
@@ -975,7 +1019,7 @@ export default function CreateContractScreen() {
               )}
 
               {/* Asignación vacante → tarea (solo si hay tareas y hay tareas definidas) */}
-              {!singleDelivery && maxWorkers >= 1 && requirements.filter(r => r.trim()).length > 0 && (
+              {!singleDelivery && maxWorkers >= 1 && tareas.filter(x => x.title.trim()).length > 0 && (
                 <div className="mt-4 border border-purple-200 dark:border-purple-800 rounded-xl p-4 bg-purple-50 dark:bg-purple-900/20">
                   <p className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
                     <ListTodo className="h-4 w-4" />
@@ -1001,8 +1045,8 @@ export default function CreateContractScreen() {
                             className="flex-1 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           >
                             <option value="">{t('jobs.noTaskAssigned', 'Sin tarea asignada')}</option>
-                            {requirements.filter(r => r.trim()).map((req, idx) => (
-                              <option key={idx} value={req}>{req}</option>
+                            {tareas.filter(x => x.title.trim()).map((tarea, idx) => (
+                              <option key={idx} value={tarea.title.trim()}>{tarea.title.trim()}</option>
                             ))}
                           </select>
                         </div>
@@ -1020,7 +1064,7 @@ export default function CreateContractScreen() {
             <FormField
               label={t('contracts.completionRequirementsLabel', 'Completion requirements')}
               icon={ListTodo}
-              description={t('contracts.completionRequirementsDesc', 'Define the minimum criteria for the job to be considered done. These serve as backup in case of disputes.')}
+              description={t('contracts.completionRequirementsDesc', 'Lo que se va a tomar como determinante para dar el trabajo por terminado (por ejemplo, «sin telarañas en los rincones»). Sirven de respaldo si hay un reclamo. No son las tareas: las tareas son solo los pasos para guiarse.')}
             >
               <div className="space-y-2">
                 {requirements.map((req, idx) => (
@@ -1078,14 +1122,17 @@ export default function CreateContractScreen() {
             </FormField>
           </div>
 
-          {/* Aviso de condiciones importantes */}
-          <div className="rounded-xl border border-sky-300 dark:border-sky-500/50 bg-sky-50 dark:bg-sky-900/20 p-5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-6 w-6 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
+          {/* Consejos antes de publicar: desplegable (cerrado por defecto) */}
+          <details className="group rounded-xl border border-sky-300 dark:border-sky-500/50 bg-sky-50 dark:bg-sky-900/20 p-5 open:shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+              <AlertTriangle className="h-6 w-6 text-sky-500 dark:text-sky-400 shrink-0" />
+              <h3 className="flex-1 font-semibold text-gray-700 dark:text-gray-300">
+                {t('contracts.importantConditions', 'Consejos y condiciones antes de publicar')}
+              </h3>
+              <ChevronDown className="h-5 w-5 text-sky-600 dark:text-sky-400 transition-transform duration-300 group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="flex items-start gap-3 mt-4 animate-fadeIn">
               <div className="space-y-3">
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300">
-                  {t('contracts.importantConditions', 'Important conditions when publishing')}
-                </h3>
                 <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                   <li className="flex items-start gap-2">
                     <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
@@ -1108,9 +1155,9 @@ export default function CreateContractScreen() {
                 </ul>
               </div>
             </div>
-          </div>
+          </details>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400 animate-fadeIn">{error}</p>}
 
           <div className="flex items-center justify-end gap-x-6">
             <Link

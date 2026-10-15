@@ -367,3 +367,47 @@
 .dark .react-datepicker__time-list::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
+
+/* ── Calendario de rango (RangoDeFechas): los días entre el inicio y el fin se pintan como una banda ── */
+.rango-calendario {
+  box-shadow: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.rango-calendario .react-datepicker__day--in-range,
+.rango-calendario .react-datepicker__day--in-selecting-range {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 0;
+  transform: none;
+  box-shadow: none;
+  margin-left: 0;
+  margin-right: 0;
+  width: 3rem;
+}
+
+.dark .rango-calendario .react-datepicker__day--in-range,
+.dark .rango-calendario .react-datepicker__day--in-selecting-range {
+  background: #0c4a6e;
+  color: #bae6fd;
+}
+
+.rango-calendario .react-datepicker__day--range-start,
+.rango-calendario .react-datepicker__day--range-end,
+.rango-calendario .react-datepicker__day--selecting-range-start {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  border-radius: 0.75rem;
+  transform: scale(1.05);
+  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.3);
+}
+
+.rango-calendario .react-datepicker__day--disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rango-calendario .react-datepicker__month-container {
+  min-width: 300px;
+}

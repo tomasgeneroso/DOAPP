@@ -25,6 +25,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { cacheService, generateCacheKey } from "../services/cacheService.js";
+import { sanearCalle, validarCalleYNumero } from "../../shared/geo/lugares.js";
+import { leerTareasDeCreacion, type ResultadoDeTareas } from "../../shared/jobs/tareasDeCreacion.js";
 import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
@@ -1020,6 +1022,32 @@ router.post(
       // Parse singleDelivery - defaults to true
       const singleDelivery = req.body.singleDelivery !== 'false' && req.body.singleDelivery !== false;
 
+      // Dirección: la calle sin el número adentro y el número de puerta solo con dígitos. Si el número vino escrito en la calle
+      // («Av Corrientes 1234») y el campo del número está vacío, se pasa a su lugar; si algo no cierra, se avisa en vez de guardarlo mal.
+      let addressStreet = String(req.body.addressStreet ?? '').trim();
+      let addressNumber = String(req.body.addressNumber ?? '').trim();
+      {
+        const separada = sanearCalle(addressStreet);
+        if (separada.numero && !addressNumber) {
+          addressStreet = separada.calle;
+          addressNumber = separada.numero;
+        }
+        const problemaDeDireccion = validarCalleYNumero(addressStreet, addressNumber);
+        if (problemaDeDireccion) {
+          res.status(400).json({ success: false, code: 'DIRECCION_INVALIDA', message: problemaDeDireccion });
+          return;
+        }
+      }
+
+      // Tareas (pasos para terminar el trabajo, cada una con su día): solo con «entrega por tareas», y dentro de las fechas del trabajo.
+      const tareasLeidas: ResultadoDeTareas = singleDelivery
+        ? { ok: true, tareas: [] }
+        : leerTareasDeCreacion(req.body.tasks, { inicio: req.body.startDate, fin: endDateFlexible ? null : req.body.endDate });
+      if (tareasLeidas.ok === false) {
+        res.status(400).json({ success: false, code: 'TAREAS_INVALIDAS', message: tareasLeidas.mensaje });
+        return;
+      }
+
       // Validate that endDate is provided if endDateFlexible is false
       if (!endDateFlexible && !req.body.endDate) {
         res.status(400).json({
@@ -1097,8 +1125,8 @@ router.post(
         location: req.body.location,
         neighborhood: req.body.neighborhood || null,
         postalCode: req.body.postalCode || null,
-        addressStreet: req.body.addressStreet || null,
-        addressNumber: req.body.addressNumber || null,
+        addressStreet: addressStreet || null,
+        addressNumber: addressNumber || null,
         addressDetails: req.body.addressDetails || null,
         latitude: req.body.latitude ? parseFloat(req.body.latitude) : null,
         longitude: req.body.longitude ? parseFloat(req.body.longitude) : null,
@@ -1141,6 +1169,22 @@ router.post(
       };
 
       const job = await Job.create(jobData);
+
+      // Las tareas que se definieron al crear: pasos a seguir, cada una con su día. Son una ayuda para guiarse, así que no se
+      // bloquean entre sí (no hace falta terminar una para empezar la siguiente).
+      if (tareasLeidas.tareas.length > 0) {
+        await JobTask.bulkCreate(
+          tareasLeidas.tareas.map((t, i) => ({
+            jobId: job.id,
+            createdById: req.user.id,
+            title: t.title,
+            dueDate: t.dueDate ? new Date(`${t.dueDate}T12:00:00-03:00`) : null,
+            orderIndex: i,
+            status: 'pending',
+            requiresPreviousCompletion: false,
+          })) as any,
+        );
+      }
 
       // Invalidate jobs cache so new job appears immediately
       cacheService.delPattern('jobs:*');

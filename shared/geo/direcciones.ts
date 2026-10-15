@@ -22,10 +22,19 @@ export const MINIMO_PARA_BUSCAR = 4;
 export const MAXIMO_DE_SUGERENCIAS = 6;
 
 /** La dirección de consulta, o null si todavía es muy corta para buscar. */
-export function urlDeBusqueda(texto: unknown, max: number = MAXIMO_DE_SUGERENCIAS): string | null {
+/** Acota la búsqueda a una provincia (y, si se sabe, a una localidad): así no ofrece «San Luis» de otra punta del país. */
+export interface ContextoGeografico {
+  provincia?: string;
+  ciudad?: string;
+}
+
+const conContexto = (url: string, c?: ContextoGeografico): string =>
+  url + (c?.provincia ? `&provincia=${encodeURIComponent(c.provincia)}` : '') + (c?.provincia && c?.ciudad ? `&localidad_censal=${encodeURIComponent(c.ciudad)}` : '');
+
+export function urlDeBusqueda(texto: unknown, max: number = MAXIMO_DE_SUGERENCIAS, contexto?: ContextoGeografico): string | null {
   const t = String(texto ?? '').replace(/\s+/g, ' ').trim();
   if (t.length < MINIMO_PARA_BUSCAR) return null;
-  return `${URL_GEOREF}?direccion=${encodeURIComponent(t)}&max=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&campos=completo`;
+  return conContexto(`${URL_GEOREF}?direccion=${encodeURIComponent(t)}&max=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&campos=completo`, contexto);
 }
 
 const CHICAS = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e', 'el']);
@@ -65,8 +74,8 @@ export function leerSugerencias(json: unknown): SugerenciaDeDireccion[] {
 }
 
 /** Busca sugerencias. Cualquier falla (sin red, límite, respuesta rara) devuelve una lista vacía. */
-export async function buscarDirecciones(consulta: string, opciones: { signal?: AbortSignal } = {}): Promise<SugerenciaDeDireccion[]> {
-  const url = urlDeBusqueda(consulta);
+export async function buscarDirecciones(consulta: string, opciones: { signal?: AbortSignal } & ContextoGeografico = {}): Promise<SugerenciaDeDireccion[]> {
+  const url = urlDeBusqueda(consulta, MAXIMO_DE_SUGERENCIAS, opciones);
   if (!url) return [];
   try {
     const r = await fetch(url, { signal: opciones.signal });
@@ -100,10 +109,10 @@ export function separarCalleYAltura(texto: unknown): { calle: string; altura: nu
   return { calle: m[1].trim().replace(/[,]+$/, ''), altura: Number(m[2]) };
 }
 
-export function urlDeCalles(nombre: unknown, max: number = MAXIMO_DE_SUGERENCIAS): string | null {
+export function urlDeCalles(nombre: unknown, max: number = MAXIMO_DE_SUGERENCIAS, contexto?: ContextoGeografico): string | null {
   const t = String(nombre ?? '').replace(/\s+/g, ' ').trim();
   if (t.length < MINIMO_PARA_BUSCAR) return null;
-  return `${URL_GEOREF_CALLES}?nombre=${encodeURIComponent(t)}&max=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&campos=nombre,altura,localidad_censal,provincia`;
+  return conContexto(`${URL_GEOREF_CALLES}?nombre=${encodeURIComponent(t)}&max=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&campos=nombre,altura,localidad_censal,provincia`, contexto);
 }
 
 /**
@@ -170,19 +179,19 @@ async function pedir(url: string | null, signal?: AbortSignal): Promise<unknown>
  *  - con un número que no existe en la calle: lo dice y ofrece las calles con su rango.
  * Cualquier falla (sin red, límite, respuesta rara) da listas vacías: la persona siempre puede escribir a mano.
  */
-export async function buscarSugerencias(consulta: string, opciones: { signal?: AbortSignal } = {}): Promise<ResultadoDeBusqueda> {
+export async function buscarSugerencias(consulta: string, opciones: { signal?: AbortSignal } & ContextoGeografico = {}): Promise<ResultadoDeBusqueda> {
   const { calle, altura } = separarCalleYAltura(consulta);
   if (altura !== null) {
     const direcciones = await buscarDirecciones(consulta, opciones);
     if (direcciones.length > 0) return { direcciones, calles: [] };
-    const calles = leerCalles(await pedir(urlDeCalles(calle), opciones.signal));
+    const calles = leerCalles(await pedir(urlDeCalles(calle, MAXIMO_DE_SUGERENCIAS, opciones), opciones.signal));
     if (calles.length === 0) return { direcciones: [], calles: [] };
     const sirven = calles.filter((c) => alturaEnRango(altura, c));
     // Si alguna calle sí tiene ese número, Georef simplemente no lo ubicó: se ofrecen esas calles y no se dice que no existe.
     if (sirven.length > 0) return { direcciones: [], calles: sirven };
     return { direcciones: [], calles, alturaInexistente: { altura, mayor: Math.max(...calles.map((c) => c.hasta)) } };
   }
-  return { direcciones: [], calles: leerCalles(await pedir(urlDeCalles(calle), opciones.signal)) };
+  return { direcciones: [], calles: leerCalles(await pedir(urlDeCalles(calle, MAXIMO_DE_SUGERENCIAS, opciones), opciones.signal)) };
 }
 
 // Código postal: Georef no lo trae. Se pide a OpenStreetMap (Nominatim) por la UBICACIÓN de la dirección elegida: una consulta por
