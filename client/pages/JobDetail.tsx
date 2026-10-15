@@ -68,6 +68,7 @@ import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
 import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
+import { rutaAnterior } from "../utils/rutaAnterior";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -976,9 +977,9 @@ export default function JobDetail() {
           );
           return;
         }
-        // Sin problemas: al dashboard. El detalle de la liquidación le llega
+        // Sin problemas: de vuelta a donde estaba (por ejemplo «Mis trabajos»). El detalle de la liquidación le llega
         // igual como notificación, así que no hace falta frenarlo con un modal.
-        navigate("/dashboard");
+        navigate(rutaAnterior("/my-jobs", (r) => r.startsWith(`/jobs/${job.id}`)), { replace: true });
       } else {
         setError(
           data.message ||
@@ -1023,8 +1024,8 @@ export default function JobDetail() {
 
       if (data.success) {
         setShowDeleteModal(false);
-        // Redirect to dashboard
-        navigate("/dashboard");
+        // De vuelta a donde estaba (por ejemplo «Mis trabajos»), no al tablero.
+        navigate(rutaAnterior("/my-jobs", (r) => r.startsWith(`/jobs/${job.id}`)), { replace: true });
       } else {
         setError(
           data.message || t("jobs.errorDeleting", "Error deleting the job"),

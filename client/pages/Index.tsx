@@ -1,4 +1,5 @@
 import { useAuth } from "../hooks/useAuth";
+import MisPublicacionesSinPublicar from "../components/jobs/MisPublicacionesSinPublicar";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -872,6 +873,9 @@ export default function Index() {
                 {t('home.availableJobs')}
               </h2>
             </div>
+
+            {/* Las publicaciones propias que todavía no se ven acá (sin pagar, en revisión…): qué son y qué sigue */}
+            <MisPublicacionesSinPublicar />
 
             {jobsLoading ? (
               <div className="flex justify-center py-12">

@@ -4,6 +4,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { SeoDeRuta } from "./components/SeoDeRuta";
+import { RastreadorDeRuta } from "./utils/rutaAnterior";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import FirstContractGuide from "./components/FirstContractGuide";
@@ -46,6 +47,7 @@ const OnboardingScreen = lazy(() => import("./pages/OnboardingScreen"));
 const UserSettings = lazy(() => import("./pages/UserSettings"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const CopiarCodigo = lazy(() => import("./pages/CopiarCodigo"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const ReferralsScreen = lazy(() => import("./pages/ReferralsScreen"));
 const BlogsScreen = lazy(() => import("./pages/BlogsScreen"));
@@ -164,6 +166,7 @@ export default function App() {
             <BrowserRouter>
               <GoogleAnalytics />
               <SeoDeRuta />
+              <RastreadorDeRuta />
               <OnboardingProvider>
                 <OnboardingTooltip />
                 <FirstContractGuide />
@@ -557,6 +560,7 @@ export default function App() {
             <Route path="/data-deletion" element={<DataDeletionStatus />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/copiar-codigo" element={<CopiarCodigo />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/kyc/callback" element={<KycCallback />} />
             <Route

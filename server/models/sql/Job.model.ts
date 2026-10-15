@@ -11,8 +11,13 @@ import {
   AllowNull,
   Index,
   BeforeValidate,
+  AfterSave,
+  AfterDestroy,
+  AfterBulkUpdate,
+  AfterBulkDestroy,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
+import { cacheService } from '../../services/cacheService.js';
 import type { ModoDePago } from '../../../shared/pagos/modoDePago.js';
 
 /**
@@ -714,6 +719,23 @@ export class Job extends Model {
     if (instance.category) {
       instance.category = instance.category.trim();
     }
+  }
+
+  /**
+   * El muro (`GET /jobs`) se guarda 60 s en caché y solo `routes/jobs.ts` la vaciaba. Cualquier otro camino que cambia el estado de
+   * un trabajo (el pago, el webhook de MercadoPago, la aprobación del administrador, el cobro de una cotización…) dejaba el muro
+   * viejo hasta un minuto: la persona publicaba y su trabajo «no salía». Acá se vacía siempre que un trabajo se guarda o se borra.
+   */
+  @AfterSave
+  @AfterDestroy
+  static vaciarMuroEnCache(): void {
+    cacheService.delPattern('jobs:*');
+  }
+
+  @AfterBulkUpdate
+  @AfterBulkDestroy
+  static vaciarMuroEnCacheEnMasa(): void {
+    cacheService.delPattern('jobs:*');
   }
 }
 

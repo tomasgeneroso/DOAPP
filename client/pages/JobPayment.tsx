@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import useDialog from '../hooks/useDialog';
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
@@ -217,7 +217,13 @@ export default function JobPayment() {
     }
   };
 
+  // Un segundo clic (o un doble toque) mientras el primer pago sigue en curso no tiene que crear otra orden: la primera ya cambió el
+  // estado del trabajo y la segunda volvía con «no está esperando el pago».
+  const pagoEnCurso = useRef(false);
+
   const handlePayment = async () => {
+    if (pagoEnCurso.current) return;
+    pagoEnCurso.current = true;
     try {
       setProcessing(true);
       setError(null);
@@ -277,6 +283,13 @@ export default function JobPayment() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Ya no espera el pago: se publicó o quedó en revisión (por un pago anterior). No es un error para la persona: se la lleva a ver
+        // en qué está en vez de mostrarle un cartel rojo.
+        if (response.status === 409 && data.code === 'JOB_NOT_AWAITING_PAYMENT') {
+          toast.info('Esta publicación ya está paga', 'Mirá en qué está en «Mis trabajos».');
+          navigate('/my-jobs', { replace: true });
+          return;
+        }
         throw new Error(data.message || t('payments.errorCreatingOrder', 'Error creating payment order'));
       }
 
@@ -284,7 +297,7 @@ export default function JobPayment() {
       if (data.requiresPayment === false) {
         await refreshUser();
         toast.success('Trabajo publicado', 'Tu trabajo se ha publicado exitosamente con tu contrato gratuito');
-        navigate("/");
+        navigate("/my-jobs");
         return;
       }
 
@@ -332,7 +345,7 @@ export default function JobPayment() {
         } else {
           toast.success('Comprobante recibido', `Tu pago será verificado en ${verificationTime}`);
         }
-        navigate("/");
+        navigate("/my-jobs");
         return;
       }
 
@@ -347,6 +360,7 @@ export default function JobPayment() {
       toast.error(t('payments.paymentError', 'Payment error'), err.message || t('payments.errorProcessing', 'Error processing payment'));
       setError(err.message || t('payments.errorProcessing', 'Error processing payment'));
       setProcessing(false);
+      pagoEnCurso.current = false;
     }
   };
 

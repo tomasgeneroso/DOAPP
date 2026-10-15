@@ -624,8 +624,11 @@ ${ctaBlock}
       amountLabel: 'Código de 6 números (vale 15 minutos)',
       body: `
         <p>Hola <strong>${userName}</strong>, pediste cambiar tu contraseña sin usar la actual. Escribí este código en Configuración → Seguridad.</p>
+        <p>Si lo leés en el celular, tocá el botón para copiarlo con un toque.</p>
         ${this.callout('danger', '¿No lo pediste vos?', 'No compartas este código con nadie ni se lo des a quien diga ser de DoApp. Si no fuiste vos, ignorá este correo y escribinos a soporte: tu contraseña no cambia sin el código.')}
       `,
+      // Un correo no puede copiar al portapapeles: el botón abre una página con el código (en el fragmento, que no viaja al servidor).
+      cta: { label: 'Copiar código', url: `${config.clientUrl}/copiar-codigo#${code}` },
     });
     return await this.sendEmail({ to: email, subject: 'Tu código para cambiar la contraseña · DoApp', html });
   }

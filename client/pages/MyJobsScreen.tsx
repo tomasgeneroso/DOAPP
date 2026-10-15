@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
 import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
+import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
 
 interface Job {
   id: string;
@@ -150,7 +151,7 @@ export default function MyJobsScreen() {
     const viewParam = searchParams.get("view");
     return viewParam === "calendar" ? "calendar" : "list";
   });
-  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft" | "completed" | "disputed">("all");
+  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "pending_approval" | "draft" | "completed" | "disputed">("all");
   const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected" | "completed" | "disputed">("all");
   const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
   const [confirmingProposalJobId, setConfirmingProposalJobId] = useState<string | null>(null);
@@ -649,6 +650,9 @@ export default function MyJobsScreen() {
                 job.payment?.requiresProof &&
                 !job.payment?.proofSubmitted);
       }
+      if (filter === "pending_approval") {
+        return job.status === "pending_approval";
+      }
       if (filter === "draft") {
         return job.status === "draft";
       }
@@ -683,6 +687,7 @@ export default function MyJobsScreen() {
     j.status === "pending_payment" ||
     (j.payment?.status === "pending" && j.payment?.requiresProof && !j.payment?.proofSubmitted)
   ).length;
+  const pendingApprovalCount = jobs.filter(j => j.status === "pending_approval").length;
   const draftCount = jobs.filter(j => j.status === "draft").length;
   const completedJobsCount = jobs.filter(j => j.status === "completed").length;
   const disputedJobsCount = jobs.filter(j => j.status === "disputed").length;
@@ -957,13 +962,14 @@ export default function MyJobsScreen() {
         {viewMode === "list" && mainTab === "published" && (
           <>
             {/* Stats Cards — clickable filters */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
               {[
                 { key: "all" as const, label: t('common.total', 'Total'), count: jobs.length, icon: <Briefcase className="h-8 w-8 text-slate-400" />, activeColor: "border-sky-500 bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-400/20" },
                 { key: "published" as const, label: t('jobs.filter.published', 'Publicados'), count: publishedCount, icon: <CheckCircle className="h-8 w-8 text-green-500" />, numColor: "text-green-600", activeColor: "border-green-500 bg-green-50 dark:bg-green-900/20 ring-2 ring-green-400/20" },
                 { key: "completed" as const, label: t('jobs.filter.completed', 'Completados'), count: completedJobsCount, icon: <Trophy className="h-8 w-8 text-blue-500" />, numColor: "text-blue-600", activeColor: "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400/20" },
                 { key: "disputed" as const, label: t('jobs.filter.disputed', 'En Disputa'), count: disputedJobsCount, icon: <AlertTriangle className="h-8 w-8 text-orange-500" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
                 { key: "pending_payment" as const, label: t('jobs.filter.pendingPayment', 'Pago Pendiente'), count: pendingPaymentCount, icon: <AlertCircle className="h-8 w-8 text-amber-500" />, numColor: "text-amber-600", activeColor: "border-amber-500 bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-400/20" },
+                { key: "pending_approval" as const, label: t('jobs.filter.pendingApproval', 'En revisión'), count: pendingApprovalCount, icon: <Clock className="h-8 w-8 text-orange-400" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
                 { key: "draft" as const, label: t('jobs.filter.drafts', 'Borradores'), count: draftCount, icon: <FileText className="h-8 w-8 text-slate-400" />, numColor: "text-slate-600", activeColor: "border-slate-500 bg-slate-100 dark:bg-slate-700/50 ring-2 ring-slate-400/20" },
               ].map(({ key, label, count, icon, numColor, activeColor }) => (
                 <button
@@ -1021,6 +1027,20 @@ export default function MyJobsScreen() {
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">
                           {job.description}
                         </p>
+                        {(() => {
+                          // Qué significa el estado y qué sigue: por qué no está en el muro, si hay algo para hacer o solo esperar.
+                          const estado = estadoDePublicacion(job);
+                          if (!estado.explicacion) return null;
+                          const colores = { atencion: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300', espera: 'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300', bien: 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300', info: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300', cierre: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' } as const;
+                          return (
+                            <div className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm animate-fadeIn ${colores[estado.tono]}`}>
+                              <span><strong>{estado.etiqueta}.</strong> {estado.explicacion}</span>
+                              {estado.accion && (
+                                <Link to={estado.accion.ruta} className="font-semibold underline underline-offset-2">{estado.accion.texto}</Link>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
                             {getStatusLabel(job.status)}
