@@ -37,13 +37,33 @@ function rutaPermitidaConBaneo(req: AuthRequest): boolean {
   return RUTAS_PERMITIDAS_CON_BANEO.some((r) => r.metodo === metodo && r.ruta.test(ruta));
 }
 
+/**
+ * Los tokens que trae el pedido, en orden de preferencia: la cookie (más segura) y después el encabezado.
+ *
+ * Antes se usaba SOLO uno: si había cookie, el encabezado se ignoraba. Una cookie vencida o vieja (dura 30 días, el token menos)
+ * hacía fallar con «token inválido» un pedido que traía, además, un token nuevo y bueno en el encabezado: justo lo que pasa al
+ * volver de entrar con Google (la pantalla de retorno manda el token nuevo en el encabezado). Ahora se prueban los dos y vale el
+ * primero que verifica; si ninguno verifica, es 401 igual que antes.
+ */
+export function tokensDelPedido(req: { cookies?: Record<string, any>; headers: Record<string, any> }): string[] {
+  const tokens: string[] = [];
+  const cookie = req.cookies?.token;
+  if (typeof cookie === "string" && cookie) tokens.push(cookie);
+  const auth = req.headers?.authorization;
+  if (typeof auth === "string" && auth.startsWith("Bearer")) {
+    const h = auth.split(" ")[1];
+    if (h && !tokens.includes(h)) tokens.push(h);
+  }
+  return tokens;
+}
+
 export const protect = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    let token;
+    const candidatos = tokensDelPedido(req as any);
 
     /**
      * Prioridad 1: la cookie httpOnly (más segura que el header).
@@ -55,19 +75,10 @@ export const protect = async (
      * 500 donde corresponde un 401 se lee como "el servidor está roto", manda
      * al usuario a soporte en vez de a iniciar sesión, y ensucia las alertas.
      */
-    if (req.cookies?.token) {
-      token = req.cookies.token;
-    }
-    // Prioridad 2: Fallback al header Authorization para compatibilidad
-    else if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
-    }
+    // Prioridad 2: el header Authorization (para compatibilidad y para la app del celular).
 
     // Verificar que el token exista
-    if (!token) {
+    if (candidatos.length === 0) {
       res.status(401).json({
         success: false,
         message: "No autorizado para acceder a esta ruta",
@@ -76,8 +87,17 @@ export const protect = async (
     }
 
     try {
-      // Verificar token
-      const decoded = jwt.verify(token, config.jwtSecret) as DecodedToken;
+      // Verificar token: vale el primero que verifica (ver tokensDelPedido)
+      let decoded: DecodedToken | null = null;
+      for (const candidato of candidatos) {
+        try {
+          decoded = jwt.verify(candidato, config.jwtSecret) as DecodedToken;
+          break;
+        } catch {
+          /* se prueba el siguiente */
+        }
+      }
+      if (!decoded) throw new Error("token inválido");
 
       // Agregar usuario al request (PostgreSQL/Sequelize)
       req.user = await User.findByPk(decoded.id, {

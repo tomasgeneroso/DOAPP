@@ -99,13 +99,21 @@ export default function LoginScreen() {
   // Si el ingreso con Google/X falla, el servidor vuelve acá con `?error=…`. Antes se ignoraba: la persona veía el formulario de
   // siempre sin saber qué pasó. Se explica y se ofrece contactar a soporte.
   useEffect(() => {
-    const codigo = new URLSearchParams(location.search).get("error");
+    const parametros = new URLSearchParams(location.search);
+    const codigo = parametros.get("error");
     if (!codigo) return;
-    setError(
-      codigo === "twitter_oauth_denied"
-        ? t("auth.socialDenied", "Cancelaste el ingreso con X. Podés intentar de nuevo o ingresar con tu correo.")
-        : t("auth.socialFailed", "No pudimos iniciar sesión con ese servicio. Probá de nuevo o ingresá con tu correo; si sigue fallando, contactá a soporte."),
-    );
+    const motivo = parametros.get("motivo");
+    if (codigo === "twitter_oauth_denied") {
+      setError(t("auth.socialDenied", "Cancelaste el ingreso con X. Podés intentar de nuevo o ingresar con tu correo."));
+    } else if (motivo === "ACCOUNT_BANNED") {
+      setError(t("auth.socialBanned", "Tu cuenta está suspendida, por eso no pudimos iniciar tu sesión. Escribinos a soporte si creés que es un error."));
+    } else {
+      // El código (por ejemplo http401 o servidor) es lo que hay que pasarle a soporte para saber qué falló.
+      setError(
+        t("auth.socialFailed", "No pudimos iniciar sesión con ese servicio. Probá de nuevo o ingresá con tu correo; si sigue fallando, contactá a soporte.") +
+          (motivo ? ` (${t("auth.errorCode", "código")}: ${motivo.replace(/[^A-Za-z0-9_]/g, "").slice(0, 40)})` : ""),
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 

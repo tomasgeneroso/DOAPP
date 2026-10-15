@@ -1,6 +1,7 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
+import { col, fn, where } from "sequelize";
 import { User } from "../models/sql/User.model.js";
 import { config } from "./env.js";
 
@@ -16,7 +17,9 @@ if (config.googleClientId && config.googleClientSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          const email = profile.emails?.[0].value || '';
+          // Con `?.` en cada paso: un perfil sin foto o sin correo no puede tumbar el ingreso con un TypeError.
+          const email = String(profile.emails?.[0]?.value || '').trim().toLowerCase();
+          const foto = profile.photos?.[0]?.value;
 
           // Primero buscar por googleId
           let user = await User.findOne({ where: { googleId: profile.id } });
@@ -27,15 +30,19 @@ if (config.googleClientId && config.googleClientSecret) {
 
           // Si no existe por googleId, buscar por email para vincular cuentas
           if (email) {
-            user = await User.findOne({ where: { email } });
+            // Sin distinguir mayúsculas ni espacios: el correo que devuelve Google es el mismo de la cuenta aunque se haya
+            // guardado escrito distinto (la base lo trata como el mismo; buscar exacto y no encontrarla terminaba en un error
+            // de «correo ya en uso» al querer crear una cuenta nueva).
+            user = await User.findOne({ where: where(fn('lower', fn('trim', col('email'))), email) });
             if (user) {
               // Vincular cuenta existente con Google
               user.googleId = profile.id;
-              if (!user.avatar && profile.photos?.[0].value) {
-                user.avatar = profile.photos[0].value;
+              if (!user.avatar && foto) {
+                user.avatar = foto;
               }
               user.isVerified = true;
-              await user.save();
+              // Solo estos tres campos: una cuenta vieja con otro dato que no pasa las validaciones de hoy no puede impedir entrar.
+              await user.save({ fields: ['googleId', 'avatar', 'isVerified'] });
               console.log(`✅ Cuenta Google vinculada con usuario existente: ${email}`);
               return done(null, user);
             }
@@ -63,15 +70,15 @@ if (config.googleClientId && config.googleClientSecret) {
             name: profile.displayName || 'Google User',
             username,
             email,
-            avatar: profile.photos?.[0].value,
+            avatar: foto,
             isVerified: true, // Verificado por Google
             termsAccepted: true, // Asumimos aceptación al usar social login
             termsAcceptedAt: new Date(),
           });
 
           return done(null, user);
-        } catch (error) {
-          console.error('❌ Google OAuth strategy error:', error);
+        } catch (error: any) {
+          console.error('❌ Google OAuth strategy error:', error?.name, error?.message, (error?.errors || []).map((e: any) => e.message));
           return done(error, false);
         }
       }

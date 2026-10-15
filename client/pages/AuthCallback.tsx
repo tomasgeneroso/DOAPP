@@ -32,9 +32,12 @@ export default function AuthCallback() {
         },
         credentials: 'include', // Include cookies for httpOnly token
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.user) {
+        .then(async (res) => {
+          const cuerpo = await res.json().catch(() => null);
+          return { estado: res.status, data: cuerpo };
+        })
+        .then(({ estado, data }) => {
+          if (data?.success && data?.user) {
             // Save user to localStorage for client-side access
             localStorage.setItem("user", JSON.stringify(data.user));
 
@@ -58,12 +61,15 @@ export default function AuthCallback() {
               window.location.href = tomarDestino() || "/";
             }
           } else {
-            navigate("/login?error=auth_failed", { replace: true });
+            // El motivo viaja a la pantalla de ingreso: quien falla ve (y puede decirle a soporte) qué respondió el servidor.
+            const motivo = (data && data.code) || `http${estado}`;
+            console.error("Auth callback: /auth/me respondió", estado, data?.message);
+            navigate(`/login?error=auth_failed&motivo=${encodeURIComponent(String(motivo))}`, { replace: true });
           }
         })
         .catch((err) => {
           console.error("Auth callback error:", err);
-          navigate("/login?error=auth_failed", { replace: true });
+          navigate(`/login?error=auth_failed&motivo=${encodeURIComponent(err?.name === "TypeError" ? "red" : "cliente")}`, { replace: true });
         });
     } else {
       // Si no hay token ni error, redirigir al login

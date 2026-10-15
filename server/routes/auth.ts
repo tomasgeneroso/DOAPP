@@ -1139,6 +1139,13 @@ router.get(
     failureRedirect: `${config.clientUrl}/login?error=social_failed`,
     session: false,
   }),
+  // Si algo falla al buscar o vincular la cuenta, la persona vuelve al ingreso con una explicación (antes veía el JSON de un 500 en
+  // la dirección del servidor). El detalle queda en el registro del servidor.
+  (err: any, req: Request, res: Response, _next: NextFunction) => {
+    console.error('❌ Google callback:', err?.name, err?.message);
+    const base = `${config.clientUrl}/login?error=social_failed&motivo=servidor`;
+    res.redirect(req.query.state === "app" ? `${base}&origen=app` : base);
+  },
   (req: Request, res: Response) => {
     const user = req.user as any;
 
