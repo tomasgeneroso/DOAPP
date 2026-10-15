@@ -75,6 +75,12 @@ const colors = {
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) {
   const [isExiting, setIsExiting] = useState(false);
+  // Entra deslizándose desde la derecha (antes aparecía de golpe): arranca afuera y un instante después pasa a su lugar.
+  const [entro, setEntro] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntro(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const Icon = icons[toast.type];
   const color = colors[toast.type];
 
@@ -99,7 +105,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
         ${color.bg} ${color.border}
         border rounded-lg shadow-lg p-4 max-w-sm w-full
         transform transition-all duration-300 ease-out
-        ${isExiting ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
+        ${isExiting || !entro ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
       `}
     >
       <div className="flex items-start gap-3">
@@ -161,7 +167,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      {/* Arriba a la derecha, debajo del encabezado: abajo a la derecha está la «guía de inicio» y los avisos la tapaban. */}
+      <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 w-[calc(100vw-2rem)] max-w-sm pointer-events-none [&>*]:pointer-events-auto">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onRemove={() => removeToast(toast.id)} />
         ))}

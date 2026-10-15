@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
+import Transicion from "./ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -141,11 +142,13 @@ export default function CambiarContrasena() {
           <p className="text-sm text-sky-800 dark:text-sky-300">{t("settings.password.oauthHint", "Te registraste con Google o X. Establecé una contraseña para poder entrar también con tu correo.")}</p>
         </div>
       )}
-      {msg && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${msg.type === "success" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"}`}>
-          {msg.text}
-        </div>
-      )}
+      <Transicion mostrar={!!msg}>
+        {msg && (
+          <div role={msg.type === "error" ? "alert" : "status"} className={`mb-4 p-3 rounded-lg text-sm ${msg.type === "success" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"}`}>
+            {msg.text}
+          </div>
+        )}
+      </Transicion>
       <form onSubmit={handleSubmit} className="space-y-4">
         {hasPassword && !usaCodigo && (
           <div>

@@ -44,6 +44,7 @@ import { useOnboarding } from "../hooks/useOnboarding";
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil } from "../../shared/identidad/documentos";
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
+import Transicion from "../components/ui/Transicion";
 
 type TabType = "basic" | "verification" | "security" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
@@ -556,22 +557,25 @@ export default function UserSettings() {
           {t('settings.pageTitle')}
         </h1>
 
-        {message && (
-          <div
-            className={`mb-6 p-4 rounded-xl flex items-center gap-2 ${
-              message.type === "success"
-                ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300"
-                : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300"
-            }`}
-          >
-            {message.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <AlertCircle className="h-5 w-5" />
-            )}
-            <span>{message.text}</span>
-          </div>
-        )}
+        <Transicion mostrar={!!message}>
+          {message && (
+            <div
+              role={message.type === "error" ? "alert" : "status"}
+              className={`mb-6 p-4 rounded-xl flex items-center gap-2 ${
+                message.type === "success"
+                  ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300"
+                  : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300"
+              }`}
+            >
+              {message.type === "success" ? (
+                <CheckCircle2 className="h-5 w-5" />
+              ) : (
+                <AlertCircle className="h-5 w-5" />
+              )}
+              <span>{message.text}</span>
+            </div>
+          )}
+        </Transicion>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Tabs sidebar */}
@@ -605,12 +609,14 @@ export default function UserSettings() {
           {/* Content */}
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-              {erroresPorPestana[activeTab] && (
-                <div role="alert" className="mb-6 flex items-start gap-2 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
-                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span><strong>No se guardó:</strong> {erroresPorPestana[activeTab]}</span>
-                </div>
-              )}
+              <Transicion mostrar={!!erroresPorPestana[activeTab]}>
+                {erroresPorPestana[activeTab] && (
+                  <div role="alert" className="mb-6 flex items-start gap-2 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span><strong>No se guardó:</strong> {erroresPorPestana[activeTab]}</span>
+                  </div>
+                )}
+              </Transicion>
               {activeTab === "basic" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">

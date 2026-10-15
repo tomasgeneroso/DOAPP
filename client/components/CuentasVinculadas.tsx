@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Link2, Loader2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import Transicion from "./ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -108,9 +109,11 @@ export default function CuentasVinculadas() {
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
         Si te registraste con correo y contraseña, enlazá Google o X: así «Ingresar con Google» abre esta misma cuenta y no una nueva.
       </p>
-      {msg && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${msg.type === "success" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"}`}>{msg.text}</div>
-      )}
+      <Transicion mostrar={!!msg}>
+        {msg && (
+          <div role={msg.type === "error" ? "alert" : "status"} className={`mb-4 p-3 rounded-lg text-sm ${msg.type === "success" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"}`}>{msg.text}</div>
+        )}
+      </Transicion>
       <ul className="space-y-2">{(["google", "twitter"] as Proveedor[]).map(fila)}</ul>
     </div>
   );
