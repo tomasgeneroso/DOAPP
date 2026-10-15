@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { cuilCoincideConDni, cuilValido, digitoVerificador, dniValido, formatearCuil, normalizarDni, primerCuilValido } from '../shared/identidad/documentos.js';
+import { explicarCuilInvalido, cuilCoincideConDni, cuilValido, digitoVerificador, dniValido, formatearCuil, normalizarDni, primerCuilValido } from '../shared/identidad/documentos.js';
 
 describe('DNI', () => {
   it('7 a 9 dígitos; acepta puntos y espacios al escribir y guarda solo el número', () => {
@@ -42,5 +42,23 @@ describe('CUIL / CUIT', () => {
     expect(primerCuilValido([null, '', 'x', '20301112220', '20123456786'], '12345678')).toBe('20-12345678-6');
     expect(primerCuilValido(['12345678', undefined], '12345678')).toBeNull();
     expect(primerCuilValido([], '12345678')).toBeNull();
+  });
+});
+
+describe('explicarCuilInvalido', () => {
+  it('dice cuál debería ser el dígito verificador (el CUIL de prueba 20-11111111-1)', () => {
+    expect(explicarCuilInvalido('20-11111111-1')).toBe('El último número (el verificador) debería ser 2, no 1: revisá los números.');
+  });
+
+  it('largo, prefijo y combinaciones imposibles', () => {
+    expect(explicarCuilInvalido('201234')).toBe('El CUIL/CUIT tiene 11 números y escribiste 6.');
+    expect(explicarCuilInvalido('99123456786')).toMatch(/empezar con 20, 23, 24 o 27/);
+    // 27 + 00000000 + ?: la suma da resto 10, no hay dígito posible
+    expect(explicarCuilInvalido('20000000011')).toMatch(/verificador|no existe/);
+  });
+
+  it('un CUIL válido o un campo vacío no tienen nada que explicar', () => {
+    expect(explicarCuilInvalido('20-12345678-6')).toBeNull();
+    for (const v of ['', '   ', null, undefined]) expect(explicarCuilInvalido(v)).toBeNull();
   });
 });

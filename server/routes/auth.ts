@@ -36,7 +36,9 @@ import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { aplicarIdentidadDeDidit } from "../services/identidadDeDidit.js";
 import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
-import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
+import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
+import { COOKIE_DE_VINCULO, emitirVinculo, esProveedorVinculable, leerVinculo, vincularCuenta } from "../services/vincularCuentaSocial.js";
+import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
@@ -958,7 +960,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       const taxId = legalFinal.taxId === undefined || legalFinal.taxId === null ? undefined : String(legalFinal.taxId).trim();
       if (taxId) {
         if (!cuilValido(taxId)) {
-          errorDeDocumento('El CUIL/CUIT no es válido: revisá los números (son 11 dígitos, con el verificador al final).', 'CUIL_INVALIDO');
+          errorDeDocumento(explicarCuilInvalido(taxId) || 'El CUIL/CUIT no es válido: revisá los números.', 'CUIL_INVALIDO');
           return;
         }
         if (!cuilCoincideConDni(taxId, dniFinal)) {
@@ -1130,6 +1132,8 @@ router.put('/mode', protect, async (req: AuthRequest, res: Response): Promise<vo
 router.get("/google", (req: Request, res: Response, next: NextFunction) => {
   const opciones: Record<string, unknown> = { scope: ["profile", "email"] };
   if (req.query.origen === "app") opciones.state = "app";
+  // Enlazar Google a la cuenta actual (desde Configuración → Seguridad): el token firmado viaja en `state` (ver services/vincularCuentaSocial.ts).
+  else if (typeof req.query.vincular === "string" && req.query.vincular) opciones.state = `link:${req.query.vincular}`;
   passport.authenticate("google", opciones)(req, res, next);
 });
 
@@ -1146,8 +1150,23 @@ router.get(
     const base = `${config.clientUrl}/login?error=social_failed&motivo=servidor`;
     res.redirect(req.query.state === "app" ? `${base}&origen=app` : base);
   },
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const user = req.user as any;
+
+    // Enlazar Google a una cuenta existente: no es un ingreso, no se emite ninguna sesión.
+    if (user?.__vincular) {
+      res.clearCookie(COOKIE_DE_VINCULO, { path: "/" });
+      const base = `${config.clientUrl}/settings?tab=security`;
+      if (!user.userId) { res.redirect(`${base}&vinculo_error=vencido`); return; }
+      try {
+        const r = await vincularCuenta(user.userId, "google", user.googleId, { avatar: user.avatar });
+        res.redirect(r === "ok" || r === "ya_vinculada" ? `${base}&vinculado=google` : `${base}&vinculo_error=${r}`);
+      } catch (e: any) {
+        console.error("❌ Enlazar Google:", e?.message);
+        res.redirect(`${base}&vinculo_error=servidor`);
+      }
+      return;
+    }
 
     // Desde la app: no se pone la sesión en ningún enlace, se entrega un código de un solo uso a una página puente.
     if (req.query.state === "app") {
@@ -1326,6 +1345,11 @@ router.get("/twitter", (req: Request, res: Response): void => {
       path: '/',
     });
     // Desde la app del celular se entrega un código de un solo uso en vez de la sesión (ver services/ingresoDesdeApp.ts).
+    if (typeof req.query.vincular === 'string' && req.query.vincular) {
+      res.cookie('twitter_oauth_vincular', req.query.vincular, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
+    } else {
+      res.clearCookie('twitter_oauth_vincular', { path: '/' });
+    }
     if (req.query.origen === 'app') {
       res.cookie('twitter_oauth_origen', 'app', { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
     } else {
@@ -1378,6 +1402,19 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
 
     // Get user profile
     const twitterUser = await twitterOAuth.getUserProfile(tokens.accessToken);
+
+    // Enlazar X a una cuenta existente (desde Configuración → Seguridad): no es un ingreso y no se crea ninguna cuenta.
+    const vinculo = req.cookies?.twitter_oauth_vincular;
+    if (vinculo) {
+      res.clearCookie('twitter_oauth_vincular', { path: '/' });
+      res.clearCookie(COOKIE_DE_VINCULO, { path: '/' });
+      const base = `${config.clientUrl}/settings?tab=security`;
+      const quien = leerVinculo(vinculo, req.cookies?.[COOKIE_DE_VINCULO], 'twitter');
+      if (!quien) { res.redirect(`${base}&vinculo_error=vencido`); return; }
+      const r = await vincularCuenta(quien, 'twitter', String(twitterUser.id), { avatar: twitterUser.profileImageUrl });
+      res.redirect(r === 'ok' || r === 'ya_vinculada' ? `${base}&vinculado=twitter` : `${base}&vinculo_error=${r}`);
+      return;
+    }
 
     // Find or create user
     let user = await User.findOne({ where: { twitterId: twitterUser.id } });
@@ -1974,6 +2011,113 @@ router.post(
   }
 );
 
+// @route   POST /api/auth/social/link-start
+// @desc    Empieza el enlace de Google o X con la cuenta actual (Configuración → Seguridad). Devuelve la dirección a abrir.
+// @access  Private
+router.post("/social/link-start", protect, authLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const proveedor = req.body?.provider;
+    if (!esProveedorVinculable(proveedor)) {
+      res.status(400).json({ success: false, message: "Proveedor no válido." });
+      return;
+    }
+    const user = await User.findByPk(req.user.id, { attributes: ["id", "googleId", "twitterId"] });
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+    if ((proveedor === "google" ? user.googleId : user.twitterId)) {
+      res.status(400).json({ success: false, message: "Esa cuenta ya está enlazada." });
+      return;
+    }
+    const disponible = proveedor === "google" ? !!(config.googleClientId && config.googleClientSecret) : twitterOAuth.isTwitterOAuthConfigured();
+    if (!disponible) {
+      res.status(503).json({ success: false, message: "Este ingreso no está disponible por ahora." });
+      return;
+    }
+    const { token, nonce } = emitirVinculo(String(user.id), proveedor);
+    // La cookie ata el enlace al navegador que lo empezó: sin ella (otra persona con el mismo enlace) no se enlaza nada.
+    res.cookie(COOKIE_DE_VINCULO, nonce, { httpOnly: true, secure: config.nodeEnv === "production", sameSite: "lax", maxAge: 10 * 60 * 1000, path: "/" });
+    res.json({ success: true, url: `${config.serverUrl}/api/auth/${proveedor}?vincular=${encodeURIComponent(token)}` });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/password/send-code
+// @desc    «No recuerdo mi contraseña actual»: manda un código de 6 números al correo de la cuenta
+// @access  Private
+router.post("/password/send-code", protect, authLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+    if (!user.password) {
+      res.status(400).json({ success: false, message: "Todavía no tenés contraseña: usá «Establecer contraseña»." });
+      return;
+    }
+    if (!user.email) {
+      res.status(400).json({ success: false, message: "Tu cuenta no tiene un correo para enviarte el código." });
+      return;
+    }
+    const r = emitirCodigoDeClave(String(user.id));
+    if ("esperarSegundos" in r) {
+      res.status(429).json({ success: false, message: `Ya te enviamos un código. Podés pedir otro en ${r.esperarSegundos} segundos.`, esperarSegundos: r.esperarSegundos });
+      return;
+    }
+    await emailService.sendPasswordCodeEmail(user.email, user.name, r.codigo);
+    const [local, dominio] = String(user.email).split("@");
+    res.json({ success: true, message: `Te enviamos un código a ${local.slice(0, 2)}***@${dominio}. Vale 15 minutos.` });
+  } catch (error: any) {
+    console.error("Error en password/send-code:", error);
+    res.status(500).json({ success: false, message: "No pudimos enviar el código. Probá de nuevo en un momento." });
+  }
+});
+
+// @route   POST /api/auth/password/change-with-code
+// @desc    Cambia la contraseña con el código que llegó al correo (sin pedir la actual); cierra todas las sesiones
+// @access  Private
+router.post(
+  "/password/change-with-code",
+  protect,
+  authLimiter,
+  [
+    body("code").matches(/^\d{6}$/).withMessage("El código tiene 6 números"),
+    body("newPassword").isLength({ min: 6 }).withMessage("La nueva contraseña debe tener al menos 6 caracteres"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
+        return;
+      }
+      const user = await User.findByPk(req.user.id);
+      if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+      if (!user.password) {
+        res.status(400).json({ success: false, message: "Todavía no tenés contraseña: usá «Establecer contraseña»." });
+        return;
+      }
+
+      const r = verificarCodigoDeClave(String(user.id), req.body.code);
+      if (r !== "ok") {
+        const mensajes = {
+          incorrecto: "El código no es correcto.",
+          sin_codigo: "El código venció o no pediste uno. Pedí un código nuevo.",
+          bloqueado: "Te equivocaste demasiadas veces: el código se anuló. Pedí uno nuevo.",
+        } as const;
+        res.status(400).json({ success: false, code: r.toUpperCase(), message: mensajes[r] });
+        return;
+      }
+
+      user.password = req.body.newPassword;
+      await user.save();
+      await revokeAllUserTokens(user.id as any, "Password change with email code");
+      await emailService.sendPasswordChangedEmail(user.email, user.name);
+      res.json({ success: true, message: "Contraseña actualizada. Por seguridad cerramos todas tus sesiones: volvé a iniciar sesión.", logout: true });
+    } catch (error: any) {
+      console.error("Error en password/change-with-code:", error);
+      res.status(500).json({ success: false, message: "Error al cambiar la contraseña" });
+    }
+  },
+);
+
 // @route   GET /api/auth/has-password
 // @desc    Check if user has a password set
 // @access  Private
@@ -1984,6 +2128,7 @@ router.get("/has-password", protect, async (req: AuthRequest, res: Response): Pr
       success: true,
       hasPassword: !!(user?.password && user.password.length > 0),
       isOAuth: !!(user?.googleId || user?.facebookId || user?.twitterId),
+      linked: { google: !!user?.googleId, twitter: !!user?.twitterId, facebook: !!user?.facebookId },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });

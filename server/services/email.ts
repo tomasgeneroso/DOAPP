@@ -614,6 +614,22 @@ ${ctaBlock}
     return await this.sendEmail({ to: email, subject: 'Restablecé tu contraseña de DoApp', html });
   }
 
+  async sendPasswordCodeEmail(email: string, userName: string, code: string): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Seguridad',
+      accent: 'red',
+      preheader: 'Tu código para cambiar la contraseña. Vale 15 minutos.',
+      title: 'Tu código para cambiar la contraseña.',
+      amount: code,
+      amountLabel: 'Código de 6 números (vale 15 minutos)',
+      body: `
+        <p>Hola <strong>${userName}</strong>, pediste cambiar tu contraseña sin usar la actual. Escribí este código en Configuración → Seguridad.</p>
+        ${this.callout('danger', '¿No lo pediste vos?', 'No compartas este código con nadie ni se lo des a quien diga ser de DoApp. Si no fuiste vos, ignorá este correo y escribinos a soporte: tu contraseña no cambia sin el código.')}
+      `,
+    });
+    return await this.sendEmail({ to: email, subject: 'Tu código para cambiar la contraseña · DoApp', html });
+  }
+
   async sendPasswordChangedEmail(email: string, userName: string): Promise<boolean> {
     const html = this.tpl({
       eyebrow: 'Seguridad',

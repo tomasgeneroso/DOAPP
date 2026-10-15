@@ -40,7 +40,8 @@ async function estrategia(profile: any): Promise<{ err: any; user: any }> {
   const passport = (await import('../../server/config/passport.js')).default as any;
   const s = passport._strategy('google');
   if (!s) throw new Error('la estrategia de Google no se registró');
-  return new Promise((resolve) => s._verify('acceso', 'refresco', profile, (err: any, user: any) => resolve({ err, user })));
+  const req = { query: {}, cookies: {} };
+  return new Promise((resolve) => s._verify(req, 'acceso', 'refresco', profile, (err: any, user: any) => resolve({ err, user })));
 }
 
 describe('estrategia de Google con una cuenta existente', () => {

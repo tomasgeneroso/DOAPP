@@ -63,3 +63,21 @@ export function primerCuilValido(candidatos: unknown[], dni?: unknown): string |
   }
   return null;
 }
+
+/**
+ * Por qué un CUIL/CUIT no es válido, dicho para que la persona lo pueda corregir. Un CUIL de prueba como 20-11111111-1 cumple el
+ * formato (11 números) pero su dígito verificador no cierra: el mensaje dice cuál debería ser, en vez de un «no es válido» a secas.
+ * Devuelve null si es válido (o si no hay nada escrito).
+ */
+export function explicarCuilInvalido(v: unknown): string | null {
+  const d = soloDigitos(v);
+  if (!String(v ?? '').trim() || cuilValido(v)) return null;
+  if (d.length !== 11) return `El CUIL/CUIT tiene 11 números y escribiste ${d.length}.`;
+  const prefijo = d.slice(0, 2);
+  if (!PREFIJOS_DE_PERSONAS.has(prefijo) && !PREFIJOS_DE_EMPRESAS.has(prefijo)) {
+    return 'El CUIL/CUIT tiene que empezar con 20, 23, 24 o 27 (personas) o con 30, 33 o 34 (empresas).';
+  }
+  const esperado = digitoVerificador(d.slice(0, 10));
+  if (esperado === null) return 'Con esos números no existe un CUIL/CUIT válido: revisá el DNI y el prefijo.';
+  return `El último número (el verificador) debería ser ${esperado}, no ${d[10]}: revisá los números.`;
+}

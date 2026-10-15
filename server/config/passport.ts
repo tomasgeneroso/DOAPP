@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { col, fn, where } from "sequelize";
 import { User } from "../models/sql/User.model.js";
+import { COOKIE_DE_VINCULO, leerVinculo } from "../services/vincularCuentaSocial.js";
 import { config } from "./env.js";
 
 // Configurar Google OAuth solo si las credenciales están disponibles
@@ -14,9 +15,18 @@ if (config.googleClientId && config.googleClientSecret) {
         clientID: config.googleClientId,
         clientSecret: config.googleClientSecret,
         callbackURL: `${config.serverUrl}/api/auth/google/callback`,
+        passReqToCallback: true,
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (req: any, accessToken: string, refreshToken: string, profile: any, done: any) => {
         try {
+          // Enlazar desde Configuración → Seguridad: NO se busca por correo ni se crea una cuenta; solo se devuelve a quién se enlaza
+          // (el token firmado y la cookie del navegador que inició el enlace tienen que coincidir). El callback hace el enlace.
+          const estado = String(req?.query?.state || '');
+          if (estado.startsWith('link:')) {
+            const userId = leerVinculo(estado.slice(5), req?.cookies?.[COOKIE_DE_VINCULO], 'google');
+            return done(null, { __vincular: true, userId, googleId: profile.id, avatar: profile.photos?.[0]?.value });
+          }
+
           // Con `?.` en cada paso: un perfil sin foto o sin correo no puede tumbar el ingreso con un TypeError.
           const email = String(profile.emails?.[0]?.value || '').trim().toLowerCase();
           const foto = profile.photos?.[0]?.value;
