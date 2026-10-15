@@ -12,6 +12,9 @@ import KycButton from "../components/KycButton";
 import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
 import AddressAutocomplete from "../components/ui/AddressAutocomplete";
+import SeccionSegura from "../components/ui/SeccionSegura";
+import CambiarContrasena from "../components/CambiarContrasena";
+import CuentasVinculadas from "../components/CuentasVinculadas";
 import EmailVerification from "../components/EmailVerification";
 import MembershipStatus from "../components/MembershipStatus";
 import ProfilePromotion from "../components/profile/ProfilePromotion";
@@ -32,168 +35,46 @@ import {
   Briefcase,
   Upload,
   ShieldCheck,
+  Lock,
   X,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { FormField } from "../components/ui/FormField";
 import { useOnboarding } from "../hooks/useOnboarding";
-import { cuilCoincideConDni, cuilValido, formatearCuil } from "../../shared/identidad/documentos";
+import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil } from "../../shared/identidad/documentos";
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 
-type TabType = "basic" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
+type TabType = "basic" | "verification" | "security" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
+
+const PESTANAS_VALIDAS: TabType[] = ["basic", "verification", "security", "profession", "address", "banking", "legal", "interests", "notifications", "help"];
+
+const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
+  basic: "Información Básica",
+  verification: "Verificación",
+  security: "Seguridad",
+  profession: "Profesión",
+  address: "Dirección",
+  banking: "Banca",
+  legal: "Información Legal",
+  interests: "Intereses",
+  notifications: "Notificaciones",
+  help: "Ayuda",
+};
+
+/** En qué pestaña está el dato que el servidor rechazó (por el código de error o, si no lo trae, por lo que dice el mensaje). */
+function pestanaDelError(codigo?: string | null, mensaje?: string | null): TabType | null {
+  if (codigo && /^(DNI|CUIL)_/.test(codigo)) return "legal";
+  const m = String(mensaje || "").toLowerCase();
+  if (/cuil|cuit|dni|documento/.test(m)) return "legal";
+  if (/cbu|alias|bancari|titular/.test(m)) return "banking";
+  if (/dirección|direccion|calle|postal|ciudad|provincia/.test(m)) return "address";
+  if (/matr[ií]cula|profesi[oó]n/.test(m)) return "profession";
+  if (/tel[eé]fono|nombre|biograf/.test(m)) return "basic";
+  return null;
+}
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-
-function PasswordSection() {
-  const { t } = useTranslation();
-  const { token } = useAuth();
-  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
-  const [isOAuth, setIsOAuth] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const res = await fetch(`${API_URL}/auth/has-password`, {
-          credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (data.success) {
-          setHasPassword(data.hasPassword);
-          setIsOAuth(data.isOAuth);
-        }
-      } catch { /* ignore */ }
-    };
-    check();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-
-    if (newPassword.length < 6) {
-      setMsg({ type: 'error', text: t('auth.passwordMinLength') });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setMsg({ type: 'error', text: t('settings.password.mismatch', 'Las contraseñas no coinciden') });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const endpoint = hasPassword ? '/auth/change-password' : '/auth/set-password';
-      const body = hasPassword
-        ? { currentPassword, newPassword }
-        : { newPassword };
-
-      const res = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setMsg({ type: 'success', text: data.message });
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setHasPassword(true);
-      } else {
-        setMsg({ type: 'error', text: data.message || 'Error' });
-      }
-    } catch {
-      setMsg({ type: 'error', text: t('auth.connectionError') });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (hasPassword === null) return null;
-
-  return (
-    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        {hasPassword
-          ? t('settings.password.change', 'Change password')
-          : t('settings.password.set', 'Set password')}
-      </h3>
-      {!hasPassword && isOAuth && (
-        <div className="mb-4 p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
-          <p className="text-sm text-sky-800 dark:text-sky-300">
-            {t('settings.password.oauthHint', 'You signed up with Google. Set a password to also log in with email and password.')}
-          </p>
-        </div>
-      )}
-      {msg && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${msg.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>
-          {msg.text}
-        </div>
-      )}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {hasPassword && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-              {t('settings.password.current', 'Current password')}
-            </label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
-        )}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-            {t('settings.password.new', 'New password')}
-          </label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-            {t('settings.password.confirm', 'Confirm new password')}
-          </label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-        >
-          {loading ? t('common.loading') : hasPassword ? t('settings.password.changeBtn', 'Change password') : t('settings.password.setBtn', 'Set password')}
-        </button>
-      </form>
-    </div>
-  );
-}
 
 // ── Profesiones reguladas que requieren matrícula ─────────────────────────
 const REGULATED_PROFESSIONS = ['gasista', 'electricista', 'plomero', 'maestro_mayor_obras', 'instalador_aire'];
@@ -377,6 +258,9 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Errores del último guardado, por pestaña: se marcan en el menú y se muestran arriba de la pestaña que tiene el dato.
+  const [erroresPorPestana, setErroresPorPestana] = useState<Partial<Record<TabType, string>>>({});
+
   // Avatar upload
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -384,7 +268,10 @@ export default function UserSettings() {
   // Handle tab from URL query parameter
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["basic", "profession", "address", "banking", "legal", "interests", "notifications", "help"].includes(tabParam)) {
+    if (tabParam === "basic" && window.location.hash === "#verificacion") {
+      // Enlaces viejos (y avisos guardados): la verificación ya no está en Información Básica.
+      setActiveTab("verification");
+    } else if (tabParam && (PESTANAS_VALIDAS as string[]).includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams]);
@@ -396,10 +283,10 @@ export default function UserSettings() {
     return () => clearTimeout(timer);
   }, [message]);
 
-  // End of the attention trail: /settings?tab=basic#verificacion scrolls the
+  // End of the attention trail: /settings?tab=verification#verificacion scrolls the
   // user straight to the section that resolves the pending task.
   useEffect(() => {
-    if (activeTab !== "basic" || window.location.hash !== "#verificacion") return;
+    if (activeTab !== "verification" || window.location.hash !== "#verificacion") return;
     const timer = setTimeout(() => {
       document.getElementById("verificacion")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 120);
@@ -501,7 +388,7 @@ export default function UserSettings() {
   const cuilConError = (() => {
     const limpio = taxId.trim();
     if (!limpio) return null;
-    if (!cuilValido(limpio)) return t('settings.legal.cuilInvalido', 'El CUIL/CUIT no es válido: revisá los números (11 dígitos).');
+    if (!cuilValido(limpio)) return explicarCuilInvalido(limpio) || t('settings.legal.cuilInvalido', 'El CUIL/CUIT no es válido: revisá los números (11 dígitos).');
     if (!cuilCoincideConDni(limpio, dni)) return t('settings.legal.cuilNoCoincide', 'El CUIL no coincide con tu DNI: lleva adentro el número de DNI.');
     return null;
   })();
@@ -551,9 +438,30 @@ export default function UserSettings() {
     }
   };
 
+  /** Muestra el error, lo marca en el menú y lleva a la pestaña que tiene el dato (si se sabe cuál es). */
+  const marcarError = (tab: TabType | null, texto: string) => {
+    if (tab) {
+      setErroresPorPestana({ [tab]: texto });
+      setActiveTab(tab);
+    }
+    setMessage({ type: "error", text: tab ? `${texto} (en «${NOMBRE_DE_LA_PESTANA[tab]}»)` : texto });
+  };
+
   const handleSave = async () => {
-    setLoading(true);
     setMessage(null);
+    setErroresPorPestana({});
+
+    // Lo que ya se puede saber acá no hace falta mandarlo: se avisa en la pestaña donde está el dato.
+    if (cuilConError) {
+      marcarError("legal", cuilConError);
+      return;
+    }
+    if (dni && !user?.dniVerified && !dniValido(dni)) {
+      marcarError("legal", "El DNI debe tener entre 7 y 9 dígitos, solo números.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await fetch("/api/auth/settings", {
@@ -592,7 +500,9 @@ export default function UserSettings() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al actualizar configuración");
+        const texto = data.message || "Error al actualizar configuración";
+        marcarError(pestanaDelError(data.code, texto), texto);
+        return;
       }
 
       setMessage({ type: "success", text: "Configuración actualizada correctamente" });
@@ -621,10 +531,12 @@ export default function UserSettings() {
     return <AttentionDot priority={priority} count={count} />;
   };
 
-  const basicTasks = pending.filter((task) => task.section === "basic");
+  const verificationTasks = pending.filter((task) => task.section === "verification");
 
   const tabs = [
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
+    { id: "verification", label: "Verificación", icon: ShieldCheck },
+    { id: "security", label: "Seguridad", icon: Lock },
     { id: "profession", label: "Profesión", icon: Briefcase },
     { id: "address", label: t('settings.tabs.address'), icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
@@ -679,7 +591,11 @@ export default function UserSettings() {
                   >
                     <Icon className="h-5 w-5" />
                     <span className="flex-1">{tab.label}</span>
-                    {dotFor(tab.id)}
+                    {erroresPorPestana[tab.id as TabType] ? (
+                      <span title={erroresPorPestana[tab.id as TabType]} className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white" aria-label="Tiene un error">!</span>
+                    ) : (
+                      dotFor(tab.id)
+                    )}
                   </button>
                 );
               })}
@@ -689,6 +605,12 @@ export default function UserSettings() {
           {/* Content */}
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              {erroresPorPestana[activeTab] && (
+                <div role="alert" className="mb-6 flex items-start gap-2 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span><strong>No se guardó:</strong> {erroresPorPestana[activeTab]}</span>
+                </div>
+              )}
               {activeTab === "basic" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -802,7 +724,7 @@ export default function UserSettings() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Mi membresía
                     </h3>
-                    <MembershipStatus />
+                    <SeccionSegura nombre="Mi membresía"><MembershipStatus /></SeccionSegura>
                   </div>
 
                   {/* Promoción del perfil. Va justo debajo de la membresía
@@ -812,9 +734,17 @@ export default function UserSettings() {
                     id="promocion"
                     className="scroll-mt-24 pt-6 border-t border-slate-200 dark:border-slate-700"
                   >
-                    <ProfilePromotion />
+                    <SeccionSegura nombre="Promoción del perfil"><ProfilePromotion /></SeccionSegura>
                   </div>
+                </div>
+              )}
 
+              {activeTab === "verification" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Verificación</h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Verificar tu perfil le da confianza a quien te contrata y te habilita a publicar, postularte y cobrar.
+                  </p>
                   {/* Verification — destination of the attention trail.
                       Everything here already existed elsewhere (KycButton on the
                       profile, the uploader inside signup); this is the first place
@@ -830,13 +760,13 @@ export default function UserSettings() {
                       <CredibilityBadge credibility={(user as any)?.credibility} variant="compact" />
                     </div>
 
-                    {basicTasks.length > 0 && (
+                    {verificationTasks.length > 0 && (
                       <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/10 p-3">
                         <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1.5">
                           Te falta completar:
                         </p>
                         <ul className="space-y-1">
-                          {basicTasks.map((task) => (
+                          {verificationTasks.map((task) => (
                             <li key={task.id} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300/90">
                               <AttentionDot priority={task.priority} className="mt-1.5" />
                               <span>
@@ -851,7 +781,7 @@ export default function UserSettings() {
                       </div>
                     )}
 
-                    <CredibilityBadge credibility={(user as any)?.credibility} variant="full" />
+                    <SeccionSegura nombre="Credibilidad"><CredibilityBadge credibility={(user as any)?.credibility} variant="full" /></SeccionSegura>
 
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
@@ -907,8 +837,16 @@ export default function UserSettings() {
                     )}
                   </div>
 
-                  {/* Password Section */}
-                  <PasswordSection />
+                </div>
+              )}
+
+              {activeTab === "security" && (
+                <div className="space-y-8">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Seguridad</h2>
+                  <CambiarContrasena />
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                    <CuentasVinculadas />
+                  </div>
                 </div>
               )}
 
@@ -1510,7 +1448,7 @@ export default function UserSettings() {
               )}
 
               {/* Save button - only show for tabs that need saving */}
-              {activeTab !== "help" && (
+              {activeTab !== "help" && activeTab !== "verification" && activeTab !== "security" && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={handleSave}

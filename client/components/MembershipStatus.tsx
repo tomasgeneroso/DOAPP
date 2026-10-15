@@ -42,6 +42,8 @@ export default function MembershipStatus() {
 
   useEffect(() => {
     if (!token) return;
+    // El uso de la membresía solo existe para quien la tiene: pedirlo sin tenerla daba un 403 en la consola de todas las cuentas gratis.
+    if (!user?.hasMembership) { setLoading(false); return; }
     let cancelled = false;
     fetch("/api/membership/usage", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -49,7 +51,7 @@ export default function MembershipStatus() {
       .catch(() => { /* the paid tier below still renders from the session */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, user?.hasMembership]);
 
   const effective = (user?.membershipTier ?? "free") as string;
   const paid = (user?.realMembershipTier ?? user?.membershipTier ?? "free") as string;

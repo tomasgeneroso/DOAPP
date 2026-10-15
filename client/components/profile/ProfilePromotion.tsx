@@ -88,8 +88,9 @@ export default function ProfilePromotion() {
         fetch('/api/profile-promotion/options', { headers: h }).then((r) => r.json()),
         fetch('/api/profile-promotion/mine', { headers: h }).then((r) => r.json()),
       ]);
-      if (o.success) setOpts(o.data);
-      if (m.success) setMine(m.data);
+      // Solo si la respuesta trae lo que la pantalla necesita: un dato incompleto no puede tirar abajo Configuración.
+      if (o.success && o.data && Array.isArray(o.data.dias) && o.data.preview) setOpts(o.data);
+      if (m.success && Array.isArray(m.data)) setMine(m.data);
     } finally {
       setLoading(false);
     }

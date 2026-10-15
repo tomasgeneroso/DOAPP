@@ -30,7 +30,7 @@ export type TaskId =
   | "insurance";
 
 export type TaskPriority = "high" | "medium" | "low";
-export type SettingsSection = "basic" | "banking" | "profession";
+export type SettingsSection = "basic" | "verification" | "legal" | "banking" | "profession";
 
 export interface PendingTask {
   id: TaskId;
@@ -52,7 +52,7 @@ export interface PendingTask {
   dismissible: boolean;
 }
 
-const VERIFY_ANCHOR = "/settings?tab=basic#verificacion";
+const VERIFY_ANCHOR = "/settings?tab=verification#verificacion";
 
 export interface PendingTasksResult {
   /** Every applicable task, done or not. */
@@ -110,8 +110,9 @@ export function usePendingTasks(): PendingTasksResult {
         desc: "Necesario para verificar tu identidad.",
         done: !!u.dni && !u.needsDni,
         priority: "high",
-        section: "basic",
-        to: VERIFY_ANCHOR,
+        // El DNI se escribe en Información Legal (es la clave de la cuenta).
+        section: "legal",
+        to: "/settings?tab=legal",
         inModal: true,
         dismissible: false,
       },
@@ -124,7 +125,7 @@ export function usePendingTasks(): PendingTasksResult {
         done: !!u.dniVerified,
         priority: "high",
         status: identityStatus,
-        section: "basic",
+        section: "verification",
         to: VERIFY_ANCHOR,
         inModal: true,
         dismissible: false,
@@ -157,7 +158,7 @@ export function usePendingTasks(): PendingTasksResult {
             desc: "Te enviamos un código por WhatsApp para confirmar que el número es tuyo.",
             done: !!u.phoneVerified,
             priority: "high",
-            section: "basic",
+            section: "verification",
             to: VERIFY_ANCHOR,
             inModal: false,
             dismissible: false,
@@ -174,7 +175,7 @@ export function usePendingTasks(): PendingTasksResult {
         desc: "Confirmá tu correo desde el enlace que te enviamos, o pedí uno nuevo.",
         done: !!u.isVerified,
         priority: "high",
-        section: "basic",
+        section: "verification",
         to: VERIFY_ANCHOR,
         inModal: false,
         dismissible: false,
@@ -187,7 +188,7 @@ export function usePendingTasks(): PendingTasksResult {
         desc: "Confirmá que sos vos con una selfie. Suma credibilidad a tu perfil.",
         done: !!u.selfieUrl,
         priority: "high",
-        section: "basic",
+        section: "verification",
         to: VERIFY_ANCHOR,
         // Deliberately out of the modal: it was never a blocker and turning it
         // into one would pop a modal at every existing user without a selfie.

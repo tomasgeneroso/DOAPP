@@ -876,7 +876,7 @@ export default function ProfilePage() {
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Subí tu DNI, selfie{(user as any).credibility.isProfessional ? ', matrícula y seguro' : ''} desde{' '}
                 <Link
-                  to="/settings?tab=basic#verificacion"
+                  to="/settings?tab=verification#verificacion"
                   className="inline-flex items-center gap-1.5 text-sky-600 dark:text-sky-400 hover:underline font-medium"
                 >
                   Configuración
