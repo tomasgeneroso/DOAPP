@@ -164,12 +164,26 @@ export class Job extends Model {
   @Column(DataType.STRING(255))
   addressDetails?: string;
 
+  // Postgres entrega los DECIMAL como TEXTO («-34.60370000»). El mapa del trabajo solo aceptaba números, así que descartaba las
+  // coordenadas exactas guardadas y centraba el círculo en el centro de la ciudad. Se devuelven siempre como número.
   @Index
-  @Column(DataType.DECIMAL(10, 8))
+  @Column({
+    type: DataType.DECIMAL(10, 8),
+    get(this: Model) {
+      const v = this.getDataValue('latitude' as never) as unknown;
+      return v === null || v === undefined ? v : Number(v);
+    },
+  })
   latitude?: number;
 
   @Index
-  @Column(DataType.DECIMAL(11, 8))
+  @Column({
+    type: DataType.DECIMAL(11, 8),
+    get(this: Model) {
+      const v = this.getDataValue('longitude' as never) as unknown;
+      return v === null || v === undefined ? v : Number(v);
+    },
+  })
   longitude?: number;
 
   @Default(false)

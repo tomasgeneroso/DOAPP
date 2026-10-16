@@ -25,6 +25,7 @@ import RangoDeFechas from "@/components/ui/RangoDeFechas";
 import MontoEnPesos from "@/components/ui/MontoEnPesos";
 import { detallesDeUbicacion, sanearCalle, validarCalleYNumero, type LugarSugerido } from "../../shared/geo/lugares";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
+import { aCoordenada } from "@/utils/coordenadas";
 import { getImageUrl } from "@/utils/imageUrl";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
@@ -175,8 +176,8 @@ export default function EditJobScreen() {
           setSelectedCategory(job.category || "");
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
-          setLatitude(typeof job.latitude === 'number' ? job.latitude : null);
-          setLongitude(typeof job.longitude === 'number' ? job.longitude : null);
+          setLatitude(aCoordenada(job.latitude));
+          setLongitude(aCoordenada(job.longitude));
           setNeighborhood(job.neighborhood || "");
           setPostalCode(job.postalCode || "");
           setAddressStreet(job.addressStreet || "");

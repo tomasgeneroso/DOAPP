@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
+import { aCoordenada } from '../../utils/coordenadas';
 
 interface LocationCircleMapProps {
   location: string;
   /** Precise coordinates (from the address autocomplete). When present, the circle
    *  is centered exactly here instead of coarsely geocoding the location string. */
-  latitude?: number | null;
-  longitude?: number | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
 // Cache para coordenadas geocodificadas
@@ -36,11 +37,10 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
 
       // Precise coordinates from the address autocomplete take absolute priority —
       // this centers the circle exactly on the saved location (no coarse geocoding).
-      if (
-        typeof latitude === 'number' && typeof longitude === 'number' &&
-        !Number.isNaN(latitude) && !Number.isNaN(longitude)
-      ) {
-        setCoordinates([latitude, longitude]);
+      const lat = aCoordenada(latitude);
+      const lng = aCoordenada(longitude);
+      if (lat !== null && lng !== null) {
+        setCoordinates([lat, lng]);
         setLoading(false);
         return;
       }
