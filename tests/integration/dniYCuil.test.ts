@@ -29,7 +29,18 @@ import { digitoVerificador } from '../../shared/identidad/documentos.js';
 
 // Cada test usa sus propios DNI: el DNI no se repite (índice único), así que los fijos chocarían entre tests.
 let n = 0;
-const dniNuevo = () => String(40_000_000 + ++n * 7919 + Math.floor(Math.random() * 1000));
+// Algunos números no admiten ningún CUIL válido (el dígito verificador da 10 con todos los prefijos): se descartan para que el test no sea intermitente.
+const dniNuevo = (): string => {
+  for (;;) {
+    const d = String(40_000_000 + ++n * 7919 + Math.floor(Math.random() * 1000));
+    try {
+      cuilDe(d);
+      return d;
+    } catch {
+      /* sin CUIL posible: se prueba otro */
+    }
+  }
+};
 /** CUIL válido para un DNI: prefijo + DNI de 8 dígitos + dígito verificador (si ese prefijo no tiene, prueba el siguiente). */
 const cuilDe = (dni: string, prefijos = ['20', '27', '23', '24']) => {
   for (const p of prefijos) {
