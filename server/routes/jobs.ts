@@ -1367,6 +1367,24 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
       updateData.longitude = updateData.longitude ? parseFloat(updateData.longitude) : null;
     }
 
+    // Dirección: la calle sin el número adentro y el número solo con dígitos (lo mismo que al crear).
+    if (updateData.addressStreet !== undefined || updateData.addressNumber !== undefined) {
+      let calle = String(updateData.addressStreet ?? (job as any).addressStreet ?? '').trim();
+      let numero = String(updateData.addressNumber ?? (job as any).addressNumber ?? '').trim();
+      const separada = sanearCalle(calle);
+      if (separada.numero && !numero) {
+        calle = separada.calle;
+        numero = separada.numero;
+      }
+      const problemaDeDireccion = validarCalleYNumero(calle, numero);
+      if (problemaDeDireccion) {
+        res.status(400).json({ success: false, code: 'DIRECCION_INVALIDA', message: problemaDeDireccion });
+        return;
+      }
+      updateData.addressStreet = calle || null;
+      updateData.addressNumber = numero || null;
+    }
+
     // Process uploaded images (new images)
     const uploadedFiles = req.files as Express.Multer.File[];
     const newImageUrls = uploadedFiles?.map(file => `/uploads/job-images/${file.filename}`) || [];

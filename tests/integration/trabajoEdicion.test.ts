@@ -67,6 +67,23 @@ describe('PUT /api/jobs/:id: sólo se edita el contenido', () => {
     expect(j.description).toContain('cuerita');
   });
 
+  it('la dirección se guarda limpia: el número sale de la calle', async () => {
+    const t = await trabajo({ status: 'open' });
+    const r = await editar(t.id, { addressStreet: 'Avenida Corrientes 1234', addressNumber: '' });
+    expect(r.status).toBe(200);
+    const j = await leer(t.id);
+    expect(j.addressStreet).toBe('Avenida Corrientes');
+    expect(j.addressNumber).toBe('1234');
+  });
+
+  it('un número de puerta con letras se rechaza (400) y no se guarda', async () => {
+    const t = await trabajo({ status: 'open' });
+    const r = await editar(t.id, { addressStreet: 'Avenida Corrientes', addressNumber: '12ab' });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('DIRECCION_INVALIDA');
+    expect((await leer(t.id)).addressNumber ?? null).toBeNull();
+  });
+
   it("NO puede publicarse a sí mismo: 'status' del cuerpo se ignora", async () => {
     const t = await trabajo({ status: 'pending_payment' });
     const r = await editar(t.id, { title: 'Título nuevo y válido', status: 'open' });
