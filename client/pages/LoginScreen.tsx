@@ -318,31 +318,14 @@ export default function LoginScreen() {
           return;
         }
 
-        // Validar número de DNI obligatorio
-        if (!formData.dni.trim()) {
-          setError(t('auth.dniNumberRequired'));
-          setIsLoading(false);
-          return;
-        }
-        if (!/^\d{7,9}$/.test(formData.dni.trim())) {
-          setError(t('auth.dniInvalid'));
-          setIsLoading(false);
-          return;
-        }
-
-        // No document upload at signup any more: identity is proven through
-        // Didit right after registering (KycWelcomeModal), and the manual
-        // fallback only unlocks once that flow has actually failed.
+        // Registro en pasos: solo correo y contraseña. La cuenta queda abierta y la persona sigue con la verificación de identidad (Didit),
+        // de donde salen el nombre y el DNI; después revisa esos datos y completa lo que falta (usuario, teléfono).
         const newUser = await register({
-          name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
-          username: formData.username.toLowerCase().trim(),
+          pasos: true,
           email: formData.email,
           password: formData.password,
-          phone: formData.phone,
-          dni: formData.dni,
           referralCode: formData.referralCode || undefined,
           invitationCode: invitationCode || undefined,
-          cbu: formData.cbu || undefined,
           termsAccepted: formData.termsAccepted,
         });
 
@@ -361,8 +344,8 @@ export default function LoginScreen() {
         }
 
 
-        // Show email verification pending screen instead of navigating
-        setRegistrationPendingVerification(true);
+        // Sigue el recorrido: verificar la identidad y completar los datos (el correo se confirma con el enlace que llegó por mail).
+        navigate('/complete-registration', { replace: true });
       }
     } catch (err: any) {
       const errorMessage = err.message || t('auth.genericError');
@@ -574,102 +557,6 @@ export default function LoginScreen() {
           {opcionesSociales}
 
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
-            {isRegister && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="firstName"
-                      className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                    >
-                      {t('auth.firstName', 'Nombre/s')} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="firstName"
-                        name="firstName"
-                        type="text"
-                        autoComplete="given-name"
-                        required={isRegister}
-                        onChange={handleInputChange}
-                        value={formData.firstName}
-                        placeholder={t('auth.firstNamePlaceholder')}
-                        className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="lastName"
-                      className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                    >
-                      {t('auth.lastName', 'Apellido/s')} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="lastName"
-                        name="lastName"
-                        type="text"
-                        autoComplete="family-name"
-                        required={isRegister}
-                        onChange={handleInputChange}
-                        value={formData.lastName}
-                        placeholder={t('auth.lastNamePlaceholder')}
-                        className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label
-                    htmlFor="username"
-                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                  >
-                    {t('auth.username')} <span className="text-red-500">*</span>
-                  </label>
-                  <div className="mt-2 relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">@</span>
-                    <input
-                      id="username"
-                      name="username"
-                      type="text"
-                      autoComplete="username"
-                      required={isRegister}
-                      onChange={handleInputChange}
-                      value={formData.username}
-                      placeholder={t('auth.usernamePlaceholder')}
-                      maxLength={30}
-                      className={`block w-full h-12 rounded-lg border ${
-                        usernameStatus === 'available' ? 'border-green-500 dark:border-green-500' :
-                        usernameStatus === 'taken' ? 'border-red-500 dark:border-red-500' :
-                        'border-slate-300 dark:border-slate-600'
-                      } bg-white dark:bg-slate-700 pl-8 pr-10 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent lowercase`}
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {usernameStatus === 'checking' && (
-                        <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                      )}
-                      {usernameStatus === 'available' && (
-                        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      {usernameStatus === 'taken' && (
-                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {usernameStatus === 'taken'
-                      ? t('auth.usernameTaken')
-                      : t('auth.usernameUrl')}
-                  </p>
-                </div>
-              </>
-            )}
-
             <div>
               <label
                 htmlFor="email"
@@ -786,71 +673,13 @@ export default function LoginScreen() {
 
             {isRegister && (
               <>
-                <FormField
-                  id="phone"
-                  label={t('auth.phone')}
-                  required={isRegister}
-                  error={errorField === 'phone' ? error : undefined}
-                  help={t(
-                    'auth.phoneHelp',
-                    'Con característica y sin el 15. Por ejemplo: +54 11 1234-5678.'
-                  )}
-                  privado
-                  note={t(
-                    'auth.phonePrivacy',
-                    'Solo lo usamos para avisarte de tus contratos y para que podamos contactarte si hay un problema con un trabajo. No aparece en tu perfil, no se lo damos a otros usuarios y no lo usamos para publicidad.'
-                  )}
-                >
-                  {(field) => (
-                    <input
-                      {...field}
-                      name="phone"
-                      type="tel"
-                      autoComplete="tel"
-                      required={isRegister}
-                      onChange={handleInputChange}
-                      value={formData.phone}
-                      placeholder="+54 11 1234-5678"
-                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
-                  )}
-                </FormField>
-                <FormField
-                  id="dni"
-                  label={t('auth.dni')}
-                  required={isRegister}
-                  error={errorField === 'dni' ? error : undefined}
-                  help={t('auth.dniHelper')}
-                  privado
-                  note={t(
-                    'auth.dniPrivacy',
-                    'Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.'
-                  )}
-                >
-                  {(field) => (
-                    <input
-                      {...field}
-                      name="dni"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      required={isRegister}
-                      onChange={handleInputChange}
-                      value={formData.dni}
-                      placeholder="12345678"
-                      maxLength={9}
-                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
-                  )}
-                </FormField>
-
                 {/* Identity is verified after registration, through Didit only.
                     The manual upload that used to live here is now a fallback
                     that unlocks solely once the automated flow has failed. */}
                 <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-900/10 p-3 flex items-start gap-2">
                   <BadgeCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-slate-600 dark:text-slate-300">
-                    {t('auth.kycAfterRegister', 'Al terminar el registro vas a verificar tu identidad con documento y selfie. Toma un par de minutos y se hace desde el celular.')}
+                    {t('auth.kycAfterRegisterPasos', 'Ahora solo tu correo y una contraseña. Después verificás tu identidad con documento y selfie (un par de minutos) y tu nombre y tu DNI se completan solos desde el documento: los revisás y listo.')}
                   </p>
                 </div>
 
@@ -885,34 +714,6 @@ export default function LoginScreen() {
                     {t('auth.referralHelper')}
                   </p>
                 </div>
-                <FormField
-                  id="cbu"
-                  label={`${t('auth.cbu')} ${t('form.optional', '(opcional)')}`}
-                  error={errorField === 'cbu' ? error : undefined}
-                  help={t(
-                    'auth.cbuHelp',
-                    'Son 22 dígitos, sin espacios ni guiones. Lo encontrás en tu app del banco o de la billetera, en los datos de tu cuenta. También sirve un CVU de Mercado Pago o Ualá.'
-                  )}
-                  privado
-                  note={t(
-                    'auth.cbuPrivacy',
-                    'Es la cuenta donde vas a cobrar tus trabajos. Tiene que estar a tu nombre. Nadie más la ve, y podés cargarla más tarde: la vas a necesitar recién al cobrar el primer trabajo.'
-                  )}
-                >
-                  {(field) => (
-                    <input
-                      {...field}
-                      name="cbu"
-                      type="text"
-                      inputMode="numeric"
-                      onChange={handleInputChange}
-                      value={formData.cbu}
-                      placeholder="0000000000000000000000"
-                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                      maxLength={22}
-                    />
-                  )}
-                </FormField>
                 <div className="flex items-center">
                   <input
                     id="termsAccepted"

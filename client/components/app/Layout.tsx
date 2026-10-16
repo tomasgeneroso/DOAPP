@@ -17,6 +17,15 @@ export default function Layout() {
   const location = useLocation();
   useScrollDepth();
 
+  // Registro en pasos: mientras falte verificar la identidad y completar los datos, la persona sigue ese recorrido (en vez de entrar a la app
+  // a medio registrar). Se dejan abiertas las pantallas del propio recorrido, los textos legales y la ayuda.
+  useEffect(() => {
+    if (!isAuthenticated || !(user as any)?.registrationPending) return;
+    const libres = ['/complete-registration', '/kyc/callback', '/verify-email', '/legal', '/terms', '/privacy', '/contact', '/help', '/banned', '/login', '/register'];
+    if (libres.some((r) => location.pathname === r || location.pathname.startsWith(`${r}/`))) return;
+    navigate('/complete-registration', { replace: true });
+  }, [user, isAuthenticated, navigate, location.pathname]);
+
   useEffect(() => {
     // Check if user is banned and redirect to banned screen
     if (isAuthenticated && user?.isBanned && location.pathname !== '/banned') {

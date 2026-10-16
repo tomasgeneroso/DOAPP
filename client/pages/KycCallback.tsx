@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Clock, Loader2, ShieldAlert } from "lucide-react";
@@ -72,6 +72,16 @@ export default function KycCallback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, token]);
 
+  // Registro en pasos: al terminar con Didit sigue el último paso (revisar los datos que salieron del documento y completar lo que falta).
+  const navigate = useNavigate();
+  const registroPendiente = !!(user as any)?.registrationPending;
+  const sigueElRegistro = registroPendiente && (estado === "aprobada" || estado === "en_revision");
+  useEffect(() => {
+    if (!sigueElRegistro) return;
+    const t = setTimeout(() => navigate("/complete-registration", { replace: true }), 1500);
+    return () => clearTimeout(t);
+  }, [sigueElRegistro, navigate]);
+
   const agotado = estado === "pendiente" && !hayQueVolverAPreguntar(estado, consultas) && consultas > 0;
   const texto = textoDelEstado(estado, agotado);
 
@@ -128,7 +138,11 @@ export default function KycCallback() {
                   : texto.detalle}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link to="/" className={estado === "aprobada" ? principal : secundario}>{t("kycCallback.home", "Ir al inicio")}</Link>
+                {sigueElRegistro ? (
+                  <Link to="/complete-registration" replace className={principal}>{t("kycCallback.continueRegistration", "Continuar con tu registro")}</Link>
+                ) : (
+                  <Link to="/" className={estado === "aprobada" ? principal : secundario}>{t("kycCallback.home", "Ir al inicio")}</Link>
+                )}
                 {estado === "rechazada" && (
                   <Link to={user?.id ? `/profile/${user.id}` : "/"} className={principal}>{t("kycCallback.retry", "Volver a intentar")}</Link>
                 )}

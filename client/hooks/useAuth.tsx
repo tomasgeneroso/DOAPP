@@ -190,7 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         credentials: "include", // Permite enviar y recibir cookies
         // `sinSesion`: registrarse no abre la sesión; primero hay que verificar el correo (igual que para ingresar).
-        body: JSON.stringify({ ...data, sinSesion: true }),
+        // El registro en pasos SÍ deja la sesión abierta: la verificación de identidad con Didit la necesita.
+        body: JSON.stringify(data.pasos ? data : { ...data, sinSesion: true }),
       });
 
       const responseData = await response.json();

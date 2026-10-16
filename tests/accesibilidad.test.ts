@@ -74,7 +74,9 @@ describe('campos que piden datos personales', () => {
 });
 
 describe('qué dice la promesa de privacidad', () => {
-  const login = readFileSync(join(RAIZ, 'pages', 'LoginScreen.tsx'), 'utf8');
+  // El teléfono y el DNI se piden en el último paso del registro (nombre y DNI salen del documento de Didit); el CBU ya no se pide al
+  // registrarse: se carga en Configuración cuando se va a cobrar.
+  const login = readFileSync(join(RAIZ, 'pages', 'CompleteRegistration.tsx'), 'utf8');
 
   it('el teléfono dice para qué se usa y que no se muestra', () => {
     // Las dos mitades: el uso legítimo y la no-publicación. Una sola no alcanza.
@@ -87,8 +89,9 @@ describe('qué dice la promesa de privacidad', () => {
     expect(login).toMatch(/Nunca se muestra a otros usuarios/i);
   });
 
-  it('el CBU aclara que tiene que estar a nombre del usuario', () => {
-    expect(login).toMatch(/a tu nombre/i);
+  it('el registro ya no pide el CBU: se carga en Configuración al momento de cobrar', () => {
+    const registro = readFileSync(join(RAIZ, 'pages', 'LoginScreen.tsx'), 'utf8');
+    expect(registro).not.toMatch(/name=["']cbu["']/);
   });
 });
 

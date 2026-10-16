@@ -129,6 +129,8 @@ export interface User {
   id: string;
   name: string;
   username?: string;
+  /** La cuenta existe pero falta verificar la identidad y completar los datos (registro en pasos). */
+  registrationPending?: boolean;
   email: string;
   avatar?: string;
   coverImage?: string;
@@ -238,12 +240,15 @@ export interface User {
 }
 
 export interface RegisterData {
-  name: string;
-  username: string;
+  /** Con `pasos` no hacen falta: el nombre, el usuario y el DNI salen del documento (Didit) y se completan después. */
+  name?: string;
+  username?: string;
   email: string;
   password: string;
   phone?: string;
-  dni: string;
+  dni?: string;
+  /** Registro en pasos: correo y contraseña ahora, verificación de identidad y datos después. */
+  pasos?: boolean;
   termsAccepted: boolean;
   referralCode?: string;
   /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un año desde el canje. */

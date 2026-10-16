@@ -42,7 +42,7 @@ export default function AuthCallback() {
             localStorage.setItem("user", JSON.stringify(data.user));
 
             // Check if user needs to complete registration (DNI)
-            if (needsDni || data.user.needsDni) {
+            if (needsDni || data.user.needsDni || data.user.registrationPending) {
               // Redirect to complete registration page
               window.location.href = "/complete-registration";
             } else if (data.user.adminRole === "analista") {
