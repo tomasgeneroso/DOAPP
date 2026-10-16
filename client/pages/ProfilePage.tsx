@@ -18,6 +18,7 @@ import { CancellationMark } from '../components/CancellationLadder';
 import { mostrarRating, periodoDelRating } from '../../shared/rating/display';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
+import TrabajosPublicados from '../components/profile/TrabajosPublicados';
 import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -75,6 +76,8 @@ export default function ProfilePage() {
   const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'posts' | 'articles'>('posts');
   const [mainTab, setMainTab] = useState<'jobs' | 'posts'>('jobs');
+  // Dentro de «Trabajos»: los que hizo como profesional o los que publicó como cliente.
+  const [jobsView, setJobsView] = useState<'trabajados' | 'publicados'>('trabajados');
   const [completedJobs, setCompletedJobs] = useState<any[]>([]);
   const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
   const [completedByCategory, setCompletedByCategory] = useState<Array<{
@@ -1063,62 +1066,6 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Mis Publicaciones - solo en perfil propio */}
-              {isOwnProfile() && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-sky-500" />
-                    {t('home.myPublications')}
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                    {t('profile.myPublicationsDesc', "Jobs you've published as a client")}
-                  </p>
-                  <Link
-                    to="/my-jobs"
-                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
-                  >
-                    {t('profile.viewAllMyJobs', 'See all my jobs')} →
-                  </Link>
-                </div>
-              )}
-
-              {/* Trabajos realizados - solo en perfil propio y en modo trabajador */}
-              {isOwnProfile() && ((user as any).role === 'doer' || (user as any).role === 'both') && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    {t('profile.jobsIDid', 'Trabajos que Realicé')}
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                    {t('profile.jobsIDidDesc', 'Contracts where you worked as a professional')}
-                  </p>
-                  <Link
-                    to="/contracts?role=doer"
-                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
-                  >
-                    {t('profile.viewMyJobsDone', 'See my completed jobs')} →
-                  </Link>
-                </div>
-              )}
-
-              {/* Trabajos publicados - solo en perfil propio y en modo cliente */}
-              {isOwnProfile() && ((user as any).role === 'client' || (user as any).role === 'both' || (user as any).role === 'user' || !(user as any).role) && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-sky-500" />
-                    {t('profile.jobsIPosted', 'Trabajos publicados')}
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                    {t('profile.jobsIPostedDesc', 'Trabajos que publicaste como cliente')}
-                  </p>
-                  <Link
-                    to="/my-jobs"
-                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
-                  >
-                    {t('profile.viewMyPublications', 'Mis Publicaciones')} →
-                  </Link>
-                </div>
-              )}
             </div>
 
             {/* Right Column - Content with Tabs */}
@@ -1134,7 +1081,7 @@ export default function ProfilePage() {
                   }`}
                 >
                   <Briefcase className="w-4 h-4" />
-                  {t('profile.completedWork')}
+                  {t('profile.jobsTab', 'Trabajos')}
                 </button>
                 <button
                   onClick={() => setMainTab('posts')}
@@ -1145,12 +1092,41 @@ export default function ProfilePage() {
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  {t('profile.posts', 'Posts')}
+                  {t('profile.publicationsTab', 'Publicaciones')}
                 </button>
               </div>
 
-              {/* Completed Jobs Section */}
+              {/* Trabajos: los que hizo como profesional y los que publicó como cliente */}
               {mainTab === 'jobs' && (
+                <div className="flex gap-2" role="tablist" aria-label="Tipo de trabajos">
+                  {([
+                    { id: 'trabajados' as const, texto: 'Trabajados' },
+                    { id: 'publicados' as const, texto: 'Publicados' },
+                  ]).map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={jobsView === v.id}
+                      onClick={() => setJobsView(v.id)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                        jobsView === v.id
+                          ? 'bg-sky-600 border-sky-600 text-white'
+                          : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {v.texto}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {mainTab === 'jobs' && jobsView === 'publicados' && user?.id && (
+                <TrabajosPublicados userId={String(user.id)} esPropio={isOwnProfile()} token={token} />
+              )}
+
+              {/* Completed Jobs Section */}
+              {mainTab === 'jobs' && jobsView === 'trabajados' && (
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
