@@ -122,6 +122,34 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
       END $$;
     `,
   },
+  // Una sesión de verificación de Didit pertenece a UNA sola cuenta.
+  { label: 'users.didit_session_id único', sql: `CREATE UNIQUE INDEX IF NOT EXISTS users_didit_session_id_unico ON users (didit_session_id) WHERE didit_session_id IS NOT NULL` },
+  /**
+   * Postularse a un trabajo fallaba en producción con «null value in column "doer_id" of relation "proposals" violates not-null
+   * constraint»: la tabla conservaba una columna de un esquema viejo (doer_id, NOT NULL) que el modelo actual (freelancer_id) no
+   * escribe. Se vuelven opcionales las columnas heredadas y se rellena doer_id con freelancer_id.
+   */
+  { label: 'proposals: columnas heredadas sin NOT NULL', sql: `
+      DO $$
+      DECLARE col record;
+      BEGIN
+        -- Columnas heredadas de un esquema viejo (por ejemplo doer_id) que el modelo ya no escribe: si siguen NOT NULL sin valor por
+        -- defecto, cada propuesta nueva revienta con «null value in column "doer_id" … violates not-null constraint».
+        FOR col IN
+          SELECT column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'proposals'
+            AND is_nullable = 'NO' AND column_default IS NULL
+            AND column_name NOT IN ('id', 'freelancer_id', 'client_id', 'cover_letter', 'proposed_price', 'estimated_duration', 'status', 'created_at', 'updated_at')
+        LOOP
+          EXECUTE format('ALTER TABLE proposals ALTER COLUMN %I DROP NOT NULL', col.column_name);
+        END LOOP;
+
+        -- Lo que el esquema viejo llamaba doer_id es hoy freelancer_id: las filas que quedaron sin valor lo toman de ahí.
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'proposals' AND column_name = 'doer_id') THEN
+          EXECUTE 'UPDATE proposals SET doer_id = freelancer_id WHERE doer_id IS NULL';
+        END IF;
+      END $$;
+    ` },
   // Reclamo directo antes de la disputa: plazo, propuesta de acuerdo, por que escalo, y a que estado vuelve el contrato.
   { label: 'disputes.negotiation_deadline', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS negotiation_deadline TIMESTAMPTZ` },
   { label: 'disputes.agreement_proposal', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS agreement_proposal JSONB` },
