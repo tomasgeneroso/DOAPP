@@ -1,6 +1,10 @@
 import { Op } from 'sequelize';
 import { User } from '../models/sql/User.model.js';
 import { logEvento } from '../utils/auditLog.js';
+import { AuditLog } from '../models/sql/AuditLog.model.js';
+import { Notification } from '../models/sql/Notification.model.js';
+import { DONDE_ES_ADMIN } from '../utils/admins.js';
+import { compararIdentidad, type IdentidadDelDocumento } from '../../shared/identidad/coincidencia.js';
 import { avisarConflictoDeDni, yaSeRegistroElConflicto } from './identidadAReviser.js';
 import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni, primerCuilValido, soloDigitos } from '../../shared/identidad/documentos.js';
 
@@ -36,6 +40,88 @@ export function extraerIdentidad(decision: any): IdentidadLeida {
   }
   const cuil = primerCuilValido(candidatos, dni ?? undefined);
   return { dni, cuil };
+}
+
+/** Lo que dice el documento: nombres, apellidos y número. Lo que falte da null. */
+export function leerDocumento(decision: any): IdentidadDelDocumento {
+  const idv = decision?.id_verifications?.[0] || decision?.id_verification || {};
+  const crudo = idv?.document_number;
+  const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const nombres = texto(idv?.first_name) ?? texto(idv?.full_name);
+  return { nombres, apellidos: texto(idv?.last_name), dni: dniValido(crudo) ? normalizarDni(crudo) : null };
+}
+
+export const ACCION_IDENTIDAD_NO_COINCIDE = 'KYC_NO_COINCIDE';
+
+const enmascarar = (dni: unknown) => {
+  const d = String(dni ?? '').replace(/\D/g, '');
+  return d ? `***${d.slice(-3)}` : null;
+};
+
+/**
+ * Antes de dar por buena una verificación de Didit: ¿el documento es de la persona que se registró?
+ *
+ * Didit aprueba un documento auténtico, pero no sabe quién se registró en DOAPP. Si el nombre o el DNI del documento no coinciden con
+ * los del registro (o no se pueden comparar), la verificación NO se aprueba sola: queda «En revisión», sin tocar el DNI de la cuenta, y
+ * se le avisa a administración para que lo mire. Quien ya está verificado (por ejemplo, aprobado a mano por un administrador) no se
+ * vuelve a evaluar. Modifica `updates` (lo que se va a guardar) y devuelve si la verificación queda aprobada.
+ */
+export async function controlarCoincidencia(user: any, updates: Record<string, any>, decision: any): Promise<boolean> {
+  if (updates.kycStatus !== 'Approved') return false;
+  if (user.dniVerified) return true;
+
+  const documento = leerDocumento(decision);
+  // Una cuenta sin DNI todavía (ingresó con Google y no lo cargó) lo toma del documento: se compara solo el nombre.
+  const resultado = compararIdentidad({ nombre: user.name, dni: user.dni || documento.dni }, documento);
+  if (resultado.coincide) return true;
+
+  updates.kycStatus = 'In Review';
+  delete updates.dniVerified;
+  delete updates.kycVerifiedAt;
+
+  const sesion = updates.diditSessionId || user.diditSessionId || null;
+  const previos = await AuditLog.findAll({ where: { action: ACCION_IDENTIDAD_NO_COINCIDE, targetId: String(user.id) }, order: [['createdAt', 'DESC']], limit: 20 });
+  const yaRegistrado = previos.some((p: any) => (p.metadata?.sesion ?? null) === sesion);
+  if (!yaRegistrado) {
+    await logEvento({
+      action: ACCION_IDENTIDAD_NO_COINCIDE,
+      actor: 'system:didit',
+      category: 'user',
+      severity: 'high',
+      description: `La verificación de Didit no coincide con el registro de la cuenta ${user.id}: no se aprobó, queda en revisión. ${resultado.motivos.join(' ')}`,
+      targetModel: 'User',
+      targetId: String(user.id),
+      metadata: {
+        sesion,
+        nombreRegistrado: user.name,
+        nombreDelDocumento: [documento.nombres, documento.apellidos].filter(Boolean).join(' ') || null,
+        dniRegistrado: enmascarar(user.dni),
+        dniDelDocumento: enmascarar(documento.dni),
+        nombre: resultado.nombre,
+        dni: resultado.dni,
+      },
+    });
+    try {
+      const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN }, attributes: ['id'] });
+      for (const a of admins) {
+        await Notification.create({
+          recipientId: a.id,
+          type: 'warning',
+          category: 'admin',
+          title: 'Verificación de identidad que no coincide',
+          message: `${user.name || 'Una cuenta'} verificó un documento cuyo nombre o DNI no coincide con su registro. No se aprobó: hay que revisarlo.`,
+          relatedModel: 'User',
+          relatedId: String(user.id),
+          actionText: 'Revisar',
+          actionUrl: '/admin/users',
+          sentVia: ['in_app'],
+        } as any);
+      }
+    } catch (e: any) {
+      console.error('No se pudo avisar a administración la identidad que no coincide:', e?.message);
+    }
+  }
+  return false;
 }
 
 export interface ResultadoDeAplicar {
