@@ -124,7 +124,20 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // Check if user has free contracts remaining (initial free contracts)
       // freeContractsRemaining starts at 3 for first 1000 users, otherwise 0
+      // Un contrato gratuito publica el trabajo (status 'open') sin pasar por el pago ni por la revisión: por eso acá también rige la
+      // misma regla que al crearlo (POST /jobs): sin identidad verificada un trabajo se crea pero NO se publica. Antes este camino la
+      // salteaba: quien llegaba a la pantalla de pago con el trabajo en borrador por no estar verificado lo publicaba igual.
+      const sinIdentidad = !(user as any).dniVerified;
+      const identidadRequerida = () => {
+        res.status(403).json({
+          success: false,
+          code: "IDENTIDAD_SIN_VERIFICAR",
+          message: "Para publicar tu trabajo primero verificá tu identidad (Configuración → Verificación). El trabajo queda guardado como borrador.",
+        });
+      };
+
       if (user.freeContractsRemaining > 0) {
+        if (sinIdentidad) { identidadRequerida(); return; }
         // User has initial free contracts, publish directly without payment
         job.status = 'open';
         job.publicationAmount = 0;
@@ -152,6 +165,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       const proContractsUsed = user.proContractsUsedThisMonth || 0;
       if (proContractsUsed < monthlyFreeLimit) {
+        if (sinIdentidad) { identidadRequerida(); return; }
         // User has monthly free contracts without commission
         job.status = 'open';
         job.publicationAmount = 0;

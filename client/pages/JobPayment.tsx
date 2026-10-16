@@ -111,6 +111,13 @@ export default function JobPayment() {
 
   const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
 
+  /**
+   * Con un contrato gratuito (los iniciales o los del mes) el servidor publica el trabajo SIN cobrar en este paso: el monto del trabajo se
+   * abona después, al contratar a un trabajador (el servidor pide el pago antes de aprobar la propuesta). Esta pantalla mostraba igual el
+   * total y el selector de medios de pago, y quien tocaba «Completar pago» veía que no pasaba por Mercado Pago sin saber por qué.
+   */
+  const publicaSinPagarAhora = !isBudgetIncrease && (freeContractsRemaining > 0 || monthlyFreeRemaining > 0);
+
   const publicationCost = isBudgetIncrease ? 0 : (quote?.commission ?? 0);
   const vatAmount = isBudgetIncrease ? 0 : (quote?.vat ?? 0);
   // El total lo dice el servidor. Para un aumento, mientras no llega, se
@@ -727,8 +734,18 @@ export default function JobPayment() {
             </div>
           </div>
 
+          {publicaSinPagarAhora && (
+            <div className="p-6 border-t border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20" role="status">
+              <p className="font-semibold text-green-800 dark:text-green-200">Esta publicación no se paga ahora</p>
+              <p className="mt-1 text-sm text-green-800 dark:text-green-300">
+                Usa uno de tus contratos gratuitos: tu trabajo se publica sin pasar por Mercado Pago. El monto del trabajo se abona después, cuando
+                elijas a quién contratar (ahí sí te pedimos el pago, con el desglose).
+              </p>
+            </div>
+          )}
+
           {/* Payment Method Selector - Only show if not free contract */}
-          {!isFreeContract && (
+          {!isFreeContract && !publicaSinPagarAhora && (
             <div className="p-6 border-t border-gray-200 dark:border-gray-700">
               <PaymentMethodSelector
                 selectedMethod={paymentMethod}
@@ -972,10 +989,10 @@ export default function JobPayment() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                   {isFreeContract ? t('jobs.publishing', 'Publicando...') : t('common.processing', 'Procesando...')}
                 </>
-              ) : isFreeContract ? (
+              ) : isFreeContract || publicaSinPagarAhora ? (
                 <>
                   <CreditCard className="w-5 h-5" />
-                  Publicar sin comisión
+                  {publicaSinPagarAhora ? 'Publicar sin pagar ahora' : 'Publicar sin comisión'}
                 </>
               ) : (
                 <>

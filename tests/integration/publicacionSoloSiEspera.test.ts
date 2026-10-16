@@ -60,7 +60,7 @@ describe('create-order de una publicación: sólo si el trabajo espera el pago',
     app = express();
     app.use(express.json());
     app.use('/api/payments', (await import('../../server/routes/payments.js')).default);
-    ana = await crearUsuario({ role: 'client', freeContractsRemaining: 3 });
+    ana = await crearUsuario({ role: 'client', freeContractsRemaining: 3, dniVerified: true });
   });
 
   afterAll(async () => {
@@ -88,6 +88,21 @@ describe('create-order de una publicación: sólo si el trabajo espera el pago',
       expect(await Payment.count({ where: { payerId: ana.id, paymentType: 'job_publication' } })).toBe(0);
     },
   );
+
+  it('sin identidad verificada el contrato gratis NO publica: 403, el trabajo sigue en borrador y no se gasta el contrato', async () => {
+    await User.update({ dniVerified: false } as any, { where: { id: ana.id } });
+    try {
+      const t = await nuevo('draft');
+      const antes = await gratis();
+      const r = await pagar(t.id);
+      expect(r.status).toBe(403);
+      expect(r.body.code).toBe('IDENTIDAD_SIN_VERIFICAR');
+      expect((await trabajo(t.id)).status).toBe('draft');
+      expect(await gratis()).toBe(antes);
+    } finally {
+      await User.update({ dniVerified: true } as any, { where: { id: ana.id } });
+    }
+  });
 
   it('un trabajo pendiente de pago con contrato gratis se publica sin pagar (camino feliz, no se rompió)', async () => {
     const t = await nuevo('pending_payment');
