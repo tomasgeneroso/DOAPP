@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import Transicion from "../../components/ui/Transicion";
 
 interface ServerPerformance {
   summary: {
@@ -222,11 +223,13 @@ export default function PerformanceMonitor() {
         </div>
       </div>
 
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}
+      </Transicion>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">

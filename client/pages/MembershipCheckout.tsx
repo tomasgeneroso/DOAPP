@@ -7,6 +7,7 @@ import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, Arro
 import Button from '../components/ui/Button';
 import OrigenDeLaCotizacion, { type Cotizacion } from '../components/ui/OrigenDeLaCotizacion';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+import Transicion from "../components/ui/Transicion";
 
 // Hay una sola membresia paga: PRO, mensual. Los links viejos con ?plan=quarterly
 // o ?plan=super_pro caen aca tambien y se ven como PRO mensual.
@@ -181,12 +182,14 @@ export default function MembershipCheckout() {
           </div>
         </div>
 
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
             <p className="text-red-800 dark:text-red-200">{error}</p>
           </div>
         )}
+        </Transicion>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Beneficios - 2/3 del ancho */}

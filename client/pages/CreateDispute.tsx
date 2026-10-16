@@ -6,6 +6,7 @@ import axios from 'axios';
 import { usePermissions } from '../hooks/usePermissions';
 import { api } from '@/lib/api';
 import { POLITICAS } from '../../shared/constants/policies';
+import Transicion from "../components/ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -191,11 +192,13 @@ const CreateDispute: React.FC = () => {
             </div>
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="mb-6 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
+          </Transicion>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Contract Selector */}

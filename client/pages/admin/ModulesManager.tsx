@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, Check, X, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button.js';
+import Transicion from "../../components/ui/Transicion";
 
 interface ModuleInfo {
   moduleId: string;
@@ -149,6 +150,7 @@ export default function ModulesManager() {
           </p>
         </div>
 
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
@@ -161,13 +163,16 @@ export default function ModulesManager() {
             </button>
           </div>
         )}
+        </Transicion>
 
+        <Transicion mostrar={!!success}>
         {success && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex gap-3">
             <Check className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
             <div className="text-green-700 dark:text-green-300">{success}</div>
           </div>
         )}
+        </Transicion>
 
         {loading ? (
           <div className="flex justify-center items-center h-64">

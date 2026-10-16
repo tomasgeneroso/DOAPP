@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
 import { Plus, Trash2, FileText, Send, ArrowLeft, Briefcase, X, Search, Layers } from 'lucide-react';
 import type { Quote, QuoteItem } from '../types/index';
+import Transicion from "../components/ui/Transicion";
 
 // ─── Quote templates by trade ────────────────────────────────────────────────
 interface QuoteTemplate {
@@ -699,11 +700,13 @@ export default function QuoteForm() {
             </div>
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-400 text-sm">
               {error}
             </div>
           )}
+          </Transicion>
 
           <div className="flex gap-4 justify-end">
             <button

@@ -20,11 +20,15 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
-import { CustomDateInput } from "@/components/ui/CustomDatePicker";
+import CalleYNumero from "@/components/ui/CalleYNumero";
+import RangoDeFechas from "@/components/ui/RangoDeFechas";
+import MontoEnPesos from "@/components/ui/MontoEnPesos";
+import { detallesDeUbicacion, sanearCalle, validarCalleYNumero, type LugarSugerido } from "../../shared/geo/lugares";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import { getImageUrl } from "@/utils/imageUrl";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
+import Transicion from "../components/ui/Transicion";
 
 interface FormFieldProps {
   label: string;
@@ -81,6 +85,10 @@ export default function EditJobScreen() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [neighborhood, setNeighborhood] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [addressStreet, setAddressStreet] = useState("");
+  const [addressNumber, setAddressNumber] = useState("");
+  const [addressDetails, setAddressDetails] = useState("");
+  const [contextoGeo, setContextoGeo] = useState<{ provincia?: string; ciudad?: string } | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -163,7 +171,7 @@ export default function EditJobScreen() {
           setTitle(job.title || "");
           setSummary(job.summary || "");
           setDescription(job.description || "");
-          setPrice(job.price?.toString() || "");
+          setPrice(job.price ? String(Math.round(Number(job.price))) : "");
           setSelectedCategory(job.category || "");
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
@@ -171,8 +179,11 @@ export default function EditJobScreen() {
           setLongitude(typeof job.longitude === 'number' ? job.longitude : null);
           setNeighborhood(job.neighborhood || "");
           setPostalCode(job.postalCode || "");
-          setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
-          setEndDate(job.endDate ? new Date(job.endDate).toISOString().slice(0, 16) : "");
+          setAddressStreet(job.addressStreet || "");
+          setAddressNumber(job.addressNumber || "");
+          setAddressDetails(job.addressDetails || "");
+          setStartDate(job.startDate ? new Date(job.startDate).toISOString() : "");
+          setEndDate(job.endDate ? new Date(job.endDate).toISOString() : "");
           setEndDateFlexible(job.endDateFlexible || false);
           setAllowCounterOffers(job.allowCounterOffers !== false);
           setExistingImages(job.images || []);
@@ -278,6 +289,46 @@ export default function EditJobScreen() {
     }
   };
 
+  /** Provincia y localidad que se usan para acotar las calles: la elegida, o la que se deduce de lo escrito («Ciudad, Provincia»). */
+  const contextoDeCalles = (() => {
+    if (contextoGeo?.provincia) return contextoGeo;
+    const partes = location.split(",").map((p) => p.trim()).filter(Boolean);
+    return partes.length >= 2 ? { ciudad: partes[0], provincia: partes[partes.length - 1] } : {};
+  })();
+
+  /** Elegir una dirección exacta completa calle, número, barrio y código postal; un barrio o una localidad, lo que tengan. */
+  const completarDesdeLugar = async (l: LugarSugerido) => {
+    setContextoGeo({ provincia: l.provincia || undefined, ciudad: l.ciudad || undefined });
+    if (l.calle) {
+      setAddressStreet(l.calle);
+      setAddressNumber(l.numero);
+    }
+    if (l.barrio) setNeighborhood(l.barrio);
+    if (l.codigoPostal) setPostalCode(l.codigoPostal);
+    if (!l.barrio || !l.codigoPostal) {
+      const d = await detallesDeUbicacion(l.lat, l.lon);
+      if (d) {
+        if (!l.barrio && d.barrio) setNeighborhood(d.barrio);
+        if (!l.codigoPostal && d.codigoPostal) setPostalCode(d.codigoPostal);
+      }
+    }
+  };
+
+  /** Al elegir una dirección en «Calle»: se completan la zona, el barrio, el código postal y el punto del mapa. */
+  const completarDesdeCalle = async (d: { calle: string; numero: string; ciudad: string; provincia: string; lat?: number; lon?: number }) => {
+    setContextoGeo((prev) => prev ?? { provincia: d.provincia || undefined, ciudad: d.ciudad || undefined });
+    if (!location.trim() && (d.ciudad || d.provincia)) setLocation([d.ciudad, d.provincia].filter((x, i, a) => x && a.indexOf(x) === i).join(", "));
+    if (d.lat !== undefined && d.lon !== undefined) {
+      setLatitude(d.lat);
+      setLongitude(d.lon);
+      const det = await detallesDeUbicacion(d.lat, d.lon);
+      if (det) {
+        if (det.barrio) setNeighborhood(det.barrio);
+        if (det.codigoPostal) setPostalCode(det.codigoPostal);
+      }
+    }
+  };
+
   const handleRemoveTag = (tagToRemove: string) => {
     setSelectedTags(selectedTags.filter((tag) => tag !== tagToRemove));
   };
@@ -298,6 +349,21 @@ export default function EditJobScreen() {
     setIsSubmitting(true);
     setError(null);
 
+    // Dirección: la calle sin el número adentro y el número solo con dígitos.
+    let calle = addressStreet.trim();
+    let numero = addressNumber.trim();
+    const separada = sanearCalle(calle);
+    if (separada.numero && !numero) {
+      calle = separada.calle;
+      numero = separada.numero;
+    }
+    const problemaDeDireccion = validarCalleYNumero(calle, numero);
+    if (problemaDeDireccion) {
+      setError(problemaDeDireccion);
+      setIsSubmitting(false);
+      return;
+    }
+
     const submitData = new FormData();
 
     submitData.append("title", title);
@@ -314,6 +380,9 @@ export default function EditJobScreen() {
     }
     if (neighborhood) submitData.append("neighborhood", neighborhood);
     if (postalCode) submitData.append("postalCode", postalCode);
+    submitData.append("addressStreet", calle);
+    submitData.append("addressNumber", numero);
+    submitData.append("addressDetails", addressDetails.trim());
     submitData.append("startDate", startDate);
     submitData.append("endDateFlexible", endDateFlexible.toString());
     if (!endDateFlexible && endDate) {
@@ -585,20 +654,12 @@ export default function EditJobScreen() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
                 <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign} required>
-                  <input
-                    type="number"
+                  <MontoEnPesos
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    onChange={setPrice}
                     required
                     disabled={fieldsDisabled}
-                    min="0"
-                    step="1"
-                    placeholder="15000"
-                    onKeyPress={(e) => {
-                      if (!/[0-9]/.test(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
+                    placeholder="15.000"
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
@@ -634,6 +695,7 @@ export default function EditJobScreen() {
                         setLongitude(null);
                       }
                     }}
+                    onPlaceSelect={completarDesdeLugar}
                     placeholder={t('jobs.locationPlaceholder')}
                     required
                     disabled={fieldsDisabled}
@@ -641,7 +703,22 @@ export default function EditJobScreen() {
                   />
                 </FormField>
               </div>
-              <div className="sm:col-span-4">
+              <fieldset disabled={fieldsDisabled} className="sm:col-span-6 min-w-0 space-y-6 border-0 p-0 m-0 disabled:opacity-60">
+                <CalleYNumero
+                  street={addressStreet}
+                  number={addressNumber}
+                  onStreetChange={setAddressStreet}
+                  onNumberChange={setAddressNumber}
+                  provincia={contextoDeCalles.provincia}
+                  ciudad={contextoDeCalles.ciudad}
+                  onAddressResolved={completarDesdeCalle}
+                  labels={{
+                    street: t('jobs.streetLabel', 'Calle'),
+                    number: t('jobs.numberLabel', 'Número de puerta'),
+                    streetPlaceholder: t('jobs.streetPlaceholder', 'Ej: Av. Corrientes'),
+                    numberPlaceholder: t('jobs.numberPlaceholder', 'Ej: 1234'),
+                  }}
+                />
                 <NeighborhoodAutocomplete
                   locationValue={location}
                   neighborhood={neighborhood}
@@ -650,7 +727,20 @@ export default function EditJobScreen() {
                   onPostalCodeChange={setPostalCode}
                   disabled={fieldsDisabled}
                 />
-              </div>
+                <FormField
+                  label={t('jobs.addressDetailsLabel', 'Address details (optional)')}
+                  icon={MapPin}
+                  description={t('jobs.addressDetailsDescription', 'Floor, apartment, cross streets or other references to find the place')}
+                >
+                  <input
+                    type="text"
+                    value={addressDetails}
+                    onChange={(e) => setAddressDetails(e.target.value)}
+                    placeholder={t('jobs.addressDetailsPlaceholder')}
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                  />
+                </FormField>
+              </fieldset>
             </div>
 
             <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 ${hasExpiredDates ? 'p-4 rounded-xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
@@ -670,43 +760,37 @@ export default function EditJobScreen() {
                   )}
                 </div>
               )}
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar} required>
-                  <input
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+              <div className="sm:col-span-6">
+                <FormField
+                  label={t('jobs.datesLabel', 'Fechas del trabajo')}
+                  icon={Calendar}
+                  required
+                  description={t('jobs.datesDescription', 'Tocá el primer día y después el último; las horas se eligen debajo del calendario.')}
+                >
+                  <RangoDeFechas
+                    inicio={startDate ? new Date(startDate) : null}
+                    fin={endDate ? new Date(endDate) : null}
+                    onChange={(i, f) => { setStartDate(i ? i.toISOString() : ""); setEndDate(f ? f.toISOString() : ""); }}
+                    nameInicio="startDate"
+                    nameFin="endDate"
+                    finOpcional={endDateFlexible}
                     required
-                    min={new Date().toISOString().slice(0, 16)}
-                    className="block w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 px-4 text-gray-900 dark:text-white focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 transition-all"
+                    minDate={new Date()}
+                    placeholder={t('jobs.datesPlaceholder', 'Elegí cuándo empieza y cuándo termina')}
                   />
-                </FormField>
-              </div>
-              <div className="sm:col-span-3">
-                <FormField label={t('jobs.endDateLabel', 'Estimated end date')} icon={Clock}>
-                  {!endDateFlexible && (
-                    <input
-                      type="datetime-local"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      required
-                      min={startDate || new Date().toISOString().slice(0, 16)}
-                      className="block w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 px-4 text-gray-900 dark:text-white focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 transition-all"
-                    />
-                  )}
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={endDateFlexible}
-                      onChange={(e) => setEndDateFlexible(e.target.checked)}
+                      onChange={(e) => { setEndDateFlexible(e.target.checked); if (e.target.checked) setEndDate(""); }}
                       className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
                     />
                     <span className="text-sm text-gray-600 dark:text-slate-400">
-                      {t('jobs.dontKnowYet', "I don't know yet")}
+                      {t('jobs.dontKnowYet', "Todavía no sé cuándo termina")}
                     </span>
                   </label>
                   {endDateFlexible && (
-                    <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 animate-fadeIn">
                       <p className="text-sm text-amber-700 dark:text-amber-300">
                         <AlertTriangle className="inline h-4 w-4 mr-1" />
                         {t('jobs.flexibleEndDateWarning', 'You must define the end date before 24 hours prior to the job start, otherwise the job will be suspended.')}
@@ -718,6 +802,7 @@ export default function EditJobScreen() {
             </div>
 
             {/* Overlap Warning */}
+            <Transicion mostrar={!!overlapWarning}>
             {overlapWarning && (
               <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
                 <div className="flex items-start gap-3">
@@ -733,6 +818,7 @@ export default function EditJobScreen() {
                 </div>
               </div>
             )}
+            </Transicion>
 
             {/* Existing Images */}
             {existingImages.length > 0 && (

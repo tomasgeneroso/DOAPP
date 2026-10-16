@@ -3,6 +3,7 @@ import useDialog from '@/hooks/useDialog';
 import { useTranslation } from "react-i18next";
 import { DollarSign, AlertCircle, Loader2 } from "lucide-react";
 import type { Contract } from "@/types";
+import Transicion from "../ui/Transicion";
 
 interface Props {
   contract: Contract;
@@ -125,12 +126,14 @@ export default function PriceModificationForm({ contract, onSuccess, onCancel }:
         </div>
 
         {/* Error */}
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             <p className="text-sm text-red-900 dark:text-red-200">{error}</p>
           </div>
         )}
+        </Transicion>
 
         {/* Actions */}
         <div className="flex gap-3 pt-2">

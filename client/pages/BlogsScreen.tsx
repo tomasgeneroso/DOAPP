@@ -6,6 +6,7 @@ import type { BlogPost } from "../types";
 import { getImageUrl } from "../utils/imageUrl";
 import { BookOpen, Calendar, User, Search, Filter, Clock, Star, Crown, Users, PenSquare } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import Transicion from "../components/ui/Transicion";
 
 export default function BlogsScreen() {
   const { t } = useTranslation();
@@ -289,11 +290,13 @@ export default function BlogsScreen() {
 
             {/* Posts Grid */}
             <main className="flex-1">
+              <Transicion mostrar={!!error}>
               {error && (
                 <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
                   {error}
                 </div>
               )}
+              </Transicion>
 
               {loading ? (
                 <div className="flex items-center justify-center py-20">

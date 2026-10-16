@@ -4,6 +4,7 @@ import { Contract, User } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import Textarea from '../ui/Textarea';
+import Transicion from "../ui/Transicion";
 
 interface ContractExtensionApprovalProps {
   contract: Contract;
@@ -139,11 +140,13 @@ export default function ContractExtensionApproval({
             )}
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
               <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
+          </Transicion>
 
           {!showRejectForm ? (
             <div className="mt-4 flex gap-3">

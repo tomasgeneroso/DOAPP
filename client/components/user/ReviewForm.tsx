@@ -9,6 +9,7 @@ import {
   emptyDimensions,
   getRatingLabels,
 } from './reviewDimensions';
+import Transicion from "../ui/Transicion";
 
 interface ReviewFormProps {
   contractId: string;
@@ -139,11 +140,13 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
           <p className="text-xs text-gray-400 mt-1 text-right">{comment.length}/1000</p>
         </div>
 
+        <Transicion mostrar={!!error}>
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
+        </Transicion>
 
         <div className="flex gap-3 pt-1">
           <button

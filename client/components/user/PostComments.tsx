@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { Heart, Trash2, Send } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import Button from "../ui/Button";
+import Transicion from "../ui/Transicion";
 
 interface Author {
   id: string;
@@ -186,11 +187,13 @@ export default function PostComments({ postId }: PostCommentsProps) {
       {/* Add Comment Form */}
       {user && (
         <form onSubmit={handleSubmitComment} className="p-4 border-b border-slate-200 dark:border-slate-700">
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
               {error}
             </div>
           )}
+          </Transicion>
           <div className="flex gap-3">
             <img
               src={getImageUrl(user.avatar)}

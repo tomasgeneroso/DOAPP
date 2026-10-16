@@ -12,6 +12,7 @@ import {
   Lock,
   AlertCircle,
 } from "lucide-react";
+import Transicion from "../ui/Transicion";
 
 interface JobTask {
   id: string;
@@ -173,12 +174,14 @@ export default function WorkInProgress() {
         </h2>
       </div>
 
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {error}
         </div>
       )}
+      </Transicion>
 
       <div className="space-y-4">
         {jobsWithTasks.map(({ job, tasks, progress, completedTasks, totalTasks }) => {

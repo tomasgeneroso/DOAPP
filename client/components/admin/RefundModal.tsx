@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import Transicion from "../ui/Transicion";
 
 /**
  * Devolver dinero de un pago.
@@ -215,12 +216,14 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
             </label>
           )}
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="flex gap-2 rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3 text-sm text-rose-800 dark:text-rose-200">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
+          </Transicion>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-700 p-5">

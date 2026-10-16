@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { Settings as SettingsIcon, Save, Database, Mail, Shield, Bell } from "lucide-react";
 import { SITIO } from "../../../shared/constants/contacto";
+import Transicion from "../../components/ui/Transicion";
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(false);
@@ -68,11 +69,13 @@ export default function AdminSettings() {
       </div>
 
       {/* Message Alert */}
+      <Transicion mostrar={!!message}>
       {message && (
         <div className={`p-4 rounded-lg ${message.includes("Error") ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200" : "bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200"}`}>
           {message}
         </div>
       )}
+      </Transicion>
 
       {/* General Settings */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

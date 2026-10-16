@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle } from "lucide-react";
 import Button from "../ui/Button";
+import Transicion from "../ui/Transicion";
 
 interface ReportProfileModalProps {
   userId: string;
@@ -111,11 +112,13 @@ export default function ReportProfileModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
               {error}
             </div>
           )}
+          </Transicion>
 
           {/* Reason Selection */}
           <div>

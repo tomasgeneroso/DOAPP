@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { DollarSign, Loader2 } from "lucide-react";
 import { parseArgentineNumber, formatBudgetInput } from "../../utils/numberFormat";
+import Transicion from "../ui/Transicion";
 
 interface ChangeBudgetModalProps {
   open: boolean;
@@ -88,11 +89,13 @@ export default function ChangeBudgetModal({
             </p>
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
               <p className="text-sm font-medium text-red-300">{error}</p>
             </div>
           )}
+          </Transicion>
 
           <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
             <p className="text-sm text-amber-300">

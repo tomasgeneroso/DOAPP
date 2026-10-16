@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { Mail, ArrowLeft, CheckCircle2, Home } from "lucide-react";
+import Transicion from "../components/ui/Transicion";
 
 export default function ForgotPassword() {
   const { t } = useTranslation();
@@ -102,11 +103,13 @@ export default function ForgotPassword() {
                     />
                   </div>
 
+                  <Transicion mostrar={!!error}>
                   {error && (
                     <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 text-sm">
                       {error}
                     </div>
                   )}
+                  </Transicion>
 
                   <button
                     type="submit"

@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useTranslation, Trans } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { User, CreditCard, ArrowRight, Loader2, AlertCircle, Upload, Camera, CheckCircle2, X } from 'lucide-react';
+import Transicion from "../components/ui/Transicion";
 
 export default function CompleteRegistration() {
   const navigate = useNavigate();
@@ -257,12 +258,14 @@ export default function CompleteRegistration() {
                 </p>
               </div>
 
+              <Transicion mostrar={!!error}>
               {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm">{error}</p>
                 </div>
               )}
+              </Transicion>
 
               <button
                 type="submit"

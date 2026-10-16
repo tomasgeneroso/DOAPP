@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
+import Transicion from "../components/ui/Transicion";
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
@@ -318,11 +319,13 @@ const ContactPage: React.FC = () => {
             </div>
 
             {/* Error message */}
+            <Transicion mostrar={!!error}>
             {error && (
               <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 {error}
               </div>
             )}
+            </Transicion>
 
             {/* Submit button */}
             <div className="flex gap-4">

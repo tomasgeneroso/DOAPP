@@ -69,6 +69,7 @@ import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
 import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 import { rutaAnterior } from "../utils/rutaAnterior";
+import Transicion from "../components/ui/Transicion";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -2814,6 +2815,7 @@ export default function JobDetail() {
                   )}
                 </button>
 
+                <Transicion mostrar={!!error}>
                 {error && (
                   <div className="rounded-2xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/30 p-4">
                     <p className="text-sm font-medium text-red-700 dark:text-red-300">
@@ -2821,6 +2823,7 @@ export default function JobDetail() {
                     </p>
                   </div>
                 )}
+                </Transicion>
               </div>
             )}
 
@@ -3870,6 +3873,7 @@ export default function JobDetail() {
                     )}
                   </div>
 
+                  <Transicion mostrar={!!error}>
                   {error && (
                     <div className="rounded-2xl border border-red-600 bg-red-900/30 p-4">
                       <p className="text-sm font-medium text-red-300">
@@ -3877,6 +3881,7 @@ export default function JobDetail() {
                       </p>
                     </div>
                   )}
+                  </Transicion>
 
                   <div className="rounded-2xl border border-sky-300 dark:border-sky-600 bg-white dark:bg-sky-900/30 p-4">
                     <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
@@ -3983,6 +3988,7 @@ export default function JobDetail() {
                   </>
                 )}
 
+                <Transicion mostrar={!!error}>
                 {error && (
                   <div className="rounded-2xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/30 p-4">
                     <p className="text-sm font-medium text-red-700 dark:text-red-300">
@@ -3990,6 +3996,7 @@ export default function JobDetail() {
                     </p>
                   </div>
                 )}
+                </Transicion>
               </div>
             )}
 

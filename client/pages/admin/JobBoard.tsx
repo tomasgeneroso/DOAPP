@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../hooks/useAuth';
 import { Loader2, RefreshCw, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import Transicion from "../../components/ui/Transicion";
 
 /**
  * Panel operativo de publicaciones.
@@ -260,11 +261,13 @@ export default function JobBoard() {
           </div>
         )}
 
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-800 dark:text-rose-200">
             {error}
           </div>
         )}
+        </Transicion>
 
         {cargando ? (
           <div className="flex justify-center py-16">

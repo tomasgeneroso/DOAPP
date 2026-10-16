@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Camera, Check, CheckCheck, FileText, Loader2, Paperclip, Play, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { getImageUrl } from "@/utils/imageUrl";
+import Transicion from "../ui/Transicion";
 
 /**
  * Control diario del contrato.
@@ -205,6 +206,7 @@ export default function DailyLogPanel({ contractId, rol, soloLectura = false }: 
         </div>
       )}
 
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="mt-3 text-sm bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg px-3 py-2 flex items-start justify-between gap-2">
           <span>{error}</span>
@@ -213,6 +215,7 @@ export default function DailyLogPanel({ contractId, rol, soloLectura = false }: 
           </button>
         </div>
       )}
+      </Transicion>
 
       {!soloLectura && hayPendientes && (
         <div className="mt-3">

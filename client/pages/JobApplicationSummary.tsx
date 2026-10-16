@@ -21,6 +21,7 @@ import {
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
 import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
+import Transicion from "../components/ui/Transicion";
 
 export default function JobApplicationSummary() {
   const { t } = useTranslation();
@@ -421,11 +422,13 @@ export default function JobApplicationSummary() {
             </div>
 
             {/* Error Message */}
+            <Transicion mostrar={!!error}>
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 p-4 mb-6">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
+            </Transicion>
 
             {/* Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

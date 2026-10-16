@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../hooks/useAuth';
 import { Loader2, RefreshCw, AlertTriangle, FileText, ShieldOff, Clock, UserX } from 'lucide-react';
+import Transicion from "../../components/ui/Transicion";
 
 /**
  * Contracargos y retenciones por fraude.
@@ -217,6 +218,7 @@ export default function Chargebacks() {
           </div>
         )}
 
+        <Transicion mostrar={!!aviso}>
         {aviso && (
           <div
             className={`rounded-lg border p-4 text-sm ${
@@ -228,12 +230,15 @@ export default function Chargebacks() {
             {aviso.texto}
           </div>
         )}
+        </Transicion>
 
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-800 dark:text-rose-200">
             {error}
           </div>
         )}
+        </Transicion>
 
         {cargando ? (
           <div className="flex justify-center py-16">

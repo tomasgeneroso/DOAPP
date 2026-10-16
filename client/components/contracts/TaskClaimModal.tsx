@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import Textarea from '../ui/Textarea';
 import { X, CheckSquare, Square, Calendar, AlertTriangle } from 'lucide-react';
+import Transicion from "../ui/Transicion";
 
 interface TaskClaimModalProps {
   contract: Contract;
@@ -178,11 +179,13 @@ export default function TaskClaimModal({
             </div>
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
+          </Transicion>
 
           {/* Task Selection */}
           <div>

@@ -5,6 +5,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import '../../styles/quill-dark.css';
 import Button from "../ui/Button";
+import Transicion from "../ui/Transicion";
 
 interface CreatePostProps {
   initialType?: 'post' | 'article';
@@ -199,11 +200,13 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
+          </Transicion>
 
           {/* Title */}
           <div>

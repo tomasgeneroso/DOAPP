@@ -54,6 +54,9 @@ export default function CalleYNumero({
   const [activa, setActiva] = useState(-1);
   const envoltorio = useRef<HTMLDivElement>(null);
   const saltar = useRef(false);
+  // La lista solo se abre si la persona está escribiendo en la calle o el número: al cargar una dirección ya guardada (editar un trabajo)
+  // se consulta igual para el aviso del rango, pero no se despliega sola.
+  const foco = useRef(false);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
   const control = useRef<AbortController | null>(null);
 
@@ -91,7 +94,7 @@ export default function CalleYNumero({
       setItems(lista);
       setAviso(r.alturaInexistente ? `El número ${r.alturaInexistente.altura} no existe en esa calle: llega hasta el ${r.alturaInexistente.mayor}.` : null);
       setActiva(-1);
-      setAbierta(true);
+      setAbierta(foco.current);
       setBuscando(false);
     }, 450);
     return () => {
@@ -151,8 +154,8 @@ export default function CalleYNumero({
             type="text"
             value={street}
             onChange={(e) => { onStreetChange(e.target.value.replace(/[<>]/g, "")); setRango(null); }}
-            onBlur={alSalirDeLaCalle}
-            onFocus={() => items.length > 0 && setAbierta(true)}
+            onBlur={() => { foco.current = false; alSalirDeLaCalle(); }}
+            onFocus={() => { foco.current = true; if (items.length > 0) setAbierta(true); }}
             onKeyDown={teclas}
             placeholder={labels.streetPlaceholder}
             autoComplete="off"
@@ -198,6 +201,8 @@ export default function CalleYNumero({
           inputMode="numeric"
           value={number}
           onChange={(e) => onNumberChange(sanearNumeroDePuerta(e.target.value))}
+          onFocus={() => { foco.current = true; }}
+          onBlur={() => { foco.current = false; }}
           placeholder={labels.numberPlaceholder}
           maxLength={6}
           autoComplete="off"

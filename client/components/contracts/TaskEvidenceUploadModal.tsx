@@ -6,6 +6,7 @@ import { JobTask } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import { X, Camera, Upload, CheckCircle, Image, Trash2, AlertCircle } from 'lucide-react';
+import Transicion from "../ui/Transicion";
 
 interface TaskEvidenceUploadModalProps {
   jobId: string;
@@ -210,11 +211,13 @@ export default function TaskEvidenceUploadModal({
             </div>
           </div>
 
+          <Transicion mostrar={!!error}>
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
+          </Transicion>
 
           {loadingTasks ? (
             <div className="flex justify-center py-8">

@@ -28,6 +28,7 @@ import {
   Bell
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import Transicion from "../../components/ui/Transicion";
 
 export default function AdminWithdrawalManager() {
   const { t } = useTranslation();
@@ -345,19 +346,23 @@ export default function AdminWithdrawalManager() {
       </div>
 
       {/* Alerts */}
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <p className="text-red-800 dark:text-red-200">{error}</p>
         </div>
       )}
+      </Transicion>
 
+      <Transicion mostrar={!!success}>
       {success && (
         <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-start gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
           <p className="text-green-800 dark:text-green-200">{success}</p>
         </div>
       )}
+      </Transicion>
 
       {/* Totals cards (clickable filters, same style as the other admin panels) */}
       {stats && (

@@ -8,6 +8,7 @@ import { PortfolioItem } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
+import Transicion from "../components/ui/Transicion";
 
 export default function PortfolioManager() {
   const { user } = useAuth();
@@ -183,17 +184,21 @@ export default function PortfolioManager() {
         </Button>
       </div>
 
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p className="text-red-800 dark:text-red-200">{error}</p>
         </div>
       )}
+      </Transicion>
 
+      <Transicion mostrar={!!success}>
       {success && (
         <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-green-800 dark:text-green-200">{success}</p>
         </div>
       )}
+      </Transicion>
 
       {showCreateForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">

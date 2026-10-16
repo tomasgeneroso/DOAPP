@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { Gift, Users, Copy, Check, Trophy, Clock } from "lucide-react";
+import Transicion from "../components/ui/Transicion";
 
 interface ReferralStats {
   referralCode: string;
@@ -92,11 +93,13 @@ export default function ReferralsScreen() {
           </p>
         </div>
 
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
             {error}
           </div>
         )}
+        </Transicion>
 
         {/* Referral Code Card */}
         <div className="mb-8 bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-8 text-white shadow-lg">

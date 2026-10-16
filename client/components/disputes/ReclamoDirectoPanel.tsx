@@ -3,6 +3,7 @@ import axios from "axios";
 import { Clock, Handshake, ShieldAlert, Undo2, Check, X, Loader2 } from "lucide-react";
 import { estadoDelReclamo, TIPOS_DE_ACUERDO } from "../../../shared/disputes/reclamo";
 import { POLITICAS } from "../../../shared/constants/policies";
+import Transicion from "../ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -310,11 +311,13 @@ export default function ReclamoDirectoPanel({
         </form>
       )}
 
+      <Transicion mostrar={!!error}>
       {error && (
         <p role="alert" className="mt-2 rounded-md bg-red-100 px-3 py-2 text-red-800 dark:bg-red-900/40 dark:text-red-200">
           {error}
         </p>
       )}
+      </Transicion>
     </div>
   );
 }

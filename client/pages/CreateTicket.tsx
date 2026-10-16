@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import { ArrowLeft, AlertCircle, Paperclip, X, ExternalLink, Briefcase, CheckCircle, LogIn, Mail } from 'lucide-react';
+import Transicion from "../components/ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -293,6 +294,7 @@ const CreateTicket: React.FC = () => {
         )}
 
         {/* Error Alert */}
+        <Transicion mostrar={!!error}>
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
@@ -302,6 +304,7 @@ const CreateTicket: React.FC = () => {
             </div>
           </div>
         )}
+        </Transicion>
 
         {/* Form */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

@@ -14,6 +14,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import Transicion from "../../components/ui/Transicion";
 
 interface SearchResults {
   job: any | null;
@@ -128,12 +129,14 @@ export default function AdminSearch() {
       </div>
 
       {/* Error */}
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mb-6">
           <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
           <p className="text-amber-800 dark:text-amber-300">{error}</p>
         </div>
       )}
+      </Transicion>
 
       {/* Results */}
       {results && (

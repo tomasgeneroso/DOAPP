@@ -17,6 +17,7 @@ import {
   emptyDimensions,
   getRatingLabels,
 } from "./reviewDimensions";
+import Transicion from "../ui/Transicion";
 
 /** Progreso guardado de una puntuación empezada y no terminada */
 export interface PostWorkRatingDraft {
@@ -465,11 +466,13 @@ export default function PostWorkRatingModal({
                   )}
                 </div>
 
+                <Transicion mostrar={!!error}>
                 {error && (
                   <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
                     {error}
                   </p>
                 )}
+                </Transicion>
 
                 <button
                   type="button"
@@ -589,11 +592,13 @@ export default function PostWorkRatingModal({
                   </p>
                 </div>
 
+                <Transicion mostrar={!!error}>
                 {error && (
                   <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
                     {error}
                   </p>
                 )}
+                </Transicion>
 
                 <div className="flex gap-3">
                   <button

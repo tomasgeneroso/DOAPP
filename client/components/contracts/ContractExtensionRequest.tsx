@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import Transicion from "../ui/Transicion";
 
 interface ContractExtensionRequestProps {
   contract: Contract;
@@ -92,11 +93,13 @@ export default function ContractExtensionRequest({
         </p>
       </div>
 
+      <Transicion mostrar={!!error}>
       {error && (
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
         </div>
       )}
+      </Transicion>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
