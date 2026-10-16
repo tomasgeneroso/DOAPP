@@ -86,6 +86,7 @@ if (config.googleClientId && config.googleClientSecret) {
             isVerified: true, // Verificado por Google
             termsAccepted: true, // Asumimos aceptación al usar social login
             termsAcceptedAt: new Date(),
+            registrationPending: true, // falta verificar la identidad y completar los datos (registro en pasos)
           });
 
           return done(null, user);

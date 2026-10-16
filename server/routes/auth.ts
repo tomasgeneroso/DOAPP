@@ -35,6 +35,7 @@ import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsu
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { aplicarIdentidadDeDidit, controlarCoincidencia } from "../services/identidadDeDidit.js";
+import { completarRegistro, datosDelRegistro, usuarioProvisorio } from "../services/registroEnPasos.js";
 import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
 import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
 import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
@@ -104,8 +105,11 @@ router.post(
   authLimiter,
   ...limitadoresDeCorreos,
   [
-    body("name").trim().notEmpty().withMessage("El nombre es requerido"),
+    // En el registro en pasos (`pasos: true`) solo se piden correo, contraseña y términos: el nombre, el usuario y el DNI salen del
+    // documento (Didit) y se completan después.
+    body("name").if((_v: any, { req }: any) => req.body?.pasos !== true).trim().notEmpty().withMessage("El nombre es requerido"),
     body("username")
+      .if((_v: any, { req }: any) => req.body?.pasos !== true)
       .trim()
       .notEmpty()
       .withMessage("El nombre de usuario es requerido")
@@ -124,6 +128,7 @@ router.post(
       .isLength({ min: 6 })
       .withMessage("La contraseña debe tener al menos 6 caracteres"),
     body("dni")
+      .if((_v: any, { req }: any) => req.body?.pasos !== true)
       .trim()
       .notEmpty()
       .withMessage("El DNI es requerido")
@@ -146,7 +151,11 @@ router.post(
         return;
       }
 
-      const { name, username, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu, invitationCode } = req.body;
+      const { name: nombreCrudo, username: usuarioCrudo, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu, invitationCode } = req.body;
+      const registroEnPasos = req.body?.pasos === true;
+      // Paso 1 del registro en pasos: datos provisorios, que la persona completa al terminar la verificación de identidad.
+      const name: string = registroEnPasos ? 'Nuevo usuario' : nombreCrudo;
+      const username: string = registroEnPasos ? await usuarioProvisorio() : usuarioCrudo;
       // El correo se compara y se guarda en minúscula y sin espacios: el modelo ya lo pasaba a minúscula al crear, pero
       // esta búsqueda no, así que "Juan@x.com" pasaba el control de duplicados y el INSERT chocaba después con el
       // índice único (un 500 con el mensaje de la base).
@@ -244,6 +253,7 @@ router.post(
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
         referredBy: referrer?.id,
         bankingInfo,
+        registrationPending: registroEnPasos,
       });
 
       // Crear registro de referido si existe
@@ -287,7 +297,7 @@ router.post(
       // La web pide `sinSesion`: el ingreso con correo exige el correo verificado, así que registrarse NO deja la sesión abierta.
       // Antes quedaba la cookie puesta aunque la pantalla pidiera revisar el correo, y con volver atrás la persona entraba sin haber
       // verificado nada. (La app del celular sigue recibiendo la sesión: su flujo de bienvenida la necesita.)
-      if (req.body?.sinSesion === true) {
+      if (req.body?.sinSesion === true && !registroEnPasos) {
         res.status(201).json({
           success: true,
           requiresEmailVerification: true,
@@ -329,6 +339,7 @@ router.post(
           membershipTier: user.membershipTier,
           hasMembership: user.hasMembership,
           balance: user.balanceArs,
+          registrationPending: !!(user as any).registrationPending,
         },
       });
     } catch (error: any) {
@@ -473,6 +484,7 @@ router.post(
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         freeContractsRemaining: user.freeContractsRemaining,
+        registrationPending: !!(user as any).registrationPending,
         referralDiscountActive: (user as any).referralDiscountActive,
         monthlyContractsUsed: user.proContractsUsedThisMonth,
         monthlyFreeContractsLimit: (user as any).monthlyFreeContractsLimit,
@@ -620,6 +632,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         dniPhotoFront: (user as any)?.dniPhotoFront,
         dniPhotoBack: (user as any)?.dniPhotoBack,
         needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
+        registrationPending: !!(user as any)?.registrationPending, // falta verificar la identidad y completar los datos
         availabilitySchedule: user?.availabilitySchedule,
         isAvailabilityPublic: user?.isAvailabilityPublic,
         profession: user?.profession,
@@ -1462,6 +1475,7 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
         isVerified: true,
         termsAccepted: true,
         termsAcceptedAt: new Date(),
+        registrationPending: true, // falta verificar la identidad y completar los datos (también el correo)
       });
 
       console.log(`✅ New user created via Twitter: ${user.id}`);
@@ -2925,6 +2939,52 @@ router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Prom
   } catch (error: any) {
     console.warn('[kyc/start]', error?.message);
     res.status(502).json({ success: false, message: "No pudimos iniciar la verificación. Probá de nuevo." });
+  }
+});
+
+// @route   GET /api/auth/registro/datos
+// @desc    Registro en pasos, paso 3: lo que Didit leyó del documento y lo que falta completar
+// @access  Private
+router.get("/registro/datos", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+    res.json({ success: true, data: await datosDelRegistro(user) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   PUT /api/auth/registro/completar
+// @desc    Registro en pasos, paso 3: confirma o corrige los datos del documento y completa lo que falta
+// @access  Private
+router.put("/registro/completar", protect, authLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+    // Hay que haber pasado por Didit (salvo que la verificación no esté disponible: ahí no se puede dejar a nadie sin poder registrarse).
+    if (user.registrationPending && !['Approved', 'In Review'].includes(String(user.kycStatus)) && isDiditConfigured()) {
+      res.status(409).json({ success: false, code: 'IDENTIDAD_PENDIENTE', message: 'Primero verificá tu identidad con Didit.' });
+      return;
+    }
+    const r = await completarRegistro(user, req.body ?? {});
+    if (r.ok === false) {
+      res.status(r.estado).json({ success: false, code: r.code, field: r.field, message: r.message });
+      return;
+    }
+    const recargado = await User.findByPk(user.id);
+    res.json({
+      success: true,
+      verificada: r.verificada,
+      enRevision: r.enRevision,
+      message: r.enRevision
+        ? 'Tu registro quedó completo. Como los datos que corregiste no coinciden con tu documento, un administrador va a revisar tu identidad antes de verificarla.'
+        : 'Tu registro está completo.',
+      user: { id: recargado?.id, name: recargado?.name, username: recargado?.username, email: recargado?.email, dni: recargado?.dni, dniVerified: recargado?.dniVerified, registrationPending: false },
+    });
+  } catch (error: any) {
+    console.error('Error en registro/completar:', error?.message);
+    res.status(500).json({ success: false, message: 'No pudimos completar tu registro. Probá de nuevo.' });
   }
 });
 

@@ -69,6 +69,9 @@ const enmascarar = (dni: unknown) => {
 export async function controlarCoincidencia(user: any, updates: Record<string, any>, decision: any): Promise<boolean> {
   if (updates.kycStatus !== 'Approved') return false;
   if (user.dniVerified) return true;
+  // Cuenta en registro en pasos: todavía no hay nombre ni DNI cargados por la persona (salen del documento). La comparación se hace
+  // al terminar el registro, con lo que la persona corrigió (services/registroEnPasos.ts).
+  if (user.registrationPending) return true;
 
   const documento = leerDocumento(decision);
   // Una cuenta sin DNI todavía (ingresó con Google y no lo cargó) lo toma del documento: se compara solo el nombre.

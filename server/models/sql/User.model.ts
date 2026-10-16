@@ -155,6 +155,15 @@ export class User extends Model {
   @Column(DataType.DATE)
   phoneVerificationExpires?: Date;
 
+  /**
+   * Registro en pasos: la cuenta existe (correo y contraseña, o Google/X) pero todavía no terminó de registrarse: falta verificar la
+   * identidad con Didit y completar los datos que salen del documento. Mientras sea true, la web lleva a la persona a ese recorrido.
+   */
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN, field: 'registration_pending' })
+  registrationPending!: boolean;
+
   // KYC via Didit (automated identity verification → sets dniVerified on Approved)
   @Column(DataType.STRING)
   diditSessionId?: string;
