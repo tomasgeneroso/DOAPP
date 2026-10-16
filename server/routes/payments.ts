@@ -29,6 +29,7 @@ import { clasificarPagoExistente, anularPagoHuerfano, direccionDePagoGuardada } 
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
+import { comisionDePublicacion, gastarCupoDeExencion } from "../services/exencionDeComision.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
 import { moduloActivo } from "../services/moduleFlags.js";
 import { MODULO_APROBACION_DE_PUBLICACIONES } from "../../shared/constants/modulos.js";
@@ -122,71 +123,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
-      // Check if user has free contracts remaining (initial free contracts)
-      // freeContractsRemaining starts at 3 for first 1000 users, otherwise 0
-      // Un contrato gratuito publica el trabajo (status 'open') sin pasar por el pago ni por la revisión: por eso acá también rige la
-      // misma regla que al crearlo (POST /jobs): sin identidad verificada un trabajo se crea pero NO se publica. Antes este camino la
-      // salteaba: quien llegaba a la pantalla de pago con el trabajo en borrador por no estar verificado lo publicaba igual.
-      const sinIdentidad = !(user as any).dniVerified;
-      const identidadRequerida = () => {
-        res.status(403).json({
-          success: false,
-          code: "IDENTIDAD_SIN_VERIFICAR",
-          message: "Para publicar tu trabajo primero verificá tu identidad (Configuración → Verificación). El trabajo queda guardado como borrador.",
-        });
-      };
-
-      if (user.freeContractsRemaining > 0) {
-        if (sinIdentidad) { identidadRequerida(); return; }
-        // User has initial free contracts, publish directly without payment
-        job.status = 'open';
-        job.publicationAmount = 0;
-        await job.save();
-
-        // Decrement free contracts remaining
-        user.freeContractsRemaining = user.freeContractsRemaining - 1;
-        await user.save();
-
-        res.json({
-          success: true,
-          message: "Job published successfully (free contract)",
-          requiresPayment: false,
-          job: job,
-        });
-        return;
-      }
-
-      // Check monthly free contracts for PRO users (resets every month)
-      // PRO: 1 contract/month, SUPER_PRO: 2 contracts/month
-      let monthlyFreeLimit = 0;
-      const effTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
-      if (effTier === 'super_pro') monthlyFreeLimit = 2;
-      else if (effTier === 'pro') monthlyFreeLimit = 1;
-
-      const proContractsUsed = user.proContractsUsedThisMonth || 0;
-      if (proContractsUsed < monthlyFreeLimit) {
-        if (sinIdentidad) { identidadRequerida(); return; }
-        // User has monthly free contracts without commission
-        job.status = 'open';
-        job.publicationAmount = 0;
-        await job.save();
-
-        // Increment monthly contracts used
-        user.proContractsUsedThisMonth = proContractsUsed + 1;
-        await user.save();
-
-        res.json({
-          success: true,
-          message: "Job published successfully (monthly free contract)",
-          requiresPayment: false,
-          job: job,
-        });
-        return;
-      }
-
-      // Calculate commission using volume-based service
+      // Contrato LIBRE DE COMISIÓN (no gratuito): se exime la comisión de DOAPP, pero el trabajo y el costo del medio de pago se pagan.
+      // Antes este camino publicaba sin cobrar nada y marcaba el trabajo como pagado: el costo del trabajo no se cobraba nunca.
       const jobPrice = parseFloat(job.price as any) || 0;
-      const commissionResult = await calculateCommission(userId, jobPrice);
+      const { comision: commissionResult, gastar } = await comisionDePublicacion(user as any, job as any, jobPrice);
+      if (gastar) await gastarCupoDeExencion(user, job, gastar);
       const publicationCost = commissionResult.commission;
       const vat = commissionResult.vat;
 
@@ -2373,8 +2314,11 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const isFreeContract = String((req.query as any).isFreeContract || '') === 'true';
-    const c = await calculateCommission(quienPaga, price, { isFreeContract });
+    // La misma cuenta que el cobro: con un cupo libre de comisión disponible el desglose ya sale sin comisión.
+    const dueno: any = await User.findByPk(quienPaga);
+    const c = dueno
+      ? (await comisionDePublicacion(dueno, job as any, price)).comision
+      : await calculateCommission(quienPaga, price);
     const split = splitFees(price, c.commission, c.vat);
 
     res.json({

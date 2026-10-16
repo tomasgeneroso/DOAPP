@@ -89,34 +89,29 @@ describe('create-order de una publicación: sólo si el trabajo espera el pago',
     },
   );
 
-  it('sin identidad verificada el contrato gratis NO publica: 403, el trabajo sigue en borrador y no se gasta el contrato', async () => {
-    await User.update({ dniVerified: false } as any, { where: { id: ana.id } });
-    try {
-      const t = await nuevo('draft');
-      const antes = await gratis();
-      const r = await pagar(t.id);
-      expect(r.status).toBe(403);
-      expect(r.body.code).toBe('IDENTIDAD_SIN_VERIFICAR');
-      expect((await trabajo(t.id)).status).toBe('draft');
-      expect(await gratis()).toBe(antes);
-    } finally {
-      await User.update({ dniVerified: true } as any, { where: { id: ana.id } });
-    }
-  });
-
-  it('un trabajo pendiente de pago con contrato gratis se publica sin pagar (camino feliz, no se rompió)', async () => {
+  it('un contrato libre de comisión NO es gratis: con cupos disponibles la publicación igual va a MercadoPago y no se publica sin pagar', async () => {
+    mockCrearPago.mockReset();
+    mockCrearPago.mockResolvedValue({ paymentId: 'pref-libre-1', checkoutUrl: 'https://mp.test/checkout-libre' });
     const t = await nuevo('pending_payment');
-    const antes = await gratis();
-    const r = await pagar(t.id);
-    expect(r.status).toBe(200);
-    expect(r.body.requiresPayment).toBe(false);
-    expect((await trabajo(t.id)).status).toBe('open');
-    expect(await gratis()).toBe(antes - 1);
 
-    // y repetirlo ya no gasta otro contrato gratis ni vuelve a "publicar"
+    const r = await pagar(t.id);
+
+    expect(r.status).toBe(200);
+    expect(r.body.requiresPayment).not.toBe(false);
+    expect(r.body.approvalUrl).toBe('https://mp.test/checkout-libre');
+    expect(mockCrearPago).toHaveBeenCalledTimes(1);
+    // El trabajo NO se publica ni se marca como pagado hasta que MercadoPago confirme.
+    const j = await trabajo(t.id);
+    expect(j.status).not.toBe('open');
+    expect(j.publicationPaid).toBe(false);
+    // Se cobra el trabajo (más el costo del medio de pago): nunca menos que el precio.
+    const cobrado = mockCrearPago.mock.calls[0][0] as { amount: number };
+    expect(cobrado.amount).toBeGreaterThanOrEqual(10000);
+
+    // y repetir la orden no publica nada
     const otra = await pagar(t.id);
-    expect(otra.status).toBe(409);
-    expect(await gratis()).toBe(antes - 1);
+    expect(otra.body.requiresPayment).not.toBe(false);
+    expect((await trabajo(t.id)).status).not.toBe('open');
   });
 
   it('un borrador sin contratos gratis sigue yendo a MercadoPago (camino feliz, no se rompió)', async () => {

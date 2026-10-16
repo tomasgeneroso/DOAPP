@@ -1,4 +1,3 @@
-import { getEffectiveTier } from '../services/platformPhase.js';
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
@@ -946,22 +945,11 @@ router.post(
         return;
       }
 
-      // Check if user has free contracts (initial or monthly PRO/SUPER PRO)
-      const hasFreeInitialContracts = user.freeContractsRemaining > 0;
-
-      let monthlyFreeLimit = 0;
-      const effectiveTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
-      if (effectiveTier === 'super_pro') monthlyFreeLimit = 2;
-      else if (effectiveTier === 'pro') monthlyFreeLimit = 1;
-
-      const proContractsUsed = user.proContractsUsedThisMonth || 0;
-      const hasMonthlyFreeContracts = proContractsUsed < monthlyFreeLimit;
-
-      // In development, auto-publish all jobs without payment
-      const isDev = process.env.NODE_ENV !== 'production';
-      const canPublishForFree = isDev || hasFreeInitialContracts || hasMonthlyFreeContracts;
-      // KYC gate: without a verified identity a job can be CREATED but not
-      // PUBLISHED — it stays a draft, no free contract is consumed.
+      // Los contratos libres de comisión (cupos iniciales o mensuales) NO publican sin pagar: eximen la comisión de DOAPP, pero el costo del
+      // trabajo y el del medio de pago se abonan en la pantalla de pago (ver services/exencionDeComision.ts). Antes se publicaba sin cobrar
+      // y se marcaba el trabajo como pagado, así que el costo del trabajo no se cobraba nunca.
+      //
+      // KYC gate: sin identidad verificada un trabajo se CREA pero no se publica: queda en borrador.
       const identityVerified = !!(req.user as any).dniVerified;
 
       // "A cotizar": el cliente no fija precio y no paga nada al publicar. El
@@ -996,7 +984,8 @@ router.post(
         pricingMode = 'quote';
       }
 
-      const willPublish = (canPublishForFree || pricingMode === 'quote') && identityVerified;
+      // Solo se publica de entrada un trabajo «a cotizar» (no hay precio que cobrar todavía: se cobra al aceptar la cotización).
+      const willPublish = pricingMode === 'quote' && identityVerified;
 
       // Process uploaded images
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -1189,19 +1178,6 @@ router.post(
       // Invalidate jobs cache so new job appears immediately
       cacheService.delPattern('jobs:*');
 
-      // If can publish for free, decrement the appropriate counter (only when
-      // it actually publishes — not when held as a draft pending KYC).
-      if (willPublish) {
-        if (hasFreeInitialContracts) {
-          user.freeContractsRemaining = user.freeContractsRemaining - 1;
-          console.log(`✅ User ${user.id} used initial free contract. Remaining: ${user.freeContractsRemaining}`);
-        } else if (hasMonthlyFreeContracts) {
-          user.proContractsUsedThisMonth = proContractsUsed + 1;
-          console.log(`✅ User ${user.id} used monthly ${user.membershipTier} contract. Used: ${user.proContractsUsedThisMonth}/${monthlyFreeLimit}`);
-        }
-        await user.save();
-      }
-
       // Populate job for response and notifications
       const populatedJob = await Job.findByPk(job.id, {
         include: [
@@ -1232,9 +1208,7 @@ router.post(
       if (willPublish) {
         res.status(201).json({
           success: true,
-          message: hasFreeInitialContracts
-            ? "Trabajo publicado exitosamente (contrato inicial gratuito)"
-            : `Trabajo publicado exitosamente (contrato mensual ${(user.membershipTier || 'free').toUpperCase()})`,
+          message: "Trabajo publicado exitosamente",
           job: populatedJob?.toJSON(),
           requiresPayment: false,
         });

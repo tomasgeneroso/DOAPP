@@ -85,7 +85,7 @@ export default function JobPayment() {
     if (!isBudgetIncrease && !jobPrice) return;
     let cancelled = false;
     setQuoteLoading(true);
-    const url = isBudgetIncrease ? `/api/payments/quote?jobId=${id}&aumento=1` : `/api/payments/quote?price=${jobPrice}`;
+    const url = isBudgetIncrease ? `/api/payments/quote?jobId=${id}&aumento=1` : `/api/payments/quote?price=${jobPrice}&jobId=${id}`;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
@@ -111,12 +111,6 @@ export default function JobPayment() {
 
   const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
 
-  /**
-   * Con un contrato gratuito (los iniciales o los del mes) el servidor publica el trabajo SIN cobrar en este paso: el monto del trabajo se
-   * abona después, al contratar a un trabajador (el servidor pide el pago antes de aprobar la propuesta). Esta pantalla mostraba igual el
-   * total y el selector de medios de pago, y quien tocaba «Completar pago» veía que no pasaba por Mercado Pago sin saber por qué.
-   */
-  const publicaSinPagarAhora = !isBudgetIncrease && (freeContractsRemaining > 0 || monthlyFreeRemaining > 0);
 
   const publicationCost = isBudgetIncrease ? 0 : (quote?.commission ?? 0);
   const vatAmount = isBudgetIncrease ? 0 : (quote?.vat ?? 0);
@@ -236,7 +230,7 @@ export default function JobPayment() {
       setError(null);
 
       // Validate bank transfer has proof and bank name
-      if (paymentMethod === 'bank_transfer' && !isFreeContract) {
+      if (paymentMethod === 'bank_transfer') {
         if (!proofFile) {
           toast.error('Comprobante requerido', 'Debes subir el comprobante de transferencia');
           setProcessing(false);
@@ -255,7 +249,7 @@ export default function JobPayment() {
       }
 
       // Validate Binance payment data
-      if (paymentMethod === 'binance' && !isFreeContract) {
+      if (paymentMethod === 'binance') {
         if (!binanceData.transactionId || !binanceData.senderUserId) {
           toast.error('Datos incompletos', 'Debes completar el Transaction ID y tu Binance ID');
           setProcessing(false);
@@ -508,11 +502,11 @@ export default function JobPayment() {
                 <div className="flex items-start gap-2">
                   <FileText className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-green-800 dark:text-green-300">
-                    <p className="font-semibold mb-1">🎉 Contrato Gratuito</p>
+                    <p className="font-semibold mb-1">🎉 Contrato libre de comisión</p>
                     {freeContractsRemaining > 0 ? (
                       <>
                         <p>
-                          Esta publicación es libre de comisión. No pagarás comisión de publicación.
+                          Esta publicación es libre de comisión: no pagás la comisión de DOAPP. Se abonan igual el costo del trabajo y el del medio de pago.
                         </p>
                         <p className="mt-1 text-xs">
                           Publicaciones libres de comisión restantes: <strong>{freeContractsRemaining}</strong>
@@ -522,7 +516,7 @@ export default function JobPayment() {
                     ) : monthlyFreeRemaining > 0 ? (
                       <>
                         <p>
-                          Este es uno de tus {monthlyFreeLimit} contratos mensuales sin comisión. No pagarás comisión de publicación.
+                          Este es uno de tus {monthlyFreeLimit} contratos mensuales libres de comisión: no pagás la comisión de DOAPP. Se abonan igual el costo del trabajo y el del medio de pago.
                         </p>
                         <p className="mt-1 text-xs">
                           Usando publicación mensual libre de comisión: <strong>{proContractsUsed + 1} de {monthlyFreeLimit}</strong> este mes
@@ -734,18 +728,8 @@ export default function JobPayment() {
             </div>
           </div>
 
-          {publicaSinPagarAhora && (
-            <div className="p-6 border-t border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20" role="status">
-              <p className="font-semibold text-green-800 dark:text-green-200">Esta publicación no se paga ahora</p>
-              <p className="mt-1 text-sm text-green-800 dark:text-green-300">
-                Usa uno de tus contratos gratuitos: tu trabajo se publica sin pasar por Mercado Pago. El monto del trabajo se abona después, cuando
-                elijas a quién contratar (ahí sí te pedimos el pago, con el desglose).
-              </p>
-            </div>
-          )}
-
-          {/* Payment Method Selector - Only show if not free contract */}
-          {!isFreeContract && !publicaSinPagarAhora && (
+          {/* Medios de pago: un contrato libre de comisión se paga igual (el trabajo y el costo del medio de pago) */}
+          {(
             <div className="p-6 border-t border-gray-200 dark:border-gray-700">
               <PaymentMethodSelector
                 selectedMethod={paymentMethod}
@@ -979,20 +963,13 @@ export default function JobPayment() {
               className={`
                 w-full flex items-center justify-center gap-2.5 rounded-2xl py-3.5 px-6 font-semibold text-white text-base
                 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed
-                ${isFreeContract
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 shadow-lg shadow-green-500/30 hover:shadow-green-500/40'
-                  : 'bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/40'}
+                bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/40
               `}
             >
               {processing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isFreeContract ? t('jobs.publishing', 'Publicando...') : t('common.processing', 'Procesando...')}
-                </>
-              ) : isFreeContract || publicaSinPagarAhora ? (
-                <>
-                  <CreditCard className="w-5 h-5" />
-                  {publicaSinPagarAhora ? 'Publicar sin pagar ahora' : 'Publicar sin comisión'}
+                  {t('common.processing', 'Procesando...')}
                 </>
               ) : (
                 <>

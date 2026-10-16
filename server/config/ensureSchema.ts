@@ -122,6 +122,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
       END $$;
     `,
   },
+  // Contratos libres de comisión: se gasta un cupo una sola vez por trabajo.
+  { label: 'jobs.commission_free_applied', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS commission_free_applied BOOLEAN NOT NULL DEFAULT false` },
   // Una sesión de verificación de Didit pertenece a UNA sola cuenta.
   { label: 'users.didit_session_id único', sql: `CREATE UNIQUE INDEX IF NOT EXISTS users_didit_session_id_unico ON users (didit_session_id) WHERE didit_session_id IS NOT NULL` },
   /**

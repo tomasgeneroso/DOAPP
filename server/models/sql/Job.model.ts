@@ -533,6 +533,12 @@ export class Job extends Model {
   @Column(DataType.DATE)
   publicationPaidAt?: Date;
 
+  /** Ya se gastó un cupo libre de comisión para este trabajo (se gasta una sola vez por trabajo). */
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN, field: 'commission_free_applied' })
+  commissionFreeApplied!: boolean;
+
   @Default(0)
   @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
