@@ -2,6 +2,15 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <!-- Un solo dominio: si el sitio llega servido desde doapparg.site (u otro alias), se va a doapparg.com con la misma ruta. -->
+    <script>
+      (function () {
+        var h = location.hostname.toLowerCase();
+        if (h === 'doapparg.site' || h === 'www.doapparg.site' || h === 'www.doapparg.com') {
+          location.replace('https://doapparg.com' + location.pathname + location.search + location.hash);
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow, tu dinero protegido hasta confirmar el trabajo." />
     <meta name="keywords" content="freelance, trabajo, argentina, pagos seguros, escrow, mercadopago, contratos, doapp" />

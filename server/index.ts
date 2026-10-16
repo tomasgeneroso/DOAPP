@@ -25,6 +25,7 @@ import {
   strictLimiter,
 } from "./middleware/security.js";
 import { wafMiddleware } from "./middleware/waf.js";
+import { redirigirDominiosAlternativos } from "./middleware/dominioCanonico.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
@@ -196,6 +197,9 @@ app.use(agentLinkHeaders);
 
 // Trust proxy (behind Nginx/Cloudflare)
 app.set('trust proxy', 1);
+
+// Un solo dominio: doapparg.site (y www) solo redirigen a doapparg.com (ver middleware/dominioCanonico.ts).
+app.use(redirigirDominiosAlternativos());
 
 // Conectar a PostgreSQL
 await initDatabase();
