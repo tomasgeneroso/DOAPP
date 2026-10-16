@@ -34,7 +34,7 @@ import {
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadMatricula, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
-import { aplicarIdentidadDeDidit } from "../services/identidadDeDidit.js";
+import { aplicarIdentidadDeDidit, controlarCoincidencia } from "../services/identidadDeDidit.js";
 import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
 import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
 import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
@@ -2945,6 +2945,8 @@ router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Prom
           kycData: decision,
           ...applyKycStatus(user.kycStatus, status, user.kycAttempts),
         };
+        // El documento tiene que ser de quien se registró: si el nombre o el DNI no coinciden, no se aprueba sola (queda en revisión).
+        await controlarCoincidencia(user, updates, decision);
         await user.update(updates);
       } catch (e: any) {
         console.warn('[kyc/status] decision fetch failed:', e?.message);
@@ -2981,6 +2983,13 @@ router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> =
     if (userId) {
       const user = await User.findByPk(userId);
       if (user) {
+        // La sesión de Didit va atada a la cuenta que la abrió (kyc/start la guarda). Un aviso de una sesión que NO es la actual de la
+        // cuenta (una anterior, de un reintento, o ajena) no puede aprobarla ni rechazarla.
+        if (payload.session_id && user.diditSessionId && String(user.diditSessionId) !== String(payload.session_id)) {
+          console.warn(`[kyc/webhook] sesión ${payload.session_id} ignorada: la actual de la cuenta ${user.id} es otra.`);
+          res.json({ success: true });
+          return;
+        }
         const updates: any = applyKycStatus(user.kycStatus, status, user.kycAttempts);
         if (payload.session_id) updates.diditSessionId = payload.session_id;
         // Store the full decision (document data, scores, AML, warnings). Prefer
@@ -2992,6 +3001,8 @@ router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> =
           console.warn('[kyc/webhook] decision fetch failed:', e?.message);
         }
         if (decision) updates.kycData = decision;
+        // El documento tiene que ser de quien se registró (nombre y DNI); si no coincide, no se aprueba sola.
+        if (decision) await controlarCoincidencia(user, updates, decision);
         await user.update(updates);
         if (updates.kycStatus === 'Approved' && decision) {
           try { await aplicarIdentidadDeDidit(user, decision); } catch (e: any) { console.warn('[kyc/webhook] no se pudo completar la identidad:', e?.message); }
