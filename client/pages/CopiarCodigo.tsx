@@ -81,7 +81,7 @@ export default function CopiarCodigo() {
             </button>
             {noSePudo && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300 animate-fadeIn" role="alert">No pudimos copiarlo solos: mantené apretado el código y copialo a mano.</p>}
             <p className="mt-5 text-sm text-slate-600 dark:text-slate-300">
-              Volvé a <strong>Configuración → Seguridad</strong> y pegalo ahí. Vale 15 minutos.
+              Volvé a <strong>Configuración → Seguridad</strong> y pegalo ahí. Vale 5 minutos.
             </p>
             <Link to="/settings" className="mt-3 inline-block text-sm font-semibold text-sky-600 dark:text-sky-400 underline underline-offset-2">
               Ir a Configuración

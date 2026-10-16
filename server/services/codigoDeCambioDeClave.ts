@@ -6,13 +6,13 @@ import crypto from 'crypto';
  * Quien está dentro de su cuenta pero no recuerda la clave actual no puede usar «cambiar contraseña» (la pide) ni quiere salir
  * a «olvidé mi contraseña». El código de 6 números prueba que tiene acceso al correo. Reglas, todas pensadas contra quien intente
  * adivinarlo con una sesión robada:
- *  - vale 15 minutos y se gasta al usarlo bien;
+ *  - vale 5 minutos y se gasta al usarlo bien;
  *  - 5 intentos equivocados lo anulan (hay que pedir otro);
  *  - no se puede pedir otro antes de 60 segundos (no se usa para llenar de correos);
  *  - en memoria se guarda solo un hash (con el id de la cuenta), nunca el código.
  * Vive en memoria: el servidor corre en un solo proceso (`ecosystem.config.cjs`); un reinicio solo obliga a pedir otro código.
  */
-export const VIGENCIA_DEL_CODIGO_MS = 15 * 60 * 1000;
+export const VIGENCIA_DEL_CODIGO_MS = 5 * 60 * 1000;
 export const ESPERA_PARA_REENVIAR_MS = 60 * 1000;
 export const INTENTOS_MAXIMOS = 5;
 

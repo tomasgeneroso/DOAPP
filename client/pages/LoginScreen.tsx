@@ -44,7 +44,7 @@ export default function LoginScreen() {
   // Automatically set mode to register if coming from /register route
   const initialMode: FormMode = location.pathname === '/register' ? 'register' : 'login';
 
-  const [mode, setMode] = useState<FormMode>(initialMode);
+  const [mode, setModoCrudo] = useState<FormMode>(initialMode);
   // Invitación de un creador de contenido: llega por /invitacion/<código> → /register?invitacion=<código> (y se guarda un rato
   // por si la persona da una vuelta antes de registrarse). Sólo se manda al servidor; él valida y canjea.
   const [invitationCode] = useState<string>(() => {
@@ -87,9 +87,23 @@ export default function LoginScreen() {
   >(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
+  /**
+   * Cambiar entre «Ingresar» y «Registrarme» empieza de cero lo que dijo la pantalla.
+   *
+   * El error del ingreso («Email o contraseña incorrectos») quedaba pegado al campo de la contraseña al pasar a «Registrarme»: ahí
+   * parecía un error del registro que no se había cometido. Tampoco deben arrastrarse el aviso de correo sin verificar ni la
+   * contraseña a la vista.
+   */
+  const setMode = (nuevo: FormMode) => {
+    setModoCrudo(nuevo);
+    setError(null);
+    setErrorField(null);
+    setEmailNotVerified(null);
+    setShowPassword(false);
+  };
   const [showMembershipOffer, setShowMembershipOffer] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
-  const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
   const [registrationPendingVerification, setRegistrationPendingVerification] = useState(false);

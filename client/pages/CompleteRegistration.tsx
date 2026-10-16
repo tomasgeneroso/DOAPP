@@ -5,6 +5,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { User, CreditCard, ArrowRight, Loader2, AlertCircle, Upload, Camera, CheckCircle2, X } from 'lucide-react';
 import Transicion from "../components/ui/Transicion";
+import KycButton from "../components/KycButton";
 
 export default function CompleteRegistration() {
   const navigate = useNavigate();
@@ -12,6 +13,10 @@ export default function CompleteRegistration() {
   const { user, token, refreshUser } = useAuth();
 
   const [dni, setDni] = useState('');
+  // Quien entró con Google/X primero escribe su número de DNI y después verifica su identidad con Didit (el sistema automático). La carga
+  // manual de fotos es solo para quien ya agotó los intentos de Didit: el servidor la rechaza antes (403 MANUAL_KYC_LOCKED).
+  const [paso, setPaso] = useState<'dni' | 'verificar'>(user?.dni ? 'verificar' : 'dni');
+  const manualHabilitada = !!(user as any)?.capabilities?.manualKyc && !(user as any)?.dniVerified;
   const [photoFront, setPhotoFront] = useState<File | null>(null);
   const [photoBack, setPhotoBack] = useState<File | null>(null);
   const [previewFront, setPreviewFront] = useState<string | null>(null);
@@ -45,7 +50,8 @@ export default function CompleteRegistration() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /** Paso 1: guarda el número de DNI y pasa a verificar la identidad con Didit. */
+  const guardarDni = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -57,14 +63,9 @@ export default function CompleteRegistration() {
       setError(t('auth.dniNumericError', 'El DNI debe contener solo números'));
       return;
     }
-    if (!photoFront || !photoBack) {
-      setError(t('completeReg.errorBothPhotos', 'Debés subir la foto del frente y dorso del DNI'));
-      return;
-    }
 
     setLoading(true);
     try {
-      // Step 1: save DNI number
       const dniRes = await fetch('/api/auth/complete-registration', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -75,12 +76,31 @@ export default function CompleteRegistration() {
         setError(dniData.message || 'Error al guardar DNI');
         return;
       }
+      if (user) {
+        localStorage.setItem('user', JSON.stringify({ ...user, dni, needsDni: false }));
+      }
+      if (refreshUser) await refreshUser();
+      setPaso('verificar');
+    } catch {
+      setError(t('auth.connectionError', 'Error de conexión. Intentá de nuevo.'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Step 2: upload photos
+  /** Solo con la carga manual habilitada (después de los intentos rechazados de Didit): sube las fotos del DNI. */
+  const subirFotos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!photoFront || !photoBack) {
+      setError(t('completeReg.errorBothPhotos', 'Debés subir la foto del frente y dorso del DNI'));
+      return;
+    }
+    setLoading(true);
+    try {
       const formData = new FormData();
       formData.append('dniPhotoFront', photoFront);
       formData.append('dniPhotoBack', photoBack);
-
       const photoRes = await fetch('/api/auth/dni-photos', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -90,10 +110,6 @@ export default function CompleteRegistration() {
       if (!photoData.success) {
         setError(photoData.message || 'Error al subir las fotos del DNI');
         return;
-      }
-
-      if (user) {
-        localStorage.setItem('user', JSON.stringify({ ...user, dni, needsDni: false }));
       }
       if (refreshUser) await refreshUser();
       navigate('/', { replace: true });
@@ -191,100 +207,132 @@ export default function CompleteRegistration() {
                 {t('completeReg.title', 'Completá tu registro')}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mt-2">
-                {t('completeReg.subtitle', 'Necesitamos verificar tu identidad con tu DNI')}
+                {paso === 'dni'
+                  ? t('completeReg.subtitle', 'Necesitamos tu número de DNI')
+                  : t('completeReg.subtitleVerify', 'Ahora verificá tu identidad con documento y selfie')}
               </p>
             </div>
 
             {user && (
               <div className="rounded-xl p-4 mb-6 border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
                 <p className="text-sm text-sky-700 dark:text-sky-300">
-                  <Trans i18nKey="completeReg.greeting" values={{ name: user.name }} components={{ b: <strong /> }} defaults="Hola <b>{{name}}</b>, subí tu DNI para continuar usando la plataforma." />
+                  <Trans i18nKey="completeReg.greeting" values={{ name: user.name }} components={{ b: <strong /> }} defaults="Hola <b>{{name}}</b>, completá estos datos para continuar usando la plataforma." />
                 </p>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* DNI number */}
-              <div>
-                <label htmlFor="dni" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('completeReg.dniLabel', 'Número de DNI')}
-                </label>
-                <div className="relative">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    id="dni"
-                    value={dni}
-                    onChange={e => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    placeholder="12345678"
-                    className="w-full pl-10 pr-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
-                    maxLength={8}
-                    required
-                  />
+            {paso === 'dni' ? (
+              <form onSubmit={guardarDni} className="space-y-5">
+                {/* DNI number */}
+                <div>
+                  <label htmlFor="dni" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    {t('completeReg.dniLabel', 'Número de DNI')}
+                  </label>
+                  <div className="relative">
+                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      id="dni"
+                      inputMode="numeric"
+                      value={dni}
+                      onChange={e => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="12345678"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t('completeReg.dniHint', 'Sin puntos ni espacios (7-8 dígitos)')}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {t('completeReg.dniHint', 'Sin puntos ni espacios (7-8 dígitos)')}
-                </p>
-              </div>
 
-              {/* Photo uploads */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Upload className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    {t('completeReg.dniPhotos', 'Fotos del DNI')} <span className="text-red-500">*</span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <PhotoUploadBox
-                    side="front"
-                    label={t('completeReg.front', 'Frente')}
-                    preview={previewFront}
-                    file={photoFront}
-                    inputRef={frontInputRef}
-                    onChange={f => handlePhotoChange(f, 'front')}
-                  />
-                  <PhotoUploadBox
-                    side="back"
-                    label={t('completeReg.back', 'Dorso')}
-                    preview={previewBack}
-                    file={photoBack}
-                    inputRef={backInputRef}
-                    onChange={f => handlePhotoChange(f, 'back')}
-                  />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  {t('completeReg.photosHint', 'Las fotos deben ser claras y legibles. Serán verificadas por el equipo.')}
-                </p>
-              </div>
+                <Transicion mostrar={!!error}>
+                {error && (
+                  <div role="alert" className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-sm">{error}</p>
+                  </div>
+                )}
+                </Transicion>
 
-              <Transicion mostrar={!!error}>
-              {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
-              </Transicion>
+                <button
+                  type="submit"
+                  disabled={loading || dni.length < 7}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400 text-white font-semibold rounded-xl transition-colors"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {t('completeReg.saving', 'Guardando...')}
+                    </>
+                  ) : (
+                    <>
+                      {t('completeReg.continue', 'Continuar')}
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-5">
+                {/* La verificación es automática (Didit): documento + selfie. Es el camino normal para todas las cuentas nuevas. */}
+                <KycButton verified={(user as any)?.dniVerified} kycStatus={(user as any)?.kycStatus} />
 
-              <button
-                type="submit"
-                disabled={loading || !dni || !photoFront || !photoBack}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400 text-white font-semibold rounded-xl transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {t('completeReg.saving', 'Guardando...')}
-                  </>
-                ) : (
-                  <>
+                {(user as any)?.dniVerified && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/', { replace: true })}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl transition-colors"
+                  >
                     {t('completeReg.continue', 'Continuar')}
                     <ArrowRight className="w-5 h-5" />
-                  </>
+                  </button>
                 )}
-              </button>
-            </form>
+
+                {/* La carga manual solo aparece cuando los intentos automáticos ya se rechazaron (el servidor lo exige igual). */}
+                {manualHabilitada && (
+                  <form onSubmit={subirFotos} className="space-y-4 border-t border-slate-200 dark:border-slate-700 pt-5">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {t('completeReg.manualTitle', 'La verificación automática no pudo completarse: cargá las fotos del DNI')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <PhotoUploadBox side="front" label={t('completeReg.front', 'Frente')} preview={previewFront} file={photoFront} inputRef={frontInputRef} onChange={f => handlePhotoChange(f, 'front')} />
+                      <PhotoUploadBox side="back" label={t('completeReg.back', 'Dorso')} preview={previewBack} file={photoBack} inputRef={backInputRef} onChange={f => handlePhotoChange(f, 'back')} />
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t('completeReg.photosHint', 'Las fotos deben ser claras y legibles. Serán verificadas por el equipo.')}
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={loading || !photoFront || !photoBack}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-50 font-semibold rounded-xl transition-colors"
+                    >
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                      {t('completeReg.sendPhotos', 'Enviar las fotos')}
+                    </button>
+                  </form>
+                )}
+
+                <Transicion mostrar={!!error}>
+                {error && (
+                  <div role="alert" className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-sm">{error}</p>
+                  </div>
+                )}
+                </Transicion>
+
+                {!(user as any)?.dniVerified && (
+                  <button type="button" onClick={() => navigate('/', { replace: true })} className="w-full text-center text-sm text-slate-500 dark:text-slate-400 hover:underline">
+                    {t('completeReg.later', 'Lo hago más tarde')}
+                  </button>
+                )}
+              </div>
+            )}
 
             <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-6">
               {t('completeReg.privacyNote', 'Tus datos están protegidos y no serán compartidos con terceros. El DNI es requerido por regulaciones argentinas.')}

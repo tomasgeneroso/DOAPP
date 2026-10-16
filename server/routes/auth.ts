@@ -37,7 +37,7 @@ import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platfor
 import { aplicarIdentidadDeDidit } from "../services/identidadDeDidit.js";
 import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
 import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
-import { COOKIE_DE_VINCULO, emitirVinculo, esProveedorVinculable, leerVinculo, vincularCuenta } from "../services/vincularCuentaSocial.js";
+import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
@@ -283,6 +283,19 @@ router.post(
 
       // Send email verification (non-blocking)
       await sendVerificationEmailToUser(user);
+
+      // La web pide `sinSesion`: el ingreso con correo exige el correo verificado, así que registrarse NO deja la sesión abierta.
+      // Antes quedaba la cookie puesta aunque la pantalla pidiera revisar el correo, y con volver atrás la persona entraba sin haber
+      // verificado nada. (La app del celular sigue recibiendo la sesión: su flujo de bienvenida la necesita.)
+      if (req.body?.sinSesion === true) {
+        res.status(201).json({
+          success: true,
+          requiresEmailVerification: true,
+          invitacion,
+          user: { id: user.id, name: user.name, username: user.username, email: user.email },
+        });
+        return;
+      }
 
       // Generar token
       const token = generateToken(user.id.toString());
@@ -1156,6 +1169,12 @@ router.get(
     // Enlazar Google a una cuenta existente: no es un ingreso, no se emite ninguna sesión.
     if (user?.__vincular) {
       res.clearCookie(COOKIE_DE_VINCULO, { path: "/" });
+      // Desde la app: no se enlaza acá; se deja un código para que la app lo confirme con su sesión.
+      if (user.__app) {
+        const puente = `${config.clientUrl}/auth/app-return`;
+        res.redirect(user.userId ? `${puente}?vinculo=${guardarVinculoPendiente(String(user.userId), "google", String(user.googleId), user.avatar)}&proveedor=google` : `${puente}?vinculo_error=vencido`);
+        return;
+      }
       const base = `${config.clientUrl}/settings?tab=security`;
       if (!user.userId) { res.redirect(`${base}&vinculo_error=vencido`); return; }
       try {
@@ -1408,6 +1427,12 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
     if (vinculo) {
       res.clearCookie('twitter_oauth_vincular', { path: '/' });
       res.clearCookie(COOKIE_DE_VINCULO, { path: '/' });
+      // Desde la app: no hay cookie del navegador; se deja un código que la app confirma con su sesión.
+      const quienApp = leerVinculoDeApp(vinculo, 'twitter');
+      if (quienApp) {
+        res.redirect(`${config.clientUrl}/auth/app-return?vinculo=${guardarVinculoPendiente(quienApp, 'twitter', String(twitterUser.id), twitterUser.profileImageUrl)}&proveedor=twitter`);
+        return;
+      }
       const base = `${config.clientUrl}/settings?tab=security`;
       const quien = leerVinculo(vinculo, req.cookies?.[COOKIE_DE_VINCULO], 'twitter');
       if (!quien) { res.redirect(`${base}&vinculo_error=vencido`); return; }
@@ -1911,10 +1936,13 @@ router.post(
 router.post(
   "/set-password",
   protect,
+  authLimiter,
   [
     body("newPassword")
       .isLength({ min: 6 })
       .withMessage("La contraseña debe tener al menos 6 caracteres"),
+    // Sin contraseña actual que pedir, lo que prueba que es la dueña es el código que llega al correo de la cuenta.
+    body("code").matches(/^\d{6}$/).withMessage("El código tiene 6 números: está en el correo que te enviamos."),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -1945,6 +1973,17 @@ router.post(
           success: false,
           message: "Esta función es solo para usuarios registrados con redes sociales.",
         });
+        return;
+      }
+
+      const verificado = verificarCodigoDeClave(String(user.id), req.body.code);
+      if (verificado !== "ok") {
+        const mensajes = {
+          incorrecto: "El código no es correcto.",
+          sin_codigo: "El código venció o no pediste uno. Pedí un código nuevo.",
+          bloqueado: "Te equivocaste demasiadas veces: el código se anuló. Pedí uno nuevo.",
+        } as const;
+        res.status(400).json({ success: false, code: verificado.toUpperCase(), message: mensajes[verificado] });
         return;
       }
 
@@ -2032,10 +2071,42 @@ router.post("/social/link-start", protect, authLimiter, async (req: AuthRequest,
       res.status(503).json({ success: false, message: "Este ingreso no está disponible por ahora." });
       return;
     }
+    // Desde la app: sin cookie (el navegador del teléfono no la tiene); el enlace se confirma después con la sesión de la app.
+    if (req.body?.origen === "app") {
+      res.json({ success: true, url: `${config.serverUrl}/api/auth/${proveedor}?vincular=${encodeURIComponent(emitirVinculoDeApp(String(user.id), proveedor))}` });
+      return;
+    }
     const { token, nonce } = emitirVinculo(String(user.id), proveedor);
     // La cookie ata el enlace al navegador que lo empezó: sin ella (otra persona con el mismo enlace) no se enlaza nada.
     res.cookie(COOKIE_DE_VINCULO, nonce, { httpOnly: true, secure: config.nodeEnv === "production", sameSite: "lax", maxAge: 10 * 60 * 1000, path: "/" });
     res.json({ success: true, url: `${config.serverUrl}/api/auth/${proveedor}?vincular=${encodeURIComponent(token)}` });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/social/link-confirm
+// @desc    La app confirma el enlace de Google o X que se hizo en el navegador del teléfono (código de un solo uso, 5 minutos).
+// @access  Private
+router.post("/social/link-confirm", protect, authLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const p = canjearVinculoPendiente(req.body?.codigo, String(req.user.id));
+    if (!p) {
+      res.status(400).json({ success: false, message: "El enlace venció, ya se usó o no es de esta cuenta. Volvé a intentarlo desde Seguridad." });
+      return;
+    }
+    const r = await vincularCuenta(String(req.user.id), p.proveedor, p.idExterno, { avatar: p.avatar });
+    const nombre = p.proveedor === "google" ? "Google" : "X";
+    if (r === "ok" || r === "ya_vinculada") {
+      res.json({ success: true, proveedor: p.proveedor, message: `Listo: enlazaste ${nombre} a tu cuenta.` });
+      return;
+    }
+    const mensajes: Record<string, string> = {
+      en_uso: `Esa cuenta de ${nombre} ya está enlazada a otra cuenta de DOAPP.`,
+      otra_cuenta_vinculada: `Tu cuenta ya tiene otra cuenta de ${nombre} enlazada.`,
+      sin_usuario: "No encontramos tu cuenta.",
+    };
+    res.status(409).json({ success: false, code: r, message: mensajes[r] || "No se pudo enlazar la cuenta." });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -2048,10 +2119,8 @@ router.post("/password/send-code", protect, authLimiter, async (req: AuthRequest
   try {
     const user = await User.findByPk(req.user.id);
     if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
-    if (!user.password) {
-      res.status(400).json({ success: false, message: "Todavía no tenés contraseña: usá «Establecer contraseña»." });
-      return;
-    }
+    // Sirve tanto para cambiar la contraseña sin la actual como para ESTABLECER la primera (cuentas de Google/X): en los dos casos
+    // lo que prueba que es la dueña es el acceso al correo.
     if (!user.email) {
       res.status(400).json({ success: false, message: "Tu cuenta no tiene un correo para enviarte el código." });
       return;
@@ -2063,7 +2132,7 @@ router.post("/password/send-code", protect, authLimiter, async (req: AuthRequest
     }
     await emailService.sendPasswordCodeEmail(user.email, user.name, r.codigo);
     const [local, dominio] = String(user.email).split("@");
-    res.json({ success: true, message: `Te enviamos un código a ${local.slice(0, 2)}***@${dominio}. Vale 15 minutos.` });
+    res.json({ success: true, message: `Te enviamos un código a ${local.slice(0, 2)}***@${dominio}. Vale 5 minutos.` });
   } catch (error: any) {
     console.error("Error en password/send-code:", error);
     res.status(500).json({ success: false, message: "No pudimos enviar el código. Probá de nuevo en un momento." });

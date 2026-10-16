@@ -618,10 +618,10 @@ ${ctaBlock}
     const html = this.tpl({
       eyebrow: 'Seguridad',
       accent: 'red',
-      preheader: 'Tu código para cambiar la contraseña. Vale 15 minutos.',
+      preheader: 'Tu código para cambiar la contraseña. Vale 5 minutos.',
       title: 'Tu código para cambiar la contraseña.',
       amount: code,
-      amountLabel: 'Código de 6 números (vale 15 minutos)',
+      amountLabel: 'Código de 6 números (vale 5 minutos)',
       body: `
         <p>Hola <strong>${userName}</strong>, pediste cambiar tu contraseña sin usar la actual. Escribí este código en Configuración → Seguridad.</p>
         <p>Si lo leés en el celular, tocá el botón para copiarlo con un toque.</p>

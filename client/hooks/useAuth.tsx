@@ -189,7 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
         },
         credentials: "include", // Permite enviar y recibir cookies
-        body: JSON.stringify(data),
+        // `sinSesion`: registrarse no abre la sesión; primero hay que verificar el correo (igual que para ingresar).
+        body: JSON.stringify({ ...data, sinSesion: true }),
       });
 
       const responseData = await response.json();
@@ -208,11 +209,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw errorDeRegistro;
       }
 
-      // El token ahora está en la cookie httpOnly
-      // Guardamos el token en localStorage para Socket.io
-      localStorage.setItem("token", responseData.token);
-      setToken(responseData.token);
-      setUser({ ...responseData.user });
+      // Sin token (correo por verificar) no hay sesión: la pantalla pide revisar el correo y se ingresa recién al verificarlo.
+      if (responseData.token) {
+        // El token ahora está en la cookie httpOnly
+        // Guardamos el token en localStorage para Socket.io
+        localStorage.setItem("token", responseData.token);
+        setToken(responseData.token);
+        setUser({ ...responseData.user });
+      }
       console.log("✅ Registro exitoso, usuario:", responseData.user.name);
 
       // `invitacion` (si el registro llevaba un enlace de invitación) cuenta si se aplicó o por qué no.

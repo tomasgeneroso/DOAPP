@@ -2393,7 +2393,8 @@ export default function JobDetail() {
                         src={getImageUrl(img)}
                         alt={`${job.title} — foto ${i + 1}`}
                         className="h-full w-full object-cover transition-opacity hover:opacity-90"
-                        onError={(e) => { (e.currentTarget.style.display = 'none'); }}
+                        // Si el archivo ya no está en el servidor, no queda un cuadro vacío con borde: se oculta la foto entera.
+                        onError={(e) => { (e.currentTarget.parentElement ?? e.currentTarget).style.display = 'none'; }}
                       />
                     </button>
                   ))}

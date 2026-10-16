@@ -209,10 +209,41 @@ describe('rutas de seguridad', () => {
     expect((await request(app).post('/api/auth/password/send-code')).status).toBe(401);
   });
 
-  it('una cuenta sin contraseña (solo Google) no usa este camino: tiene «Establecer contraseña»', async () => {
+  it('una cuenta sin contraseña (solo Google) cambia la clave con el código, no con «cambiar»: change-with-code sigue pidiendo que tenga una', async () => {
     const u: any = await crearUsuario({});
     await User.update({ password: null as any, googleId: `g-${Math.random()}` } as any, { where: { id: u.id }, hooks: false } as any);
-    expect((await request(app).post('/api/auth/password/send-code').set(con(u))).status).toBe(400);
+    await request(app).post('/api/auth/password/send-code').set(con(u));
+    expect((await request(app).post('/api/auth/password/change-with-code').set(con(u)).send({ code: ultimoCodigo(), newPassword: 'clave-nueva-456' })).status).toBe(400);
+  });
+
+  it('establecer la primera contraseña (cuenta de Google) exige el código del correo: sin código no, con uno equivocado no, con el bueno sí', async () => {
+    const u: any = await crearUsuario({});
+    await User.update({ password: null as any, googleId: `g-${Math.random()}` } as any, { where: { id: u.id }, hooks: false } as any);
+
+    // Antes bastaba con tener la sesión: ahora sin el código del correo no se establece nada.
+    expect((await request(app).post('/api/auth/set-password').set(con(u)).send({ newPassword: 'clave-nueva-456' })).status).toBe(400);
+    expect((await request(app).post('/api/auth/set-password').set(con(u)).send({ newPassword: 'clave-nueva-456', code: '123456' })).status).toBe(400); // sin haber pedido ninguno
+
+    const pedido = await request(app).post('/api/auth/password/send-code').set(con(u));
+    expect(pedido.status).toBe(200);
+    expect(pedido.body.message).toMatch(/5 minutos/);
+    expect(JSON.stringify(pedido.body)).not.toMatch(/\d{6}/); // el código nunca viaja en la respuesta
+    const real = ultimoCodigo() as string;
+    const malo = real === '000000' ? '111111' : '000000';
+    const equivocado = await request(app).post('/api/auth/set-password').set(con(u)).send({ newPassword: 'clave-nueva-456', code: malo });
+    expect(equivocado.status).toBe(400);
+    expect(equivocado.body.code).toBe('INCORRECTO');
+    expect(((await User.findByPk(u.id)) as any).password ?? null).toBeNull();
+
+    const ok = await request(app).post('/api/auth/set-password').set(con(u)).send({ newPassword: 'clave-nueva-456', code: real });
+    expect(ok.status).toBe(200);
+    expect(((await User.findByPk(u.id)) as any).password).toBeTruthy();
+    // el código se gastó: con el mismo no se vuelve a establecer
+    expect((await request(app).post('/api/auth/set-password').set(con(u)).send({ newPassword: 'otra-clave-789', code: real })).status).toBe(400);
+  });
+
+  it('el código vale 5 minutos', () => {
+    expect(VIGENCIA_DEL_CODIGO_MS).toBe(5 * 60 * 1000);
   });
 
   it('link-start: entrega la dirección con el token y la cookie; no repite si ya está enlazada', async () => {
