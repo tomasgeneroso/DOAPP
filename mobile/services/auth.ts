@@ -175,7 +175,7 @@ export async function resendVerificationEmail(): Promise<ApiResponse<void>> {
 }
 
 /**
- * Cambiar la contraseña sin recordar la actual: el servidor envía un código de 6 números al correo (vale 15 minutos, un solo uso).
+ * Cambiar la contraseña sin recordar la actual: el servidor envía un código de 6 números al correo (vale 5 minutos, un solo uso).
  */
 export async function hasPassword(): Promise<ApiResponse<void> & { hasPassword?: boolean; isOAuth?: boolean }> {
   return get<void>('/auth/has-password') as any;
@@ -189,7 +189,26 @@ export async function cambiarContrasenaConCodigo(code: string, newPassword: stri
   return post<void>('/auth/password/change-with-code', { code, newPassword }) as any;
 }
 
-/** Para quien se registró con Google o X y todavía no tiene contraseña. */
-export async function establecerContrasena(newPassword: string): Promise<ApiResponse<void>> {
-  return post<void>('/auth/set-password', { newPassword });
+/** Para quien se registró con Google o X y todavía no tiene contraseña: también exige el código que llega al correo. */
+export async function establecerContrasena(code: string, newPassword: string): Promise<ApiResponse<void>> {
+  return post<void>('/auth/set-password', { code, newPassword });
+}
+
+/**
+ * Cuentas enlazadas: qué proveedores tiene la cuenta (Google, X).
+ */
+export async function obtenerVinculos(): Promise<{ google: boolean; twitter: boolean; hasPassword: boolean } | null> {
+  const r: any = await get<void>('/auth/has-password');
+  if (!r?.success) return null;
+  return { google: !!r.linked?.google, twitter: !!r.linked?.twitter, hasPassword: !!r.hasPassword };
+}
+
+/** Empieza el enlace de Google o X: devuelve la dirección que se abre en el navegador del teléfono. */
+export async function iniciarVinculo(provider: 'google' | 'twitter'): Promise<ApiResponse<void> & { url?: string }> {
+  return post<void>('/auth/social/link-start', { provider, origen: 'app' }) as any;
+}
+
+/** Al volver del navegador: la app confirma el enlace con su sesión (código de un solo uso, 5 minutos). */
+export async function confirmarVinculo(codigo: string): Promise<ApiResponse<void> & { proveedor?: 'google' | 'twitter' }> {
+  return post<void>('/auth/social/link-confirm', { codigo }) as any;
 }

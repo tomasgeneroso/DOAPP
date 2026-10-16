@@ -38,20 +38,20 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constant
 import AttentionDot from '../components/AttentionDot';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
+import CuentasVinculadas from '../components/CuentasVinculadas';
 import DireccionConSugerencias from '../components/DireccionConSugerencias';
 import { usePendingTasks, type SettingsSection } from '../hooks/usePendingTasks';
 
-type SettingsTab = 'general' | 'banking' | 'address';
+type SettingsTab = 'general' | 'verificacion' | 'seguridad' | 'banking' | 'address';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isDarkMode, themeMode, setThemeMode, colors: themeColors } = useTheme();
   const { logout, user, refreshUser } = useAuth();
 
-  const { section } = useLocalSearchParams<{ section?: string }>();
+  const { section, tab } = useLocalSearchParams<{ section?: string; tab?: string }>();
   const { pending, countFor } = usePendingTasks();
   const scrollRef = useRef<ScrollView>(null);
-  const [verifyOffset, setVerifyOffset] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [saving, setSaving] = useState(false);
@@ -60,7 +60,9 @@ export default function SettingsScreen() {
 
   // Mobile settings has its own tab names; map them onto the shared registry.
   const SECTION_OF_TAB: Record<SettingsTab, SettingsSection | null> = {
-    general: 'basic',
+    general: null,
+    verificacion: 'basic',
+    seguridad: null,
     banking: 'banking',
     address: null,
   };
@@ -81,15 +83,11 @@ export default function SettingsScreen() {
     );
   };
 
-  // Deep link from the attention trail: /settings?section=verificacion
+  // Deep links: /settings?section=verificacion (el rastro de atención) y /settings?tab=seguridad (al volver de enlazar Google o X).
   useEffect(() => {
-    if (section !== 'verificacion' || verifyOffset === null) return;
-    setActiveTab('general');
-    const timer = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, verifyOffset - 12), animated: true });
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [section, verifyOffset]);
+    if (section === 'verificacion') setActiveTab('verificacion');
+    else if (tab === 'seguridad') setActiveTab('seguridad');
+  }, [section, tab]);
 
   const [notifications, setNotifications] = useState({
     push: true,
@@ -235,24 +233,28 @@ export default function SettingsScreen() {
       </View>
 
       {/* Tab Selector */}
-      <View style={[styles.tabRow, { borderBottomColor: themeColors.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabScroll, { borderBottomColor: themeColors.border }]} contentContainerStyle={styles.tabRow}>
         {([
           { key: 'general' as SettingsTab, label: 'General' },
+          { key: 'verificacion' as SettingsTab, label: 'Verificación' },
+          { key: 'seguridad' as SettingsTab, label: 'Seguridad' },
           { key: 'banking' as SettingsTab, label: 'Bancaria' },
-          { key: 'address' as SettingsTab, label: 'Direccion' },
-        ]).map((tab) => (
+          { key: 'address' as SettingsTab, label: 'Dirección' },
+        ]).map((t) => (
           <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => setActiveTab(tab.key)}
+            key={t.key}
+            style={[styles.tab, activeTab === t.key && { borderBottomColor: colors.primary[600] }]}
+            onPress={() => setActiveTab(t.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === t.key }}
           >
-            <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.primary[600] : themeColors.text.muted }]}>
-              {tab.label}
+            <Text style={[styles.tabText, { color: activeTab === t.key ? colors.primary[600] : themeColors.text.muted }]}>
+              {t.label}
             </Text>
-            {tabDotFor(tab.key)}
+            {tabDotFor(t.key)}
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView
         ref={scrollRef}
@@ -396,9 +398,9 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {activeTab === 'general' && <>
+        {activeTab === 'verificacion' && <>
         {/* Verification — end of the attention trail (Perfil → Configuración → acá) */}
-        <View style={styles.section} onLayout={(e) => setVerifyOffset(e.nativeEvent.layout.y)}>
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
             Verificar mi perfil
           </Text>
@@ -447,6 +449,77 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        </>}
+
+        {activeTab === 'seguridad' && <>
+        {/* Security */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
+            Seguridad
+          </Text>
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => router.push('/cambiar-contrasena' as any)}
+            >
+              <View style={styles.settingLeft}>
+                <Lock size={20} color={themeColors.text.secondary} />
+                <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
+                  Cambiar contraseña
+                </Text>
+              </View>
+              <ChevronRight size={20} color={themeColors.text.muted} />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={handleEmailChangeRequest}
+            >
+              <View style={styles.settingLeft}>
+                <AtSign size={20} color={themeColors.text.secondary} />
+                <View>
+                  <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
+                    Cambiar email
+                  </Text>
+                  <Text style={[styles.settingValue, { color: themeColors.text.muted }]}>
+                    Requiere verificación de identidad
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={themeColors.text.muted} />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => Alert.alert('Autenticación de dos factores', 'Próximamente')}
+            >
+              <View style={styles.settingLeft}>
+                <Shield size={20} color={themeColors.text.secondary} />
+                <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
+                  Autenticación de dos factores
+                </Text>
+              </View>
+              <ChevronRight size={20} color={themeColors.text.muted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Cuentas enlazadas: Google y X */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
+            Ingreso con Google o X
+          </Text>
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <CuentasVinculadas />
+          </View>
+        </View>
+        </>}
+
+        {activeTab === 'general' && <>
         {/* Appearance */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
@@ -585,62 +658,6 @@ export default function SettingsScreen() {
                 thumbColor="#fff"
               />
             </View>
-          </View>
-        </View>
-
-        {/* Security */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
-            Seguridad
-          </Text>
-          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={() => router.push('/cambiar-contrasena' as any)}
-            >
-              <View style={styles.settingLeft}>
-                <Lock size={20} color={themeColors.text.secondary} />
-                <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
-                  Cambiar contraseña
-                </Text>
-              </View>
-              <ChevronRight size={20} color={themeColors.text.muted} />
-            </TouchableOpacity>
-
-            <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
-
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={handleEmailChangeRequest}
-            >
-              <View style={styles.settingLeft}>
-                <AtSign size={20} color={themeColors.text.secondary} />
-                <View>
-                  <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
-                    Cambiar email
-                  </Text>
-                  <Text style={[styles.settingValue, { color: themeColors.text.muted }]}>
-                    Requiere verificación de identidad
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color={themeColors.text.muted} />
-            </TouchableOpacity>
-
-            <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
-
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={() => Alert.alert('Autenticación de dos factores', 'Próximamente')}
-            >
-              <View style={styles.settingLeft}>
-                <Shield size={20} color={themeColors.text.secondary} />
-                <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
-                  Autenticación de dos factores
-                </Text>
-              </View>
-              <ChevronRight size={20} color={themeColors.text.muted} />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -807,13 +824,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.lg,
   },
-  tabRow: {
-    flexDirection: 'row',
+  tabScroll: {
+    flexGrow: 0,
     borderBottomWidth: 1,
   },
-  tab: {
-    flex: 1,
+  tabRow: {
     flexDirection: 'row',
+  },
+  tab: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',

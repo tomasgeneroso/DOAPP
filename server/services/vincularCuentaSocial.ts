@@ -78,3 +78,74 @@ export async function vincularCuenta(userId: string, proveedor: ProveedorVincula
   });
   return 'ok';
 }
+
+// ───────────────────────── Enlazar desde la APP del celular ─────────────────────────
+//
+// En la web el enlace queda atado al navegador con una cookie. En el celular el enlace se hace en el navegador del teléfono, que NO
+// tiene esa cookie (la sesión de la app vive en otro lado), así que se ata de otra manera: el callback NO enlaza nada, deja un código
+// de un solo uso (5 min) con lo que Google/X devolvió, y la app lo CONFIRMA con su propia sesión (`POST /auth/social/link-confirm`).
+// El código solo sirve si quien confirma es la misma persona que empezó el enlace. Así, el «enlace forzado» (el atacante empieza con su
+// sesión y le pasa el enlace a la víctima) falla: el código le llega a la app de la víctima, que tiene otra sesión, y no se enlaza nada.
+const VIGENCIA_PENDIENTE_MS = 5 * 60 * 1000;
+const MAXIMO_PENDIENTES = 1000;
+
+export interface VinculoPendiente {
+  userId: string;
+  proveedor: ProveedorVinculable;
+  idExterno: string;
+  avatar?: string;
+  vence: number;
+}
+const pendientes = new Map<string, VinculoPendiente>();
+
+function limpiarPendientes(ahora: number): void {
+  for (const [c, p] of pendientes) if (p.vence <= ahora) pendientes.delete(c);
+  while (pendientes.size > MAXIMO_PENDIENTES) {
+    const primero = pendientes.keys().next().value as string | undefined;
+    if (primero === undefined) break;
+    pendientes.delete(primero);
+  }
+}
+
+/** Un enlace que empieza la app: lleva la marca `origen: 'app'` y no depende de ninguna cookie del navegador. */
+export function emitirVinculoDeApp(userId: string, proveedor: ProveedorVinculable): string {
+  return jwt.sign({ id: String(userId), proveedor, origen: 'app', proposito: PROPOSITO }, config.jwtSecret as string, { expiresIn: VIGENCIA });
+}
+
+/** La persona que empezó el enlace desde la app, o null si el token no sirve, es de la web, de otro proveedor o venció. */
+export function leerVinculoDeApp(token: unknown, proveedor: ProveedorVinculable): string | null {
+  if (typeof token !== 'string') return null;
+  try {
+    const d: any = jwt.verify(token, config.jwtSecret as string);
+    if (d?.proposito !== PROPOSITO || d?.proveedor !== proveedor || d?.origen !== 'app' || !d?.id) return null;
+    return String(d.id);
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda lo que devolvió Google/X para que la app lo confirme. Devuelve el código de un solo uso. */
+export function guardarVinculoPendiente(userId: string, proveedor: ProveedorVinculable, idExterno: string, avatar?: string, ahora: number = Date.now()): string {
+  limpiarPendientes(ahora);
+  const codigo = crypto.randomBytes(32).toString('hex');
+  pendientes.set(codigo, { userId: String(userId), proveedor, idExterno: String(idExterno), avatar, vence: ahora + VIGENCIA_PENDIENTE_MS });
+  return codigo;
+}
+
+/**
+ * Lo pendiente, solo si el código existe, no venció y quien confirma es quien empezó. El código se gasta SIEMPRE al leerlo: si otra
+ * persona lo prueba, no queda para reintentar.
+ */
+export function canjearVinculoPendiente(codigo: unknown, quienConfirma: string, ahora: number = Date.now()): VinculoPendiente | null {
+  if (typeof codigo !== 'string' || !/^[0-9a-f]{64}$/.test(codigo)) return null;
+  const p = pendientes.get(codigo);
+  pendientes.delete(codigo);
+  if (!p || p.vence <= ahora) return null;
+  if (p.userId !== String(quienConfirma)) return null;
+  return p;
+}
+
+/** Solo para pruebas. */
+export function _vaciarVinculosPendientes(): void {
+  pendientes.clear();
+}

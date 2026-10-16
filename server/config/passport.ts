@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { col, fn, where } from "sequelize";
 import { User } from "../models/sql/User.model.js";
-import { COOKIE_DE_VINCULO, leerVinculo } from "../services/vincularCuentaSocial.js";
+import { COOKIE_DE_VINCULO, leerVinculo, leerVinculoDeApp } from "../services/vincularCuentaSocial.js";
 import { config } from "./env.js";
 
 // Configurar Google OAuth solo si las credenciales están disponibles
@@ -23,8 +23,10 @@ if (config.googleClientId && config.googleClientSecret) {
           // (el token firmado y la cookie del navegador que inició el enlace tienen que coincidir). El callback hace el enlace.
           const estado = String(req?.query?.state || '');
           if (estado.startsWith('link:')) {
-            const userId = leerVinculo(estado.slice(5), req?.cookies?.[COOKIE_DE_VINCULO], 'google');
-            return done(null, { __vincular: true, userId, googleId: profile.id, avatar: profile.photos?.[0]?.value });
+            // Desde la app no hay cookie del navegador: el enlace lo confirma la app con su sesión (ver vincularCuentaSocial.ts).
+            const deApp = leerVinculoDeApp(estado.slice(5), 'google');
+            const userId = deApp ?? leerVinculo(estado.slice(5), req?.cookies?.[COOKIE_DE_VINCULO], 'google');
+            return done(null, { __vincular: true, __app: !!deApp, userId, googleId: profile.id, avatar: profile.photos?.[0]?.value });
           }
 
           // Con `?.` en cada paso: un perfil sin foto o sin correo no puede tumbar el ingreso con un TypeError.

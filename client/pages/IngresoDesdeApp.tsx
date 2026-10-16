@@ -8,12 +8,19 @@ import { Smartphone, Info } from "lucide-react";
  * El ingreso social se hace en el navegador del teléfono. Al terminar, el servidor deja acá un código de un solo uso (vale
  * 2 minutos) y esta página abre la app con él (esquema `doapp://`); la app lo canjea por la sesión. Es pública y no guarda
  * nada: el código no es la sesión. Si la app no se abre sola (algunos navegadores lo impiden sin un toque), el botón la abre.
+ *
+ * También es el retorno de ENLAZAR Google o X desde la app (Seguridad): llega `?vinculo=<código>&proveedor=…` y la app confirma el
+ * enlace con su sesión (`doapp://vinculo-callback`); o `?vinculo_error=…` si el enlace venció.
  */
 export default function IngresoDesdeApp() {
   const [params] = useSearchParams();
   const codigo = params.get("codigo") || "";
-  const valido = /^[0-9a-f]{64}$/.test(codigo);
-  const abrirLaApp = `doapp://auth-callback?codigo=${codigo}`;
+  const vinculo = params.get("vinculo") || "";
+  const proveedor = params.get("proveedor") === "twitter" ? "twitter" : "google";
+  const esVinculo = params.has("vinculo") || params.has("vinculo_error");
+  const valido = esVinculo ? /^[0-9a-f]{64}$/.test(vinculo) : /^[0-9a-f]{64}$/.test(codigo);
+  const abrirLaApp = esVinculo ? `doapp://vinculo-callback?vinculo=${vinculo}&proveedor=${proveedor}` : `doapp://auth-callback?codigo=${codigo}`;
+  const nombre = proveedor === "twitter" ? "X" : "Google";
 
   useEffect(() => {
     if (!valido) return;
@@ -35,12 +42,16 @@ export default function IngresoDesdeApp() {
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-          {valido ? "Volvé a la app de DOAPP" : "Este enlace no sirve"}
+          {valido ? (esVinculo ? `Casi listo: confirmá ${nombre} en la app` : "Volvé a la app de DOAPP") : "Este enlace no sirve"}
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mb-6">
           {valido
-            ? "Ya iniciaste sesión. Tocá el botón para seguir en la app (el enlace vale 2 minutos y se usa una sola vez)."
-            : "Venció o ya se usó. Volvé a la app y tocá otra vez «Ingresar con Google» o «Ingresar con X»."}
+            ? esVinculo
+              ? `Tocá el botón para volver a la app y terminar de enlazar ${nombre} a tu cuenta (el enlace vale 5 minutos y se usa una sola vez).`
+              : "Ya iniciaste sesión. Tocá el botón para seguir en la app (el enlace vale 2 minutos y se usa una sola vez)."
+            : esVinculo
+              ? "Venció o ya se usó. Volvé a la app, a Configuración → Seguridad, y tocá otra vez «Enlazar»."
+              : "Venció o ya se usó. Volvé a la app y tocá otra vez «Ingresar con Google» o «Ingresar con X»."}
         </p>
 
         {valido && (

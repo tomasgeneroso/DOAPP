@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Lock } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff, Lock } from 'lucide-react-native';
 import {
   changePassword,
   cambiarContrasenaConCodigo,
@@ -29,9 +29,11 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constant
  * Cambiar la contraseña desde la app.
  *
  *  - Con la actual (lo normal).
- *  - «No recuerdo mi contraseña actual»: se pide un código de 6 números al correo y se cambia con él. El código vale 15 minutos y
+ *  - «No recuerdo mi contraseña actual»: se pide un código de 6 números al correo y se cambia con él. El código vale 5 minutos y
  *    sirve una sola vez; al cambiar, el servidor cierra todas las sesiones y se vuelve a entrar con la contraseña nueva.
- *  - Quien se registró con Google o X y no tiene contraseña la establece sin pedir la actual.
+ *  - Quien se registró con Google o X y no tiene contraseña la establece con el mismo código del correo.
+ *
+ * Siempre hace falta una de las dos pruebas: la contraseña actual o el código del correo.
  */
 export default function CambiarContrasenaScreen() {
   const router = useRouter();
@@ -71,7 +73,17 @@ export default function CambiarContrasenaScreen() {
     };
   }, []);
 
+  const [verClaves, setVerClaves] = useState(false);
   const input = [styles.input, { backgroundColor: themeColors.slate[50], borderColor: themeColors.border, color: themeColors.text.primary }];
+  /** Un campo de contraseña con el ojito para verla mientras se escribe. */
+  const campoDeClave = (valor: string, cambiar: (v: string) => void, autoComplete: 'current-password' | 'new-password') => (
+    <View>
+      <TextInput style={[...input, { paddingRight: 48 }]} secureTextEntry={!verClaves} value={valor} onChangeText={cambiar} autoCapitalize="none" autoCorrect={false} autoComplete={autoComplete} />
+      <TouchableOpacity style={styles.ojo} onPress={() => setVerClaves((v) => !v)} accessibilityLabel={verClaves ? 'Ocultar la contraseña' : 'Mostrar la contraseña'} accessibilityRole="button">
+        {verClaves ? <EyeOff size={20} color={themeColors.text.muted} /> : <Eye size={20} color={themeColors.text.muted} />}
+      </TouchableOpacity>
+    </View>
+  );
 
   const validarNueva = (): string | null => {
     if (nueva.length < 6) return 'La contraseña nueva debe tener al menos 6 caracteres.';
@@ -102,18 +114,17 @@ export default function CambiarContrasenaScreen() {
       setMsg({ tipo: 'error', texto: problema });
       return;
     }
-    if (modo === 'codigo' && !/^\d{6}$/.test(codigo.trim())) {
+    if (usaCodigo && !/^\d{6}$/.test(codigo.trim())) {
       setMsg({ tipo: 'error', texto: 'El código tiene 6 números: está en el correo que te enviamos.' });
       return;
     }
     setCargando(true);
     try {
-      const r: any =
-        modo === 'codigo'
+      const r: any = usaCodigo
+        ? tiene
           ? await cambiarContrasenaConCodigo(codigo.trim(), nueva)
-          : tiene
-            ? await changePassword(actual, nueva)
-            : await establecerContrasena(nueva);
+          : await establecerContrasena(codigo.trim(), nueva)
+        : await changePassword(actual, nueva);
       if (r.success) {
         setMsg({ tipo: 'ok', texto: r.message || 'Contraseña actualizada.' });
         setActual('');
@@ -139,7 +150,8 @@ export default function CambiarContrasenaScreen() {
     }
   };
 
-  const usaCodigo = tiene === true && modo === 'codigo';
+  // Sin contraseña todavía, el código del correo es el único camino; con contraseña, es la alternativa a la actual.
+  const usaCodigo = tiene === false || modo === 'codigo';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -184,7 +196,7 @@ export default function CambiarContrasenaScreen() {
               {tiene && !usaCodigo && (
                 <View style={styles.grupo}>
                   <Text style={[styles.label, { color: themeColors.text.primary }]}>Contraseña actual</Text>
-                  <TextInput style={input} secureTextEntry value={actual} onChangeText={setActual} autoCapitalize="none" autoComplete="current-password" />
+                  {campoDeClave(actual, setActual, 'current-password')}
                   <TouchableOpacity
                     onPress={() => {
                       setModo('codigo');
@@ -201,7 +213,7 @@ export default function CambiarContrasenaScreen() {
                   {!codigoEnviado ? (
                     <>
                       <Text style={[styles.ayuda, { color: themeColors.text.secondary }]}>
-                        Te enviamos un código de 6 números al correo de tu cuenta. Vale 15 minutos y sirve una sola vez.
+                        Te enviamos un código de 6 números al correo de tu cuenta. Vale 5 minutos y sirve una sola vez.
                       </Text>
                       <TouchableOpacity style={[styles.boton, cargando && styles.botonApagado]} onPress={enviarCodigo} disabled={cargando}>
                         <Text style={styles.botonTexto}>{cargando ? 'Enviando…' : 'Enviarme el código por correo'}</Text>
@@ -224,15 +236,17 @@ export default function CambiarContrasenaScreen() {
                       </TouchableOpacity>
                     </>
                   )}
-                  <TouchableOpacity
-                    onPress={() => {
-                      setModo('actual');
-                      setCodigoEnviado(false);
-                      setMsg(null);
-                    }}
-                  >
-                    <Text style={[styles.enlace, { color: themeColors.text.muted }]}>Prefiero usar mi contraseña actual</Text>
-                  </TouchableOpacity>
+                  {tiene && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setModo('actual');
+                        setCodigoEnviado(false);
+                        setMsg(null);
+                      }}
+                    >
+                      <Text style={[styles.enlace, { color: themeColors.text.muted }]}>Prefiero usar mi contraseña actual</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
 
@@ -240,11 +254,11 @@ export default function CambiarContrasenaScreen() {
                 <>
                   <View style={styles.grupo}>
                     <Text style={[styles.label, { color: themeColors.text.primary }]}>Contraseña nueva</Text>
-                    <TextInput style={input} secureTextEntry value={nueva} onChangeText={setNueva} autoCapitalize="none" autoComplete="new-password" />
+                    {campoDeClave(nueva, setNueva, 'new-password')}
                   </View>
                   <View style={styles.grupo}>
                     <Text style={[styles.label, { color: themeColors.text.primary }]}>Repetí la contraseña nueva</Text>
-                    <TextInput style={input} secureTextEntry value={repetida} onChangeText={setRepetida} autoCapitalize="none" autoComplete="new-password" />
+                    {campoDeClave(repetida, setRepetida, 'new-password')}
                   </View>
                   <TouchableOpacity style={[styles.boton, cargando && styles.botonApagado]} onPress={guardar} disabled={cargando}>
                     <Text style={styles.botonTexto}>{cargando ? 'Guardando…' : tiene ? 'Cambiar contraseña' : 'Establecer contraseña'}</Text>
@@ -274,6 +288,7 @@ const styles = StyleSheet.create({
   ayuda: { fontSize: fontSize.sm, marginBottom: spacing.md },
   input: { height: 48, borderRadius: borderRadius.lg, paddingHorizontal: spacing.md, fontSize: fontSize.base, borderWidth: 1 },
   codigo: { letterSpacing: 8, textAlign: 'center', fontSize: fontSize.xl },
+  ojo: { position: 'absolute', right: 0, top: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   enlace: { fontSize: fontSize.sm, marginTop: spacing.sm, textDecorationLine: 'underline' },
   boton: { backgroundColor: colors.primary[600], height: 48, borderRadius: borderRadius.lg, alignItems: 'center', justifyContent: 'center' },
   botonApagado: { opacity: 0.6 },

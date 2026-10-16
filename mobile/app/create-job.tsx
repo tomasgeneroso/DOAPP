@@ -38,6 +38,10 @@ import { get as apiGet } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
 import DireccionDelTrabajo from '../components/ui/DireccionDelTrabajo';
+import RangoDeFechas from '../components/ui/RangoDeFechas';
+import TareasDelTrabajo, { type TareaEnPantalla } from '../components/ui/TareasDelTrabajo';
+import { diaParaElServidor } from '../services/calendario';
+import { leerTareasDeCreacion } from '../../shared/jobs/tareasDeCreacion';
 import { sanearCalle, validarCalleYNumero } from '../../shared/geo/lugares';
 
 export default function CreateJobScreen() {
@@ -98,93 +102,18 @@ export default function CreateJobScreen() {
   const [addressNumber, setAddressNumber] = useState('');
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [postalCode, setPostalCode] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [inicio, setInicio] = useState<Date | null>(null);
+  const [fin, setFin] = useState<Date | null>(null);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
 
-  // Date/time picker modal state
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime'>('startDate');
-  const [pickerDay, setPickerDay] = useState(1);
-  const [pickerMonth, setPickerMonth] = useState(new Date().getMonth() + 1);
-  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
-  const [pickerHour, setPickerHour] = useState(9);
-  const [pickerMinute, setPickerMinute] = useState(0);
+  // Entrega única, o por tareas (cada una con su día)
+  const [entregaUnica, setEntregaUnica] = useState(true);
+  const [tareas, setTareas] = useState<TareaEnPantalla[]>([{ title: '', dueDate: '' }, { title: '', dueDate: '' }]);
   const [maxWorkers, setMaxWorkers] = useState('1');
   const [requirements, setRequirements] = useState(['', '', '']);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showCategories, setShowCategories] = useState(false);
-
-  // Validate DD/MM/YYYY date and check it's a real future date
-  const isValidDate = (dateStr: string): boolean => {
-    const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!match) return false;
-    const [, dd, mm, yyyy] = match;
-    const day = parseInt(dd), month = parseInt(mm), year = parseInt(yyyy);
-    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2024 || year > 2100) return false;
-    const date = new Date(year, month - 1, day);
-    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-  };
-
-  // Auto-format date input: add "/" after DD and MM
-  const handleDateInput = (text: string, setter: (v: string) => void) => {
-    const digits = text.replace(/\D/g, '').substring(0, 8);
-    let formatted = digits;
-    if (digits.length >= 3) formatted = digits.slice(0, 2) + '/' + digits.slice(2);
-    if (digits.length >= 5) formatted = digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
-    setter(formatted);
-  };
-
-  // Date/time picker helpers
-  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const daysInMonth = (month: number, year: number) => new Date(year, month, 0).getDate();
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i);
-  const days = Array.from({ length: daysInMonth(pickerMonth, pickerYear) }, (_, i) => i + 1);
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = [0, 15, 30, 45];
-
-  const openPicker = (target: typeof pickerTarget) => {
-    const now = new Date();
-    if (target === 'startDate') {
-      const d = parseDMY(startDate) || now;
-      setPickerDay(d.getDate()); setPickerMonth(d.getMonth() + 1); setPickerYear(d.getFullYear());
-    } else if (target === 'endDate') {
-      const d = parseDMY(endDate) || now;
-      setPickerDay(d.getDate()); setPickerMonth(d.getMonth() + 1); setPickerYear(d.getFullYear());
-    } else if (target === 'startTime') {
-      const [h = 9, m = 0] = startTime.split(':').map(Number);
-      setPickerHour(h); setPickerMinute(m);
-    } else {
-      const [h = 9, m = 0] = endTime.split(':').map(Number);
-      setPickerHour(h); setPickerMinute(m);
-    }
-    setPickerTarget(target);
-    setPickerVisible(true);
-  };
-
-  const parseDMY = (s: string): Date | null => {
-    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!m) return null;
-    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-  };
-
-  const confirmPicker = () => {
-    if (pickerTarget === 'startDate') {
-      setStartDate(`${String(pickerDay).padStart(2,'0')}/${String(pickerMonth).padStart(2,'0')}/${pickerYear}`);
-    } else if (pickerTarget === 'endDate') {
-      setEndDate(`${String(pickerDay).padStart(2,'0')}/${String(pickerMonth).padStart(2,'0')}/${pickerYear}`);
-    } else if (pickerTarget === 'startTime') {
-      setStartTime(`${String(pickerHour).padStart(2,'0')}:${String(pickerMinute).padStart(2,'0')}`);
-    } else {
-      setEndTime(`${String(pickerHour).padStart(2,'0')}:${String(pickerMinute).padStart(2,'0')}`);
-    }
-    setPickerVisible(false);
-  };
-
-  const isTimePicker = pickerTarget === 'startTime' || pickerTarget === 'endTime';
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -205,10 +134,18 @@ export default function CreateJobScreen() {
       const problema = validarCalleYNumero(separada.numero && !addressNumber ? separada.calle : addressStreet, separada.numero && !addressNumber ? separada.numero : addressNumber);
       if (problema) newErrors.address = problema;
     }
-    if (!startDate.trim()) newErrors.startDate = 'La fecha de inicio es requerida';
-    else if (!isValidDate(startDate)) newErrors.startDate = 'Fecha inválida. Usá formato DD/MM/AAAA (ej: 25/03/2026)';
-    if (!startTime.trim()) newErrors.startTime = 'La hora de inicio es requerida';
-    if (endDate && !endDateFlexible && !isValidDate(endDate)) newErrors.endDate = 'Fecha inválida. Usá formato DD/MM/AAAA';
+    if (!inicio) newErrors.startDate = 'Elegí las fechas del trabajo';
+    else if (!endDateFlexible && !fin) newErrors.startDate = 'Elegí también el día en que termina, o marcá «Fecha de fin flexible»';
+    else if (inicio.getTime() < Date.now() - 60_000) newErrors.startDate = 'La fecha de inicio ya pasó';
+    if (!entregaUnica) {
+      const leidas = leerTareasDeCreacion(
+        tareas.map((t) => ({ title: t.title, dueDate: diaParaElServidor(t.dueDate) })),
+        { inicio, fin: endDateFlexible ? null : fin },
+      );
+      if (leidas.ok === false) newErrors.tareas = leidas.mensaje;
+      else if (tareas.some((t) => t.title.trim() && t.dueDate && !diaParaElServidor(t.dueDate))) newErrors.tareas = 'Escribí los días con el formato DD/MM/AAAA.';
+      else if (leidas.tareas.length === 0) newErrors.tareas = 'Escribí al menos una tarea, o elegí «Entrega única».';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -225,20 +162,6 @@ export default function CreateJobScreen() {
     setLoading(true);
     try {
       const desc = description.trim();
-      // Convert DD/MM/YYYY [HH:MM] to ISO 8601
-      const toISO = (dateStr: string, timeStr?: string): string => {
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-          const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          // La hora que se elige es la del teléfono (Argentina), no UTC: sin esto un trabajo de las 09:00 se guardaba a las 06:00.
-          if (timeStr) {
-            const [hh, mm] = timeStr.split(':').map((x) => parseInt(x, 10) || 0);
-            return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10), hh, mm).toISOString();
-          }
-          return isoDate;
-        }
-        return dateStr;
-      };
       const jobData = {
         title: title.trim(),
         summary: desc.length > 150 ? desc.substring(0, 150) + '...' : desc,
@@ -261,9 +184,14 @@ export default function CreateJobScreen() {
         })(),
         ...(coords ? { latitude: coords.lat, longitude: coords.lon } : {}),
         postalCode: postalCode.trim() || undefined,
-        startDate: toISO(startDate, startTime || undefined),
-        endDate: endDateFlexible ? undefined : (endDate ? toISO(endDate, endTime || undefined) : undefined),
+        // Las horas son las del teléfono (Argentina): toISOString las pasa a UTC bien (antes se guardaban como si ya fueran UTC).
+        startDate: inicio ? inicio.toISOString() : undefined,
+        endDate: endDateFlexible || !fin ? undefined : fin.toISOString(),
         endDateFlexible,
+        singleDelivery: entregaUnica,
+        ...(entregaUnica
+          ? {}
+          : { tasks: tareas.filter((t) => t.title.trim()).map((t) => ({ title: t.title.trim(), dueDate: diaParaElServidor(t.dueDate) || null })) }),
         maxWorkers: parseInt(maxWorkers) || 1,
         completionRequirements: requirements.filter(r => r.trim()),
       };
@@ -673,101 +601,26 @@ export default function CreateJobScreen() {
               />
             </View>
 
-            {/* Start Date + Time */}
+            {/* Fechas del trabajo: inicio y fin en un solo calendario */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                <Calendar size={16} color={themeColors.text.secondary} /> Fecha y hora de inicio *
+                <Calendar size={16} color={themeColors.text.secondary} /> Fechas del trabajo *
               </Text>
-              <View style={styles.dateTimeRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.datePickerBtn,
-                    {
-                      backgroundColor: themeColors.slate[50],
-                      borderColor: errors.startDate ? colors.danger[500] : themeColors.border,
-                      flex: 3,
-                    },
-                  ]}
-                  onPress={() => openPicker('startDate')}
-                >
-                  <Calendar size={16} color={startDate ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
-                  <Text style={[styles.datePickerText, { color: startDate ? themeColors.text.primary : themeColors.text.muted }]}>
-                    {startDate || 'DD/MM/AAAA'}
-                  </Text>
-                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.datePickerBtn,
-                    {
-                      backgroundColor: themeColors.slate[50],
-                      borderColor: errors.startTime ? colors.danger[500] : themeColors.border,
-                      flex: 2,
-                    },
-                  ]}
-                  onPress={() => openPicker('startTime')}
-                >
-                  <Clock size={16} color={startTime ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
-                  <Text style={[styles.datePickerText, { color: startTime ? themeColors.text.primary : themeColors.text.muted }]}>
-                    {startTime || 'HH:MM'}
-                  </Text>
-                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
-              {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
-              {errors.startTime && <Text style={styles.errorText}>{errors.startTime}</Text>}
-            </View>
-
-            {/* End Date + Time */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                Fecha y hora de fin
-              </Text>
-              <View style={styles.dateTimeRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.datePickerBtn,
-                    {
-                      backgroundColor: endDateFlexible ? themeColors.slate[100] : themeColors.slate[50],
-                      borderColor: errors.endDate ? colors.danger[500] : themeColors.border,
-                      flex: 3,
-                      opacity: endDateFlexible ? 0.5 : 1,
-                    },
-                  ]}
-                  onPress={() => !endDateFlexible && openPicker('endDate')}
-                  disabled={endDateFlexible}
-                >
-                  <Calendar size={16} color={endDate ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
-                  <Text style={[styles.datePickerText, { color: endDate ? themeColors.text.primary : themeColors.text.muted }]}>
-                    {endDate || 'DD/MM/AAAA'}
-                  </Text>
-                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.datePickerBtn,
-                    {
-                      backgroundColor: endDateFlexible ? themeColors.slate[100] : themeColors.slate[50],
-                      borderColor: themeColors.border,
-                      flex: 2,
-                      opacity: endDateFlexible ? 0.5 : 1,
-                    },
-                  ]}
-                  onPress={() => !endDateFlexible && openPicker('endTime')}
-                  disabled={endDateFlexible}
-                >
-                  <Clock size={16} color={endTime ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
-                  <Text style={[styles.datePickerText, { color: endTime ? themeColors.text.primary : themeColors.text.muted }]}>
-                    {endTime || 'HH:MM'}
-                  </Text>
-                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
-              {errors.endDate && <Text style={styles.errorText}>{errors.endDate}</Text>}
-
+              <RangoDeFechas
+                inicio={inicio}
+                fin={fin}
+                onChange={(i, f) => { setInicio(i); setFin(f); }}
+                finOpcional={endDateFlexible}
+                error={errors.startDate}
+                themeColors={themeColors}
+              />
               <TouchableOpacity
                 style={styles.checkboxRow}
-                onPress={() => setEndDateFlexible(!endDateFlexible)}
+                onPress={() => {
+                  const nuevo = !endDateFlexible;
+                  setEndDateFlexible(nuevo);
+                  if (nuevo) setFin(null);
+                }}
               >
                 <View
                   style={[
@@ -781,98 +634,42 @@ export default function CreateJobScreen() {
                   {endDateFlexible && <CheckCircle size={14} color="#fff" />}
                 </View>
                 <Text style={[styles.checkboxLabel, { color: themeColors.text.secondary }]}>
-                  Fecha de fin flexible
+                  Todavía no sé cuándo termina
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Date/Time Picker Modal */}
-            <Modal visible={pickerVisible} transparent animationType="slide">
-              <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPickerVisible(false)} />
-              <View style={[styles.pickerSheet, { backgroundColor: themeColors.card }]}>
-                <View style={[styles.pickerHeader, { borderBottomColor: themeColors.border }]}>
-                  <TouchableOpacity onPress={() => setPickerVisible(false)}>
-                    <Text style={[styles.pickerCancel, { color: themeColors.text.secondary }]}>Cancelar</Text>
+            {/* Entrega única o por tareas */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: themeColors.text.primary }]}>
+                <ClipboardList size={16} color={themeColors.text.secondary} /> Tipo de entrega
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                {([
+                  { unica: true, titulo: 'Entrega única', desc: 'Todo se entrega al final.' },
+                  { unica: false, titulo: 'Entrega por tareas', desc: 'Cada tarea con su día.' },
+                ]).map((o) => (
+                  <TouchableOpacity
+                    key={String(o.unica)}
+                    style={[
+                      styles.entregaOpcion,
+                      { borderColor: entregaUnica === o.unica ? colors.primary[600] : themeColors.border, backgroundColor: entregaUnica === o.unica ? themeColors.primary[50] : themeColors.slate[50] },
+                    ]}
+                    onPress={() => setEntregaUnica(o.unica)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: entregaUnica === o.unica }}
+                  >
+                    <Text style={{ color: themeColors.text.primary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold }}>{o.titulo}</Text>
+                    <Text style={{ color: themeColors.text.muted, fontSize: fontSize.xs }}>{o.desc}</Text>
                   </TouchableOpacity>
-                  <Text style={[styles.pickerTitle, { color: themeColors.text.primary }]}>
-                    {pickerTarget === 'startDate' ? 'Fecha de inicio'
-                      : pickerTarget === 'endDate' ? 'Fecha de fin'
-                      : pickerTarget === 'startTime' ? 'Hora de inicio'
-                      : 'Hora de fin'}
-                  </Text>
-                  <TouchableOpacity onPress={confirmPicker}>
-                    <Text style={[styles.pickerConfirm, { color: themeColors.primary[600] }]}>Listo</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {isTimePicker ? (
-                  <View style={styles.pickerColumns}>
-                    {/* Hour column */}
-                    <View style={styles.pickerColumn}>
-                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Hora</Text>
-                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                        {hours.map((h) => (
-                          <TouchableOpacity key={h} style={[styles.pickerItem, pickerHour === h && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerHour(h)}>
-                            <Text style={[styles.pickerItemText, { color: pickerHour === h ? themeColors.primary[600] : themeColors.text.primary }, pickerHour === h && { fontWeight: fontWeight.bold }]}>
-                              {String(h).padStart(2, '0')}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    {/* Minute column */}
-                    <View style={styles.pickerColumn}>
-                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Min</Text>
-                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                        {minutes.map((m) => (
-                          <TouchableOpacity key={m} style={[styles.pickerItem, pickerMinute === m && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerMinute(m)}>
-                            <Text style={[styles.pickerItemText, { color: pickerMinute === m ? themeColors.primary[600] : themeColors.text.primary }, pickerMinute === m && { fontWeight: fontWeight.bold }]}>
-                              {String(m).padStart(2, '0')}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.pickerColumns}>
-                    {/* Day */}
-                    <View style={styles.pickerColumn}>
-                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Día</Text>
-                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                        {days.map((d) => (
-                          <TouchableOpacity key={d} style={[styles.pickerItem, pickerDay === d && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerDay(d)}>
-                            <Text style={[styles.pickerItemText, { color: pickerDay === d ? themeColors.primary[600] : themeColors.text.primary }, pickerDay === d && { fontWeight: fontWeight.bold }]}>{String(d).padStart(2,'0')}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    {/* Month */}
-                    <View style={[styles.pickerColumn, { flex: 1.6 }]}>
-                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Mes</Text>
-                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                        {MONTHS.map((name, i) => (
-                          <TouchableOpacity key={i+1} style={[styles.pickerItem, pickerMonth === i+1 && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerMonth(i+1)}>
-                            <Text style={[styles.pickerItemText, { color: pickerMonth === i+1 ? themeColors.primary[600] : themeColors.text.primary }, pickerMonth === i+1 && { fontWeight: fontWeight.bold }]}>{name}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    {/* Year */}
-                    <View style={[styles.pickerColumn, { flex: 1.6 }]}>
-                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Año</Text>
-                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                        {years.map((y) => (
-                          <TouchableOpacity key={y} style={[styles.pickerItem, pickerYear === y && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerYear(y)}>
-                            <Text style={[styles.pickerItemText, { color: pickerYear === y ? themeColors.primary[600] : themeColors.text.primary }, pickerYear === y && { fontWeight: fontWeight.bold }]}>{y}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </View>
-                )}
+                ))}
               </View>
-            </Modal>
+              {!entregaUnica && (
+                <View style={{ marginTop: spacing.sm }}>
+                  <TareasDelTrabajo tareas={tareas} onChange={setTareas} themeColors={themeColors} error={errors.tareas} />
+                </View>
+              )}
+            </View>
 
             {/* Max Workers */}
             <View style={styles.inputGroup}>
@@ -972,6 +769,7 @@ export default function CreateJobScreen() {
 }
 
 const styles = StyleSheet.create({
+  entregaOpcion: { flex: 1, borderWidth: 1, borderRadius: borderRadius.lg, padding: spacing.md, gap: 2 },
   casilla: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
   casillaTrabada: { opacity: 0.6 },
   casillaTexto: { flex: 1 },
