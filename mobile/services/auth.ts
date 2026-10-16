@@ -173,3 +173,23 @@ export async function verifyEmail(token: string): Promise<ApiResponse<void>> {
 export async function resendVerificationEmail(): Promise<ApiResponse<void>> {
   return post<void>('/auth/resend-verification', {});
 }
+
+/**
+ * Cambiar la contraseña sin recordar la actual: el servidor envía un código de 6 números al correo (vale 15 minutos, un solo uso).
+ */
+export async function hasPassword(): Promise<ApiResponse<void> & { hasPassword?: boolean; isOAuth?: boolean }> {
+  return get<void>('/auth/has-password') as any;
+}
+
+export async function enviarCodigoDeContrasena(): Promise<ApiResponse<void>> {
+  return post<void>('/auth/password/send-code', {});
+}
+
+export async function cambiarContrasenaConCodigo(code: string, newPassword: string): Promise<ApiResponse<void> & { logout?: boolean }> {
+  return post<void>('/auth/password/change-with-code', { code, newPassword }) as any;
+}
+
+/** Para quien se registró con Google o X y todavía no tiene contraseña. */
+export async function establecerContrasena(newPassword: string): Promise<ApiResponse<void>> {
+  return post<void>('/auth/set-password', { newPassword });
+}

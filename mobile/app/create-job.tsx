@@ -37,6 +37,8 @@ import { createJob, createJobPaymentOrder, getCategories } from '../services/job
 import { get as apiGet } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
+import DireccionDelTrabajo from '../components/ui/DireccionDelTrabajo';
+import { sanearCalle, validarCalleYNumero } from '../../shared/geo/lugares';
 
 export default function CreateJobScreen() {
   const router = useRouter();
@@ -92,6 +94,9 @@ export default function CreateJobScreen() {
   }, []);
   const [location, setLocation] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [postalCode, setPostalCode] = useState('');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -195,6 +200,11 @@ export default function CreateJobScreen() {
       else if (parseFloat(price) > 999999999) newErrors.price = 'El precio máximo es $999,999,999 ARS';
     }
     if (!location.trim()) newErrors.location = 'La ubicación es requerida';
+    {
+      const separada = sanearCalle(addressStreet);
+      const problema = validarCalleYNumero(separada.numero && !addressNumber ? separada.calle : addressStreet, separada.numero && !addressNumber ? separada.numero : addressNumber);
+      if (problema) newErrors.address = problema;
+    }
     if (!startDate.trim()) newErrors.startDate = 'La fecha de inicio es requerida';
     else if (!isValidDate(startDate)) newErrors.startDate = 'Fecha inválida. Usá formato DD/MM/AAAA (ej: 25/03/2026)';
     if (!startTime.trim()) newErrors.startTime = 'La hora de inicio es requerida';
@@ -220,7 +230,11 @@ export default function CreateJobScreen() {
         const parts = dateStr.split('/');
         if (parts.length === 3) {
           const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          if (timeStr) return `${isoDate}T${timeStr}:00.000Z`;
+          // La hora que se elige es la del teléfono (Argentina), no UTC: sin esto un trabajo de las 09:00 se guardaba a las 06:00.
+          if (timeStr) {
+            const [hh, mm] = timeStr.split(':').map((x) => parseInt(x, 10) || 0);
+            return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10), hh, mm).toISOString();
+          }
           return isoDate;
         }
         return dateStr;
@@ -238,6 +252,14 @@ export default function CreateJobScreen() {
         ...(pagoAlTerminarDisponible && sinProteccion ? { paymentMode: 'on_completion' } : {}),
         location: location.trim(),
         neighborhood: neighborhood.trim() || undefined,
+        ...(() => {
+          const separada = sanearCalle(addressStreet);
+          const usarSeparada = separada.numero && !addressNumber;
+          const calle = (usarSeparada ? separada.calle : addressStreet).trim();
+          const numero = (usarSeparada ? separada.numero : addressNumber).trim();
+          return { addressStreet: calle || undefined, addressNumber: numero || undefined };
+        })(),
+        ...(coords ? { latitude: coords.lat, longitude: coords.lon } : {}),
         postalCode: postalCode.trim() || undefined,
         startDate: toISO(startDate, startTime || undefined),
         endDate: endDateFlexible ? undefined : (endDate ? toISO(endDate, endTime || undefined) : undefined),
@@ -289,7 +311,12 @@ export default function CreateJobScreen() {
             const paymentResponse = await createJobPaymentOrder(job.id, 'mercadopago');
 
 
-            if (paymentResponse.success && (paymentResponse as any).requiresPayment === false) {
+            // El cliente de la API devuelve los errores HTTP como respuesta (no los lanza): el 409 llega acá.
+            if (!paymentResponse.success && (paymentResponse as any).code === 'JOB_NOT_AWAITING_PAYMENT') {
+              showAlert('Esta publicación ya está paga', 'Mirá en qué está en «Mis trabajos».', () => {
+                router.replace('/my-jobs');
+              });
+            } else if (paymentResponse.success && (paymentResponse as any).requiresPayment === false) {
               // Free contract detected at payment step
               showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado con un contrato gratuito.', () => {
                 router.replace(`/job/${job.id}`);
@@ -331,6 +358,13 @@ export default function CreateJobScreen() {
             }
           } catch (payError: any) {
             console.error('Payment error:', payError.message);
+            // Ya no espera el pago (por un pago anterior o un toque repetido): no es un error, se lleva a ver en qué está.
+            if (payError?.code === 'JOB_NOT_AWAITING_PAYMENT' || /no está esperando el pago/i.test(String(payError?.message ?? ''))) {
+              showAlert('Esta publicación ya está paga', 'Mirá en qué está en «Mis trabajos».', () => {
+                router.replace('/my-jobs');
+              });
+              return;
+            }
             showAlert('Trabajo creado', 'Tu trabajo fue creado pero hubo un error al procesar el pago.', () => {
               router.replace(`/job/${job.id}`);
             });
@@ -501,10 +535,10 @@ export default function CreateJobScreen() {
                         color: themeColors.text.primary,
                       },
                     ]}
-                    placeholder="Ej: 15000"
+                    placeholder="Ej: 15.000"
                     placeholderTextColor={themeColors.text.muted}
-                    value={price}
-                    onChangeText={setPrice}
+                    value={price ? price.replace(/B(?=(d{3})+(?!d))/g, '.') : ''}
+                    onChangeText={(v) => setPrice(v.replace(/D/g, '').replace(/^0+(?=d)/, '').slice(0, 12))}
                     keyboardType="numeric"
                   />
                   <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
@@ -588,19 +622,20 @@ export default function CreateJobScreen() {
               )}
             </View>
 
-            {/* Location */}
-            <View style={[styles.inputGroup, { zIndex: 20 }]}>
-              <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                <MapPin size={16} color={themeColors.text.secondary} /> Ciudad/Localidad *
-              </Text>
-              <LocationAutocomplete
-                value={location}
-                onChangeText={setLocation}
-                placeholder="Ej: Córdoba Capital, Córdoba"
-                error={errors.location}
-                themeColors={themeColors}
-              />
-            </View>
+            {/* Ubicación, calle y número: lugares y calles reales; elegir una dirección completa barrio y código postal */}
+            <DireccionDelTrabajo
+              location={location}
+              onLocationChange={setLocation}
+              street={addressStreet}
+              onStreetChange={setAddressStreet}
+              number={addressNumber}
+              onNumberChange={setAddressNumber}
+              onNeighborhoodChange={setNeighborhood}
+              onPostalCodeChange={setPostalCode}
+              onCoordinatesChange={(lat, lon) => setCoords({ lat, lon })}
+              error={errors.location || errors.address}
+              themeColors={themeColors}
+            />
 
             {/* Neighborhood */}
             <View style={[styles.inputGroup, { zIndex: 10 }]}>

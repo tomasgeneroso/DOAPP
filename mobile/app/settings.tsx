@@ -596,7 +596,7 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => Alert.alert('Cambiar contraseña', 'Próximamente')}
+              onPress={() => router.push('/cambiar-contrasena' as any)}
             >
               <View style={styles.settingLeft}>
                 <Lock size={20} color={themeColors.text.secondary} />

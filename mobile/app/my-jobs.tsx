@@ -25,6 +25,7 @@ import { updateSettings } from '../services/auth';
 import { getMyJobs, getWorkerJobs } from '../services/jobs';
 import { Job, AvailabilitySlot, AvailabilitySchedule } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { estadoDePublicacion } from '../../shared/jobs/estadoDePublicacion';
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const DAY_NAMES_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -391,6 +392,21 @@ export default function MyJobsScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Por qué no está en el muro y qué sigue (solo las publicaciones propias que todavía no se ven) */}
+      {['draft', 'pending_payment', 'pending_approval', 'paused'].includes(item.status) && (() => {
+        const estado = estadoDePublicacion({ id: item.id, status: item.status });
+        if (!estado.explicacion) return null;
+        const aviso = estado.tono === 'atencion' ? colors.warning[600] : colors.primary[600];
+        return (
+          <View style={[styles.estadoCaja, { borderColor: aviso + '55', backgroundColor: aviso + '15' }]}>
+            <Text style={[styles.estadoTexto, { color: aviso }]}>
+              <Text style={{ fontWeight: fontWeight.semibold }}>{estado.etiqueta}. </Text>
+              {estado.explicacion}
+            </Text>
+          </View>
+        );
+      })()}
     </TouchableOpacity>
   );
 
@@ -799,6 +815,8 @@ export default function MyJobsScreen() {
 }
 
 const styles = StyleSheet.create({
+  estadoCaja: { marginTop: spacing.sm, borderWidth: 1, borderRadius: borderRadius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  estadoTexto: { fontSize: fontSize.xs, lineHeight: 17 },
   container: {
     flex: 1,
   },
