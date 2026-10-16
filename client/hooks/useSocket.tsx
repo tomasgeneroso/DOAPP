@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./useAuth";
 
@@ -60,6 +60,50 @@ let isGlobalConnecting = false;
 let lastConnectionAttempt = 0;
 let connectionGaveUp = false;
 
+/**
+ * El estado del socket (conexión, mensajes, quién escribe, quién está en línea) es UNO para toda la aplicación.
+ *
+ * Antes cada componente que llamaba a `useSocket()` tenía su PROPIA copia en `useState`, pero los oyentes del socket se registran una
+ * sola vez, con los `setState` del primer componente que lo usó (el menú, al entrar). Resultado: la pantalla del chat, abierta desde
+ * otra parte, nunca recibía los mensajes en vivo ni se enteraba de que el socket se había conectado (quedaba «sin conexión», no se
+ * unía a la sala), y los mensajes enviados aparecían recién al recargar la página; después de recargar funcionaba porque ahí la pantalla
+ * del chat pasaba a ser la primera en usar el socket. Con un único almacén, todos ven lo mismo.
+ */
+interface EstadoDelSocket {
+  socket: Socket | null;
+  isConnected: boolean;
+  messages: Message[];
+  typingUsers: Map<string, TypingStatus>;
+  onlineUsers: Set<string>;
+}
+let estadoDelSocket: EstadoDelSocket = {
+  socket: globalSocket,
+  isConnected: (globalSocket as Socket | null)?.connected ?? false,
+  messages: [],
+  typingUsers: new Map(),
+  onlineUsers: new Set(),
+};
+const suscriptoresDelSocket = new Set<() => void>();
+const suscribirseAlSocket = (aviso: () => void) => {
+  suscriptoresDelSocket.add(aviso);
+  return () => {
+    suscriptoresDelSocket.delete(aviso);
+  };
+};
+const leerEstadoDelSocket = () => estadoDelSocket;
+function cambiarEstadoDelSocket(parcial: Partial<EstadoDelSocket>): void {
+  estadoDelSocket = { ...estadoDelSocket, ...parcial };
+  suscriptoresDelSocket.forEach((aviso) => aviso());
+}
+const setIsConnected = (valor: boolean) => cambiarEstadoDelSocket({ isConnected: valor });
+const setSocket = (valor: Socket | null) => cambiarEstadoDelSocket({ socket: valor });
+const setMessages = (valor: Message[] | ((previos: Message[]) => Message[])) =>
+  cambiarEstadoDelSocket({ messages: typeof valor === "function" ? valor(estadoDelSocket.messages) : valor });
+const setTypingUsers = (cambio: (previos: Map<string, TypingStatus>) => Map<string, TypingStatus>) =>
+  cambiarEstadoDelSocket({ typingUsers: cambio(estadoDelSocket.typingUsers) });
+const setOnlineUsers = (cambio: (previos: Set<string>) => Set<string>) =>
+  cambiarEstadoDelSocket({ onlineUsers: cambio(estadoDelSocket.onlineUsers) });
+
 // Event handlers stored globally to survive re-renders
 const eventHandlers = {
   onContractUpdate: null as ((data: any) => void) | null,
@@ -92,11 +136,7 @@ const eventHandlers = {
 
 export function useSocket() {
   const { user } = useAuth();
-  const [socket, setSocket] = useState<Socket | null>(globalSocket);
-  const [isConnected, setIsConnected] = useState(globalSocket?.connected ?? false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [typingUsers, setTypingUsers] = useState<Map<string, TypingStatus>>(new Map());
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const { socket, isConnected, messages, typingUsers, onlineUsers } = useSyncExternalStore(suscribirseAlSocket, leerEstadoDelSocket);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
@@ -130,14 +170,14 @@ export function useSocket() {
       console.log("✅ Socket connected");
       connectionAttempts = 0;
       connectionGaveUp = false;
-      if (mountedRef.current) {
+      {
         setIsConnected(true);
       }
     });
 
     socketInstance.on("disconnect", (reason) => {
       console.log("❌ Socket disconnected:", reason);
-      if (mountedRef.current) {
+      {
         setIsConnected(false);
       }
 
@@ -149,7 +189,7 @@ export function useSocket() {
 
     socketInstance.on("connect_error", (error) => {
       console.error("Socket connection error:", error.message);
-      if (mountedRef.current) {
+      {
         setIsConnected(false);
       }
 
@@ -177,19 +217,19 @@ export function useSocket() {
         metadata: (message as any).metadata,
         fullMessage: message,
       });
-      if (mountedRef.current) {
+      {
         setMessages((prev) => [...prev, message]);
       }
     });
 
     socketInstance.on("conversation:history", ({ messages: historyMessages }) => {
-      if (mountedRef.current) {
+      {
         setMessages(historyMessages);
       }
     });
 
     socketInstance.on("message:read", ({ messageId, readAt }) => {
-      if (mountedRef.current) {
+      {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === messageId
@@ -202,7 +242,7 @@ export function useSocket() {
 
     // Message updated handler (for status changes like auto-selection)
     socketInstance.on("message:updated", (updatedMessage: Message) => {
-      if (mountedRef.current) {
+      {
         setMessages((prev) =>
           prev.map((msg) =>
             (msg.id === updatedMessage.id || msg.id === updatedMessage.id || msg.id === (updatedMessage as any).id)
@@ -215,7 +255,7 @@ export function useSocket() {
 
     // Typing handlers
     socketInstance.on("typing:update", (status: TypingStatus) => {
-      if (mountedRef.current) {
+      {
         setTypingUsers((prev) => {
           const newMap = new Map(prev);
           const key = `${status.conversationId}-${status.userId}`;
@@ -233,7 +273,7 @@ export function useSocket() {
 
     // Online status handlers
     socketInstance.on("user:status", ({ userId, isOnline }: UserStatus) => {
-      if (mountedRef.current) {
+      {
         setOnlineUsers((prev) => {
           const newSet = new Set(prev);
           if (isOnline) {
