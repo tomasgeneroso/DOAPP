@@ -2769,6 +2769,7 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
     // La liquidación (T&C 9.2 / 9.3) vive en services/jobCancellation.ts,
     // compartida con el rechazo y la cancelación aprobada por admin.
     const { liquidarCancelacionDePublicacion, mensajeDeCancelacion } = await import('../services/jobCancellation.js');
+    const { avisosParaElUsuario } = await import('../services/controlesDeDinero.js');
     const r = await liquidarCancelacionDePublicacion(job, {
       aprobada: true,
       horasHastaInicio: hoursUntilStart,
@@ -2783,15 +2784,20 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       // Si pidió devolución y salió por MP, el mensaje es otro: la plata no
       // está en su saldo, está volviendo a su tarjeta.
       message:
-        r.salida === 'devolucion'
-          ? `Se canceló "${job.title}" y se devolvieron $${r.devueltoPorMp.toLocaleString('es-AR')} al medio con que pagaste. Según el banco puede tardar unos días.`
-          : mensajeDeCancelacion(liq, job.title),
+        !r.plataMovida && liq.aCliente > 0
+          ? `Se canceló "${job.title}". Todavía no pudimos acreditar tu dinero: administración lo está revisando y te avisamos apenas esté.`
+          : r.salida === 'devolucion'
+            ? `Se canceló "${job.title}" y se devolvieron $${r.devueltoPorMp.toLocaleString('es-AR')} al medio con que pagaste. Según el banco puede tardar unos días.`
+            : mensajeDeCancelacion(liq, job.title),
+      plataMovida: r.plataMovida,
       refundTotal: liq.retieneApp === 0,
       salida: r.salida,
       devueltoPorMp: r.devueltoPorMp,
       // Lo que no se pudo hacer, si algo falló. El cliente tiene que saber que
       // administración lo está mirando, no descubrirlo por un saldo que no llega.
-      problemas: r.errores,
+      // Para el cliente: qué le pasó a SU plata, en palabras. Los números y el código técnico van a administración, no a esta respuesta.
+      problemas: avisosParaElUsuario(r.problemas).map((a) => a.mensaje),
+      avisos: avisosParaElUsuario(r.problemas),
       refund: {
         toClient: liq.aCliente,
         toWorker: liq.aTrabajador,

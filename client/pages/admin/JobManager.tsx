@@ -109,7 +109,6 @@ export default function AdminJobManager() {
 
   // Handle real-time job creation
   const handleNewJob = useCallback((data: any) => {
-    console.log("🆕 Real-time: New job created", data);
     setNewJobAlert(`Nuevo trabajo: ${data.job?.title || 'Sin título'}`);
     // Add job to the list if matching current filter
     if (data.job) {
@@ -131,7 +130,6 @@ export default function AdminJobManager() {
 
   // Handle real-time job updates
   const handleJobUpdated = useCallback((data: any) => {
-    console.log("📝 Real-time: Job updated", data);
     if (data.job) {
       setJobs(prev => {
         const exists = prev.some(j => j.id === data.job.id);

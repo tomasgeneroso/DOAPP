@@ -29,14 +29,12 @@ export default function AdminTickets() {
 
   // Real-time handlers
   const handleNewTicket = useCallback((data: any) => {
-    console.log('🔔 New ticket received:', data);
     setRealtimeAlert(`Nuevo ticket: ${data.ticket?.subject || 'Sin asunto'}`);
     setTickets(prev => [data.ticket, ...prev]);
     setTimeout(() => setRealtimeAlert(null), 5000);
   }, []);
 
   const handleTicketUpdated = useCallback((data: any) => {
-    console.log('🔔 Ticket updated:', data);
     setRealtimeAlert(`Ticket actualizado: ${data.ticket?.subject || 'Sin asunto'}`);
     setTickets(prev =>
       prev.map(t => (t.id === data.ticket?.id || t.id === data.ticket?.id) ? { ...t, ...data.ticket } : t)

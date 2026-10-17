@@ -59,15 +59,6 @@ export default function PaymentSuccess() {
     // const token = searchParams.get("token");
     // const payerId = searchParams.get("PayerID");
 
-    console.log("🔍 Payment Success - MercadoPago params:", {
-      collection_id,
-      payment_id,
-      preference_id,
-      status,
-      collection_status,
-      type: paymentType,
-      plan: membershipPlan
-    });
     console.log("🔍 All search params:", Object.fromEntries(searchParams));
     console.log("🔍 URL keys:", Array.from(searchParams.keys()));
 
@@ -108,10 +99,8 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
     // Capture/Verify the MercadoPago payment
     const confirmPayment = async () => {
       try {
-        console.log("📡 Verifying MercadoPago payment:", payment_id || collection_id);
 
         const authToken = localStorage.getItem("token");
-        console.log("🔑 Auth token exists:", !!authToken);
 
         const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {
           method: "POST",
@@ -127,7 +116,6 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           }),
         });
 
-        console.log("📥 Capture response status:", response.status);
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -136,7 +124,6 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
         }
 
         const data = await response.json();
-        console.log("✅ Payment captured successfully:", data);
 
         // Refrescar usuario para obtener la membresía actualizada
         if (paymentType === 'membership' || data.data?.membershipActivated) {

@@ -54,7 +54,6 @@ export default function Index() {
 
   // Handle real-time jobs refresh
   const handleJobsRefresh = useCallback((data?: any) => {
-    console.log("🔄 Real-time: Refreshing jobs list", data);
     // Re-fetch jobs without any filters to get latest list
     (async () => {
       try {
@@ -66,7 +65,6 @@ export default function Index() {
         const responseData = await response.json();
         if (responseData.success) {
           setJobs(responseData.jobs);
-          console.log("✅ Jobs list refreshed:", responseData.jobs.length, "jobs");
         }
       } catch (error) {
         console.error("Error refreshing jobs:", error);
@@ -102,12 +100,10 @@ export default function Index() {
     }
 
     try {
-      console.log('🔍 Fetching my jobs for user:', user.id);
       const response = await fetch(`/api/jobs`);
       const data = await response.json();
 
       if (data.success) {
-        console.log('📥 All jobs from API:', data.jobs.length);
 
         // Filter my jobs (all statuses)
         const myJobsList = data.jobs.filter((job: Job) => {
@@ -115,7 +111,6 @@ export default function Index() {
           const isMyJob = clientId === user.id;
 
           if (isMyJob) {
-            console.log('✅ Found my job:', job.title, 'status:', job.status);
           }
 
           return isMyJob;
@@ -221,7 +216,6 @@ export default function Index() {
         const data = await response.json();
 
         if (data.success && data.expiredJobsProcessed > 0) {
-          console.log(`⚠️ Processed ${data.expiredJobsProcessed} expired jobs`);
           // Refresh my jobs list to show updated statuses
           fetchMyJobs();
         }

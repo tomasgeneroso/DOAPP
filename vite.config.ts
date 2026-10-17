@@ -51,6 +51,12 @@ export default defineConfig({
       },
     },
   },
+  // En producción no quedan console.log/info/debug: mostraban en la consola del navegador datos de la sesión (ids de usuario, estructura de
+  // trabajos, tokens de notificaciones). console.error y console.warn se conservan: sirven para diagnosticar.
+  esbuild: {
+    pure: ["console.log", "console.info", "console.debug", "console.trace"],
+    drop: ["debugger"],
+  },
   build: {
     outDir: "dist/spa",
     chunkSizeWarningLimit: 800,

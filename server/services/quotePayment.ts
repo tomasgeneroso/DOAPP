@@ -3,6 +3,13 @@ import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { Op } from 'sequelize';
+import {
+  ErrorDeDinero,
+  avisarProblemasDeDinero,
+  comprobarSaldoContraLibro,
+  detalleDeSaldoContraLibro,
+  type SaldoContraLibro,
+} from './controlesDeDinero.js';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -274,12 +281,16 @@ export async function acreditarSaldo(
   const { User } = await import('../models/sql/User.model.js');
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
+  let descuadre = null as SaldoContraLibro | null;
   await sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
     if (!user) throw new Error(`Usuario ${userId} no encontrado al acreditar saldo`);
 
     const antes = parseFloat(String((user as any).balanceArs)) || 0;
     const despues = Math.round((antes + monto) * 100) / 100;
+
+    // Un crédito sobre un saldo que no cierra con el libro no se frena (el cliente tiene que recuperar su plata), pero queda avisado.
+    descuadre = await avisarSiNoCierra(userId, antes, t);
 
     await BalanceTransaction.create(
       {
@@ -302,6 +313,23 @@ export async function acreditarSaldo(
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
   });
+  if (descuadre) await avisarDescuadre(userId, descuadre, 'acreditar');
+}
+
+/**
+ * Compara el saldo con la suma de los asientos del usuario. Devuelve el descuadre si lo hay, o null si cierra.
+ * Se llama dentro de la transacción que ya bloqueó la fila del usuario.
+ */
+async function avisarSiNoCierra(userId: string, saldo: number, t: unknown): Promise<SaldoContraLibro | null> {
+  const r = await comprobarSaldoContraLibro(userId, saldo, t);
+  return r.cierra ? null : r;
+}
+
+async function avisarDescuadre(userId: string, d: SaldoContraLibro, que: 'acreditar' | 'debitar'): Promise<void> {
+  await avisarProblemasDeDinero(
+    [{ codigo: 'SALDO-NO-CIERRA-LIBRO', detalle: `al ${que} saldo: ${detalleDeSaldoContraLibro(userId, d)}` }],
+    { titulo: 'El saldo de un usuario no cierra con sus movimientos', userId, relatedModel: 'User', relatedId: userId },
+  );
 }
 
 /**
@@ -336,6 +364,7 @@ export async function debitarSaldo(
   const { User } = await import('../models/sql/User.model.js');
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
+  let descuadre = null as SaldoContraLibro | null;
   await sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
     if (!user) throw new Error(`Usuario ${userId} no encontrado al debitar saldo`);
@@ -343,6 +372,13 @@ export async function debitarSaldo(
     const antes = parseFloat(String((user as any).balanceArs)) || 0;
     if (antes + 0.005 < monto) throw new Error(`Saldo insuficiente: tiene ${antes}, se necesitan ${monto}`);
     const despues = Math.round((antes - monto) * 100) / 100;
+
+    // Un retiro SACA plata de la plataforma: no se ejecuta sobre un saldo que no cierra con el libro. Pagar algo dentro de la app no se
+    // frena (no sale plata), pero queda avisado.
+    descuadre = await avisarSiNoCierra(userId, antes, t);
+    if (descuadre && ref.tipo === 'withdrawal') {
+      throw new ErrorDeDinero('SALDO-NO-CIERRA-LIBRO', detalleDeSaldoContraLibro(userId, descuadre));
+    }
 
     await BalanceTransaction.create(
       {
@@ -367,6 +403,7 @@ export async function debitarSaldo(
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
   });
+  if (descuadre) await avisarDescuadre(userId, descuadre, 'debitar');
 }
 
 /**

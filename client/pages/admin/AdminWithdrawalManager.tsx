@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import IdBadge from '../../components/admin/IdBadge';
 import { statusDescription, withdrawalStatusDescriptions } from '../../utils/statusDescriptions';
 import { WithdrawalRequest } from '../../types';
@@ -38,6 +38,8 @@ export default function AdminWithdrawalManager() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Si el servidor frena el movimiento con un código de la guía de errores (p. ej. SALDO-NO-CIERRA-LIBRO), se muestra el enlace a su explicación.
+  const [guiaDelError, setGuiaDelError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [urlParams] = useSearchParams();
@@ -52,7 +54,6 @@ export default function AdminWithdrawalManager() {
 
   // Real-time handlers
   const handleNewWithdrawal = useCallback((data: any) => {
-    console.log('🔔 New withdrawal request:', data);
     const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
     setRealtimeAlert(`${t('admin.withdrawals.newRequest', 'New withdrawal request')}: $${amount}`);
     setWithdrawals(prev => [data.withdrawal, ...prev]);
@@ -63,7 +64,6 @@ export default function AdminWithdrawalManager() {
   }, []);
 
   const handleWithdrawalUpdated = useCallback((data: any) => {
-    console.log('🔔 Withdrawal updated:', data);
     const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
     setRealtimeAlert(`${t('admin.withdrawals.updated', 'Withdrawal updated')}: $${amount} - ${data.previousStatus} → ${data.withdrawal?.status}`);
     setWithdrawals(prev =>
@@ -143,6 +143,7 @@ export default function AdminWithdrawalManager() {
         setAdminNotes('');
       } else {
         setError(data.message || t('admin.withdrawals.errorApproving', 'Error approving'));
+        setGuiaDelError(typeof data.guia === 'string' ? data.guia : null);
       }
     } catch (err: any) {
       setError(err.message || t('admin.withdrawals.errorApproving', 'Error approving'));
@@ -172,6 +173,7 @@ export default function AdminWithdrawalManager() {
         await loadData();
       } else {
         setError(data.message || t('admin.withdrawals.errorProcessing', 'Error processing'));
+        setGuiaDelError(typeof data.guia === 'string' ? data.guia : null);
       }
     } catch (err: any) {
       setError(err.message || t('admin.withdrawals.errorProcessing', 'Error processing'));
@@ -212,6 +214,7 @@ export default function AdminWithdrawalManager() {
         setShowDetailsModal(false);
       } else {
         setError(data.message || t('admin.withdrawals.errorCompleting', 'Error completing'));
+        setGuiaDelError(typeof data.guia === 'string' ? data.guia : null);
       }
     } catch (err: any) {
       setError(err.message || t('admin.withdrawals.errorCompleting', 'Error completing'));
@@ -351,6 +354,11 @@ export default function AdminWithdrawalManager() {
         <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <p className="text-red-800 dark:text-red-200">{error}</p>
+          {guiaDelError && (
+            <Link to={guiaDelError} className="mt-2 inline-block text-sm font-medium text-sky-700 underline dark:text-sky-300">
+              Ver qué significa y qué hacer
+            </Link>
+          )}
         </div>
       )}
       </Transicion>

@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { Job } from '../models/sql/Job.model.js';
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { User } from '../models/sql/User.model.js';
@@ -8,6 +9,15 @@ import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { acreditarSaldo } from './quotePayment.js';
 import { componentesDelPago } from './payoutAmount.js';
+import { problemaDelCatalogo, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
+import {
+  avisarProblemasDeDinero,
+  controlarPagoOriginal,
+  problemaDesdeControles,
+  textoDelProblema,
+  type Control,
+  type MercadoPagoEnVivo,
+} from './controlesDeDinero.js';
 
 /**
  * Liquidar la cancelacion de una PUBLICACION (un trabajo, con o sin trabajador
@@ -66,6 +76,12 @@ export interface ResultadoCancelacionPublicacion {
    * cancelacion igual ocurrio pero hay plata que un humano tiene que mover.
    */
   errores: string[];
+  /** Lo mismo que `errores` pero con código del catálogo (lleva a la guía del admin) y los números exactos. */
+  problemas: ProblemaDeDinero[];
+  /** Las comprobaciones que se hicieron sobre el pago original, con lo esperado y lo encontrado. */
+  controles: Control[];
+  /** Si de verdad se movió plata al cliente (saldo o devolución). false = quedó para revisión y NO hay que decirle que ya tiene su dinero. */
+  plataMovida: boolean;
 }
 
 const $ = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
@@ -85,6 +101,14 @@ export async function liquidarCancelacionDePublicacion(
   },
 ): Promise<ResultadoCancelacionPublicacion> {
   const errores: string[] = [];
+  const problemas: ProblemaDeDinero[] = [];
+  let controles: Control[] = [];
+  // Un solo lugar donde se anota un problema: el texto legible y el código con sus números van siempre juntos.
+  const anotar = (codigo: CodigoDeProblema, detalle: string, extra?: Partial<ProblemaDeDinero>) => {
+    const p: ProblemaDeDinero = { codigo, detalle, ...extra };
+    problemas.push(p);
+    errores.push(textoDelProblema(p));
+  };
   const jobPrice = Number(job.price) || 0;
   const selectedWorkers: string[] = Array.isArray(job.selectedWorkers) ? (job.selectedWorkers as any) : [];
   const hasWorker = selectedWorkers.length > 0;
@@ -97,7 +121,7 @@ export async function liquidarCancelacionDePublicacion(
   try {
     pagoReal = job.publicationPaymentId ? await Payment.findByPk(job.publicationPaymentId) : null;
   } catch (e: any) {
-    errores.push(`no se pudo leer el pago de la publicación: ${e?.message}`);
+    anotar('PAGO-NO-LEIDO', `no se pudo leer el pago de la publicación: ${e?.message}`);
   }
   const { comision, iva, procesamiento } = componentesDelPago(pagoReal as any, jobPrice);
 
@@ -127,19 +151,74 @@ export async function liquidarCancelacionDePublicacion(
   if (salida === 'devolucion' && (!mpPaymentId || netoSiSale <= 0 || yaDevuelto > 0)) {
     salida = 'saldo';
     if (liq.aCliente > 0) {
-      errores.push(
-        !mpPaymentId
-          ? 'no hay un pago de Mercado Pago contra el cual devolver; se acreditó como saldo'
-          : yaDevuelto > 0
-            ? 'ese pago ya tuvo una devolución; se acreditó como saldo'
-            : 'no quedaba monto para devolver; se acreditó como saldo',
-      );
+      if (!mpPaymentId) anotar('DEV-SIN-ID-DE-PAGO', 'el pago de la publicación no tiene número de operación de Mercado Pago (se confirmó a mano, o se pagó por otro medio)');
+      else if (yaDevuelto > 0) anotar('DEV-YA-DEVUELTO', `el pago ya tiene devuelto ${$(yaDevuelto)}`);
+      else anotar('DEV-SIN-MONTO', `el neto a devolver dio ${$(netoSiSale)} (le tocan ${$(liq.aCliente)} y se retienen ${$(liq.alRetirar.comision)})`);
     }
   }
 
-  let devueltoPorMp = 0;
-
+  // ANTES de mover plata: el pago que la justifica tiene que estar confirmado, ser del cliente y de esta publicacion, y cerrar en monto,
+  // moneda y fecha. Para devolver por Mercado Pago se le pregunta ademas a Mercado Pago, en este momento.
+  const jobParaControlar = {
+    id: String(job.id),
+    clientId: String(job.clientId),
+    price: jobPrice,
+    publicationPaymentId: (job as any).publicationPaymentId ? String((job as any).publicationPaymentId) : null,
+    publicationPaid: (job as any).publicationPaid === true,
+  };
+  const canceladoEl = (job as any).cancelledAt ? new Date((job as any).cancelledAt) : new Date();
+  let mpEnVivo: MercadoPagoEnVivo | null | undefined;
+  let devolucionesRecientes = 0;
   if (salida === 'devolucion') {
+    try {
+      const mercadoPagoService = (await import('./mercadopago.js')).default;
+      mpEnVivo = (await mercadoPagoService.getPayment(String(mpPaymentId), 'mercadopago')) as MercadoPagoEnVivo;
+    } catch {
+      mpEnVivo = null;
+    }
+    try {
+      devolucionesRecientes = await Payment.count({
+        where: { payerId: job.clientId, paymentType: 'job_publication', refundedAmount: { [Op.gt]: 0 }, refundedAt: { [Op.gte]: new Date(Date.now() - 30 * 86_400_000) } } as any,
+      });
+    } catch {
+      /* sin el dato, el control de ritmo cuenta 0: no se inventa un bloqueo */
+    }
+  }
+
+  let control = controlarPagoOriginal({
+    job: jobParaControlar,
+    pago: pagoReal as any,
+    monto: salida === 'devolucion' ? netoSiSale : liq.aCliente,
+    destino: salida === 'devolucion' ? 'medio' : 'saldo',
+    canceladoEl,
+    mpEnVivo,
+    devolucionesRecientesDelCliente: devolucionesRecientes,
+  });
+  controles = control.controles;
+
+  // Un control de la devolucion por el medio de pago fallo, pero el dinero SI llego: no sale por Mercado Pago (lo revisa una persona), y el
+  // cliente lo recupera como saldo, que es lo que no depende de nadie de afuera.
+  if (salida === 'devolucion' && !control.aprobado && control.recibioElDinero) {
+    salida = 'saldo';
+    const p = problemaDesdeControles('DEV-CONTROL-FALLIDO', control, 'la devolución al medio de pago quedó para revisión y el dinero se acreditó como saldo');
+    anotar('DEV-CONTROL-FALLIDO', p.detalle, { controles: p.controles });
+    // Para el saldo alcanzan las comprobaciones de recepción. Se conservan en `controles` las de la primera pasada, que incluyen la que falló.
+    control = controlarPagoOriginal({ job: jobParaControlar, pago: pagoReal as any, monto: liq.aCliente, destino: 'saldo', canceladoEl });
+  }
+
+  // El pago no esta confirmado, o no es de este cliente / esta publicacion, o no cierra: NO se acredita nada ni se devuelve nada. El trabajo
+  // ya quedo cancelado; la plata la resuelve una persona con los numeros a la vista (si no, acreditar "a ciegas" le regalaria saldo a quien
+  // nunca pago).
+  const moverPlata = control.aprobado || (salida === 'saldo' && control.recibioElDinero);
+  if (!moverPlata) {
+    const p = problemaDesdeControles('PAGO-SIN-CONFIRMAR', control, 'no se movió dinero');
+    anotar('PAGO-SIN-CONFIRMAR', p.detalle, { controles: p.controles });
+  }
+
+  let devueltoPorMp = 0;
+  let acreditado = false;
+
+  if (moverPlata && salida === 'devolucion') {
     try {
       const mercadoPagoService = (await import('./mercadopago.js')).default;
       // refundPayment deriva su propia clave de idempotencia del pago y el
@@ -148,16 +227,18 @@ export async function liquidarCancelacionDePublicacion(
       devueltoPorMp = netoSiSale;
 
       if (pagoReal) {
-        await pagoReal.update({
-          refundedAmount: netoSiSale,
-          refundedAt: new Date(),
-          refundReason: `Cancelación de "${job.title}"`,
-          status: 'refunded',
-        } as any).catch((e: any) => {
-          // La plata SALIO. Que no se haya podido anotar es grave y tiene que
-          // verlo alguien, pero no se puede "deshacer" la devolucion.
-          errores.push(`la devolución salió (${r.refundId}) pero no se pudo registrar en el pago: ${e?.message}`);
-        });
+        await pagoReal
+          .update({
+            refundedAmount: netoSiSale,
+            refundedAt: new Date(),
+            refundReason: `Cancelación de "${job.title}"`,
+            status: 'refunded',
+          } as any)
+          .catch((e: any) => {
+            // La plata SALIO. Que no se haya podido anotar es grave y tiene que
+            // verlo alguien, pero no se puede "deshacer" la devolucion.
+            anotar('DEV-REGISTRO-FALLIDO', `la devolución salió (${r.refundId}) pero no se pudo registrar en el pago: ${e?.message}`);
+          });
       }
 
       await Notification.create({
@@ -168,27 +249,27 @@ export async function liquidarCancelacionDePublicacion(
         message:
           `Se canceló "${job.title}" y se devolvieron ${$(netoSiSale)} al mismo medio con que pagaste. ` +
           `Según el banco o la tarjeta puede tardar unos días en verse.` +
-          (liq.alRetirar.comision > 0
-            ? ` Se descontaron ${$(liq.alRetirar.comision)} de la comisión por la revisión que ya se hizo.`
-            : '') +
+          (liq.alRetirar.comision > 0 ? ` Se descontaron ${$(liq.alRetirar.comision)} de la comisión por la revisión que ya se hizo.` : '') +
           (liq.procesamientoNoVuelve > 0
             ? ` El costo de procesamiento del pago (${$(liq.procesamientoNoVuelve)}) no se devuelve: la pasarela ya lo cobró.`
             : ''),
         relatedModel: 'Job',
         relatedId: job.id,
         read: false,
-      } as any).catch(() => { /* avisar es importante, pero la plata ya se movio */ });
+      } as any).catch(() => {
+        /* avisar es importante, pero la plata ya se movio */
+      });
     } catch (e: any) {
       // No salio por MP: se cae a saldo, que es el camino que no depende de
       // nadie de afuera. El cliente recupera todo y decide despues.
       salida = 'saldo';
-      errores.push(`no se pudo devolver por Mercado Pago (${e?.message}); se acreditó como saldo a favor`);
+      anotar('DEV-MP-RECHAZADA', `Mercado Pago no pudo devolver el pago ${mpPaymentId}: ${e?.message}. Se acreditó como saldo a favor`);
     }
   }
 
   // Al cliente, como saldo a favor. acreditarSaldo bloquea la fila y escribe
   // el asiento en la misma transaccion: saldo y libro no pueden separarse.
-  if (salida === 'saldo' && liq.aCliente > 0) {
+  if (moverPlata && salida === 'saldo' && liq.aCliente > 0) {
     try {
       const client = await User.findByPk(job.clientId, { attributes: ['id'] });
       if (!client) throw new Error('el cliente del trabajo no existe');
@@ -209,8 +290,12 @@ export async function liquidarCancelacionDePublicacion(
           alRetirar: liq.alRetirar,
           horasHastaInicio: Math.round(opts.horasHastaInicio * 100) / 100,
           actor: opts.actor,
+          // Que se comprobo del pago antes de acreditar: quien lo confirmo, monto y fecha. Es lo que se mira si despues hay un reclamo.
+          comprobaciones: control.controles.map(({ id, ok, esperado, encontrado }) => ({ id, ok, esperado, encontrado })),
+          pagoId: (pagoReal as any)?.id ?? null,
         },
       });
+      acreditado = true;
 
       await Notification.create({
         recipientId: job.clientId,
@@ -221,12 +306,14 @@ export async function liquidarCancelacionDePublicacion(
         relatedModel: 'Job',
         relatedId: job.id,
         read: false,
-      } as any).catch(() => { /* el saldo ya esta acreditado; el aviso es secundario */ });
+      } as any).catch(() => {
+        /* el saldo ya esta acreditado; el aviso es secundario */
+      });
     } catch (e: any) {
       // Lo peor que puede pasar: el trabajo cancelado y la plata sin mover.
       // No se traga: queda en el libro, se le avisa a administracion, y el
       // llamador lo devuelve para que el cliente lo vea.
-      errores.push(`no se pudo acreditar el saldo del cliente: ${e?.message}`);
+      anotar('SALDO-ACREDITACION-FALLIDA', `no se pudo acreditar ${$(liq.aCliente)} al cliente: ${e?.message}`);
     }
   }
 
@@ -251,7 +338,7 @@ export async function liquidarCancelacionDePublicacion(
           metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice },
         });
       } catch (e: any) {
-        errores.push(`no se pudo acreditar la compensación del trabajador ${workerId}: ${e?.message}`);
+        anotar('TRABAJADOR-COMPENSACION-FALLIDA', `no se pudo acreditar ${$(porTrabajador)} al trabajador ${workerId}: ${e?.message}`);
         continue;
       }
 
@@ -286,10 +373,14 @@ export async function liquidarCancelacionDePublicacion(
     }
   }
 
+  // Las notas informativas (por ejemplo "ese pago no tiene numero de Mercado Pago, se acredito como saldo") no alarman a nadie: el dinero se
+  // movio bien. Solo avisa a administracion lo que de verdad necesita una persona.
+  const paraAdmin = problemas.filter((p) => problemaDelCatalogo(p.codigo)?.gravedad !== 'baja');
+
   await logMoneyEvent({
     action: 'JOB_CANCELLED_SETTLED',
     actor: `${opts.actor.tipo === 'admin' ? 'admin' : 'user'}:${opts.actor.id}`,
-    severity: errores.length > 0 ? 'high' : liq.aTrabajador > 0 ? 'medium' : 'low',
+    severity: paraAdmin.length > 0 ? 'high' : liq.aTrabajador > 0 ? 'medium' : 'low',
     description:
       `Publicación cancelada (${opts.actor.tipo}). Regla: ${liq.regla}. Salida: ${salida}.` +
       `${opts.motivo ? ` Motivo: ${opts.motivo}` : ''}` +
@@ -298,34 +389,23 @@ export async function liquidarCancelacionDePublicacion(
     monto: jobPrice,
     moneda: 'ARS',
     metadata: {
-      jobId: job.id, ...liq, salida, devueltoPorMp, errores,
+      jobId: job.id, ...liq, salida, devueltoPorMp, errores, problemas, controles,
       horasHastaInicio: Math.round(opts.horasHastaInicio * 100) / 100,
       trabajadores: selectedWorkers,
     },
   }).catch(() => {});
 
-  // Plata que no se movio: tiene que verlo una persona hoy, no aparecer en la
-  // auditoria de saldos dentro de una semana.
-  if (errores.length > 0) {
-    try {
-      const { Op } = await import('sequelize');
-      const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
-      for (const admin of admins) {
-        await Notification.create({
-          recipientId: admin.id,
-          type: 'error',
-          category: 'admin',
-          title: 'Cancelación con plata sin mover',
-          message: `Se canceló "${job.title}" pero algo falló: ${errores.join(' | ')}. Revisalo en el libro de dinero.`,
-          relatedModel: 'Job',
-          relatedId: job.id,
-          sentVia: ['in_app'],
-        } as any);
-      }
-    } catch { /* si ni esto se puede, queda el asiento del libro */ }
-  }
+  // Plata que no se movio: tiene que verlo una persona hoy, no aparecer en la auditoria de saldos dentro de una semana. La notificacion
+  // lleva el codigo y el enlace a la guia.
+  await avisarProblemasDeDinero(paraAdmin, {
+    titulo: `Cancelación con plata sin mover o a revisar: "${job.title}"`,
+    relatedModel: 'Job',
+    relatedId: String(job.id),
+    userId: String(job.clientId),
+    actor: `${opts.actor.tipo === 'admin' ? 'admin' : 'user'}:${opts.actor.id}`,
+  });
 
-  return { liq, trabajadores: selectedWorkers, porTrabajador, salida, devueltoPorMp, errores };
+  return { liq, trabajadores: selectedWorkers, porTrabajador, salida, devueltoPorMp, errores, problemas, controles, plataMovida: devueltoPorMp > 0 || acreditado };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

@@ -209,14 +209,6 @@ export function useSocket() {
     // Message handlers
     socketInstance.on("message:new", (message: Message) => {
       // Debug logging for socket messages - TEMPORARY
-      console.log('🔔 Socket message:new received:', {
-        id: (message as any).id || message.id,
-        type: message.type,
-        hasMessage: !!(message as any).message,
-        messageField: (message as any).message?.substring?.(0, 50),
-        metadata: (message as any).metadata,
-        fullMessage: message,
-      });
       {
         setMessages((prev) => [...prev, message]);
       }

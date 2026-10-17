@@ -74,6 +74,8 @@ describe('saldos: acreditar, debitar, liquidar y auditar', () => {
       amountArs: 42511.27,
       currency: 'ARS',
       status: 'held_escrow',
+      // Un pago confirmado por Mercado Pago: sin esto la cancelación no acredita nada (PAGO-SIN-CONFIRMAR).
+      mercadopagoStatus: 'approved',
       paymentType: 'job_publication',
       platformFee: 3600,
       processingCharge: 1781.22,

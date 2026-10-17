@@ -56,6 +56,7 @@ import ErrorModal from "../components/jobDetail/ErrorModal";
 import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
 import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
 import CancelJobModal from "../components/jobDetail/CancelJobModal";
+import CancelacionResultadoModal, { type ResultadoDeCancelacion } from "../components/jobDetail/CancelacionResultadoModal";
 import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
 import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
 import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
@@ -87,6 +88,8 @@ export default function JobDetail() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  // Qué pasó con el dinero al cancelar, cuando hay algo que explicar (devolución a revisión, un aviso). Si no hay nada, se sigue de largo.
+  const [resultadoCancelacion, setResultadoCancelacion] = useState<ResultadoDeCancelacion | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -197,7 +200,6 @@ export default function JobDetail() {
           data.contract?.id === contractData.id ||
           data.contract?.jobId === id)
       ) {
-        console.log("📋 Contract updated:", data);
         if (data.contract) {
           setContractData((prev) =>
             prev
@@ -228,7 +230,6 @@ export default function JobDetail() {
   const handleNewProposal = useCallback(
     (data: any) => {
       if (data.proposal?.jobId === id || data.proposal?.job?.id === id) {
-        console.log("🆕 New proposal received for this job:", data);
         setNewProposalAlert(
           t("jobs.newApplication", "New application from {{name}}", {
             name:
@@ -251,7 +252,6 @@ export default function JobDetail() {
   const handleJobUpdate = useCallback(
     (data: any) => {
       if (data.jobId === id || data.job?.id === id) {
-        console.log("📝 Job updated:", data);
         if (data.job && typeof data.job === "object") {
           setJob((prev) => (prev ? { ...prev, ...data.job } : data.job));
         } else if (data.selectedWorkers !== undefined || data.status !== undefined) {
@@ -280,7 +280,6 @@ export default function JobDetail() {
         data.job?.id === id ||
         data.action === "updated"
       ) {
-        console.log("🔄 Jobs refresh signal received, refetching job:", id);
         setRefreshKey((prev) => prev + 1);
       }
     },
@@ -387,18 +386,6 @@ export default function JobDetail() {
           },
         );
         const data = await response.json();
-        console.log("📋 Proposals fetched:", {
-          success: data.success,
-          count: data.proposals?.length,
-          proposals: data.proposals?.map((p: any) => ({
-            id: p.id,
-            isCounterOffer: p.isCounterOffer,
-            proposedPrice: p.proposedPrice,
-            originalJobPrice: p.originalJobPrice,
-            status: p.status,
-            freelancerName: p.freelancer?.name,
-          })),
-        });
         if (data.success) {
           setProposals(data.proposals || []);
         }
@@ -970,12 +957,15 @@ export default function JobDetail() {
          * en `problemas`: se muestra y NO se navega, porque irse al dashboard
          * dejaría al cliente esperando un dinero que nadie le va a mandar solo.
          */
-        if (Array.isArray(data.problemas) && data.problemas.length > 0) {
-          notify(
-            `${data.message} Hubo un problema al mover el dinero: ${data.problemas.join(" · ")}. ` +
-              `Administración ya fue avisada y lo va a resolver.`,
-            "warning",
-          );
+        if ((Array.isArray(data.avisos) && data.avisos.length > 0) || data.plataMovida === false) {
+          setResultadoCancelacion({
+            titulo: job.title,
+            salida: data.salida,
+            plataMovida: data.plataMovida,
+            devueltoPorMp: data.devueltoPorMp,
+            refund: data.refund,
+            avisos: Array.isArray(data.avisos) ? data.avisos : [],
+          });
           return;
         }
         // Sin problemas: de vuelta a donde estaba (por ejemplo «Mis trabajos»). El detalle de la liquidación le llega
@@ -4719,6 +4709,13 @@ export default function JobDetail() {
           onClose={() => setShowPauseApprovalModal(false)}
         />
 
+        <CancelacionResultadoModal
+          resultado={resultadoCancelacion}
+          onClose={() => {
+            setResultadoCancelacion(null);
+            if (job) navigate(rutaAnterior("/my-jobs", (r) => r.startsWith(`/jobs/${job.id}`)), { replace: true });
+          }}
+        />
         <CancelJobModal
           open={showCancelModal}
           timeRemaining={getTimeUntilCancelDeadline()}

@@ -48,21 +48,13 @@ export default function MembershipPaymentSuccess() {
     const preferenceId = searchParams.get("preference_id");
     const plan = searchParams.get("plan");
 
-    console.log("🔍 Membership Payment Success - MercadoPago params:", {
-      paymentId,
-      status,
-      preferenceId,
-      plan
-    });
 
     // Si es aprobado, activar la membresía automáticamente
     if (status === "approved" && paymentId) {
       const confirmPayment = async () => {
         try {
-          console.log("📡 Activating membership with MercadoPago payment:", paymentId);
 
           const authToken = localStorage.getItem("token");
-          console.log("🔑 Auth token exists:", !!authToken);
 
           // Refrescar usuario para obtener la membresía actualizada
           // La membresía se activa automáticamente desde el webhook de MercadoPago
@@ -96,7 +88,6 @@ export default function MembershipPaymentSuccess() {
 
     const confirmPayment = async () => {
       try {
-        console.log("📡 Capturing PayPal order:", token);
         const authToken = localStorage.getItem("token");
 
         const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {

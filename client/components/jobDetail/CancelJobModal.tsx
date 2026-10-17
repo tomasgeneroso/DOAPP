@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { XCircle, Clock, Loader2, Wallet, Undo2 } from "lucide-react";
+import Modal from "../ui/Modal";
 
 export type SalidaDeLaPlata = "saldo" | "devolucion";
 
@@ -40,21 +41,41 @@ export default function CancelJobModal({
    * de cancelar. Quien quiere la plata de vuelta lo dice explícitamente.
    */
   const [salida, setSalida] = useState<SalidaDeLaPlata>("saldo");
-  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-            <XCircle className="h-6 w-6 text-red-500" />
-          </div>
-          <h3 className="text-xl font-bold text-white">
-            {t("jobs.cancelListing", "Cancel Listing")}
-          </h3>
+    <Modal
+      open={open}
+      onClose={() => {
+        if (!loading) onClose();
+      }}
+      cerrarAlTocarElFondo={!loading}
+      tone="danger"
+      icon={
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/20">
+          <XCircle className="h-5 w-5 text-red-500" aria-hidden="true" />
         </div>
-
-        <div className="mb-6 space-y-4">
+      }
+      title={t("jobs.cancelListing", "Cancel Listing")}
+      footer={
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
+          >
+            {t("jobs.keepPublished", "No, keep published")}
+          </button>
+          <button
+            onClick={() => onConfirm(salida)}
+            disabled={loading}
+            className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : t("common.yesCancel", "Yes, cancel")}
+          </button>
+        </div>
+      }
+    >
+        <div className="space-y-4">
           <p className="text-slate-300">
             {t("jobs.confirmCancelListing", "Are you sure you want to cancel this listing?")}
           </p>
@@ -207,28 +228,6 @@ export default function CancelJobModal({
             </div>
           )}
         </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-          >
-            {t("jobs.keepPublished", "No, keep published")}
-          </button>
-          <button
-            onClick={() => onConfirm(salida)}
-            disabled={loading}
-            className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-            ) : (
-              t("common.yesCancel", "Yes, cancel")
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

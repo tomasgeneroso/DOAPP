@@ -939,7 +939,6 @@ export default function PendingPayments() {
       });
 
       const data = await response.json();
-      console.log("[DEBUG] handleViewPayment response:", data);
       if (data.success) {
         // API returns data.data, not data.paymentDetails
         setSelectedPayment(data.data || data.paymentDetails);

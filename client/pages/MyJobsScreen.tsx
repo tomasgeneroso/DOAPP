@@ -504,7 +504,6 @@ export default function MyJobsScreen() {
   useEffect(() => {
     // Handler for individual job updates
     registerJobUpdateHandler((data: any) => {
-      console.log("💼 MyJobsScreen: Job updated via socket:", data);
       const jobId = data.jobId || data.job?.id;
       setJobs(prev => {
         const jobExists = prev.some(job => job.id === jobId);
@@ -534,7 +533,6 @@ export default function MyJobsScreen() {
 
     // Handler for new proposals on my jobs
     registerNewProposalHandler((data: any) => {
-      console.log("📝 MyJobsScreen: New proposal received via socket:", data);
       fetchMyJobs();
       fetchMyProposals();
     });

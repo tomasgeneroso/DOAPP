@@ -90,7 +90,6 @@ export function useFacebookLogin() {
       try {
         window.FB.login(
           (response: FBLoginStatus) => {
-            console.log('📘 Facebook login response:', response.status);
             if (response.status === "connected" && response.authResponse) {
               authenticateWithBackend(response.authResponse.accessToken, response.authResponse.userID);
             } else {

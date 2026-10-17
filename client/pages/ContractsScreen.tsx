@@ -64,10 +64,8 @@ export default function ContractsScreen() {
         credentials: 'include',
       });
       const data = await response.json();
-      console.log('📦 API Response:', data);
 
       if (data.success) {
-        console.log('✅ Contratos recibidos:', data.contracts?.length || 0);
         if (reset) {
           setContracts(data.contracts || []);
         } else {
@@ -95,7 +93,6 @@ export default function ContractsScreen() {
   useEffect(() => {
     // Handler for individual contract updates
     registerContractUpdateHandler((data: any) => {
-      console.log("📝 ContractsScreen: Contract updated via socket:", data);
       // Update the specific contract in the list
       setContracts(prev => prev.map(contract =>
         contract.id === data.contractId ? { ...contract, ...data.contract } : contract

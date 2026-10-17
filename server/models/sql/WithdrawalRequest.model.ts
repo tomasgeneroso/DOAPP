@@ -16,6 +16,7 @@ import {
 import { User } from './User.model.js';
 import { BalanceTransaction } from './BalanceTransaction.model.js';
 import { encryptCBU, decryptCBU, maskCBU } from '../../utils/encryption.js';
+import { ErrorDeDinero } from '../../services/controlesDeDinero.js';
 
 /**
  * WithdrawalRequest Model - PostgreSQL/Sequelize
@@ -224,11 +225,30 @@ export class WithdrawalRequest extends Model {
       instance.amount !== undefined &&
       instance.balanceAfterWithdrawal !== undefined
     ) {
-      const expected = Number(instance.balanceBeforeWithdrawal) - Number(instance.amount);
-      const actual = Number(instance.balanceAfterWithdrawal);
+      const antes = Number(instance.balanceBeforeWithdrawal);
+      const aTransferir = Number(instance.amount);
+      const despues = Number(instance.balanceAfterWithdrawal);
+      const meta: any = instance.metadata || {};
+      // Lo que se debita del saldo NO es siempre lo que se transfiere: si parte del saldo son devoluciones de publicaciones canceladas, se
+      // retiene comisión. Esa retención se cobró (no se perdió), así que sale del saldo igual. Comparar contra el monto transferido hacía
+      // fallar TODO retiro con retención («Balance calculation error»).
+      const debitado = Number(meta.saldoDebitado) > 0 ? Number(meta.saldoDebitado) : aTransferir;
+      const retencion = Number(meta.retencion) || 0;
+      const peso = (n: number) => `$${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
 
-      if (Math.abs(expected - actual) > 0.01) {
-        throw new Error('Balance calculation error');
+      if (Math.abs(antes - debitado - despues) > 0.01) {
+        throw new ErrorDeDinero(
+          'RETIRO-CUENTA-NO-CIERRA',
+          `saldo antes ${peso(antes)} − saldo que se debita ${peso(debitado)} = ${peso(antes - debitado)}, pero el saldo después guardado es ${peso(despues)} ` +
+            `(diferencia ${peso(antes - debitado - despues)}). A transferir ${peso(aTransferir)}, retención ${peso(retencion)}.`,
+        );
+      }
+      if (Math.abs(aTransferir + retencion - debitado) > 0.01) {
+        throw new ErrorDeDinero(
+          'RETIRO-CUENTA-NO-CIERRA',
+          `a transferir ${peso(aTransferir)} + retención ${peso(retencion)} = ${peso(aTransferir + retencion)}, pero el saldo que se debita es ${peso(debitado)} ` +
+            `(diferencia ${peso(aTransferir + retencion - debitado)}).`,
+        );
       }
     }
 

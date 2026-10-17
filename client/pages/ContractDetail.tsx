@@ -140,10 +140,8 @@ export default function ContractDetail() {
   // Register socket handler for real-time contract updates
   useEffect(() => {
     const handler = (data: any) => {
-      console.log("📝 ContractDetail: Contract updated via socket:", data);
       // Only reload if this is the same contract
       if (data.contractId === id) {
-        console.log("🔄 ContractDetail: Reloading contract data...");
         loadContract();
         loadPayments();
       }

@@ -12,6 +12,7 @@ import { Op, cast, col, where as sqlWhere } from 'sequelize';
 const asText = (column: string, matcher: any) => sqlWhere(cast(col(column), 'text'), matcher);
 import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
 import { logAudit } from "../../utils/auditLog.js";
+import { respuestaDeErrorDeDinero } from "../../services/controlesDeDinero.js";
 
 const router = express.Router();
 
@@ -420,6 +421,12 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     });
   } catch (error: any) {
     console.error("Error completing withdrawal:", error);
+    // Un problema de dinero con código (por ejemplo, el saldo no cierra con el libro): el admin ve los números exactos y la guía.
+    const deDinero = respuestaDeErrorDeDinero(error, true);
+    if (deDinero) {
+      res.status(deDinero.status).json(deDinero.body);
+      return;
+    }
     res.status(500).json({
       success: false,
       message: error.message || "Error al completar retiro"

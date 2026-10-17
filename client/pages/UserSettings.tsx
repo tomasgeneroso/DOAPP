@@ -45,6 +45,7 @@ import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, format
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import Transicion from "../components/ui/Transicion";
+import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 
 type TabType = "basic" | "verification" | "security" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
@@ -1033,11 +1034,10 @@ export default function UserSettings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                         {t('settings.banking.bankName')}
                       </label>
-                      <input
-                        type="text"
+                      <SelectorDeBanco
                         value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                        placeholder={t('settings.banking.bankNamePlaceholder')}
+                        onChange={setBankName}
+                        cbu={cbu}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
                     </div>

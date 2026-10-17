@@ -339,7 +339,6 @@ export default function ChatScreen() {
   // Listen for proposal updates to update message metadata in real-time
   useEffect(() => {
     const handleProposalUpdate = (data: any) => {
-      console.log('📩 Proposal update received:', data);
       if (data.proposalId && data.proposalStatus) {
         // Update the message with matching proposalId
         setMessages(prev => prev.map(msg => {
@@ -1439,12 +1438,6 @@ export default function ChatScreen() {
 
               // Debug: Log first message to verify code is running
               if (idx === 0) {
-                console.log('🔴 CODE VERSION 2026-01-24-v2 - First message:', {
-                  text: messageText.substring(0, 60),
-                  hasPipe: messageText.includes('||'),
-                  type: message.type,
-                  metadata: message.metadata,
-                });
               }
 
               // Detect system messages - check for || delimiter or system type/action

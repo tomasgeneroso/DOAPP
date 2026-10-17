@@ -8,6 +8,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
+import { respuestaDeErrorDeDinero } from '../services/controlesDeDinero.js';
 
 const router = express.Router();
 
@@ -258,6 +259,14 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // Antes de sacar plata de la plataforma: el saldo tiene que ser la suma de los movimientos del usuario. Si alguien lo tocó sin dejar
+    // asiento, el retiro agrandaría un descuadre que después nadie puede reconstruir. El error trae saldo, libro y diferencia.
+    {
+      const { comprobarSaldoContraLibro, detalleDeSaldoContraLibro, ErrorDeDinero } = await import('../services/controlesDeDinero.js');
+      const cuadre = await comprobarSaldoContraLibro(String(userId), amount);
+      if (!cuadre.cierra) throw new ErrorDeDinero('SALDO-NO-CIERRA-LIBRO', detalleDeSaldoContraLibro(String(userId), cuadre));
+    }
+
     // ============================================
     // LO QUE SE RETIENE AL RETIRAR SALDO DEVUELTO
     // ============================================
@@ -395,6 +404,16 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     });
   } catch (error: any) {
     console.error("Error creating withdrawal request:", error);
+    // Un problema de dinero con código: el usuario ve qué le pasó a su plata y el código; administración recibe los números exactos y la guía.
+    const deDinero = respuestaDeErrorDeDinero(error, false);
+    if (deDinero) {
+      const { ErrorDeDinero, avisarProblemasDeDinero } = await import('../services/controlesDeDinero.js');
+      if (error instanceof ErrorDeDinero) {
+        void avisarProblemasDeDinero([{ codigo: error.codigo, detalle: error.detalle }], { titulo: 'Un retiro no se pudo crear', userId: String(req.user?.id), actor: `user:${req.user?.id}` });
+      }
+      res.status(deDinero.status).json(deDinero.body);
+      return;
+    }
     res.status(500).json({
       success: false,
       message: error.message || "Error al crear solicitud de retiro"

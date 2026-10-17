@@ -275,7 +275,6 @@ export default function AdminContracts() {
 
   // Handle real-time contract creation
   const handleNewContract = useCallback((data: any) => {
-    console.log("🆕 Real-time: New contract created", data);
     setNewContractAlert(`${t('admin.contracts.newContract', 'New contract')}: ${data.contract?.job?.title || t('admin.contracts.untitled', 'Untitled')}`);
     // Add contract to the list
     if (data.contract) {
@@ -291,7 +290,6 @@ export default function AdminContracts() {
 
   // Handle real-time contract updates
   const handleContractUpdated = useCallback((data: any) => {
-    console.log("📝 Real-time: Contract updated", data);
     if (data.contract) {
       setContracts(prev => {
         const exists = prev.some(c => c.id === data.contract.id);

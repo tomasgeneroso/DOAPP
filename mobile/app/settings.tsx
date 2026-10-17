@@ -38,6 +38,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constant
 import AttentionDot from '../components/AttentionDot';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
+import SelectorDeBanco from '../components/SelectorDeBanco';
 import CuentasVinculadas from '../components/CuentasVinculadas';
 import DireccionConSugerencias from '../components/DireccionConSugerencias';
 import { usePendingTasks, type SettingsSection } from '../hooks/usePendingTasks';
@@ -290,12 +291,10 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Nombre del banco</Text>
-                <TextInput
-                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                <SelectorDeBanco
                   value={bankingInfo.bankName}
-                  onChangeText={(v) => setBankingInfo({ ...bankingInfo, bankName: v })}
-                  placeholder="Mercado Pago, Brubank, etc."
-                  placeholderTextColor={themeColors.text.muted}
+                  onChange={(v) => setBankingInfo({ ...bankingInfo, bankName: v })}
+                  cbu={bankingInfo.cbu}
                 />
               </View>
               <View style={styles.inputGroup}>

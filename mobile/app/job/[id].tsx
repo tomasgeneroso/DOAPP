@@ -53,6 +53,7 @@ import { getContractsByJob, confirmContract } from '../../services/contracts';
 import { Job, Proposal, UserSummary, Contract } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { getCategoryById } from '../../services/jobs';
+import { resumenDeCancelacion, type RespuestaDeCancelacion } from '../../utils/resumenDeCancelacion';
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -273,12 +274,11 @@ export default function JobDetailScreen() {
         // Si algo del movimiento de plata falló, el servidor lo dice en
         // `problemas`. Decirlo: es peor que el cliente se entere por un saldo
         // que nunca llega.
-        const problemas = (response as any).problemas as string[] | undefined;
-        if (problemas && problemas.length > 0) {
-          Alert.alert(
-            'Cancelado, pero revisá esto',
-            `${(response as any).message || 'El trabajo fue cancelado.'}\n\nHubo un problema al mover el dinero: ${problemas.join(' · ')}. Administración ya fue avisada.`,
-          );
+        const detalle = response as RespuestaDeCancelacion;
+        const resumen = resumenDeCancelacion(job.title, detalle);
+        // Ordenado en secciones (qué pasó, tu dinero, qué significa cada aviso). Antes era un párrafo de texto plano.
+        if (detalle.refund || (detalle.avisos ?? []).length > 0) {
+          Alert.alert(resumen.titulo, resumen.cuerpo);
         } else {
           Alert.alert('Trabajo cancelado', (response as any).message || 'El trabajo fue cancelado.');
         }
@@ -988,6 +988,8 @@ export default function JobDetailScreen() {
                 <X size={24} color={themeColors.text.secondary} />
               </TouchableOpacity>
             </View>
+            {/* Solo el medio se desplaza: el título y los botones quedan siempre a la vista, aunque la pantalla sea chica o esté el teclado. */}
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
             <Text style={[styles.modalDesc, { color: themeColors.text.secondary }]}>
               ¿Estás seguro? Esta acción no se puede deshacer.
             </Text>
@@ -1044,6 +1046,7 @@ export default function JobDetailScreen() {
               numberOfLines={3}
               textAlignVertical="top"
             />
+            </ScrollView>
             <View style={styles.proposalActions}>
               <TouchableOpacity
                 style={[styles.cancelButton, { borderColor: themeColors.border, flex: 1 }]}
@@ -1232,7 +1235,8 @@ const styles = StyleSheet.create({
 
   // Cancel modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  modalContent: { width: '100%', borderRadius: borderRadius.xl, padding: spacing.lg },
+  // maxHeight: si el contenido es más alto que la pantalla, el panel no se sale: el medio scrollea (ver el ScrollView del modal).
+  modalContent: { width: '100%', maxHeight: '92%', borderRadius: borderRadius.xl, padding: spacing.lg },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   modalTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
   modalDesc: { fontSize: fontSize.base, marginBottom: spacing.md },

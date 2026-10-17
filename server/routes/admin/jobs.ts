@@ -496,7 +496,7 @@ router.put(
           salida,
         });
         liquidacion = r.liq;
-        resultadoLiquidacion = { salida: r.salida, devueltoPorMp: r.devueltoPorMp, problemas: r.errores };
+        resultadoLiquidacion = { salida: r.salida, devueltoPorMp: r.devueltoPorMp, problemas: r.errores, plataMovida: r.plataMovida };
       }
 
       void logAudit({
@@ -536,9 +536,12 @@ router.put(
           if (status === 'approved') return `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`;
           // Si salió por Mercado Pago, el mensaje de saldo no aplica: la plata
           // no quedó en la app, está volviendo a su medio de pago.
+          // Si la plata quedó para revisión (el pago no se pudo comprobar) NO se le dice que ya la tiene.
           const plata = !liquidacion
             ? ''
-            : resultadoLiquidacion?.salida === 'devolucion'
+            : resultadoLiquidacion?.plataMovida === false && liquidacion.aCliente > 0
+              ? ' Todavía no pudimos acreditar tu dinero: administración lo está revisando y te avisamos apenas esté.'
+              : resultadoLiquidacion?.salida === 'devolucion'
               ? ` Se devolvieron $${Number(resultadoLiquidacion.devueltoPorMp).toLocaleString('es-AR')} al medio con que pagaste; según el banco puede tardar unos días.`
               : ` ${mensajeDeCancelacion(liquidacion)}`;
           return status === 'rejected'

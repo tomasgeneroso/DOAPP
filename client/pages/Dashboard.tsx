@@ -76,7 +76,6 @@ export default function Dashboard() {
       return;
     }
 
-    console.log('✅ User loaded, fetching dashboard stats for:', user.id);
     fetchDashboardStats();
 
     // Register real-time event handlers
@@ -110,7 +109,6 @@ export default function Dashboard() {
 
     try {
       setLoading(true);
-      console.log('📊 Fetching dashboard stats for user:', user.id);
 
       // Fetch contracts
       const contractsRes = await fetch("/api/contracts", {
@@ -129,10 +127,7 @@ export default function Dashboard() {
         credentials: 'include',
       });
       const jobsData = await jobsRes.json();
-      console.log('📥 Jobs data received:', jobsData.jobs?.length, 'jobs');
-      console.log('📥 Current user ID:', user?.id);
       if (jobsData.jobs && jobsData.jobs.length > 0) {
-        console.log('📥 Sample job structure:', jobsData.jobs[0]);
       }
 
       if (contractsData.success && proposalsData.success) {
@@ -185,7 +180,6 @@ export default function Dashboard() {
         // Jobs publicados por el usuario (como cliente) - TODOS los estados
         const postedJobs = jobs.filter((j: any) => {
           const isPostedByUser = j.clientId === user?.id || (typeof j.client === 'object' && j.client?.id === user?.id);
-          console.log('🔍 Job:', j.id, 'title:', j.title, 'clientId:', j.clientId, 'userId:', user?.id, 'status:', j.status, 'match:', isPostedByUser);
           return isPostedByUser;
         }).length;
         console.log('📊 Total jobs publicados por usuario:', postedJobs, 'de', jobs.length, 'jobs totales');

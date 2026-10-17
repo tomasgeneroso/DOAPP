@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   IdCard,
   BookOpen,
+  LifeBuoy,
   CreditCard,
   Sliders,
   ArrowDownLeft,
@@ -184,6 +185,8 @@ export default function AdminLayout() {
         // El manual va arriba y lo ven todos los roles: es donde se busca "cómo
         // se hace esto" en vez de preguntar.
         { path: "/admin/manual", icon: BookOpen, label: t('admin.sidebar.manual', 'Manual del equipo'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
+        // Cada aviso de dinero que frena el sistema trae un código: acá se explica qué es y qué hacer.
+        { path: "/admin/guia-de-errores", icon: LifeBuoy, label: t("admin.sidebar.errorGuide", "Guía de errores"), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },

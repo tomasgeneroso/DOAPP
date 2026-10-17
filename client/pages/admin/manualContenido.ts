@@ -37,6 +37,19 @@ export const ROLES: Record<RolManual, string> = {
 
 export const MANUAL: EntradaManual[] = [
   {
+    id: "guia-de-errores",
+    titulo: "El sistema frenó un movimiento de dinero: qué significa el código",
+    roles: ["admin", "owner", "support"],
+    resumen: "Cada vez que el sistema detecta algo raro al mover plata, avisa con un código y los números exactos. Acá se explica qué hacer.",
+    claves: ["error", "código", "saldo no cierra", "devolución", "retiro", "balance calculation", "plata sin mover", "guía"],
+    cuerpo: [
+      "<b>Antes de mover plata, el sistema comprueba.</b> Al devolver o acreditar por una cancelación mira que el pago exista, sea del cliente y de esa publicación, esté confirmado (solo o por un administrador) y cierre en monto, moneda y fecha; si sale por Mercado Pago, además se lo pregunta a Mercado Pago en ese momento. Antes de sacar plata o mover un saldo, comprueba que el saldo sea la suma de los movimientos del usuario.",
+      "<b>Si algo no cierra, no mueve nada a ciegas</b>: avisa a administración con un código (por ejemplo <code>SALDO-NO-CIERRA-LIBRO</code>), lo que esperaba y lo que encontró. Al usuario le dice qué pasó con su plata, sin números internos.",
+      "<b>Qué hacer:</b> abrí la guía, buscá el código y seguí los pasos. Está todo ahí: qué significa, por qué pasa y adónde ir. Si un código no está en la guía, avisá al equipo técnico.",
+    ],
+    links: [{ texto: "Abrir la guía de errores", href: "/admin/guia-de-errores" }],
+  },
+  {
     id: "plata",
     titulo: "Qué pasa con la plata en cada fase",
     roles: ["admin", "owner", "support"],

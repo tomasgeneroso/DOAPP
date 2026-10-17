@@ -70,7 +70,6 @@ export default function AdminUsers() {
 
   // Real-time handlers
   const handleNewUser = useCallback((data: any) => {
-    console.log('🔔 New user registered:', data);
     setRealtimeAlert(`Nuevo usuario registrado: ${data.user?.name || data.user?.email}`);
     // Add to beginning of list if on first page
     if (page === 1) {
@@ -80,7 +79,6 @@ export default function AdminUsers() {
   }, [page]);
 
   const handleUserUpdated = useCallback((data: any) => {
-    console.log('🔔 User updated:', data);
     setRealtimeAlert(`Usuario actualizado: ${data.user?.name || data.user?.email}`);
     setUsers(prev =>
       prev.map(u => (u.id === data.user?.id || u.id === data.user?.id) ? { ...u, ...data.user } : u)

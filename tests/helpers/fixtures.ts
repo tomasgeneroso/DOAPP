@@ -27,7 +27,7 @@ const unico = () => `${Date.now().toString(36)}${(n++).toString(36)}`;
 
 export async function crearUsuario(over: Partial<any> = {}): Promise<any> {
   const id = unico();
-  return User.create({
+  const usuario = await User.create({
     email: `u${id}@test.local`,
     username: `u${id}`,
     name: 'Usuario de prueba',
@@ -36,6 +36,17 @@ export async function crearUsuario(over: Partial<any> = {}): Promise<any> {
     balanceArs: 0,
     ...over,
   } as any);
+  // Un saldo real siempre tiene sus movimientos: acreditar y retirar comprueban que el saldo sea la suma del libro. Sin este asiento un
+  // usuario de prueba con saldo parece uno cuyo saldo se tocó a mano en la base, y el retiro se frena (SALDO-NO-CIERRA-LIBRO).
+  const saldo = Number((usuario as any).balanceArs) || 0;
+  if (saldo > 0) {
+    const { BalanceTransaction } = await import('../../server/models/sql/BalanceTransaction.model.js');
+    await BalanceTransaction.create({
+      userId: usuario.id, type: 'adjustment', amount: saldo, balanceBefore: 0, balanceAfter: saldo,
+      description: 'Saldo inicial de la prueba', status: 'completed',
+    } as any);
+  }
+  return usuario;
 }
 
 export async function crearTrabajo(clientId: string, over: Partial<any> = {}): Promise<any> {

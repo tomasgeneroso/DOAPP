@@ -136,7 +136,6 @@ const AdminDisputeManager: React.FC = () => {
 
   // Real-time handlers
   const handleNewDispute = useCallback((data: any) => {
-    console.log('🔔 New dispute received:', data);
     setRealtimeAlert(`${t('admin.disputes.newDispute', 'New dispute')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev => [data.dispute, ...prev]);
     // Refresh stats
@@ -147,7 +146,6 @@ const AdminDisputeManager: React.FC = () => {
   }, []);
 
   const handleDisputeUpdated = useCallback((data: any) => {
-    console.log('🔔 Dispute updated:', data);
     setRealtimeAlert(`${t('admin.disputes.disputeUpdated', 'Dispute updated')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev =>
       prev.map(d => (d.id === data.dispute?.id || d.id === data.dispute?.id) ? { ...d, ...data.dispute } : d)

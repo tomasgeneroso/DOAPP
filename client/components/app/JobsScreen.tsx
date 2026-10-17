@@ -34,7 +34,6 @@ export const JobsScreen: React.FC = () => {
         },
       });
       const data = await response.json();
-      console.log('📥 Jobs fetched from API:', data.jobs?.length || 0, 'jobs');
       setJobs(data.jobs || []);
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -54,7 +53,6 @@ export const JobsScreen: React.FC = () => {
     });
 
     registerJobUpdateHandler((data: any) => {
-      console.log("💼 Job update detected:", data);
       fetchJobs();
     });
   }, [fetchJobs, registerJobsRefreshHandler, registerJobUpdateHandler]);
@@ -71,7 +69,6 @@ export const JobsScreen: React.FC = () => {
     if (!isConnected) {
       console.log("⏱️ Socket not connected, starting polling fallback...");
       pollingRef.current = setInterval(() => {
-        console.log("⏱️ Polling for job updates...");
         fetchJobs();
       }, POLLING_INTERVAL);
     } else {

@@ -75,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check for cookie token on mount and validate it
     const validateToken = async () => {
-      console.log("🔐 Validating cookie token...");
 
       try {
         // El token está en la cookie httpOnly, solo necesitamos validarlo
@@ -83,15 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: "include", // Envía automáticamente las cookies
         });
 
-        console.log("📡 /api/auth/me response:", response.status);
 
         if (response.ok) {
           const data = await response.json();
-          console.log(
-            "✅ User validated from cookie:",
-            data.user?.id,
-            data.user?.name,
-          );
           // Guardar token en localStorage para Socket.io
           if (data.token) {
             localStorage.setItem("token", data.token);
@@ -164,7 +157,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("token", data.token);
       setToken(data.token);
       setUser(withBetaTier({ ...data.user }));
-      console.log("✅ Login exitoso, usuario:", data.user.name);
 
       // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
       setTimeout(() => {
@@ -218,7 +210,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(responseData.token);
         setUser({ ...responseData.user });
       }
-      console.log("✅ Registro exitoso, usuario:", responseData.user.name);
 
       // `invitacion` (si el registro llevaba un enlace de invitación) cuenta si se aplicó o por qué no.
       return { ...responseData.user, invitacion: responseData.invitacion } as User;
@@ -261,15 +252,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         // Create a new object to force re-render
         setUser(withBetaTier({ ...data.user }));
-        console.log("✅ User refreshed:", data.user.name);
-        console.log(
-          "📊 Free contracts remaining:",
-          data.user.freeContractsRemaining,
-        );
-        console.log(
-          "📊 PRO contracts used this month:",
-          data.user.monthlyContractsUsed,
-        );
       }
     } catch (error) {
       console.error("Error refreshing user:", error);

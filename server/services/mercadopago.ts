@@ -264,6 +264,8 @@ class MercadoPagoPaymentService {
         status_detail: payment.status_detail,
         amount: payment.transaction_amount || 0,
         transaction_amount: payment.transaction_amount,
+        // Lo que ya se devolvió de este pago: la comprobación previa a una devolución lo necesita para no devolver dos veces.
+        transaction_amount_refunded: (payment as any).transaction_amount_refunded as number | undefined,
         currency: payment.currency_id || 'ARS',
         currency_id: payment.currency_id,
         provider: provider,

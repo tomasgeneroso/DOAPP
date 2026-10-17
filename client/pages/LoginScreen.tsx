@@ -205,7 +205,6 @@ export default function LoginScreen() {
   // Check membership status after registration
   useEffect(() => {
     if (justRegistered && user) {
-      console.log('🔍 Verificando estado de membresía después del registro:', user.email);
       console.log('📊 Membresía del usuario:', { hasMembership: user.hasMembership, membershipTier: user.membershipTier });
 
       const hasPremiumMembership = user.hasMembership && (user.membershipTier === 'pro' || user.membershipTier === 'super_pro');
@@ -382,7 +381,6 @@ export default function LoginScreen() {
 
   const handleUpgradeClick = (plan: 'monthly') => {
     console.log('🚀 Usuario seleccionó plan:', plan);
-    console.log('👤 Usuario actual:', user?.email);
     setShowMembershipOffer(false);
 
     // Navegar a checkout (el usuario está autenticado después del registro)

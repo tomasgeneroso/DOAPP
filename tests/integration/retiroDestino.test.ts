@@ -111,6 +111,39 @@ describe('retiro: el destino es la cuenta del perfil', () => {
     expect((await retirar(u, CBU_PERFIL)).status).toBe(201);
   });
 
+  const CUENTA = { accountHolder: 'Persona de Prueba', bankName: 'Banco de Prueba', cbu: CBU_PERFIL };
+  const sinEnfriamiento = () => ({ bankingInfo: CUENTA, bankingInfoUpdatedAt: new Date(Date.now() - 48 * 3_600_000) });
+
+  it('un saldo que viene de una devolución (con retención de comisión) SE PUEDE retirar: antes fallaba con «Balance calculation error»', async () => {
+    // Regresión: el pedido guarda saldo antes = 5000, a transferir = 4500 y retención = 500. El modelo exigía saldo antes − a transferir
+    // = saldo después (0), que con retención nunca cierra, y rechazaba todo retiro de saldo devuelto.
+    const u = await usuario({ balanceArs: 0, ...sinEnfriamiento() });
+    const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
+    await acreditarSaldo(String(u.id), 5000, 'devolución de prueba', { tipo: 'refund', metadata: { alRetirar: { comision: 500 } } });
+    const r = await retirar(u, CBU_PERFIL);
+    expect(r.status).toBe(201);
+    const pedido: any = await WithdrawalRequest.findOne({ where: { userId: u.id } });
+    expect(Number(pedido.amount)).toBe(4500);
+    expect(Number(pedido.metadata.saldoDebitado)).toBe(5000);
+    expect(Number(pedido.metadata.retencion)).toBe(500);
+    expect(Number(pedido.balanceBeforeWithdrawal)).toBe(5000);
+  });
+
+  it('si el saldo NO cierra con los movimientos, no retira y dice los números exactos y el código', async () => {
+    const u = await usuario({ ...sinEnfriamiento() }); // saldo 5000 con un asiento de 5000
+    await u.update({ balanceArs: 9000 }); // alguien tocó el saldo sin dejar asiento
+    const r = await retirar(u, CBU_PERFIL);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('SALDO-NO-CIERRA-LIBRO');
+    // Al usuario, qué le pasó a SU plata y el código; los números van en 'detalle'.
+    expect(r.body.message).toMatch(/código SALDO-NO-CIERRA-LIBRO/);
+    expect(r.body.detalle).toContain('saldo $9.000');
+    expect(r.body.detalle).toContain('suma de movimientos $5.000');
+    expect(r.body.detalle).toContain('diferencia $4.000');
+    expect(r.body.guia).toBeUndefined(); // la guía es para administración
+    expect(await pedidos(u)).toBe(0);
+  });
+
   it('sin identidad verificada no retira (control que ya existía)', async () => {
     const u = await usuario({ dniVerified: false, bankingInfo: { accountHolder: 'Persona de Prueba', bankName: 'Banco de Prueba', cbu: CBU_PERFIL } });
     expect((await retirar(u, CBU_PERFIL)).status).toBe(403);

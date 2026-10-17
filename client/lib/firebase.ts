@@ -98,10 +98,8 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       const token = await getToken(messaging, { vapidKey });
 
       if (token) {
-        console.log('📱 FCM Token:', token);
         return token;
       } else {
-        console.log('⚠️ No registration token available');
         return null;
       }
     } else if (permission === 'denied') {
@@ -137,7 +135,6 @@ export const registerFCMToken = async (token: string): Promise<boolean> => {
     const data = await response.json();
 
     if (data.success) {
-      console.log('✅ FCM token registered with backend');
       return true;
     } else {
       console.error('❌ Failed to register FCM token:', data.message);
@@ -159,7 +156,6 @@ export const setupForegroundMessageHandler = () => {
   }
 
   onMessage(messaging, (payload) => {
-    console.log('📬 Foreground notification received:', payload);
 
     // Show notification
     const { title, body, icon } = payload.notification || {};
@@ -167,7 +163,6 @@ export const setupForegroundMessageHandler = () => {
     if (title) {
       // You can use a toast notification library here
       // or create a custom in-app notification
-      console.log('Notification:', title, body);
 
       // Example: Show browser notification even when app is open
       if (Notification.permission === 'granted') {

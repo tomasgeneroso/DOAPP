@@ -21,6 +21,7 @@ import {
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import Transicion from "../components/ui/Transicion";
+import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
@@ -409,19 +410,14 @@ export default function WithdrawalRequestPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('withdrawals.bank')}
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Building2 className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder={t('withdrawals.bankPlaceholder')}
-                    required
-                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
+                {/* Se elige de una lista (Mercado Pago, otras billeteras, bancos); «Otro…» deja escribirlo. */}
+                <SelectorDeBanco
+                  value={bankName}
+                  onChange={setBankName}
+                  cbu={cbu}
+                  required
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
               </div>
 
               {/* Account Type */}

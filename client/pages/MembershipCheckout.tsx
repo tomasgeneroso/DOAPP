@@ -29,7 +29,6 @@ export default function MembershipCheckout() {
 
   useEffect(() => {
     console.log('🎬 MembershipCheckout montado (useEffect)');
-    console.log('👤 Usuario en useEffect:', user?.name, user?.email);
     loadPricing();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -45,7 +44,6 @@ export default function MembershipCheckout() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      console.log('📊 Precios recibidos:', data);
       if (data.success) {
         setPricing(data.pricing);
         setCotizacion(data.cotizacion || null);
@@ -63,7 +61,6 @@ export default function MembershipCheckout() {
 
     try {
       const token = localStorage.getItem('token');
-      console.log('🔑 Token presente:', !!token);
 
       const endpoint = `/api/membership/create-payment`;
       console.log('📍 Endpoint completo:', endpoint);
@@ -77,8 +74,6 @@ export default function MembershipCheckout() {
         body: JSON.stringify({ plan: PLAN }),
       });
 
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -95,10 +90,8 @@ export default function MembershipCheckout() {
       }
 
       const data = await response.json();
-      console.log('📥 Respuesta del servidor:', data);
 
       if (data.success && data.initPoint) {
-        console.log('✅ Redirigiendo a MercadoPago:', data.initPoint);
         toast.info('Redirigiendo a MercadoPago', 'Serás redirigido al procesador de pago');
         // Redirigir a MercadoPago
         window.location.href = data.initPoint;

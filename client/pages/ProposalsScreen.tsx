@@ -48,7 +48,6 @@ export default function ProposalsScreen() {
 
     // Register real-time event handler
     registerProposalUpdateHandler((data: any) => {
-      console.log("📄 Proposal update detected:", data);
       fetchProposals();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
