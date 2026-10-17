@@ -3391,20 +3391,14 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
       // Si el trabajo ya fue pagado, crear saldo a favor para el cliente
       if (job.publicationPaid) {
         const refundAmount = Math.abs(priceDifference);
-        const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
-        await BalanceTransaction.create({
-          userId: job.clientId,
-          type: 'refund',
-          amount: refundAmount,
-          description: `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`,
-          status: 'pending',
+        // La baja la acepta el TRABAJADOR y el saldo a favor es del CLIENTE. acreditarSaldo lo acredita de verdad (saldo + asiento en la misma
+        // transacción) y, al ser otro usuario, lo hace como operación de sistema (RLS). Antes se creaba un asiento 'pending' sin saldo antes/después
+        // y la ruta devolvía 500 cuando aceptaba el último trabajador: la baja quedaba sin aplicar.
+        const { acreditarSaldo } = await import('../services/quotePayment.js');
+        await acreditarSaldo(String(job.clientId), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
           relatedModel: 'Job',
           relatedId: job.id,
-          metadata: {
-            oldPrice,
-            newPrice,
-            reason: 'price_decrease_accepted',
-          },
+          metadata: { origen: 'baja_aceptada_por_todos', reason: 'price_decrease_accepted', oldPrice, newPrice, alRetirar: { comision: 0 } },
         });
       }
 

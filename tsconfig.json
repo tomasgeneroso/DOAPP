@@ -54,7 +54,6 @@
     "server/scripts/checkJobsContracts.ts",
     "server/scripts/checkPaymentCommission.ts",
     "server/scripts/checkPayments.ts",
-    "services/**/*",
     "server/services/membershipService.ts",
     "server/services/mercadopagoOAuth.ts",
     "server/services/anomalyDetection.ts",

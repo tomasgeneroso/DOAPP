@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { config } from 'dotenv';
 import { Sequelize } from 'sequelize-typescript';
+import { instalarRls } from '../db/contextoRls.js';
 
 // CRITICAL: Load .env FIRST before anything else
 // This ensures all environment variables are available when Sequelize initializes
@@ -79,6 +80,10 @@ export const sequelize = new Sequelize({
   // Benchmarking
   benchmark: !isProduction,
 });
+
+// Row Level Security: el gancho que le dice a la base quién pide, cada vez que una conexión sale del pool. No hace nada hasta que
+// `activarRls()` se llama (ver server/index.ts y server/db/contextoRls.ts).
+instalarRls(sequelize);
 
 /**
  * Initialize database connection

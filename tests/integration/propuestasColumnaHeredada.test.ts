@@ -17,6 +17,7 @@ import { STATEMENTS } from '../../server/config/ensureSchema.js';
 import { Proposal } from '../../server/models/sql/Proposal.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import { User } from '../../server/models/sql/User.model.js';
+import { duenoDelEsquema } from '../helpers/ddl.js';
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 
 describe('proposals con una columna heredada NOT NULL', () => {
@@ -28,12 +29,12 @@ describe('proposals con una columna heredada NOT NULL', () => {
     trabajador = await crearUsuario({ role: 'client' });
     trabajo = await crearTrabajo(cliente.id, { status: 'open' });
     // Se reproduce lo que había en producción.
-    await sequelize.query('ALTER TABLE proposals ADD COLUMN IF NOT EXISTS doer_id UUID NOT NULL');
+    await duenoDelEsquema().query('ALTER TABLE proposals ADD COLUMN IF NOT EXISTS doer_id UUID NOT NULL');
   });
 
   afterAll(async () => {
     try {
-      await sequelize.query('ALTER TABLE proposals DROP COLUMN IF EXISTS doer_id');
+      await duenoDelEsquema().query('ALTER TABLE proposals DROP COLUMN IF EXISTS doer_id');
       await Proposal.destroy({ where: { id: propuestas }, force: true });
       await Job.destroy({ where: { id: trabajo.id }, force: true });
       await User.destroy({ where: { id: [cliente.id, trabajador.id] }, force: true });
@@ -58,13 +59,13 @@ describe('proposals con una columna heredada NOT NULL', () => {
   it('con la sentencia de ensureSchema la propuesta se crea, y las filas viejas toman freelancer_id', async () => {
     const s = STATEMENTS.find((x) => x.label === 'proposals: columnas heredadas sin NOT NULL');
     expect(s).toBeDefined();
-    await sequelize.query(s!.sql);
+    await duenoDelEsquema().query(s!.sql);
     const p: any = await nueva();
     propuestas.push(p.id);
     expect(p.id).toBeTruthy();
     // Idempotente: correrla otra vez no rompe nada.
-    await sequelize.query(s!.sql);
-    const [filas]: any = await sequelize.query(`SELECT doer_id, freelancer_id FROM proposals WHERE id = '${p.id}'`);
+    await duenoDelEsquema().query(s!.sql);
+    const [filas]: any = await duenoDelEsquema().query(`SELECT doer_id, freelancer_id FROM proposals WHERE id = '${p.id}'`);
     expect(filas[0].doer_id === null || filas[0].doer_id === filas[0].freelancer_id).toBe(true);
   });
 });

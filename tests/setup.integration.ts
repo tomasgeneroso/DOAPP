@@ -82,6 +82,25 @@ beforeAll(async () => {
         .slice(0, 30);
     }
   });
+
+  /**
+   * Row Level Security ENCENDIDA en todos los tests de integración.
+   *
+   * Las suites ya existentes (disputas, contratos, retiros, cancelaciones…) pasan a correr con la app actuando como el rol `doapp_app`, que
+   * es el que está sujeto a las políticas: si un flujo toca filas de otro usuario sin declararlo (`conSistema`), el test lo muestra. Es la
+   * única forma de saber que RLS no rompe la app: probarla contra los flujos reales, no contra tres consultas de ejemplo.
+   * `RLS_ACTIVO=false` la apaga para comparar.
+   */
+  if (process.env.RLS_ACTIVO !== 'false') {
+    const { aplicarRls } = await import('../server/db/rls.cjs');
+    const { activarRls } = await import('../server/db/contextoRls.js');
+    await aplicarRls(async (sql: string, escalar?: boolean) => {
+      if (!escalar) return sequelize.query(sql);
+      const [filas] = (await sequelize.query(sql)) as any[];
+      return !!(filas && filas[0] && filas[0].t);
+    });
+    activarRls();
+  }
 });
 
 // No se cierra la conexión acá a propósito. Los archivos de esta suite corren

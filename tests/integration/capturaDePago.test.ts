@@ -340,7 +340,9 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
   it('nadie puede confirmar el pago de otro', async () => {
     const { id, pref } = await crearPago('pagador');
     const r = await capturar('otro', pref, { paymentId: String(++contadorIdMp) });
-    expect(r.status).toBe(403);
+    // 403 sin RLS; con RLS la base ni siquiera le muestra el pago ajeno y la ruta contesta 404. Las dos cosas dicen «no»: lo que importa es
+    // que el pago queda pendiente y nada se activa.
+    expect([403, 404]).toContain(r.status);
     expect(await estadoDe(id)).toBe('pending');
     await nadaSeActivo('pagador');
   });

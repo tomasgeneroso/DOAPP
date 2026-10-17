@@ -27,6 +27,7 @@ jest.mock('../../server/services/email.js', () => ({ __esModule: true, default: 
 
 import { User } from '../../server/models/sql/User.model.js';
 import { sequelize } from '../../server/config/database.js';
+import { duenoDelEsquema } from '../helpers/ddl.js';
 import { crearUsuario } from '../helpers/fixtures.js';
 
 const perfil = (over: Record<string, unknown> = {}) => ({
@@ -88,7 +89,7 @@ describe('estrategia de Google con una cuenta existente', () => {
     // Una columna obligatoria hoy que en esa fila quedó vacía (en producción las columnas se agregaron con migraciones y filas viejas
     // pueden tener nulos): guardar la fila entera falla por validación; guardar solo el vínculo, no.
     const u: any = await crearUsuario({});
-    await sequelize.query('ALTER TABLE users ALTER COLUMN phone_verified DROP NOT NULL');
+    await duenoDelEsquema().query('ALTER TABLE users ALTER COLUMN phone_verified DROP NOT NULL');
     try {
       await sequelize.query('UPDATE users SET phone_verified = NULL WHERE id = :id', { replacements: { id: u.id } });
       const { err, user } = await estrategia(perfil({ emails: [{ value: u.email }] }));
@@ -97,7 +98,7 @@ describe('estrategia de Google con una cuenta existente', () => {
       expect(((await User.findByPk(u.id)) as any).googleId).toBeTruthy();
     } finally {
       await sequelize.query('UPDATE users SET phone_verified = false WHERE phone_verified IS NULL');
-      await sequelize.query('ALTER TABLE users ALTER COLUMN phone_verified SET NOT NULL');
+      await duenoDelEsquema().query('ALTER TABLE users ALTER COLUMN phone_verified SET NOT NULL');
     }
   });
 

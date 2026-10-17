@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import {
   CSP_SOLO_AVISA,
@@ -75,23 +75,13 @@ describe('cabeceras de seguridad del sitio', () => {
     expect(PERMISSIONS_POLICY_DEL_SITIO).toBe(PERMISSIONS_POLICY);
   });
 
-  it('nginx.conf incluye las cabeceras en el servidor y en CADA location que pone un add_header propio (nginx no las hereda)', () => {
-    const conf = leer('nginx/nginx.conf');
-    // sin copias a mano que se desfasen
-    expect(conf).not.toMatch(/add_header\s+(X-Frame-Options|X-Content-Type-Options|Strict-Transport-Security|Referrer-Policy|Content-Security-Policy)/i);
-    expect(conf).not.toMatch(/X-XSS-Protection/i); // obsoleto: en navegadores viejos abre agujeros
-    // el main server (el que sirve doapparg.com) incluye el archivo
-    const principal = conf.slice(conf.indexOf('# HTTPS - Main server'));
-    expect(principal).toContain('include /etc/nginx/seguridad.conf;');
-    // cada location con add_header propio (salvo /health, que responde texto) lo incluye también
-    const bloques = principal.split(/\n\s{8}location /).slice(1);
-    const conCabeceras = bloques.filter((b) => /add_header/.test(b) && !b.startsWith('/health'));
-    expect(conCabeceras.length).toBeGreaterThanOrEqual(4);
-    for (const b of conCabeceras) expect([b.split('\n')[0], b.includes('include /etc/nginx/seguridad.conf;')]).toEqual([b.split('\n')[0], true]);
-  });
-
-  it('docker-compose monta el archivo generado en el contenedor de nginx', () => {
-    expect(leer('docker-compose.yml')).toContain('./nginx/seguridad.conf:/etc/nginx/seguridad.conf:ro');
+  it('el despliegue es PM2 sin Docker: no hay Dockerfile ni compose ni microservicios que se desfasen en silencio', () => {
+    for (const f of ['Dockerfile', 'docker-compose.yml', 'docker-compose.dev.yml', 'docker-compose.microservices.yml', 'nginx/nginx.conf']) {
+      expect([f, existsSync(join(raiz, f))]).toEqual([f, false]);
+    }
+    expect(existsSync(join(raiz, 'services'))).toBe(false);
+    expect(leer('.github/workflows/ci-cd.yml')).toMatch(/pm2 start ecosystem.config.cjs/);
+    expect(leer('.github/workflows/ci-cd.yml')).not.toMatch(/docker/i);
   });
 
   it('todo script y hoja de estilo externos que la web carga por código está en la CSP (si suman un servicio, hay que listarlo)', () => {
@@ -106,14 +96,5 @@ describe('cabeceras de seguridad del sitio', () => {
     expect(scripts.size).toBeGreaterThan(0);
     for (const s of scripts) expect([s, (ORIGENES.scripts as readonly string[]).includes(s)]).toEqual([s, true]);
     for (const s of estilos) expect([s, (ORIGENES.estilos as readonly string[]).includes(s)]).toEqual([s, true]);
-  });
-});
-
-describe('la base y Redis no se publican a internet', () => {
-  it('docker-compose publica Postgres y Redis solo en 127.0.0.1 (los contenedores se hablan por la red interna)', () => {
-    const compose = leer('docker-compose.yml');
-    expect(compose).toContain('- "127.0.0.1:${DB_PORT:-5432}:5432"');
-    expect(compose).toContain('- "127.0.0.1:${REDIS_PORT:-6379}:6379"');
-    expect(compose).not.toMatch(/-\s*"\$\{(DB|REDIS)_PORT[^"]*"/);
   });
 });

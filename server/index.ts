@@ -12,6 +12,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
 import { initDatabase } from "./config/database.js";
+import { activarRls } from "./db/contextoRls.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { crearVerificadorDeOrigen } from "./middleware/corsOrigen.js";
 import passport from "./config/passport.js";
@@ -204,6 +205,13 @@ app.use(redirigirDominiosAlternativos());
 
 // Conectar a PostgreSQL
 await initDatabase();
+
+// Row Level Security de las tablas de dinero. Va DESPUÉS del arranque del esquema (el rol de la app no tiene permiso de DDL) y se enciende con
+// RLS_ACTIVO=true; con la variable apagada la app se comporta como siempre y apagarla es el rollback.
+if (process.env.RLS_ACTIVO === 'true') {
+  activarRls();
+  console.log('🛡️  RLS activo: las tablas de dinero solo muestran a cada usuario sus propias filas');
+}
 
 /**
  * Números que se editan desde el panel: tasas de pasarela, alícuotas de IIBB

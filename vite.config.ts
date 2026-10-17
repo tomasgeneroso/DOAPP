@@ -70,7 +70,7 @@ export default defineConfig({
         // routes that import it.
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-maps": ["leaflet", "react-leaflet"],
+          "vendor-maps": ["leaflet"],
           "vendor-editor": ["react-quill"],
         },
       },

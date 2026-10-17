@@ -10,6 +10,7 @@ import {
   detalleDeSaldoContraLibro,
   type SaldoContraLibro,
 } from './controlesDeDinero.js';
+import { conSistema } from '../db/contextoRls.js';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -282,7 +283,9 @@ export async function acreditarSaldo(
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
   let descuadre = null as SaldoContraLibro | null;
-  await sequelize.transaction(async (t) => {
+  // Acreditar o debitar el saldo de un usuario toca SU libro aunque lo dispare otro (el cliente confirma y se le acredita al trabajador):
+  // es una operación de sistema. Row Level Security solo le muestra a cada usuario sus propias filas (ver server/db/contextoRls.ts).
+  await conSistema(() => sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
     if (!user) throw new Error(`Usuario ${userId} no encontrado al acreditar saldo`);
 
@@ -312,7 +315,7 @@ export async function acreditarSaldo(
 
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
-  });
+  }));
   if (descuadre) await avisarDescuadre(userId, descuadre, 'acreditar');
 }
 
@@ -365,7 +368,9 @@ export async function debitarSaldo(
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
   let descuadre = null as SaldoContraLibro | null;
-  await sequelize.transaction(async (t) => {
+  // Acreditar o debitar el saldo de un usuario toca SU libro aunque lo dispare otro (el cliente confirma y se le acredita al trabajador):
+  // es una operación de sistema. Row Level Security solo le muestra a cada usuario sus propias filas (ver server/db/contextoRls.ts).
+  await conSistema(() => sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
     if (!user) throw new Error(`Usuario ${userId} no encontrado al debitar saldo`);
 
@@ -402,7 +407,7 @@ export async function debitarSaldo(
 
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
-  });
+  }));
   if (descuadre) await avisarDescuadre(userId, descuadre, 'debitar');
 }
 

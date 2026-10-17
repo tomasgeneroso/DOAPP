@@ -3,6 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config/env.js";
 import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
+import { entrarComoUsuario } from "../db/contextoRls.js";
 
 export type { AuthRequest };
 
@@ -112,6 +113,9 @@ export const protect = async (
         return;
       }
 
+      // Desde acá las consultas de este pedido van como este usuario (Row Level Security: ve solo sus filas de las tablas de dinero).
+      entrarComoUsuario(String((req.user as any).id), (req.user as any).adminRole || (req.user as any).role);
+
       // Una cuenta baneada no opera: sólo ve su estado, cierra sesión y apela.
       if (estaBaneadoAhora(req.user as any) && !rutaPermitidaConBaneo(req)) {
         res.status(403).json({
@@ -165,6 +169,7 @@ export const optionalAuth = async (
 
     const decoded = jwt.verify(token, config.jwtSecret) as DecodedToken;
     req.user = await User.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
+    if (req.user) entrarComoUsuario(String((req.user as any).id), (req.user as any).adminRole || (req.user as any).role);
   } catch {
     // Token vencido o inválido: se trata como visitante. No es un error.
     req.user = undefined as any;
