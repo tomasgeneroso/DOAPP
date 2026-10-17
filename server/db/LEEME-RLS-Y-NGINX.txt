@@ -1,0 +1,56 @@
+# Row Level Security (RLS) en las tablas de dinero
+
+Protege `balance_transactions`, `withdrawal_requests` y `payments`: con RLS encendida, cada usuario autenticado solo ve sus filas de esas
+tablas aunque una ruta tenga un error o alguien logre inyectar SQL. Código: `server/db/rls.cjs` (SQL), `server/db/contextoRls.ts` (contexto por
+pedido). Pruebas: `tests/integration/rls*.test.ts` (corren con RLS encendida **todos** los tests de integración).
+
+**Cómo funciona:** el deploy aplica la migración `20261017100000-rls-tablas-de-dinero` (crea el rol `doapp_app`, sus permisos y las políticas,
+una por operación y por tabla). La migración **no cambia nada por sí sola**: mientras la app conecte como superusuario o dueño de las tablas,
+las políticas no le aplican. Recién al poner `RLS_ACTIVO=true` la app, ya levantada, pasa a actuar como `doapp_app` y las políticas le aplican.
+
+## Activarla (primero en STAGING, después en producción)
+
+1. Deploy normal (la migración corre sola con `db:migrate`). Mirar la línea `[rls] protegidas: balance_transactions, withdrawal_requests, payments`.
+   Si dice `sin tabla: …` o `NO se aplicó`, el usuario de la base no es dueño/superusuario o no puede crear roles: **no sigas**, avisá.
+2. En el VPS, en el `.env` de la app: `RLS_ACTIVO=true`, y `pm2 restart doapp-staging --update-env`.
+3. En los logs tiene que aparecer `🛡️  RLS activo`. Verificar en la base:
+      -- las 3 tablas con RLS y 4 políticas cada una (12 en total)
+   SELECT tablename, count(*) FROM pg_policies WHERE tablename IN ('balance_transactions','withdrawal_requests','payments') GROUP BY 1;
+   SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('balance_transactions','withdrawal_requests','payments');
+   -- las conexiones de la app (el usuario de siempre; actúan como doapp_app)
+   SELECT usename, count(*) FROM pg_stat_activity WHERE datname = current_database() GROUP BY 1;
+   4. **Recorrer la lista de pruebas manuales** (secciones de pagos, saldo y retiros, cancelaciones y disputas) en staging con dos usuarios reales. Lo que
+   puede fallar con RLS es que un pedido de un usuario toque el dinero de OTRO: aparece como un error 500 «viola la política de seguridad de
+   registros» o como algo que «no aparece». Se arregla marcando ese tramo con `conSistema(...)` (ver `server/services/quotePayment.ts`).
+5. Con staging limpio unos días, repetir 2–3 en producción.
+
+## Desactivarla (rollback)
+
+`RLS_ACTIVO=false` (o borrar la variable) y `pm2 restart doapp --update-env`. Vuelve a comportarse como antes de RLS, sin tocar la base.
+Para quitar también las políticas: `npx sequelize-cli db:migrate:undo --name 20261017100000-rls-tablas-de-dinero.cjs`.
+
+## Qué protege y qué no
+
+- **Sí:** una consulta ajena (`findByPk(id)` sin filtrar por dueño) o una inyección SQL en un pedido con sesión solo ve las filas del usuario; no puede
+  escribir filas de otro ni borrar nada; **falla cerrado** (sin contexto, no ve nada).
+- **No:** a quien tenga la clave del superusuario de la base; ni a los pedidos sin sesión (webhooks, cron, sockets), que corren como «sistema».
+- **Otras tablas** (contratos, chat, notificaciones, usuarios) todavía no: se cruzan entre usuarios en muchos flujos y cada una pide su recorrida.
+
+## Agregar otra tabla al RLS
+
+1. En `server/db/rls.cjs`, `TABLAS`: nombre y qué hace que una fila sea «mía».
+2. Correr `npm run test:integration`: los flujos que toquen filas de otro usuario van a fallar y muestran dónde falta `conSistema`.
+3. Sumar casos en `tests/integration/rls.test.ts` y recorrer los flujos en staging.
+
+---
+
+# Cabeceras de seguridad del sitio (nginx)
+
+El nginx de producción es un archivo a mano (`/etc/nginx/sites-enabled/doapparg`). Las cabeceras salen de `nginx/seguridad.conf`, generado por
+`npx tsx server/scripts/generarSeguridadNginx.ts` desde `shared/seguridad/csp.ts`.
+
+1. Copiar `nginx/seguridad.conf` a `/etc/nginx/seguridad.conf` en el VPS.
+2. En el server `doapparg.com` agregar `include /etc/nginx/seguridad.conf;` y repetirlo **dentro de cada `location` que tenga `add_header` propio**
+   (nginx no hereda `add_header` hacia un `location` que define el suyo).
+3. `nginx -t && systemctl reload nginx`. Si Cloudflare también agrega HSTS, dejar uno solo.
+4. Verificar desde tu computadora (PowerShell: `curl.exe`, no `curl`): `curl.exe -sI https://doapparg.com/`.
