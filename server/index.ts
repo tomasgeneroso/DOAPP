@@ -26,6 +26,7 @@ import {
 } from "./middleware/security.js";
 import { wafMiddleware } from "./middleware/waf.js";
 import { redirigirDominiosAlternativos } from "./middleware/dominioCanonico.js";
+import { cabecerasDeSeguridad, OPCIONES_DE_CORS, opcionesDeHelmet } from "./middleware/cabecerasDeSeguridad.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
@@ -222,10 +223,10 @@ try {
 }
 
 // Middleware de seguridad
-app.use(helmet({
-  contentSecurityPolicy: false, // Desactivar para desarrollo
-  crossOriginEmbedderPolicy: false,
-}));
+// Cabeceras de seguridad (HSTS 1 año, X-Frame-Options, Referrer-Policy, nosniff) + Permissions-Policy y CSP de la API.
+// Las del sitio (HTML) las pone nginx/Cloudflare: ver nginx/seguridad.conf.
+app.use(helmet(opcionesDeHelmet()));
+app.use(cabecerasDeSeguridad);
 
 // CORS
 app.use(
@@ -237,7 +238,8 @@ app.use(
       corsOrigins: config.corsOrigins,
       esDesarrollo: config.nodeEnv === 'development',
     }),
-    credentials: true,
+    // Métodos y cabeceras fijos (antes se devolvían las que pidiera el navegador): ver middleware/cabecerasDeSeguridad.ts.
+    ...OPCIONES_DE_CORS,
   })
 );
 

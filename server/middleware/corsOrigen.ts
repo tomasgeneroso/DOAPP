@@ -44,7 +44,11 @@ export function crearVerificadorDeOrigen({
 
     // En desarrollo se acepta cualquier origen, así que no hace falta listar
     // los localhost de Expo y Vite como se hacía antes: eran redundantes.
-    if (esDesarrollo || permitidos.has(origin)) return callback(null, true);
+    if (esDesarrollo) return callback(null, true);
+
+    // Fuera de desarrollo solo https, aunque alguien haya cargado un origen http en la lista: con credenciales, un origen sin cifrar deja
+    // las cookies y el token al alcance de quien esté en la red.
+    if (origin.startsWith('https://') && permitidos.has(origin)) return callback(null, true);
 
     callback(new ErrorResponse("Not allowed by CORS", 403));
   };
