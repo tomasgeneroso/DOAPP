@@ -28,7 +28,10 @@ export default function WithdrawalRequestPage() {
   const { confirm: confirmDialog, dialog } = useDialog();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // `balance` es lo que se puede RETIRAR ahora. Lo que ya está en la cuenta pero Mercado Pago todavía no liberó se muestra aparte.
   const [balance, setBalance] = useState(0);
+  const [enLiberacion, setEnLiberacion] = useState(0);
+  const [proximaLiberacion, setProximaLiberacion] = useState<string | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -57,7 +60,9 @@ export default function WithdrawalRequestPage() {
       });
       const balanceData = await balanceRes.json();
       if (balanceData.success) {
-        setBalance(balanceData.balance);
+        setBalance(balanceData.disponibleParaRetirar ?? balanceData.balance);
+        setEnLiberacion(Number(balanceData.enLiberacion) || 0);
+        setProximaLiberacion(balanceData.proximaLiberacion || null);
       }
 
       // Load withdrawals
@@ -153,7 +158,8 @@ export default function WithdrawalRequestPage() {
       }
 
       if (data.success) {
-        setSuccess(t('withdrawals.submitSuccess'));
+        // Si supera el tope diario, el servidor aclara que lo aprueba el dueño: se muestra su mensaje en vez del genérico.
+        setSuccess(data.requiereAprobacionDelDueno ? data.message : t('withdrawals.submitSuccess'));
         // Reset form
         setAmount('');
         setAccountHolder('');
@@ -315,6 +321,12 @@ export default function WithdrawalRequestPage() {
           <p className="text-3xl font-bold">
             ${balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </p>
+          {enLiberacion > 0 && (
+            <p className="mt-2 text-xs text-sky-100">
+              + ${enLiberacion.toLocaleString('es-AR')} ya están en tu cuenta pero Mercado Pago todavía no liberó ese pago
+              {proximaLiberacion ? `: se pueden retirar desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')}` : ''}.
+            </p>
+          )}
         </div>
 
         {/* Total Withdrawn */}

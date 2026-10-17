@@ -208,14 +208,20 @@ export class WithdrawalRequest extends Model {
         instance.bankingInfo.alias = instance.bankingInfo.alias.trim();
       }
 
-      // Validate CBU length (22 digits)
-      if (instance.bankingInfo.cbu && instance.bankingInfo.cbu.length !== 22) {
-        throw new Error('CBU debe tener exactamente 22 dígitos');
-      }
-
-      // Validate CBU is numeric
-      if (instance.bankingInfo.cbu && !/^\d{22}$/.test(instance.bankingInfo.cbu)) {
-        throw new Error('CBU debe contener solo números');
+      // El CBU se valida en claro al crear el pedido. Después queda CIFRADO (encryptCBUOnCreate): un valor con algo que no es un dígito es el
+      // cifrado y se acepta. Antes se exigían 22 dígitos en TODA actualización, y aprobar, procesar o completar un retiro fallaba siempre con
+      // «CBU debe tener exactamente 22 dígitos» porque el CBU guardado ya estaba cifrado.
+      const cbuActual = instance.bankingInfo.cbu;
+      const estaCifrado = !!cbuActual && /\D/.test(cbuActual);
+      if (cbuActual && !estaCifrado) {
+        // Validate CBU length (22 digits)
+        if (cbuActual.length !== 22) {
+          throw new Error('CBU debe tener exactamente 22 dígitos');
+        }
+        // Validate CBU is numeric
+        if (!/^\d{22}$/.test(cbuActual)) {
+          throw new Error('CBU debe contener solo números');
+        }
       }
     }
 

@@ -1557,6 +1557,8 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
           jobId: job.id,
           contractId: contract.id,
           jobTitle: job.title,
+          // El cobro se suma ya, pero se retira recién cuando Mercado Pago liberó el pago y venció el plazo para reclamar (services/liberacionDeSaldo.ts).
+          disponibleDesde: (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeUnCobro(contract as any, payment as any),
           isMultiWorker: true,
           totalWorkers: job.maxWorkers,
           percentageOfBudget: contract.percentageOfBudget || (paymentAmount / Number(job.price) * 100),
@@ -3283,6 +3285,8 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         metadata: {
           previousPrice,
           newPrice,
+          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+          disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
           reason: reason || 'Reducción de precio',
           // Ya hubo trabajador seleccionado, así que la comisión se retuvo en
           // su momento: retirar este saldo no cuesta nada.
@@ -3610,6 +3614,8 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
           metadata: {
             previousPrice,
             newPrice,
+            // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+            disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
             reason: contract.pendingModification.notes,
             alRetirar: { comision: 0 },
           },

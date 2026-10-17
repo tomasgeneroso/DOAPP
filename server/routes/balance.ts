@@ -29,9 +29,15 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
+    // El saldo se suma en el momento del hecho, pero solo se retira desde que Mercado Pago libera ese pago (services/liberacionDeSaldo.ts).
+    const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
+    const retirable = await saldoRetirable(String(req.user.id), Number(user.balanceArs) || 0);
     res.status(200).json({
       success: true,
-      balance: user.balanceArs || 0
+      balance: user.balanceArs || 0,
+      disponibleParaRetirar: retirable.disponible,
+      enLiberacion: retirable.enLiberacion,
+      proximaLiberacion: retirable.proximaLiberacion,
     });
   } catch (error: any) {
     console.error("Error fetching balance:", error);
@@ -249,12 +255,22 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Retiro "todo o nada": se retira SIEMPRE el saldo completo disponible (mín $1,000 ARS).
-    const amount = Number(user.balanceArs) || 0;
+    // Retiro "todo o nada": se retira SIEMPRE todo lo que está DISPONIBLE (mín $1,000 ARS). Lo que está en la cuenta pero todavía no se libera
+    // (Mercado Pago no liberó ese pago, o el trabajo está en plazo de reclamo) se suma al saldo ya, pero se retira cuando llegue su fecha.
+    const saldoTotal = Number(user.balanceArs) || 0;
+    const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
+    const retirable = await saldoRetirable(String(userId), saldoTotal);
+    const amount = retirable.disponible;
     if (amount < MINIMUM_WITHDRAWAL_ARS) {
+      const cuando = retirable.proximaLiberacion ? ` Se libera el ${retirable.proximaLiberacion.toLocaleDateString('es-AR')}.` : '';
       res.status(400).json({
         success: false,
-        message: `El monto mínimo de retiro es $${MINIMUM_WITHDRAWAL_ARS.toLocaleString("es-AR")} ARS. Tu saldo disponible es $${amount.toLocaleString("es-AR")}.`
+        message:
+          `El monto mínimo de retiro es $${MINIMUM_WITHDRAWAL_ARS.toLocaleString("es-AR")} ARS. Tu saldo disponible para retirar es $${amount.toLocaleString("es-AR")}.` +
+          (retirable.enLiberacion > 0 ? ` Otros $${retirable.enLiberacion.toLocaleString("es-AR")} ya están en tu cuenta pero Mercado Pago todavía no liberó ese pago.${cuando}` : ''),
+        disponibleParaRetirar: amount,
+        enLiberacion: retirable.enLiberacion,
+        proximaLiberacion: retirable.proximaLiberacion,
       });
       return;
     }
@@ -263,7 +279,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // asiento, el retiro agrandaría un descuadre que después nadie puede reconstruir. El error trae saldo, libro y diferencia.
     {
       const { comprobarSaldoContraLibro, detalleDeSaldoContraLibro, ErrorDeDinero } = await import('../services/controlesDeDinero.js');
-      const cuadre = await comprobarSaldoContraLibro(String(userId), amount);
+      const cuadre = await comprobarSaldoContraLibro(String(userId), saldoTotal);
       if (!cuadre.cierra) throw new ErrorDeDinero('SALDO-NO-CIERRA-LIBRO', detalleDeSaldoContraLibro(String(userId), cuadre));
     }
 
@@ -287,14 +303,18 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       order: [['createdAt', 'DESC']],
     });
 
-    const devoluciones = await BalanceTransaction.findAll({
-      where: {
-        userId,
-        type: 'refund',
-        ...(ultimoRetiro ? { createdAt: { [Op.gt]: (ultimoRetiro as any).createdAt } } : {}),
-      },
-      attributes: ['amount', 'metadata'],
-    });
+    // Las devoluciones que componen LO QUE SE RETIRA AHORA: las acreditadas después del último retiro y las que seguían bloqueadas en ese
+    // momento, siempre que ya estén liberadas. Las que todavía no se liberan se quedan en la cuenta y se cuentan cuando se retiren.
+    const { QueryTypes } = await import('sequelize');
+    const devoluciones = (await (sequelize as any).query(
+      `SELECT amount, metadata FROM balance_transactions
+        WHERE user_id = :userId AND type = 'refund' AND status = 'completed'
+          AND (CAST(:ultimo AS timestamptz) IS NULL
+               OR created_at > CAST(:ultimo AS timestamptz)
+               OR (metadata ? 'disponibleDesde' AND (metadata->>'disponibleDesde')::timestamptz > CAST(:ultimo AS timestamptz)))
+          AND NOT (metadata ? 'disponibleDesde' AND (metadata->>'disponibleDesde')::timestamptz > now())`,
+      { replacements: { userId, ultimo: ultimoRetiro ? new Date((ultimoRetiro as any).createdAt).toISOString() : null }, type: QueryTypes.SELECT },
+    )) as Array<{ amount: number; metadata: any }>;
 
     let creditosDevueltos = 0;
     let retencionComision = 0;
@@ -357,6 +377,11 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // Tope diario por usuario: lo que supere $200.000 en el día no se rechaza, pero lo tiene que aprobar el DUEÑO antes de que salga la plata.
+    const { TOPE_DIARIO_RETIRO_USUARIO_ARS, retiradoHoyPorElUsuario } = await import('../services/paymentSafeguards.js');
+    const retiradoHoy = await retiradoHoyPorElUsuario(String(userId));
+    const requiereDueno = retiradoHoy + montoATransferir > TOPE_DIARIO_RETIRO_USUARIO_ARS;
+
     // Create withdrawal request
     const withdrawal = await WithdrawalRequest.create({
       userId,
@@ -372,11 +397,16 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       },
       status: 'pending',
       balanceBeforeWithdrawal: user.balanceArs,
-      balanceAfterWithdrawal: 0,
+      // Lo que queda en la cuenta: 0 si todo estaba disponible; si parte del saldo todavía no se liberó, queda eso.
+      balanceAfterWithdrawal: Math.round((saldoTotal - amount) * 100) / 100,
       metadata: {
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
         saldoDebitado: amount,
+        enLiberacion: retirable.enLiberacion,
+        requiereDueno,
+        topeDiario: TOPE_DIARIO_RETIRO_USUARIO_ARS,
+        retiradoHoy,
         porcionDevuelta,
         costoComision,
         costoPasarela,
@@ -399,7 +429,10 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
 
     res.status(201).json({
       success: true,
-      message: "Solicitud de retiro creada exitosamente. Será procesada en 24-48 horas.",
+      message: requiereDueno
+        ? `Solicitud de retiro creada. Supera el tope diario de $${TOPE_DIARIO_RETIRO_USUARIO_ARS.toLocaleString("es-AR")}, así que tiene que aprobarla el dueño de la plataforma antes de procesarse: puede demorar un poco más de 24-48 horas.`
+        : "Solicitud de retiro creada exitosamente. Será procesada en 24-48 horas.",
+      requiereAprobacionDelDueno: requiereDueno,
       withdrawal
     });
   } catch (error: any) {

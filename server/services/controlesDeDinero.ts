@@ -1,5 +1,6 @@
 import { CATALOGO_DE_PROBLEMAS, problemaDelCatalogo, rutaDeLaGuia, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
 import { componentesDelPago } from './payoutAmount.js';
+import { DEVOLUCION_QUE_PIDE_DUENO_ARS } from '../../shared/constants/topesDeDinero.js';
 
 /**
  * Controles de dinero: lo que se comprueba ANTES de mover plata, y no después.
@@ -302,6 +303,16 @@ export function controlarPagoOriginal(d: DatosParaControlar): ResultadoDeControl
         encontrado: `${mp.status || 'sin estado'}, ${$(importeMp)}, ${mp.currency_id || 'sin moneda'}, devuelto ${$(devueltoMp)}`,
       });
     }
+
+    add({
+      id: 'monto_no_pide_al_dueno',
+      titulo: `La devolución no supera ${$(DEVOLUCION_QUE_PIDE_DUENO_ARS)} (por encima, la aprueba el dueño)`,
+      grupo: 'devolucion',
+      ok: monto <= DEVOLUCION_QUE_PIDE_DUENO_ARS,
+      bloqueante: true,
+      esperado: `hasta ${$(DEVOLUCION_QUE_PIDE_DUENO_ARS)} sin aprobación del dueño`,
+      encontrado: $(monto),
+    });
 
     const recientes = d.devolucionesRecientesDelCliente ?? 0;
     add({

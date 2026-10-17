@@ -1737,6 +1737,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
             metadata: {
               origen: 'cotizacion_menor',
               reason: 'price_decrease',
+              // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+              disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
               oldPrice,
               newPrice,
               // Retirarlo no cuesta: el procesamiento lo pago el cliente al pagar.
@@ -2223,6 +2225,8 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
         metadata: {
           origen: 'cotizacion_menor',
           reason: 'price_decrease',
+          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+          disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
           oldPrice: currentPrice,
           newPrice,
           // Retirarlo no cuesta: el procesamiento lo pago el cliente al pagar.
@@ -3398,7 +3402,14 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
         await acreditarSaldo(String(job.clientId), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
           relatedModel: 'Job',
           relatedId: job.id,
-          metadata: { origen: 'baja_aceptada_por_todos', reason: 'price_decrease_accepted', oldPrice, newPrice, alRetirar: { comision: 0 } },
+          metadata: {
+            origen: 'baja_aceptada_por_todos',
+            reason: 'price_decrease_accepted',
+            oldPrice,
+            newPrice,
+            alRetirar: { comision: 0 },
+            disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
+          },
         });
       }
 

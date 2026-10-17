@@ -154,6 +154,7 @@ export const CATALOGO_DE_PROBLEMAS = {
       'El monto del pago no coincide con el desglose (precio + comisión + IVA + procesamiento).',
       'El pago tiene más de 180 días (fuera del plazo de devolución de Mercado Pago).',
       'Mercado Pago informa otro estado o importe que el que tenemos guardado.',
+      'La devolución supera $200.000: por encima de ese monto la aprueba el dueño (mientras tanto queda como saldo, que no sale de la plataforma).',
       'El cliente ya tuvo varias devoluciones en los últimos 30 días: se frena para que lo mire una persona.',
     ],
     queHacer: [
@@ -172,6 +173,41 @@ export const CATALOGO_DE_PROBLEMAS = {
     causas: ['Falló la base de datos justo después de la devolución.'],
     queHacer: [
       { texto: 'Abrí el pago, cargá el monto devuelto y el motivo con el número de devolución que trae el mensaje.', ruta: '/admin/financial-transactions' },
+    ],
+    gravedad: 'alta',
+  },
+
+  'RETIRO-REQUIERE-DUENO': {
+    codigo: 'RETIRO-REQUIERE-DUENO',
+    titulo: 'Un retiro supera el tope diario del usuario y espera la aprobación del dueño',
+    paraElUsuario: 'Tu retiro supera el tope diario de $200.000, así que lo tiene que aprobar el dueño de la plataforma antes de transferirse. Puede demorar un poco más de lo habitual.',
+    queSignifica:
+      'Un usuario puede retirar hasta $200.000 por día sin aprobación especial. Lo que pasa de ahí se crea igual, pero solo el dueño puede aprobarlo, procesarlo o completarlo: ningún otro rol de administración. El mensaje trae cuánto pidió ese día.',
+    causas: [
+      'El saldo del usuario es mayor que el tope (el retiro es siempre por todo lo disponible).',
+      'El usuario hizo varios retiros el mismo día que, sumados, superan el tope.',
+    ],
+    queHacer: [
+      { texto: 'Si sos admin: no hay nada que hacer salvo avisarle al dueño. El retiro queda pendiente hasta que él lo apruebe.', ruta: '/admin/withdrawals' },
+      { texto: 'Si sos el dueño: revisá el origen del saldo (movimientos del usuario) y aprobá o rechazá. Al aprobar queda anotado quién y cuándo, y el circuito sigue como siempre.', ruta: '/admin/search' },
+    ],
+    gravedad: 'media',
+  },
+
+  'AUDITORIA-CON-HALLAZGOS': {
+    codigo: 'AUDITORIA-CON-HALLAZGOS',
+    titulo: 'La auditoría nocturna de saldos encontró diferencias',
+    paraElUsuario: 'Estamos revisando tu cuenta para confirmar que todo cierra. No hace falta que hagas nada.',
+    queSignifica:
+      'Todas las noches se comprueba lo que tiene que ser verdad siempre: el saldo de cada usuario es la suma de sus movimientos, no hay publicaciones canceladas con la plata trabada, nadie cobra dos veces un contrato y ningún retiro pendiente supera el saldo. El aviso dice cuántas diferencias hay y las primeras.',
+    causas: [
+      'Un saldo se tocó sin dejar un movimiento en el libro (o al revés).',
+      'Un reembolso o una cancelación quedó a medias.',
+      'Un proceso viejo acreditó plata sin asiento.',
+    ],
+    queHacer: [
+      { texto: 'Abrí la auditoría de saldos: cada diferencia trae el usuario, el monto y el detalle.', ruta: '/admin/auditoria-saldos' },
+      { texto: 'Corregí cada una con un asiento de ajuste que diga quién, cuándo y por qué (nunca editando el saldo). Mientras un usuario tenga el saldo descuadrado, no puede retirar.' },
     ],
     gravedad: 'alta',
   },

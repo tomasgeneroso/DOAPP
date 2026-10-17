@@ -207,6 +207,90 @@ describe('cancelación: comprobaciones antes de mover el dinero', () => {
   });
 });
 
+describe('cancelación: tope de devolución al medio de pago y fecha de liberación del saldo', () => {
+  let cliente: any;
+  let liquidar: any;
+  const creados = { jobs: [] as string[], pagos: [] as string[] };
+  beforeAll(async () => {
+    ({ liquidarCancelacionDePublicacion: liquidar } = await import('../../server/services/jobCancellation.js'));
+    cliente = await crearUsuario({ role: 'client' });
+  });
+  afterAll(async () => {
+    try {
+      await Notification.destroy({ where: { recipientId: cliente.id } as any });
+      await BalanceTransaction.destroy({ where: { userId: cliente.id } as any });
+      await Job.destroy({ where: { id: creados.jobs } as any });
+      await Payment.destroy({ where: { id: creados.pagos } as any });
+      await User.destroy({ where: { id: cliente.id } as any, force: true });
+    } catch {
+      /* el próximo DROP SCHEMA lo limpia */
+    }
+  });
+  async function publicacion(precio: number, pago: Record<string, unknown> = {}) {
+    const comision = precio * 0.1;
+    const iva = comision * 0.21;
+    const p: any = await Payment.create({
+      payerId: cliente.id, recipientId: cliente.id, amount: precio + comision + iva, amountArs: precio + comision + iva, currency: 'ARS', status: 'held_escrow',
+      paymentType: 'job_publication', paymentMethod: 'mercadopago', platformFee: comision, processingCharge: 0, mercadopagoStatus: 'approved',
+      mercadopagoPaymentId: `mp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...pago,
+    } as any);
+    creados.pagos.push(p.id);
+    const j: any = await Job.create({
+      title: 'Obra grande', summary: 'Una obra grande para probar el tope de devolución', description: 'Una obra grande para probar el tope de devolución al medio de pago y la fecha de liberación',
+      price: precio, clientId: cliente.id, status: 'open', category: 'Reparaciones', tags: [], location: 'Almagro', remoteOk: false, startDate: new Date(Date.now() + 5 * 86_400_000),
+      endDateFlexible: false, allowCounterOffers: true, singleDelivery: true, urgency: 'medium', experienceLevel: 'intermediate', permanentlyCancelled: false,
+      publicationPaid: true, publicationPaymentId: p.id, selectedWorkers: [],
+    } as any);
+    creados.jobs.push(j.id);
+    return { pago: p, job: j };
+  }
+  const cancelar = (job: any, salida: 'saldo' | 'devolucion') =>
+    liquidar(job, { aprobada: true, horasHastaInicio: 120, actor: { id: String(cliente.id), tipo: 'cliente' }, motivo: 'prueba', salida });
+
+  it('una devolución al medio de pago por MÁS de $200.000 no sale sola: el dinero queda como saldo (no sale de la plataforma) y se avisa', async () => {
+    const { job } = await publicacion(250_000);
+    mp.getPayment.mockResolvedValue({ status: 'approved', transaction_amount: 250_000 * 1.1 * 1.0 + 250_000 * 0.1 * 0.21, currency_id: 'ARS', transaction_amount_refunded: 0 });
+    const r = await cancelar(job, 'devolucion');
+    expect(mp.refundPayment).not.toHaveBeenCalled();
+    expect(r.salida).toBe('saldo');
+    expect(r.plataMovida).toBe(true);
+    const falla = r.controles.find((c: any) => c.id === 'monto_no_pide_al_dueno');
+    expect(falla.ok).toBe(false);
+    expect(r.problemas.map((p: any) => p.codigo)).toContain('DEV-CONTROL-FALLIDO');
+  });
+
+  it('hasta $200.000 sí sale por Mercado Pago', async () => {
+    mp.refundPayment.mockReset();
+    mp.refundPayment.mockResolvedValue({ refundId: 'r-ok', status: 'approved' });
+    const { job, pago } = await publicacion(100_000);
+    mp.getPayment.mockResolvedValue({ status: 'approved', transaction_amount: Number(pago.amount), currency_id: 'ARS', transaction_amount_refunded: 0 });
+    const r = await cancelar(job, 'devolucion');
+    expect(mp.refundPayment).toHaveBeenCalledTimes(1);
+    expect(r.salida).toBe('devolucion');
+  });
+
+  it('el saldo a favor se suma YA pero lleva la fecha en que Mercado Pago libera el pago original: no se puede retirar antes', async () => {
+    const libera = new Date(Date.now() + 6 * 86_400_000);
+    const { job } = await publicacion(10_000, { moneyReleaseDate: libera });
+    await cancelar(job, 'saldo');
+    const asiento: any = await BalanceTransaction.findOne({ where: { userId: cliente.id, type: 'refund' } as any, order: [['createdAt', 'DESC']] });
+    expect(Number(asiento.amount)).toBeGreaterThan(0);
+    expect(new Date(asiento.metadata.disponibleDesde).getTime()).toBe(libera.getTime());
+    const { saldoRetirable } = await import('../../server/services/liberacionDeSaldo.js');
+    const saldo = Number(((await User.findByPk(cliente.id)) as any).balanceArs);
+    const r = await saldoRetirable(String(cliente.id), saldo);
+    expect(r.enLiberacion).toBeGreaterThan(0);
+    expect(r.proximaLiberacion?.getTime()).toBe(libera.getTime());
+  });
+
+  it('si Mercado Pago ya liberó ese pago, el asiento no lleva espera', async () => {
+    const { job } = await publicacion(10_000, { moneyReleaseDate: new Date(Date.now() - 86_400_000) });
+    await cancelar(job, 'saldo');
+    const asiento: any = await BalanceTransaction.findOne({ where: { userId: cliente.id, type: 'refund' } as any, order: [['createdAt', 'DESC']] });
+    expect(asiento.metadata.disponibleDesde).toBeUndefined();
+  });
+});
+
 describe('saldo contra libro: antes de mover el saldo de un usuario', () => {
   it('acreditar sobre un saldo que no cierra NO se frena (el cliente recupera su plata) pero avisa a administración; retirar SÍ se frena', async () => {
     const { acreditarSaldo, debitarSaldo } = await import('../../server/services/quotePayment.js');

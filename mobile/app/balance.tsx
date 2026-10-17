@@ -44,6 +44,8 @@ export default function BalanceScreen() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [balance, setBalance] = useState(0);
+  const [enLiberacion, setEnLiberacion] = useState(0);
+  const [proximaLiberacion, setProximaLiberacion] = useState<string | null>(null);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -72,7 +74,10 @@ export default function BalanceScreen() {
       ]);
 
       if (balanceRes.success && balanceRes.data) {
-        setBalance(balanceRes.data.balance || 0);
+        // Lo que se puede retirar ahora; lo que Mercado Pago todavía no liberó se muestra aparte.
+        setBalance(balanceRes.data.disponibleParaRetirar ?? balanceRes.data.balance ?? 0);
+        setEnLiberacion(balanceRes.data.enLiberacion || 0);
+        setProximaLiberacion(balanceRes.data.proximaLiberacion || null);
         setPendingBalance(balanceRes.data.pendingBalance || 0);
       }
 
@@ -281,6 +286,16 @@ export default function BalanceScreen() {
         <View style={[styles.balanceCard, { backgroundColor: colors.primary[600] }]}>
           <Text style={styles.balanceLabel}>Saldo disponible</Text>
           <Text style={styles.balanceAmount}>{formatPrice(balance)}</Text>
+
+          {enLiberacion > 0 && (
+            <View style={styles.pendingRow}>
+              <Clock size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.pendingText}>
+                En liberación: {formatPrice(enLiberacion)}
+                {proximaLiberacion ? ` (desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}
+              </Text>
+            </View>
+          )}
 
           {pendingBalance > 0 && (
             <View style={styles.pendingRow}>

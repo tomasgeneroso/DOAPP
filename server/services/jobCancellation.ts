@@ -9,6 +9,7 @@ import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { acreditarSaldo } from './quotePayment.js';
 import { componentesDelPago } from './payoutAmount.js';
+import { disponibleDesdeDeUnaDevolucion } from './liberacionDeSaldo.js';
 import { problemaDelCatalogo, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
 import {
   avisarProblemasDeDinero,
@@ -292,6 +293,8 @@ export async function liquidarCancelacionDePublicacion(
           actor: opts.actor,
           // Que se comprobo del pago antes de acreditar: quien lo confirmo, monto y fecha. Es lo que se mira si despues hay un reclamo.
           comprobaciones: control.controles.map(({ id, ok, esperado, encontrado }) => ({ id, ok, esperado, encontrado })),
+          // Se suma ya, pero se retira recién cuando Mercado Pago libera el pago original (si esa fecha todavía no pasó).
+          disponibleDesde: disponibleDesdeDeUnaDevolucion(pagoReal as any),
           pagoId: (pagoReal as any)?.id ?? null,
         },
       });

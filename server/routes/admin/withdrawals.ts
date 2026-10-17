@@ -12,9 +12,34 @@ import { Op, cast, col, where as sqlWhere } from 'sequelize';
 const asText = (column: string, matcher: any) => sqlWhere(cast(col(column), 'text'), matcher);
 import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
 import { logAudit } from "../../utils/auditLog.js";
-import { respuestaDeErrorDeDinero } from "../../services/controlesDeDinero.js";
+import { respuestaDeErrorDeDinero, ErrorDeDinero } from "../../services/controlesDeDinero.js";
+import { retiroEsperaAlDueno } from "../../services/paymentSafeguards.js";
+import { TOPE_DIARIO_RETIRO_USUARIO_ARS } from "../../../shared/constants/topesDeDinero.js";
 
 const router = express.Router();
+
+/**
+ * Un retiro que supera el tope diario del usuario espera al DUEÑO: ningún otro rol de administración lo aprueba, lo procesa ni lo completa.
+ * Cuando el dueño actúa sobre él, queda anotado quién y cuándo (`metadata.aprobadoPorDueno`) y recién ahí sigue el circuito normal.
+ * Devuelve true si frenó el pedido (y ya contestó).
+ */
+async function frenarSiEsperaAlDueno(withdrawal: any, req: AuthRequest, res: Response): Promise<boolean> {
+  if (!retiroEsperaAlDueno(withdrawal.metadata)) return false;
+  const rol = String((req.user as any).adminRole || req.user.role || '');
+  if (rol !== 'owner') {
+    const r = respuestaDeErrorDeDinero(
+      new ErrorDeDinero(
+        'RETIRO-REQUIERE-DUENO',
+        `retiro ${withdrawal.id} por $${Number(withdrawal.amount).toLocaleString('es-AR')}: el usuario ya pidió $${Number(withdrawal.metadata?.retiradoHoy || 0).toLocaleString('es-AR')} hoy y el tope diario es $${TOPE_DIARIO_RETIRO_USUARIO_ARS.toLocaleString('es-AR')}`,
+      ),
+      true,
+    )!;
+    res.status(403).json(r.body);
+    return true;
+  }
+  await withdrawal.update({ metadata: { ...(withdrawal.metadata || {}), aprobadoPorDueno: { by: String(req.user.id), at: new Date().toISOString() } } });
+  return false;
+}
 
 /**
  * Get all withdrawal requests (admin)
@@ -130,6 +155,8 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
       return;
     }
 
+    if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
+
     await withdrawal.update({
       status: 'approved',
       processedAt: new Date(),
@@ -195,6 +222,8 @@ router.post("/:id/processing", protect, requireRole('admin', 'super_admin', 'own
       return;
     }
 
+    if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
+
     await withdrawal.update({
       status: 'processing',
       processedBy: adminId
@@ -246,6 +275,8 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       });
       return;
     }
+
+    if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
 
     /**
      * Controles antes de que salga la plata.

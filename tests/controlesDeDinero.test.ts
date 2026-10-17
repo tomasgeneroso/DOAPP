@@ -186,6 +186,21 @@ describe('controlarPagoOriginal — devolver por el medio de pago (Mercado Pago)
     expect(fallo(controlarPagoOriginal(medio({ pago: pagoOk({ paymentMethod: 'bank_transfer' }), mpEnVivo: mpOk })), 'medio_es_mercado_pago')).toBeTruthy();
   });
 
+  it('una devolución por más de $200.000 no sale sola al medio de pago (la aprueba el dueño); hasta $200.000 sí', () => {
+    const grande_ = { pago: pagoOk({ amount: 280_250, platformFee: 25_000, processingCharge: 0 }), job: { ...JOB, price: 250_000 }, mpEnVivo: { ...mpOk, transaction_amount: 280_250 } };
+    const justo = controlarPagoOriginal(medio({ ...grande_, monto: 200_000 }));
+    expect(justo.controles.find((c) => c.id === 'monto_no_pide_al_dueno')?.ok).toBe(true);
+    const grande = controlarPagoOriginal(medio({ ...grande_, monto: 200_001 }));
+    const c = grande.controles.find((x) => x.id === 'monto_no_pide_al_dueno')!;
+    expect(c.ok).toBe(false);
+    expect(c.bloqueante).toBe(true);
+    expect(grande.aprobado).toBe(false);
+    // el dinero SÍ llegó: puede quedar como saldo, que no sale de la plataforma
+    expect(grande.recibioElDinero).toBe(true);
+    // acreditar como saldo no pasa por este tope
+    expect(controlarPagoOriginal(datos({ monto: 200_001, destino: 'saldo' })).controles.some((x) => x.id === 'monto_no_pide_al_dueno')).toBe(false);
+  });
+
   it(`un cliente con ${DEVOLUCIONES_QUE_PIDEN_REVISION} devoluciones en 30 días pasa a revisión de una persona`, () => {
     const justo = controlarPagoOriginal(medio({ mpEnVivo: mpOk, devolucionesRecientesDelCliente: DEVOLUCIONES_QUE_PIDEN_REVISION - 1 }));
     expect(justo.aprobado).toBe(true);

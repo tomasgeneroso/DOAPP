@@ -32,6 +32,25 @@ import { logMoneyEvent } from '../utils/auditLog.js';
  */
 export const MONTO_DOBLE_CONFIRMACION_ARS = 200_000;
 
+// Topes del dueño: shared/constants/topesDeDinero.ts (los usa también controlesDeDinero, que no puede importar este archivo: arrastra modelos).
+export { TOPE_DIARIO_RETIRO_USUARIO_ARS, DEVOLUCION_QUE_PIDE_DUENO_ARS } from '../../shared/constants/topesDeDinero.js';
+
+/** Lo que un usuario ya pidió retirar HOY (día argentino, UTC-3), sin contar lo rechazado o cancelado. */
+export async function retiradoHoyPorElUsuario(userId: string, ahora = new Date()): Promise<number> {
+  const { WithdrawalRequest } = await import('../models/sql/WithdrawalRequest.model.js');
+  const ar = new Date(ahora.getTime() - 3 * 3_600_000);
+  const inicio = new Date(Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), ar.getUTCDate()) + 3 * 3_600_000);
+  const suma = await (WithdrawalRequest as any).sum('amount', {
+    where: { userId, status: { [Op.in]: ['pending', 'approved', 'processing', 'completed'] }, createdAt: { [Op.gte]: inicio } },
+  });
+  return Math.round((Number(suma) || 0) * 100) / 100;
+}
+
+/** ¿Este retiro espera al dueño? Lo marca el pedido al crearse; el dueño lo destraba al aprobarlo. */
+export function retiroEsperaAlDueno(metadata: any): boolean {
+  return metadata?.requiereDueno === true && !metadata?.aprobadoPorDueno;
+}
+
 /**
  * Cuanto puede sacar por dia cada rol, en pesos.
  *

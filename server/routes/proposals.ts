@@ -859,7 +859,8 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
           // que vuelve. Si la quiere en el banco, la pasarela cobra por
           // devolverla, y hay que poder distinguirla del saldo ganado para
           // saber sobre que parte corre ese costo.
-          metadata: { origen: 'cotizacion_menor', jobId: job.id },
+          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+          metadata: { origen: 'cotizacion_menor', jobId: job.id, disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any) },
         },
       );
     }

@@ -39,6 +39,7 @@ import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
 import { startPauseStaleJobs } from "./jobs/pauseStaleJobs.js";
 import { startReconciliation } from "./services/reconciliation.js";
+import { startAuditoriaNocturna } from "./jobs/auditoriaNocturna.js";
 import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
 import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
@@ -520,6 +521,8 @@ startSuspendFlexibleEndDateJob();
 startPauseStaleJobs();
 // Conciliación diaria: el único control que encuentra lo que los demás no vieron.
 startReconciliation();
+// Auditoría de saldos todas las noches (3 AM): avisa a administración si algo no cierra.
+startAuditoriaNocturna();
 // El silencio pierde: quien no responde una disputa en 7 dias, la pierde.
 startDisputeSilenceJob();
 startReclamoDirectoJob();
