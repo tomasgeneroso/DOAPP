@@ -108,3 +108,12 @@ describe('cabeceras de seguridad del sitio', () => {
     for (const s of estilos) expect([s, (ORIGENES.estilos as readonly string[]).includes(s)]).toEqual([s, true]);
   });
 });
+
+describe('la base y Redis no se publican a internet', () => {
+  it('docker-compose publica Postgres y Redis solo en 127.0.0.1 (los contenedores se hablan por la red interna)', () => {
+    const compose = leer('docker-compose.yml');
+    expect(compose).toContain('- "127.0.0.1:${DB_PORT:-5432}:5432"');
+    expect(compose).toContain('- "127.0.0.1:${REDIS_PORT:-6379}:6379"');
+    expect(compose).not.toMatch(/-\s*"\$\{(DB|REDIS)_PORT[^"]*"/);
+  });
+});
