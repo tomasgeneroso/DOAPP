@@ -246,7 +246,7 @@ export default function CreateJobScreen() {
               });
             } else if (paymentResponse.success && (paymentResponse as any).requiresPayment === false) {
               // Free contract detected at payment step
-              showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado con un contrato gratuito.', () => {
+              showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado.', () => {
                 router.replace(`/job/${job.id}`);
               });
             } else if (paymentResponse.success && (paymentResponse as any).approvalUrl) {

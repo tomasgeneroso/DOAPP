@@ -139,7 +139,7 @@ export default function MembershipScreen() {
           <Text style={styles.currentPlanName}>{getMembershipLabel(currentPlan)}</Text>
           {user?.freeContractsRemaining !== undefined && user.freeContractsRemaining > 0 && (
             <Text style={styles.currentPlanSub}>
-              {user.freeContractsRemaining} contratos gratis restantes
+              {user.freeContractsRemaining} contratos libres de comisión restantes
             </Text>
           )}
         </View>

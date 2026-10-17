@@ -56,7 +56,7 @@ export default function JobPaymentScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await get<any>(`/payments/quote?price=${jobPrice}`);
+        const res = await get<any>(`/payments/quote?price=${jobPrice}&jobId=${id}`);
         if (!cancelled && res.success) setQuote(res.data);
       } catch {
         /* sin presupuesto el botón queda deshabilitado */
@@ -145,15 +145,16 @@ export default function JobPaymentScreen() {
         <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>Resumen de costos</Text>
 
-          {isFreeContract ? (
+          {isFreeContract && (
             <View style={[styles.freeBox, { backgroundColor: '#d1fae5', borderColor: '#6ee7b7' }]}>
               <CheckCircle size={20} color="#065f46" />
               <View>
-                <Text style={styles.freeTitle}>¡Contrato gratuito!</Text>
-                <Text style={styles.freeSubtitle}>Tenés {user?.freeContractsRemaining} contratos gratis disponibles. Sin comisión.</Text>
+                <Text style={styles.freeTitle}>Contrato libre de comisión</Text>
+                <Text style={styles.freeSubtitle}>No pagás la comisión de DOAPP. Se abonan igual el costo del trabajo y el del medio de pago.</Text>
               </View>
             </View>
-          ) : (
+          )}
+          {(
             <>
               <View style={styles.costRow}>
                 <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>Precio del trabajo</Text>
@@ -214,7 +215,7 @@ export default function JobPaymentScreen() {
           </View>
           {(user?.freeContractsRemaining || 0) > 0 && (
             <View style={styles.planRow}>
-              <Text style={[styles.planLabel, { color: themeColors.text.secondary }]}>Contratos gratis:</Text>
+              <Text style={[styles.planLabel, { color: themeColors.text.secondary }]}>Contratos libres de comisión:</Text>
               <Text style={[styles.planValue, { color: '#10b981' }]}>{user?.freeContractsRemaining}</Text>
             </View>
           )}
@@ -231,7 +232,7 @@ export default function JobPaymentScreen() {
             <>
               <CreditCard size={20} color="#fff" />
               <Text style={styles.payBtnText}>
-                {isFreeContract ? 'Publicar gratis' : `Pagar $${Number(total).toLocaleString('es-AR')} ARS`}
+                {`Pagar $${Number(total).toLocaleString('es-AR', { maximumFractionDigits: 2 })} ARS`}
               </Text>
             </>
           )}

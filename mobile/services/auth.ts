@@ -212,3 +212,34 @@ export async function iniciarVinculo(provider: 'google' | 'twitter'): Promise<Ap
 export async function confirmarVinculo(codigo: string): Promise<ApiResponse<void> & { proveedor?: 'google' | 'twitter' }> {
   return post<void>('/auth/social/link-confirm', { codigo }) as any;
 }
+
+/**
+ * Registro en pasos: 1) correo y contraseña, 2) verificación de identidad con Didit, 3) revisar los datos que salieron del documento.
+ */
+export interface DatosDelRegistro {
+  pendiente: boolean;
+  verificada: boolean;
+  kycStatus: string | null;
+  documento: { nombres: string; apellidos: string; dni: string } | null;
+  sugerido: { nombres: string; apellidos: string; dni: string; username: string; telefono: string };
+  faltan: string[];
+  pedirCorreo: boolean;
+}
+
+/** Empieza la verificación con Didit: devuelve la dirección que se abre en el navegador del teléfono. */
+export async function iniciarVerificacion(): Promise<ApiResponse<void> & { url?: string }> {
+  return post<void>('/auth/kyc/start', {}) as any;
+}
+
+/** El resultado real (el servidor se lo pregunta a Didit). */
+export async function estadoDeVerificacion(): Promise<ApiResponse<void> & { kycStatus?: string; dniVerified?: boolean }> {
+  return get<void>('/auth/kyc/status') as any;
+}
+
+export async function datosDelRegistro(): Promise<ApiResponse<DatosDelRegistro>> {
+  return get<DatosDelRegistro>('/auth/registro/datos');
+}
+
+export async function completarElRegistro(datos: { nombres: string; apellidos: string; dni: string; username: string; phone?: string; email?: string }): Promise<ApiResponse<void> & { field?: string; code?: string; enRevision?: boolean; verificada?: boolean }> {
+  return put<void>('/auth/registro/completar', datos) as any;
+}

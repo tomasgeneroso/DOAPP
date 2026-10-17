@@ -338,7 +338,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.statSmallValue, { color: '#6366f1' }]}>{stats.postedJobs}</Text>
                 <Text style={[styles.statSmallLabel, { color: themeColors.text.secondary }]}>Publicados</Text>
                 {freeContractsRemaining > 0 && (
-                  <Text style={[styles.statSmallBadge, { color: '#10b981' }]}>{freeContractsRemaining} gratis</Text>
+                  <Text style={[styles.statSmallBadge, { color: '#10b981' }]}>{freeContractsRemaining} sin comisión</Text>
                 )}
               </TouchableOpacity>
 
@@ -439,10 +439,10 @@ export default function ProfileScreen() {
                 <Text style={styles.freeContractsEmoji}>🎁</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.freeContractsTitle, { color: themeColors.text.primary }]}>
-                    {freeContractsRemaining} contratos gratis disponibles
+                    {freeContractsRemaining} contratos libres de comisión
                   </Text>
                   <Text style={[styles.freeContractsSubtitle, { color: themeColors.text.secondary }]}>
-                    Sin comisión en tus próximos contratos
+                    Pagás el trabajo y el medio de pago; DOAPP no cobra comisión
                   </Text>
                 </View>
               </View>
