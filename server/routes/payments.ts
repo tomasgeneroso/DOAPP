@@ -11,6 +11,7 @@ import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { PaymentProof } from "../models/sql/PaymentProof.model.js";
 import mercadopagoService from "../services/mercadopago.js";
+import { datosDeLiberacionDeMp } from "../services/liberacionDeSaldo.js";
 import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env.js";
@@ -884,6 +885,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           mercadopagoPaymentId: mpPaymentId,
           mercadopagoStatus: String(mpPaymentData.status),
           mercadopagoStatusDetail: String(mpPaymentData.status_detail || mpPaymentData.status),
+          // Cuándo se aprobó y cuándo libera MP esta plata: de eso depende cuándo se puede retirar lo que vuelve o se cobra por este pago.
+          ...datosDeLiberacionDeMp(mpPaymentData),
         } as any,
         { where: { id: payment.id, status: { [Op.in]: [...ESTADOS_CAPTURABLES] } } },
       );

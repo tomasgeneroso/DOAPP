@@ -131,6 +131,12 @@ describe('mark-paid: sólo se paga lo que está confirmado, por un monto válido
     expect(await estadoContrato(id)).toBe('completed');
     expect(((await Payment.findOne({ where: { contractId: id } })) as any).status).toBe('completed');
     expect(await asientos(id)).toBe(1);
+    // La plata se transfirió por fuera: el saldo en la app NO cambia y el historial no desajusta el libro (si no, al trabajador se le
+    // frenarían los retiros con «el saldo no cierra con los movimientos»).
+    const { comprobarSaldoContraLibro } = await import('../../server/services/controlesDeDinero.js');
+    const despues: any = await User.findByPk(trabajador.id);
+    expect(Number(despues.balanceArs)).toBe(0);
+    expect((await comprobarSaldoContraLibro(trabajador.id, Number(despues.balanceArs))).cierra).toBe(true);
     // El comprobante de la transferencia quedó registrado como evidencia de administración (antes el create
     // faltaba campos obligatorios y la ruta respondía 500 con el pago ya hecho).
     const pago: any = await Payment.findOne({ where: { contractId: id } });

@@ -7,6 +7,7 @@ import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import emailService from '../services/email.js';
 import { montoParaElTrabajador } from '../services/payoutAmount.js';
+import { pagableDesde } from '../services/liberacionDeSaldo.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -152,7 +153,7 @@ export function startAutoConfirmContractsJob() {
               // Decirle "se acredita pronto" y transferirle a los 7 días es la
               // forma más rápida de que escriba a soporte enojado. Se le dice
               // la fecha.
-              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} se transfiere a partir del ${new Date(now.getTime() + POLITICAS.DIAS_PARA_DISPUTAR * 86_400_000).toLocaleDateString('es-AR')}, cuando vence el plazo del cliente para reclamar.`,
+              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} se transfiere a partir del ${pagableDesde({ completedAt: now }, (pagoDelCliente as any)?.approvedAt || (pagoDelCliente as any)?.createdAt, (pagoDelCliente as any)?.moneyReleaseDate).toLocaleDateString('es-AR')}, cuando vence el plazo del cliente para reclamar y Mercado Pago libera el pago.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',

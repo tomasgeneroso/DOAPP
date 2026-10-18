@@ -338,7 +338,8 @@ export async function liquidarCancelacionDePublicacion(
           relatedModel: 'Job',
           relatedId: job.id,
           tipo: 'payment',
-          metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice },
+          // La compensación sale de lo que pagó el cliente: no se retira antes de que Mercado Pago libere ese pago.
+          metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice, disponibleDesde: disponibleDesdeDeUnaDevolucion(pagoReal as any) },
         });
       } catch (e: any) {
         anotar('TRABAJADOR-COMPENSACION-FALLIDA', `no se pudo acreditar ${$(porTrabajador)} al trabajador ${workerId}: ${e?.message}`);

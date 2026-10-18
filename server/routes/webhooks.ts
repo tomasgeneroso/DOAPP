@@ -593,6 +593,11 @@ async function handlePaymentWebhook(data: any, ip: string) {
       // Aunque el webhook no haga avanzar el pago, GUARDA el id del pago de MercadoPago. Sin ese vínculo, un pago
       // cobrado cuyo comprador cerró la pestaña antes de volver (efectivo, tarjeta que quedó pendiente) no lo ve
       // nadie: la conciliación busca pagos con ese id. No cambia el estado ni ejecuta lo que el pago compra.
+      // También guarda cuándo libera MP esta plata (no cambia el estado): de eso depende cuándo se puede retirar lo que vuelve.
+      if (mpPaymentData.money_release_date && !foundPayment.moneyReleaseDate) {
+        const d = new Date(mpPaymentData.money_release_date);
+        if (!isNaN(d.getTime())) await Payment.update({ moneyReleaseDate: d } as any, { where: { id: foundPayment.id } }).catch(() => {});
+      }
       if (!foundPayment.mercadopagoPaymentId) {
         try {
           await Payment.update(

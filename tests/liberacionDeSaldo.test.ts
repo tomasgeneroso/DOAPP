@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  datosDeLiberacionDeMp,
+  diasDeLiberacionMp,
   disponibleDesdeDeUnCobro,
   disponibleDesdeDeUnaDevolucion,
   liberaMpEl,
@@ -38,10 +40,27 @@ describe('liberaMpEl: cuándo libera Mercado Pago un pago', () => {
     expect(liberaMpEl({ createdAt: hace(4) })?.getTime()).toBe(dentroDe(6).getTime());
   });
 
-  it('sin fecha y sin PAYMENT_RELEASE_DAYS no inventa una espera', () => {
+  it('sin la fecha del webhook y sin PAYMENT_RELEASE_DAYS en el entorno asume los 10 días de Mercado Pago (no deja la plata sin espera)', () => {
     delete process.env.PAYMENT_RELEASE_DAYS;
-    expect(liberaMpEl({ approvedAt: hace(1) })).toBeNull();
+    expect(liberaMpEl({ approvedAt: hace(1) })?.getTime()).toBe(dentroDe(9).getTime());
     expect(liberaMpEl(null)).toBeNull();
+  });
+
+  it('PAYMENT_RELEASE_DAYS=0 apaga la espera; un valor inválido vuelve a los 10 días', () => {
+    process.env.PAYMENT_RELEASE_DAYS = '0';
+    expect(liberaMpEl({ approvedAt: hace(1) })).toBeNull();
+    process.env.PAYMENT_RELEASE_DAYS = 'abc';
+    expect(diasDeLiberacionMp()).toBe(10);
+  });
+
+  it('datosDeLiberacionDeMp guarda la fecha real de liberación y la de aprobación (o ahora si MP no la informó)', () => {
+    const r = datosDeLiberacionDeMp({ money_release_date: '2026-11-01T12:00:00.000Z', date_approved: '2026-10-20T12:00:00.000Z' });
+    expect(r.moneyReleaseDate?.toISOString()).toBe('2026-11-01T12:00:00.000Z');
+    expect(r.approvedAt?.toISOString()).toBe('2026-10-20T12:00:00.000Z');
+    const sinDatos = datosDeLiberacionDeMp({});
+    expect(sinDatos.moneyReleaseDate).toBeUndefined();
+    expect(Math.abs((sinDatos.approvedAt as Date).getTime() - Date.now())).toBeLessThan(5000);
+    expect(datosDeLiberacionDeMp({ money_release_date: 'no es fecha' }).moneyReleaseDate).toBeUndefined();
   });
 });
 

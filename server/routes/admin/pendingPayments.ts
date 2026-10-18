@@ -1039,12 +1039,11 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
 
     // Update worker's balance with the payment
     if (doer) {
-      const currentBalance = parseFloat(doer.balance || 0);
-      const newBalance = currentBalance + netAmount;
-      await User.update(
-        { balance: newBalance, availableBalance: newBalance },
-        { where: { id: doer.id } }
-      );
+      // El administrador YA transfirió esta plata al banco del trabajador: su saldo en la app no cambia. El asiento queda en su historial
+      // (qué cobró y cuándo) marcado `fueraDelSaldo` para que la suma de movimientos no lo cuente (si no, el saldo «no cierra» con el libro
+      // y se le frenan los retiros). Antes acá se «actualizaba» un campo `balance` que el modelo no tiene: no hacía nada.
+      const currentBalance = parseFloat(String((doer as any).balanceArs ?? 0)) || 0;
+      const newBalance = currentBalance;
 
       // Update or create the balance transaction as completed
       const BalanceTransaction = (await import('../../models/sql/BalanceTransaction.model.js')).default;
@@ -1063,7 +1062,10 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
           deductions: deductions || null,
           grossAmount: netBeforeDeductions,
           finalAmount: netAmount,
+          fueraDelSaldo: true,
         };
+        existingTransaction.balanceBefore = currentBalance;
+        existingTransaction.amount = netAmount;
         await existingTransaction.save();
       } else {
         await BalanceTransaction.create({
@@ -1082,6 +1084,7 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
             deductions: deductions || null,
             grossAmount: netBeforeDeductions,
             finalAmount: netAmount,
+            fueraDelSaldo: true,
           },
         });
       }

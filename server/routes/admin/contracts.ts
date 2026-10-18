@@ -1352,13 +1352,16 @@ router.post(
         // transaccion. alRetirar viaja en la metadata para que el retiro sepa
         // que descontar si saca este saldo a efectivo.
         const { acreditarSaldo } = await import('../../services/quotePayment.js');
+        // Lo que se reparte sale del pago del cliente: no se puede retirar antes de que Mercado Pago lo libere.
+        const { disponibleDesdeDelPagoDelContrato } = await import('../../services/liberacionDeSaldo.js');
+        const disponibleDesde = await disponibleDesdeDelPagoDelContrato(String(contract.id));
         const acreditar = async (userId: string, monto: number, tipo: 'refund' | 'payment', descripcion: string) => {
           if (monto <= 0) return;
           await acreditarSaldo(userId, monto, descripcion, {
             relatedModel: 'Contract',
             relatedId: String(contract.id),
             tipo,
-            metadata: { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion },
+            metadata: { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion, disponibleDesde },
           });
         };
 

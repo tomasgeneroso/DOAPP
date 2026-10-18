@@ -604,7 +604,14 @@ export async function trabajadorNoDisponible(
         {
           relatedModel: 'Contract',
           relatedId: contract.id,
-          metadata: { origen: 'cancelacion', jobId: job.id, motivo: 'trabajador_no_disponible', alRetirar: { comision: 0 } },
+          metadata: {
+            origen: 'cancelacion',
+            jobId: job.id,
+            motivo: 'trabajador_no_disponible',
+            alRetirar: { comision: 0 },
+            // Se suma ya, pero se retira recién cuando Mercado Pago libera el pago del contrato.
+            disponibleDesde: await (await import('./liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
+          },
         },
       );
     } catch (e: any) {

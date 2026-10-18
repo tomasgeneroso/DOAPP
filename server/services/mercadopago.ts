@@ -285,6 +285,7 @@ class MercadoPagoPaymentService {
         fee_details: (payment as any).fee_details as Array<{ type?: string; amount?: number; fee_payer?: string }> | undefined,
         transaction_details: (payment as any).transaction_details as { net_received_amount?: number; total_paid_amount?: number } | undefined,
         money_release_date: (payment as any).money_release_date as string | undefined,
+        date_approved: (payment as any).date_approved as string | undefined,
       };
     } catch (error: any) {
       console.error(`Error fetching payment ${paymentId}:`, error);

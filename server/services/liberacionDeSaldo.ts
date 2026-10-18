@@ -29,6 +29,29 @@ export interface PagoParaLiberar {
   moneyReleaseDate?: Date | string | null;
 }
 
+/** Lo que tarda Mercado Pago en liberar un pago cuando no informó la fecha. `PAYMENT_RELEASE_DAYS` lo cambia; `0` apaga la espera. */
+export const DIAS_DE_LIBERACION_MP_POR_DEFECTO = 10;
+
+export function diasDeLiberacionMp(): number {
+  const crudo = process.env.PAYMENT_RELEASE_DAYS;
+  if (crudo === undefined || crudo.trim() === '') return DIAS_DE_LIBERACION_MP_POR_DEFECTO;
+  const n = Number(crudo);
+  return Number.isFinite(n) && n >= 0 ? n : DIAS_DE_LIBERACION_MP_POR_DEFECTO;
+}
+
+/** De la respuesta de Mercado Pago, los datos que se guardan en el pago para saber cuándo se libera su plata. */
+export function datosDeLiberacionDeMp(mp: { money_release_date?: string; date_approved?: string } | null | undefined): { moneyReleaseDate?: Date; approvedAt?: Date } {
+  const fecha = (v?: string) => {
+    const d = v ? new Date(v) : null;
+    return d && Number.isFinite(d.getTime()) ? d : undefined;
+  };
+  const out: { moneyReleaseDate?: Date; approvedAt?: Date } = {};
+  const libera = fecha(mp?.money_release_date);
+  if (libera) out.moneyReleaseDate = libera;
+  out.approvedAt = fecha(mp?.date_approved) ?? new Date();
+  return out;
+}
+
 const hasta = (v: Date | string | null | undefined): number => {
   if (!v) return 0;
   const t = new Date(v).getTime();
@@ -36,16 +59,16 @@ const hasta = (v: Date | string | null | undefined): number => {
 };
 
 /**
- * Cuándo libera Mercado Pago la plata de un pago. null si no hay forma de saberlo (sin fecha del webhook y sin `PAYMENT_RELEASE_DAYS`):
- * en ese caso no se inventa una espera.
+ * Cuándo libera Mercado Pago la plata de un pago: la fecha real si se guardó; si no, `PAYMENT_RELEASE_DAYS` (10 por defecto) desde la
+ * aprobación. null solo si no hay fecha del pago o la espera está apagada (`PAYMENT_RELEASE_DAYS=0`).
  */
 export function liberaMpEl(pago: PagoParaLiberar | null | undefined): Date | null {
   if (!pago) return null;
   const real = hasta(pago.moneyReleaseDate);
   if (real > 0) return new Date(real);
-  const dias = Number(process.env.PAYMENT_RELEASE_DAYS);
+  const dias = diasDeLiberacionMp();
   const desde = hasta(pago.approvedAt) || hasta(pago.paidAt) || hasta(pago.createdAt);
-  if (desde > 0 && Number.isFinite(dias) && dias > 0) return new Date(desde + dias * 86_400_000);
+  if (desde > 0 && dias > 0) return new Date(desde + dias * 86_400_000);
   return null;
 }
 
@@ -62,10 +85,10 @@ export function pagableDesde(
 ): Date {
   const fin = contract.completedAt || contract.clientConfirmedAt || contract.updatedAt || new Date();
   const porRetencion = new Date(fin).getTime() + PAGO_TRABAJADOR_RETENCION_DIAS * 86_400_000;
-  const diasMp = Number(process.env.PAYMENT_RELEASE_DAYS);
+  const diasMp = diasDeLiberacionMp();
   const porLiberacionMp = liberaMpEl_
     ? new Date(liberaMpEl_).getTime()
-    : pagadoEl && Number.isFinite(diasMp) && diasMp > 0
+    : pagadoEl && diasMp > 0
       ? new Date(pagadoEl).getTime() + diasMp * 86_400_000
       : 0;
   return new Date(Math.max(porRetencion, porLiberacionMp));

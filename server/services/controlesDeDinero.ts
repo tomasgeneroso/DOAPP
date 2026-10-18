@@ -369,7 +369,12 @@ export interface SaldoContraLibro {
 /** El saldo tiene que ser la suma de los asientos completados. Se llama dentro de la transacción que ya bloqueó al usuario. */
 export async function comprobarSaldoContraLibro(userId: string, saldo: number, transaction?: any): Promise<SaldoContraLibro> {
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
-  const suma = await (BalanceTransaction as any).sum('amount', { where: { userId, status: 'completed' }, transaction });
+  // Los asientos `fueraDelSaldo` son historial de plata que se pagó por fuera (transferencia manual del administrador): no mueven el saldo.
+  const { Op, literal } = await import('sequelize');
+  const suma = await (BalanceTransaction as any).sum('amount', {
+    where: { [Op.and]: [{ userId, status: 'completed' }, literal(`COALESCE(metadata->>'fueraDelSaldo', 'false') <> 'true'`)] },
+    transaction,
+  });
   const libro = r2(Number(suma) || 0);
   const s = r2(Number(saldo) || 0);
   const diferencia = r2(s - libro);

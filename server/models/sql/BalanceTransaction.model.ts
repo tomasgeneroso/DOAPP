@@ -166,7 +166,9 @@ export class BalanceTransaction extends Model {
       instance.amount !== undefined &&
       instance.balanceAfter !== undefined
     ) {
-      const expectedBalance = Number(instance.balanceBefore) + Number(instance.amount);
+      // Un asiento `fueraDelSaldo` es historial de plata que se pagó por fuera (transferencia del administrador): no mueve el saldo.
+      const fueraDelSaldo = (instance.metadata as any)?.fueraDelSaldo === true;
+      const expectedBalance = Number(instance.balanceBefore) + (fueraDelSaldo ? 0 : Number(instance.amount));
       const actualBalance = Number(instance.balanceAfter);
 
       // Allow small floating point differences (0.01 ARS)
