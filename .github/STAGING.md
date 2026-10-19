@@ -1,6 +1,6 @@
 # Staging — cómo dejarlo funcionando (una sola vez)
 
-**Qué es:** una copia del sitio, privada, en `staging.doapparg.site`, para probar
+**Qué es:** una copia del sitio, privada, en `staging.doapparg.com`, para probar
 cambios en un servidor real **antes** de tocar el sitio de verdad. Si algo se
 rompe, se rompe en staging y nadie se entera.
 
@@ -25,8 +25,11 @@ sudo -u postgres createdb doapp_staging
 
 # 3. Config: copiá el .env de prod y cambiá la base + puerto
 cp /var/www/doapp/.env .env
-#   editá .env:  DATABASE_URL=postgres://postgres:PASS@localhost:5432/doapp_staging
-#                PORT=3002
+#   editá .env — la base de staging se dice en DOS lugares y tienen que ser la misma:
+#     DB_NAME=doapp_staging  DB_USER=<usuario de staging>  DB_PASSWORD=<su clave>   (los lee la app)
+#     DATABASE_URL=postgres://<usuario>:<clave>@localhost:5432/doapp_staging         (la leen las migraciones)
+#     APP_ENV=staging  PORT=3002  RLS_ACTIVO=true  (si estás probando RLS)
+#   Si DB_NAME queda en "doapp" (la real), la app NO arranca: server/config/guardaDeStaging.ts.
 nano .env
 
 # 4. Dependencias + build + migraciones + arranque
@@ -37,14 +40,14 @@ pm2 start ecosystem.staging.config.cjs
 pm2 save
 ```
 
-## nginx para staging.doapparg.site
+## nginx para staging.doapparg.com
 
 Creá `/etc/nginx/sites-enabled/doapp-staging` (copiá el de prod y cambiá 3 cosas:
 `server_name`, `root`, y el puerto del backend a `3002`). Mínimo:
 
 ```nginx
 server {
-    server_name staging.doapparg.site;
+    server_name staging.doapparg.com;
     root /var/www/doapp-staging/dist/spa;
     index index.html;
     client_max_body_size 50M;
@@ -54,8 +57,8 @@ server {
     location / { try_files $uri $uri/ /index.html; }
 
     listen 443 ssl;
-    ssl_certificate     /etc/letsencrypt/live/doapparg.site/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/doapparg.site/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/doapparg.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/doapparg.com/privkey.pem;
 }
 ```
 
@@ -70,7 +73,7 @@ contraseña para que no sea público.
 ## Cómo se usa el día a día
 
 1. En GitHub → **Actions** → "Deploy to Staging" → **Run workflow** (elegí la rama).
-2. Se despliega a `staging.doapparg.site`. Probalo.
+2. Se despliega a `staging.doapparg.com`. Probalo.
 3. Si está OK, recién ahí mergeás/pusheás a `master` (eso dispara el deploy a prod).
 
 > Mientras no hagas esta preparación, el workflow de staging simplemente no se usa —

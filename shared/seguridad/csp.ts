@@ -38,6 +38,7 @@ export const ORIGENES = {
     'https://connect.facebook.net',
     'https://api.mapbox.com', // geocodificación (useMapboxGeocoding)
     'https://nominatim.openstreetmap.org', // direcciones
+    'https://apis.datos.gob.ar', // autocompletado de calles y alturas (georef, shared/geo/direcciones.ts)
     'https://firebaseinstallations.googleapis.com', // notificaciones push (FCM)
     'https://fcmregistrations.googleapis.com',
     'https://fcm.googleapis.com',
