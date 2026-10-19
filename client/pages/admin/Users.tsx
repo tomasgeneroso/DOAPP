@@ -567,7 +567,7 @@ export default function AdminUsers() {
               <tr
                 key={user.id}
                 className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/profile/${user.id}`)}
+                onClick={() => navigate(`/admin/users/${user.id}`)}
               >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">

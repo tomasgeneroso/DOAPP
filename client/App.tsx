@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
@@ -85,7 +85,6 @@ const BannedUserScreen = lazy(() => import("./pages/BannedUserScreen"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
-const AdminBannedIdentities = lazy(() => import("./pages/admin/BannedIdentities"));
 const AdminUserData = lazy(() => import("./pages/admin/UserData"));
 const AdminPadron = lazy(() => import("./pages/admin/Padron"));
 const AdminPlatformPhase = lazy(() => import("./pages/admin/PlatformPhase"));
@@ -116,10 +115,14 @@ const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
 const AdminJobBoard = lazy(() => import("./pages/admin/JobBoard"));
 const AdminChargebacks = lazy(() => import("./pages/admin/Chargebacks"));
 const AdminUsuariosMarcados = lazy(() => import("./pages/admin/UsuariosMarcados"));
-const AdminIdentidadARevisar = lazy(() => import("./pages/admin/IdentidadARevisar"));
-const AdminHistorialUsuario = lazy(() => import("./pages/admin/HistorialUsuario"));
-const AdminManual = lazy(() => import("./pages/admin/Manual"));
-const AdminGuiaDeErrores = lazy(() => import("./pages/admin/GuiaDeErrores"));
+/** El historial de un usuario ahora es una pestaña de su ficha; la dirección vieja sigue llevando ahí. */
+function RedirigirHistorial() {
+  const { userId } = useParams<{ userId: string }>();
+  return <Navigate to={`/admin/users/${userId}?tab=historial`} replace />;
+}
+const AdminAyuda = lazy(() => import("./pages/admin/Ayuda"));
+const AdminIdentidades = lazy(() => import("./pages/admin/Identidades"));
+const AdminFichaUsuario = lazy(() => import("./pages/admin/FichaUsuario"));
 const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
@@ -592,7 +595,10 @@ export default function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
-              <Route path="banned-identities" element={<AdminBannedIdentities />} />
+              <Route path="users/:userId" element={<AdminFichaUsuario />} />
+              <Route path="identidades" element={<AdminIdentidades />} />
+              {/* Direcciones viejas: los avisos del servidor y los favoritos siguen llegando a la pestaña que corresponde. */}
+              <Route path="banned-identities" element={<AdminIdentidades inicial="baneadas" />} />
               <Route path="user-data" element={<AdminUserData />} />
               <Route path="padrones/jobs" element={<AdminPadron entity="jobs" title="Padrón de trabajos" columns={[
                 { key: 'title', label: 'Título' },
@@ -737,10 +743,11 @@ export default function App() {
               <Route path="jobs/board" element={<AdminJobBoard />} />
               <Route path="chargebacks" element={<AdminChargebacks />} />
               <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />
-              <Route path="identidad-a-revisar" element={<AdminIdentidadARevisar />} />
-              <Route path="historial/:userId" element={<AdminHistorialUsuario />} />
-              <Route path="manual" element={<AdminManual />} />
-              <Route path="guia-de-errores" element={<AdminGuiaDeErrores />} />
+              <Route path="identidad-a-revisar" element={<AdminIdentidades inicial="revisar" />} />
+              <Route path="historial/:userId" element={<RedirigirHistorial />} />
+              <Route path="ayuda" element={<AdminAyuda />} />
+              <Route path="manual" element={<AdminAyuda inicial="manual" />} />
+              <Route path="guia-de-errores" element={<AdminAyuda inicial="errores" />} />
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="influencer-invites" element={<AdminInfluencerInvites />} />

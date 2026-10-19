@@ -137,7 +137,7 @@ export default function UsuariosMarcados() {
                       {p.nombre}
                     </Link>
                     <p className="text-xs text-slate-400">{p.email}</p>
-                    <Link to={`/admin/historial/${p.userId}`} className="text-xs text-sky-600 hover:underline dark:text-sky-400">
+                    <Link to={`/admin/users/${p.userId}?tab=historial`} className="text-xs text-sky-600 hover:underline dark:text-sky-400">
                       Ver historial completo
                     </Link>
                   </td>

@@ -135,7 +135,7 @@ function IncidentesPorMes({ meses }: { meses: Mes[] }) {
  * El expediente de un usuario. Se mira antes de decidir sobre él: en una
  * disputa, lo que importa no es el número de contratos sino el patrón.
  */
-export default function HistorialUsuario() {
+export default function HistorialUsuario({ incrustado = false }: { incrustado?: boolean }) {
   const { userId } = useParams<{ userId: string }>();
   const { token } = useAuth();
   const [h, setH] = useState<Historial | null>(null);
@@ -162,6 +162,7 @@ export default function HistorialUsuario() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
+      {!incrustado && (
       <header>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{h.usuario.name}</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -173,6 +174,7 @@ export default function HistorialUsuario() {
           <Link to="/admin/usuarios-marcados" className="text-sky-600 hover:underline dark:text-sky-400">Usuarios con advertencia</Link>
         </div>
       </header>
+      )}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (

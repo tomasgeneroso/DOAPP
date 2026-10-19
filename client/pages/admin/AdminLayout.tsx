@@ -25,7 +25,6 @@ import {
   ShieldAlert,
   IdCard,
   BookOpen,
-  LifeBuoy,
   CreditCard,
   Sliders,
   ArrowDownLeft,
@@ -182,11 +181,9 @@ export default function AdminLayout() {
       roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"],
       items: [
         { path: "/admin", icon: LayoutDashboard, label: t('admin.sidebar.dashboard', 'Dashboard'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
-        // El manual va arriba y lo ven todos los roles: es donde se busca "cómo
-        // se hace esto" en vez de preguntar.
-        { path: "/admin/manual", icon: BookOpen, label: t('admin.sidebar.manual', 'Manual del equipo'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
-        // Cada aviso de dinero que frena el sistema trae un código: acá se explica qué es y qué hacer.
-        { path: "/admin/guia-de-errores", icon: LifeBuoy, label: t("admin.sidebar.errorGuide", "Guía de errores"), roles: ["owner", "super_admin", "admin", "support"] },
+        // Manual del equipo y guía de errores en una sola entrada (pestañas): es donde se busca "cómo se hace esto" y
+        // "qué significa este código" en vez de preguntar. La ven todos los roles; la guía de errores solo la lista de roles de dinero.
+        { path: "/admin/ayuda", icon: BookOpen, label: t('admin.sidebar.help', 'Ayuda y manuales'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
         { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },
@@ -199,9 +196,8 @@ export default function AdminLayout() {
       roles: ["owner", "super_admin", "admin", "marketing"],
       items: [
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/banned-identities", icon: ShieldOff, label: t('admin.sidebar.bannedIdentities', 'Identidades baneadas'), roles: ["owner", "super_admin", "admin"] },
-        // DNI que Didit leyó y ya usa otra cuenta: el sistema no cambió nada y alguien tiene que mirarlo. Con contador, como los contracargos.
-        { path: "/admin/identidad-a-revisar", icon: IdCard, label: t('admin.sidebar.identityReview', 'Identidad a revisar'), roles: ["owner", "super_admin", "admin"], badge: identidadesPendientes > 0 ? String(identidadesPendientes) : undefined },
+        // «A revisar» (un DNI que Didit leyó y ya usa otra cuenta) y «Baneadas» son una sola entrada con pestañas; el contador es de lo que hay para revisar.
+        { path: "/admin/identidades", icon: IdCard, label: t('admin.sidebar.identities', 'Identidades'), roles: ["owner", "super_admin", "admin"], badge: identidadesPendientes > 0 ? String(identidadesPendientes) : undefined },
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/jobs/board", icon: Activity, label: t('admin.sidebar.jobBoard', 'Panel de publicaciones'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
@@ -234,7 +230,6 @@ export default function AdminLayout() {
         // Va primero en Finanzas y con contador: es lo único de esta sección
         // que vence. Un pago por verificar espera; un contracargo, no.
         { path: "/admin/chargebacks", icon: AlertTriangle, label: t('admin.sidebar.chargebacks', 'Contracargos'), roles: ["owner", "super_admin", "admin"], badge: urgentes > 0 ? String(urgentes) : undefined },
-        { path: "/admin/usuarios-marcados", icon: ShieldAlert, label: t('admin.sidebar.flaggedUsers', 'Usuarios con advertencia'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
         // Solo aparece con el modulo de pago al terminar encendido. Con el
         // apagado la lista esta siempre vacia y el item seria ruido.
@@ -256,6 +251,7 @@ export default function AdminLayout() {
       roles: ["owner", "super_admin", "admin", "support"],
       items: [
         { path: "/admin/disputes", icon: AlertTriangle, label: t('admin.sidebar.disputes', 'Disputes'), roles: ["owner", "super_admin", "admin", "support"] },
+        { path: "/admin/usuarios-marcados", icon: ShieldAlert, label: t('admin.sidebar.flaggedUsers', 'Usuarios con advertencia'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/tickets", icon: TicketIcon, label: t('admin.sidebar.tickets', 'Tickets'), roles: ["owner", "super_admin", "admin", "support"] },
       ]
     },

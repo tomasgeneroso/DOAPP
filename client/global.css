@@ -572,3 +572,15 @@ select:focus {
 .fixed.inset-0.flex.items-center.justify-center:not(.flex-col) > * {
   margin-block: auto;
 }
+
+/* Panel de una pestaña de administración: entra con un fundido corto al cambiar de pestaña. */
+@keyframes pestana-entra {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.pestana-entra {
+  animation: pestana-entra 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pestana-entra { animation: none; }
+}

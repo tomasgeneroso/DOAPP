@@ -746,6 +746,127 @@ router.get(
   }
 );
 
+// @route   GET /api/admin/users/:id/expediente
+// @desc    La ficha completa de un usuario en una sola respuesta: datos, documentos (estado), contratos, trabajos, dinero y actividad.
+// @access  Admin+. No trae imágenes ni archivos: los documentos se ven con su propio visor (que deja registro de quién los abrió).
+router.get(
+  "/:id/expediente",
+  requirePermission("users:read"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = String(req.params.id);
+      if (!isValidUUID(id)) { res.status(400).json({ success: false, message: "Identificador de usuario inválido" }); return; }
+      const user: any = await User.findByPk(id, { attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] } });
+      if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+      const { BalanceTransaction } = await import("../../models/sql/BalanceTransaction.model.js");
+      const { WithdrawalRequest } = await import("../../models/sql/WithdrawalRequest.model.js");
+      const { Payment } = await import("../../models/sql/Payment.model.js");
+      const { AuditLog } = await import("../../models/sql/AuditLog.model.js");
+
+      // Cada lista se pide por separado y una que falle no tira la ficha entera (devuelve vacía y lo dice en `avisos`).
+      const avisos: string[] = [];
+      const seguro = async <T,>(nombre: string, f: () => Promise<T>, vacio: T): Promise<T> => {
+        try { return await f(); } catch (e: any) { avisos.push(`${nombre}: ${e?.message}`); return vacio; }
+      };
+
+      const [contratos, trabajos, movimientos, retiros, pagos, actividad] = await Promise.all([
+        seguro("contratos", () => Contract.findAll({
+          where: { [Op.or]: [{ clientId: id }, { doerId: id }] },
+          include: [
+            { model: Job, as: "job", attributes: ["id", "title"], required: false },
+            { model: User, as: "client", attributes: ["id", "name"], required: false },
+            { model: User, as: "doer", attributes: ["id", "name"], required: false },
+          ],
+          order: [["createdAt", "DESC"]], limit: 100,
+        }), [] as any[]),
+        seguro("trabajos", () => Job.findAll({
+          where: { clientId: id }, order: [["createdAt", "DESC"]], limit: 100,
+          attributes: ["id", "title", "status", "price", "createdAt"],
+        }), [] as any[]),
+        seguro("movimientos", () => BalanceTransaction.findAll({
+          where: { userId: id }, order: [["createdAt", "DESC"]], limit: 100,
+          attributes: ["id", "type", "amount", "status", "description", "balanceAfter", "createdAt", "metadata"],
+        }), [] as any[]),
+        seguro("retiros", () => WithdrawalRequest.findAll({
+          where: { userId: id }, order: [["createdAt", "DESC"]], limit: 50,
+          attributes: ["id", "amount", "status", "requestedAt", "completedAt", "rejectionReason"],
+        }), [] as any[]),
+        seguro("pagos", () => Payment.findAll({
+          where: { [Op.or]: [{ payerId: id }, { recipientId: id }] }, order: [["createdAt", "DESC"]], limit: 100,
+          attributes: ["id", "amount", "currency", "status", "paymentType", "payerId", "contractId", "createdAt"],
+        }), [] as any[]),
+        seguro("actividad", () => AuditLog.findAll({
+          where: { targetModel: "User", targetId: id }, order: [["createdAt", "DESC"]], limit: 100,
+          include: [{ model: User, as: "performer", attributes: ["id", "name"], required: false }],
+        }), [] as any[]),
+      ]);
+
+      const nombre = (u: any) => (u ? { id: u.id, name: u.name } : null);
+      res.json({
+        success: true,
+        data: {
+          usuario: {
+            id: user.id, name: user.name, email: user.email, phone: user.phone ?? null, avatar: user.avatar ?? null,
+            role: user.role, adminRole: user.adminRole ?? null, membershipType: user.membershipType ?? null,
+            createdAt: user.createdAt,
+            isBanned: !!user.isBanned, banReason: user.banReason ?? null, bannedAt: user.bannedAt ?? null,
+            balanceArs: Number(user.balanceArs) || 0, rating: user.rating ?? null,
+          },
+          documentos: {
+            correo: { verificado: !!user.isVerified },
+            telefono: { verificado: !!user.phoneVerified, numero: user.phone ?? null },
+            identidad: {
+              verificada: !!user.dniVerified, dni: user.dni ?? null, estadoKyc: user.kycStatus ?? null,
+              verificadaEl: user.kycVerifiedAt ?? null, intentos: Number(user.kycAttempts) || 0,
+              tieneVerificacionDidit: !!user.diditSessionId,
+              tieneFotosDelDocumento: !!(user.dniPhotoFront || user.dniPhotoBack),
+              // Referencias a las fotos subidas a mano; el visor las abre dejando registro de quién las miró.
+              fotosLocales: { dniPhotoFront: user.dniPhotoFront ?? undefined, dniPhotoBack: user.dniPhotoBack ?? undefined, selfieUrl: user.selfieUrl ?? undefined },
+            },
+            selfie: { cargada: !!user.selfieUrl },
+            matricula: {
+              verificada: !!user.licenseVerified, estado: user.licenseVerificationStatus ?? null,
+              vence: user.licenseExpiresAt ?? null, motivoRechazo: user.licenseRejectedReason ?? null,
+              cargada: !!user.licenseDocumentUrl,
+            },
+            seguro: {
+              verificado: !!user.insuranceVerified, estado: user.insuranceVerificationStatus ?? null,
+              motivoRechazo: user.insuranceRejectedReason ?? null, cargado: !!user.insuranceDocumentUrl,
+            },
+          },
+          contratos: contratos.map((c: any) => ({
+            id: c.id, estado: c.status, precio: Number(c.price) || 0, creadoEl: c.createdAt,
+            rol: String(c.clientId) === id ? "cliente" : "trabajador",
+            trabajo: c.job ? { id: c.job.id, title: c.job.title } : null,
+            cliente: nombre(c.client), trabajador: nombre(c.doer),
+          })),
+          trabajos: trabajos.map((j: any) => ({ id: j.id, title: j.title, estado: j.status, precio: Number(j.price) || 0, creadoEl: j.createdAt })),
+          dinero: {
+            movimientos: movimientos.map((m: any) => ({
+              id: m.id, tipo: m.type, monto: Number(m.amount) || 0, estado: m.status, descripcion: m.description,
+              saldoDespues: Number(m.balanceAfter) || 0, fecha: m.createdAt,
+              disponibleDesde: m.metadata?.disponibleDesde ?? null, fueraDelSaldo: m.metadata?.fueraDelSaldo === true,
+            })),
+            retiros: retiros.map((r: any) => ({ id: r.id, monto: Number(r.amount) || 0, estado: r.status, pedidoEl: r.requestedAt, completadoEl: r.completedAt, motivoRechazo: r.rejectionReason ?? null })),
+            pagos: pagos.map((p: any) => ({
+              id: p.id, monto: Number(p.amount) || 0, moneda: p.currency, estado: p.status, tipo: p.paymentType,
+              rol: String(p.payerId) === id ? "pagó" : "cobró", contractId: p.contractId ?? null, fecha: p.createdAt,
+            })),
+          },
+          actividad: actividad.map((a: any) => ({
+            id: a.id, fecha: a.createdAt, accion: a.action, descripcion: a.description, severidad: a.severity,
+            quien: a.performer ? { id: a.performer.id, name: a.performer.name } : null,
+          })),
+          avisos,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
 // @route   POST /api/admin/users/:id/approve-license
 // @desc    Aprobar matrícula/licencia de un usuario
 // @access  Admin+

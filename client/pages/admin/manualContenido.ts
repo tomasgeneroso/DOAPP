@@ -179,6 +179,20 @@ export const MANUAL: EntradaManual[] = [
     links: [{ texto: "Usuarios con advertencia", href: "/admin/usuarios-marcados" }],
   },
   {
+    id: "ficha-usuario",
+    titulo: "La ficha de un usuario",
+    roles: ["admin", "support", "owner"],
+    resumen: "Todo lo que sabemos de una persona en un solo lugar: tocá su nombre en la lista de Usuarios.",
+    claves: ["ficha", "expediente", "usuario", "historial", "documentos", "contratos", "trabajos", "dinero", "actividad"],
+    cuerpo: [
+      "<b>Resumen</b>: datos, verificaciones (correo, teléfono, identidad, matrícula, seguro) y si está baneado. <b>Historial</b>: el patrón por mes de contratos, disputas, cancelaciones y contracargos.",
+      "<b>Contratos</b> y <b>Trabajos</b>: todo lo que hizo como cliente y como trabajador. <b>Documentos</b>: estado de cada verificación; las fotos del DNI y la selfie se abren con el visor, que <b>deja registro de quién las miró</b>.",
+      "<b>Dinero</b>: movimientos de saldo (con desde cuándo se puede retirar lo que está en liberación), retiros y pagos. <b>Actividad</b>: lo que administración hizo sobre esa cuenta (baneos, verificaciones, cambios).",
+      "Para banear, verificar o cambiar el plan usá «Gestionar» desde el resumen. <b>Identidades</b> reúne las que hay que revisar (un DNI que ya usa otra cuenta) y las baneadas.",
+    ],
+    links: [{ texto: "Usuarios", href: "/admin/users" }, { texto: "Identidades", href: "/admin/identidades" }],
+  },
+  {
     id: "datos",
     titulo: "Datos sensibles: qué se puede mostrar",
     roles: ["admin", "support", "dpo", "marketing"],

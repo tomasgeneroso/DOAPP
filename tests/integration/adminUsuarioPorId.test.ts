@@ -16,7 +16,7 @@ jest.mock('../../server/services/email.js', () => ({
   default: new Proxy({}, { get: () => async () => true }),
 }));
 
-import { crearUsuario } from '../helpers/fixtures.js';
+import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
 import { LoginDevice } from '../../server/models/sql/LoginDevice.model.js';
 
 describe('GET /api/admin/users/:id', () => {
@@ -75,5 +75,50 @@ describe('GET /api/admin/users/:id', () => {
   it('soporte puede mirar', async () => {
     const r = await request(app).get(`/api/admin/users/${objetivo.id}`).set(con(soporte));
     expect([200, 403]).toContain(r.status);
+  });
+
+  describe('GET /api/admin/users/:id/expediente (la ficha completa)', () => {
+    it('junta datos, documentos, contratos, trabajos, dinero y actividad de la persona en una respuesta', async () => {
+      const cliente = await crearUsuario({ role: 'client', name: 'Cliente de la ficha' });
+      const trabajador = await crearUsuario({ role: 'doer', name: 'Trabajador de la ficha' });
+      const trabajo = await crearTrabajo(cliente.id, { status: 'completed' });
+      await crearContrato({ jobId: trabajo.id, clientId: cliente.id, doerId: trabajador.id }, { status: 'completed', price: 1500 });
+
+      const r = await request(app).get(`/api/admin/users/${cliente.id}/expediente`).set(con(admin));
+      expect([r.status, r.body.message]).toEqual([200, undefined]);
+      const d = r.body.data;
+      expect(d.usuario).toMatchObject({ id: cliente.id, name: 'Cliente de la ficha' });
+      expect(d.usuario.password).toBeUndefined();
+      expect(d.documentos).toHaveProperty('identidad');
+      expect(d.documentos).toHaveProperty('matricula');
+      expect(d.documentos).toHaveProperty('seguro');
+      expect(d.trabajos.map((j: any) => j.id)).toContain(trabajo.id);
+      expect(d.contratos).toHaveLength(1);
+      expect(d.contratos[0]).toMatchObject({ rol: 'cliente', estado: 'completed', precio: 1500 });
+      expect(d.contratos[0].trabajador).toMatchObject({ name: 'Trabajador de la ficha' });
+      expect(d.dinero).toEqual(expect.objectContaining({ movimientos: expect.any(Array), retiros: expect.any(Array), pagos: expect.any(Array) }));
+      expect(d.avisos).toEqual([]);
+
+      // El trabajador ve el mismo contrato, pero como trabajador.
+      const t = await request(app).get(`/api/admin/users/${trabajador.id}/expediente`).set(con(admin));
+      expect(t.body.data.contratos[0].rol).toBe('trabajador');
+      expect(t.body.data.trabajos).toEqual([]);
+    });
+
+    it('si una lista falla, la ficha igual sale y avisa cuál faltó', async () => {
+      const { Job } = await import('../../server/models/sql/Job.model.js');
+      const espia = jest.spyOn(Job, 'findAll').mockRejectedValueOnce(new Error('tabla rota'));
+      const r = await request(app).get(`/api/admin/users/${objetivo.id}/expediente`).set(con(admin));
+      espia.mockRestore();
+      expect(r.status).toBe(200);
+      expect(r.body.data.trabajos).toEqual([]);
+      expect(r.body.data.avisos.join(' ')).toContain('trabajos');
+    });
+
+    it('un usuario común no la ve, un id inválido es 400 y uno inexistente es 404', async () => {
+      expect([401, 403]).toContain((await request(app).get(`/api/admin/users/${objetivo.id}/expediente`).set(con(comun))).status);
+      expect((await request(app).get('/api/admin/users/no-es-uuid/expediente').set(con(admin))).status).toBe(400);
+      expect((await request(app).get('/api/admin/users/00000000-0000-4000-8000-000000000000/expediente').set(con(admin))).status).toBe(404);
+    });
   });
 });
