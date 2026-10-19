@@ -1,0 +1,97 @@
+{
+  "fecha": "2026-09-17T19:47:19.137Z",
+  "modelosAuditados": 43,
+  "camposSensibles": 28,
+  "porSeveridad": {
+    "alta": 5,
+    "media": 2,
+    "baja": 2
+  },
+  "hallazgos": [
+    {
+      "regla": "SEC-02",
+      "severidad": "alta",
+      "modelo": "BannedIdentity",
+      "campos": [
+        "dni"
+      ],
+      "detalle": "Datos personales de identificación guardados sin cifrar en la base."
+    },
+    {
+      "regla": "SEC-04",
+      "severidad": "baja",
+      "modelo": "ModuleConfig",
+      "campos": [],
+      "detalle": "6 campos y ninguno declara obligatoriedad: la base acepta filas incompletas."
+    },
+    {
+      "regla": "SEC-01",
+      "severidad": "alta",
+      "modelo": "PasswordResetToken",
+      "campos": [
+        "token"
+      ],
+      "detalle": "El modelo guarda secretos y no define defaultScope ni toJSON que los excluya: cualquier consulta sin attributes explícitos los devuelve."
+    },
+    {
+      "regla": "SEC-04",
+      "severidad": "baja",
+      "modelo": "Quote",
+      "campos": [],
+      "detalle": "22 campos y ninguno declara obligatoriedad: la base acepta filas incompletas."
+    },
+    {
+      "regla": "SEC-01",
+      "severidad": "alta",
+      "modelo": "RefreshToken",
+      "campos": [
+        "token",
+        "replacedByToken"
+      ],
+      "detalle": "El modelo guarda secretos y no define defaultScope ni toJSON que los excluya: cualquier consulta sin attributes explícitos los devuelve."
+    },
+    {
+      "regla": "SEC-01",
+      "severidad": "alta",
+      "modelo": "User",
+      "campos": [
+        "password",
+        "phoneVerificationCode",
+        "verificationToken",
+        "twoFactorSecret"
+      ],
+      "detalle": "El modelo guarda secretos y no define defaultScope ni toJSON que los excluya: cualquier consulta sin attributes explícitos los devuelve."
+    },
+    {
+      "regla": "SEC-02",
+      "severidad": "media",
+      "modelo": "User",
+      "campos": [
+        "dni",
+        "dniPhotoFront",
+        "dniPhotoBack",
+        "selfieUrl",
+        "licenseNumber",
+        "bankingInfo"
+      ],
+      "detalle": "El modelo cifra algunos campos pero estos quedaron en claro."
+    },
+    {
+      "regla": "SEC-02",
+      "severidad": "media",
+      "modelo": "WithdrawalRequest",
+      "campos": [
+        "bankingInfo"
+      ],
+      "detalle": "El modelo cifra algunos campos pero estos quedaron en claro."
+    },
+    {
+      "regla": "SEC-05",
+      "severidad": "alta",
+      "archivo": "server/routes/jobs.ts",
+      "linea": 1166,
+      "detalle": "El body entra entero al modelo: permite escribir campos no previstos.",
+      "codigo": "const updateData: any = { ...req.body };"
+    }
+  ]
+}
