@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from '@jest/globals';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '../../server/config/database.js';
 import { duenoDelEsquema } from '../helpers/ddl.js';
-import { comoUsuario, conSistema } from '../../server/db/contextoRls.js';
+import { comoUsuario, conSistema, activarRlsSiLaBaseEstaLista, estadoDeLaBase } from '../../server/db/contextoRls.js';
 import { BalanceTransaction } from '../../server/models/sql/BalanceTransaction.model.js';
 import { User } from '../../server/models/sql/User.model.js';
 import { crearUsuario } from '../helpers/fixtures.js';
@@ -54,6 +54,15 @@ describe('migración de RLS: up idempotente, down y vuelta a aplicar', () => {
   it('y se puede volver a aplicar: vuelve a filtrar', async () => {
     await migracion.up(qi());
     expect((await politicas())[0].n).toBe(12);
+    expect(await veAjenos()).toBe(0);
+  });
+
+  it('base copiada con el historial de migraciones pero SIN políticas (staging, o producción tras una migración que falló): el arranque las crea', async () => {
+    await migracion.down(qi());
+    expect((await estadoDeLaBase(duenoDelEsquema())).politicas).toBe(false);
+    expect(await activarRlsSiLaBaseEstaLista(duenoDelEsquema())).toBe(true);
+    expect((await politicas())[0].n).toBe(12);
+    expect(await estadoDeLaBase(duenoDelEsquema())).toEqual({ rol: true, puedeTomarlo: true, permisos: true, politicas: true });
     expect(await veAjenos()).toBe(0);
   });
 

@@ -21,11 +21,31 @@ describe('RLS sin el rol en la base', () => {
     jest.restoreAllMocks();
   });
 
+  it('si el rol existe pero faltan las políticas (base copiada con el historial de migraciones) las crea; si no puede, arranca sin RLS', async () => {
+    let politicas = false;
+    const sequelize: any = {
+      query: jest.fn(async (sql: string) => {
+        if (/AS rol,/.test(sql)) return [[{ rol: true, puede: true, permisos: true, politicas }]];
+        if (/CREATE POLICY/.test(sql)) politicas = true;
+        if (/ AS t$/.test(sql.trim()) || /AS t\b/.test(sql)) return [[{ t: true }]];
+        return [[]];
+      }),
+    };
+    expect(await activarRlsSiLaBaseEstaLista(sequelize)).toBe(true);
+    expect(politicas).toBe(true);
+
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const sinPoder: any = { query: jest.fn(async (sql: string) => (/AS rol,/.test(sql) ? [[{ rol: true, puede: true, permisos: true, politicas: false }]] : [[{ t: false }]])) };
+    expect(await activarRlsSiLaBaseEstaLista(sinPoder)).toBe(false);
+    expect(String(err.mock.calls[0][0])).toContain('faltan las políticas');
+    jest.restoreAllMocks();
+  });
+
   it('si el rol aparece después de intentar crearlo, se activa', async () => {
     let creado = false;
     const sequelize: any = {
       query: jest.fn(async (sql: string) => {
-        if (/AS existe/.test(sql)) return [[{ existe: creado, puede: creado }]];
+        if (/AS rol,/.test(sql)) return [[{ rol: creado, puede: creado, permisos: creado, politicas: creado }]];
         if (/CREATE ROLE/.test(sql)) creado = true;
         if (/to_regclass/.test(sql)) return [[{ t: false }]];
         return [[]];

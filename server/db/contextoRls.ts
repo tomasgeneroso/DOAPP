@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Sequelize } from 'sequelize';
-import { ROL_DE_LA_APP } from './rls.cjs';
+import { ROL_DE_LA_APP, TABLAS } from './rls.cjs';
 
 /**
  * Quién está pidiendo, para que PostgreSQL decida qué filas puede ver (Row Level Security: ver `server/db/rls.cjs`).
@@ -90,38 +90,73 @@ export function activarRls(): void {
   aplicando = true;
 }
 
-async function rolListo(sequelize: Sequelize): Promise<boolean> {
-  const [filas] = (await sequelize.query(
-    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_DE_LA_APP}') AS existe,
-            COALESCE(pg_has_role(current_user, '${ROL_DE_LA_APP}', 'MEMBER'), false) AS puede`,
-  )) as any[];
-  return !!(filas?.[0]?.existe && filas?.[0]?.puede);
+export interface EstadoDeLaBase {
+  /** El rol `doapp_app` existe. */
+  rol: boolean;
+  /** El usuario de la app puede pasar a ese rol (SET ROLE). */
+  puedeTomarlo: boolean;
+  /** El rol tiene permisos sobre las tablas (si no, la app no podría leer nada al actuar como él). */
+  permisos: boolean;
+  /** Las tablas de dinero que existen tienen sus políticas (4 cada una). */
+  politicas: boolean;
 }
 
 /**
- * Lo que se llama al arrancar con `RLS_ACTIVO=true`: enciende RLS SOLO si la base está lista (el rol existe y este usuario puede tomarlo).
- * Si no, intenta crearlo una vez (es idempotente; solo funciona si el usuario de la base puede crear roles) y, si sigue sin estar, deja la
- * app SIN RLS y lo dice en el registro, en vez de tumbarla. Devuelve si quedó activo.
+ * Qué le falta a la base para que RLS funcione. La migración sola no alcanza: queda registrada como corrida aunque haya fallado al crear el
+ * rol (el usuario de la app no puede crear roles), y una base copiada de otra (staging) trae esa marca sin las políticas. Por eso el arranque
+ * mira el estado real, no el historial de migraciones.
+ */
+export async function estadoDeLaBase(sequelize: Sequelize): Promise<EstadoDeLaBase> {
+  const tablas = Object.keys(TABLAS)
+    .map((t) => `('${t}')`)
+    .join(',');
+  const [filas] = (await sequelize.query(
+    `SELECT
+       EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_DE_LA_APP}') AS rol,
+       COALESCE(pg_has_role(current_user, '${ROL_DE_LA_APP}', 'MEMBER'), false) AS puede,
+       CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_DE_LA_APP}') AND to_regclass('public.users') IS NOT NULL
+            THEN has_table_privilege('${ROL_DE_LA_APP}', 'public.users', 'SELECT') ELSE false END AS permisos,
+       (SELECT COALESCE(bool_and(n >= 4), true)
+          FROM (SELECT (SELECT count(*) FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.tabla) AS n
+                  FROM (VALUES ${tablas}) AS t(tabla)
+                 WHERE to_regclass('public.' || t.tabla) IS NOT NULL) x) AS politicas`,
+  )) as any[];
+  const r = filas?.[0] ?? {};
+  return { rol: !!r.rol, puedeTomarlo: !!r.puede, permisos: !!r.permisos, politicas: !!r.politicas };
+}
+
+const estaListo = (e: EstadoDeLaBase) => e.rol && e.puedeTomarlo && e.permisos && e.politicas;
+const queFalta = (e: EstadoDeLaBase) =>
+  [!e.rol && `el rol ${ROL_DE_LA_APP} no existe`, e.rol && !e.puedeTomarlo && 'el usuario de la app no puede usar ese rol', e.rol && !e.permisos && `el rol no tiene permisos sobre las tablas`, !e.politicas && 'faltan las políticas de las tablas de dinero (¿el usuario de la app es su dueño?)']
+    .filter(Boolean)
+    .join('; ');
+
+/**
+ * Lo que se llama al arrancar con `RLS_ACTIVO=true`: enciende RLS SOLO si la base está lista (rol, permisos y políticas). Si no, intenta
+ * dejarla lista una vez (es idempotente; el rol solo se puede crear si el usuario de la base tiene CREATEROLE, y las políticas si es dueño de
+ * las tablas) y, si sigue sin estarlo, deja la app SIN RLS y lo dice en el registro, en vez de tumbarla. Devuelve si quedó activo.
  */
 export async function activarRlsSiLaBaseEstaLista(sequelize: Sequelize): Promise<boolean> {
   try {
-    if (!(await rolListo(sequelize))) {
+    let estado = await estadoDeLaBase(sequelize);
+    if (!estaListo(estado)) {
       const { aplicarRls } = await import('./rls.cjs');
       await aplicarRls(async (sql: string, escalar?: boolean) => {
         if (!escalar) return sequelize.query(sql);
         const [filas] = (await sequelize.query(sql)) as any[];
         return !!(filas && filas[0] && filas[0].t);
-      }).catch((e: any) => console.warn(`[rls] no se pudo crear el rol desde la app: ${e?.message}`));
+      }).catch((e: any) => console.warn(`[rls] no se pudo dejar la base lista desde la app: ${e?.message}`));
+      estado = await estadoDeLaBase(sequelize);
     }
-    if (!(await rolListo(sequelize))) {
+    if (!estaListo(estado)) {
       console.error(
-        `🚨 [rls] RLS_ACTIVO=true pero el rol ${ROL_DE_LA_APP} no existe (o este usuario no puede usarlo). La app arranca SIN RLS. ` +
-          `Hay que correr el SQL del paso 1 de server/db/LEEME-RLS-Y-NGINX.txt como superusuario (postgres) y reiniciar.`,
+        `🚨 [rls] RLS_ACTIVO=true pero la base no está lista: ${queFalta(estado)}. La app arranca SIN RLS. ` +
+          `Hay que darle CREATEROLE al usuario de la app (o crear el rol como superusuario) y reiniciar.`,
       );
       return false;
     }
   } catch (e: any) {
-    console.error(`🚨 [rls] no se pudo comprobar el rol ${ROL_DE_LA_APP}; la app arranca SIN RLS: ${e?.message}`);
+    console.error(`🚨 [rls] no se pudo comprobar el estado de la base; la app arranca SIN RLS: ${e?.message}`);
     return false;
   }
   activarRls();
