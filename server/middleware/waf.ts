@@ -353,7 +353,28 @@ interface ThreatIntelligence {
 }
 
 const ipStates = new Map<string, IPState>();
-const blacklistedIPs = new Set<string>();
+/**
+ * IPs bloqueadas y hasta cuándo. Antes era un Set sin vencimiento: una sola
+ * coincidencia — incluso un falso positivo — dejaba a esa IP sin acceso hasta
+ * reiniciar el proceso, sin forma de enterarse ni de revertirlo.
+ */
+const blacklistedIPs = new Map<string, number>();
+
+/** Cuánto dura el bloqueo por una coincidencia de patrón zero-day */
+const ZERO_DAY_BLOCK_MS = 60 * 60 * 1000; // 1 hora
+/** Bloqueo por defecto cuando no se especifica duración */
+const DEFAULT_BLOCK_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+/** ¿La IP está bloqueada ahora? Limpia el bloqueo si ya venció. */
+function isBlacklisted(ip: string): boolean {
+  const until = blacklistedIPs.get(ip);
+  if (until === undefined) return false;
+  if (until !== Infinity && until < Date.now()) {
+    blacklistedIPs.delete(ip);
+    return false;
+  }
+  return true;
+}
 const whitelistedIPs = new Set<string>(['127.0.0.1', '::1', '172.20.10.3', '172.31.224.1']);
 const honeypotHits = new Map<string, number>(); // IP -> hit count
 
@@ -373,6 +394,37 @@ const threatIntel: ThreatIntelligence = {
     /Runtime\.getRuntime/i,
   ],
 };
+
+/**
+ * Últimos bloqueos, para poder diagnosticarlos desde el panel de seguridad.
+ *
+ * Sin esto, un falso positivo sólo se puede investigar leyendo el log del
+ * servidor y adivinando cuál de las diez reglas de contenido saltó. Con la
+ * referencia que devuelve la respuesta, el owner encuentra el evento exacto.
+ */
+export interface WafEvent {
+  reference: string;
+  at: string;
+  type: string;
+  method: string;
+  path: string;
+  ip: string;
+  userAgent: string;
+  /** Dónde matcheó el patrón: "query.code", "headers.referer" */
+  field?: string;
+  /** Muestra del valor, con credenciales enmascaradas */
+  sample?: string;
+  pattern?: string;
+  blocked: boolean;
+}
+
+const MAX_RECENT_EVENTS = 200;
+const recentEvents: WafEvent[] = [];
+
+function recordEvent(event: WafEvent) {
+  recentEvents.unshift(event);
+  if (recentEvents.length > MAX_RECENT_EVENTS) recentEvents.length = MAX_RECENT_EVENTS;
+}
 
 // WAF Statistics
 interface WafStats {
@@ -407,10 +459,15 @@ setInterval(() => {
       ipStates.delete(ip);
     }
   }
+  // Soltar los bloqueos vencidos
+  for (const [ip, until] of blacklistedIPs.entries()) {
+    if (until !== Infinity && until < now) blacklistedIPs.delete(ip);
+  }
+
   // Clear old honeypot hits
   for (const [ip, hits] of honeypotHits.entries()) {
     if (hits > 3) {
-      blacklistedIPs.add(ip);
+      blacklistedIPs.set(ip, Date.now() + DEFAULT_BLOCK_MS);
       honeypotHits.delete(ip);
     }
   }
@@ -457,23 +514,49 @@ function checkPatterns(
   return { matched: false };
 }
 
-function inspectValue(value: any, patterns: RegExp[], type: string): { matched: boolean; pattern?: string } {
+interface InspectionResult {
+  matched: boolean;
+  pattern?: string;
+  /** Dónde matcheó: "query.code", "headers.referer". Sin esto no se puede
+   *  diagnosticar un falso positivo sin adivinar. */
+  field?: string;
+  /** Muestra corta del valor, con los tokens enmascarados */
+  sample?: string;
+}
+
+/** Enmascara lo que parezca credencial antes de guardarlo para diagnóstico */
+function redact(value: string): string {
+  return value
+    .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '<jwt>')
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '<token>')
+    .slice(0, 120);
+}
+
+function inspectValue(
+  value: any,
+  patterns: RegExp[],
+  type: string,
+  field = ''
+): InspectionResult {
   if (typeof value === 'string') {
-    return checkPatterns(value, patterns, type);
+    const result = checkPatterns(value, patterns, type);
+    return result.matched ? { ...result, field, sample: redact(value) } : result;
   }
   if (Array.isArray(value)) {
-    for (const item of value) {
-      const result = inspectValue(item, patterns, type);
+    for (let i = 0; i < value.length; i++) {
+      const result = inspectValue(value[i], patterns, type, `${field}[${i}]`);
       if (result.matched) return result;
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
+      const path = field ? `${field}.${key}` : key;
+
       // También verificar las claves
       const keyResult = checkPatterns(key, patterns, type);
-      if (keyResult.matched) return keyResult;
+      if (keyResult.matched) return { ...keyResult, field: path, sample: redact(key) };
 
-      const valueResult = inspectValue(value[key], patterns, type);
+      const valueResult = inspectValue(value[key], patterns, type, path);
       if (valueResult.matched) return valueResult;
     }
   }
@@ -556,17 +639,22 @@ function isHoneypotPath(path: string): boolean {
 /**
  * Check for SSRF in URL parameters
  */
-function checkSSRF(value: any): { matched: boolean; pattern?: string } {
+function checkSSRF(value: any, field = ''): InspectionResult {
   if (typeof value === 'string') {
     for (const pattern of SSRF_PATTERNS) {
       if (pattern.test(value)) {
-        return { matched: true, pattern: 'SSRF: ' + pattern.source.substring(0, 30) };
+        return {
+          matched: true,
+          pattern: 'SSRF: ' + pattern.source.substring(0, 30),
+          field,
+          sample: redact(value),
+        };
       }
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
-      const result = checkSSRF(value[key]);
+      const result = checkSSRF(value[key], field ? `${field}.${key}` : key);
       if (result.matched) return result;
     }
   }
@@ -576,17 +664,22 @@ function checkSSRF(value: any): { matched: boolean; pattern?: string } {
 /**
  * Check for zero-day patterns from threat intelligence
  */
-function checkZeroDay(value: any): { matched: boolean; pattern?: string } {
+function checkZeroDay(value: any, field = ''): InspectionResult {
   if (typeof value === 'string') {
     for (const pattern of threatIntel.knownBadPatterns) {
       if (pattern.test(value)) {
-        return { matched: true, pattern: 'ZERO_DAY: ' + pattern.source.substring(0, 30) };
+        return {
+          matched: true,
+          pattern: 'ZERO_DAY: ' + pattern.source.substring(0, 30),
+          field,
+          sample: redact(value),
+        };
       }
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
-      const result = checkZeroDay(value[key]);
+      const result = checkZeroDay(value[key], field ? `${field}.${key}` : key);
       if (result.matched) return result;
     }
   }
@@ -649,6 +742,48 @@ export function direccionSinDatos(url: unknown): unknown {
   return typeof url === 'string' ? url.split(/[?#]/)[0] : url;
 }
 
+/**
+ * Referencia corta del bloqueo. Va en la respuesta y en el log, así el
+ * owner encuentra en el log exactamente qué regla saltó sin que la
+ * respuesta le diga a un atacante qué patrón esquivar.
+ */
+function blockReference(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+/** Bloquea la request dejando rastro para poder diagnosticarla después */
+function blockRequest(
+  req: Request,
+  res: Response,
+  type: string,
+  reason: string,
+  detail: { field?: string; sample?: string; pattern?: string } = {},
+  status = 400
+) {
+  const reference = blockReference();
+  wafStats.blockedRequests++;
+  logWafEvent(req, type, `${reason} | ref: ${reference}`, true);
+  recordEvent({
+    reference,
+    at: new Date().toISOString(),
+    type,
+    method: req.method,
+    path: req.path,
+    ip: getClientIP(req),
+    userAgent: (req.headers['user-agent'] || '').toString().slice(0, 160),
+    field: detail.field,
+    sample: detail.sample,
+    pattern: detail.pattern,
+    blocked: true,
+  });
+  return res.status(status).json({
+    success: false,
+    message: 'Invalid request',
+    code: 'WAF_BLOCKED',
+    reference,
+  });
+}
+
 export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!WAF_CONFIG.enabled) {
     return next();
@@ -675,7 +810,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   }
 
   // 2. Check blacklist
-  if (blacklistedIPs.has(ip) || blacklistedIPs.has(normalizedIP)) {
+  if (isBlacklisted(ip) || isBlacklisted(normalizedIP)) {
     wafStats.blockedRequests++;
     logWafEvent(req, 'BLACKLIST', 'IP is blacklisted', true);
     return res.status(403).json({
@@ -701,7 +836,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     wafStats.botDetections++;
     logWafEvent(req, 'HONEYPOT', `Hit honeypot path: ${req.path} (${hits} hits)`, true);
     if (hits >= 2) {
-      blacklistedIPs.add(ip);
+      blacklistIP(ip);
     }
     return res.status(404).json({
       success: false,
@@ -796,7 +931,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
 
     // Auto-blacklist after 5 violations
     if (ipState.violations >= 5) {
-      blacklistedIPs.add(ip);
+      blacklistIP(ip);
       logWafEvent(req, 'AUTO_BLACKLIST', 'IP auto-blacklisted after 5 violations', true);
     }
 
@@ -883,13 +1018,9 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   // 8. Check header injection
   if (checkHeaderInjection(req)) {
     ipState.violations++;
-    wafStats.blockedRequests++;
-    logWafEvent(req, 'HEADER_INJECTION', 'CRLF injection attempt', true);
+    logWafEvent(req, 'HEADER_INJECTION', 'CRLF injection attempt', !WAF_CONFIG.blockMode ? false : true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'HEADER_INJECTION', 'CRLF injection attempt');
     }
   }
 
@@ -910,100 +1041,76 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   const zeroDay = checkZeroDay(allInputs);
   if (zeroDay.matched) {
     ipState.violations += 3; // Severe violation
-    wafStats.blockedRequests++;
     wafStats.zeroDay++;
-    logWafEvent(req, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`, true);
-    blacklistedIPs.add(ip); // Immediately blacklist
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid request',
-    });
+    if (WAF_CONFIG.blockMode) {
+      // Bloqueo temporal, no definitivo: un falso positivo no puede dejar a
+      // un usuario fuera de la plataforma hasta que se reinicie el proceso.
+      blacklistIP(ip, ZERO_DAY_BLOCK_MS);
+      return blockRequest(req, res, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`, { field: zeroDay.field, sample: zeroDay.sample, pattern: zeroDay.pattern });
+    }
+    logWafEvent(req, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`, false);
   }
 
   // 11. SQL Injection
   const sqlResult = inspectValue(allInputs, SQL_INJECTION_PATTERNS, 'SQL_INJECTION');
   if (sqlResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
     wafStats.sqlInjectionAttempts++;
-    logWafEvent(req, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`, { field: sqlResult.field, sample: sqlResult.sample, pattern: sqlResult.pattern });
     }
+    logWafEvent(req, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`, false);
   }
 
   // 12. NoSQL Injection
   const nosqlResult = inspectValue(allInputs, NOSQL_INJECTION_PATTERNS, 'NOSQL_INJECTION');
   if (nosqlResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
-    logWafEvent(req, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`, { field: nosqlResult.field, sample: nosqlResult.sample, pattern: nosqlResult.pattern });
     }
+    logWafEvent(req, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`, false);
   }
 
   // 13. XSS
   const xssResult = inspectValue(allInputs, XSS_PATTERNS, 'XSS');
   if (xssResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
     wafStats.xssAttempts++;
-    logWafEvent(req, 'XSS', `Pattern: ${xssResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'XSS', `Pattern: ${xssResult.pattern}`, { field: xssResult.field, sample: xssResult.sample, pattern: xssResult.pattern });
     }
+    logWafEvent(req, 'XSS', `Pattern: ${xssResult.pattern}`, false);
   }
 
   // 14. Path Traversal
   const pathResult = inspectValue(allInputs, PATH_TRAVERSAL_PATTERNS, 'PATH_TRAVERSAL');
   if (pathResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
-    logWafEvent(req, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`, { field: pathResult.field, sample: pathResult.sample, pattern: pathResult.pattern });
     }
+    logWafEvent(req, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`, false);
   }
 
   // 15. Command Injection
   const cmdResult = inspectValue(allInputs, COMMAND_INJECTION_PATTERNS, 'CMD_INJECTION');
   if (cmdResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
-    logWafEvent(req, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`, { field: cmdResult.field, sample: cmdResult.sample, pattern: cmdResult.pattern });
     }
+    logWafEvent(req, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`, false);
   }
 
   // 16. SSRF
   const ssrfResult = checkSSRF(allInputs.query);
   if (ssrfResult.matched) {
     ipState.violations++;
-    wafStats.blockedRequests++;
-    logWafEvent(req, 'SSRF', `Pattern: ${ssrfResult.pattern}`, true);
     if (WAF_CONFIG.blockMode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request',
-      });
+      return blockRequest(req, res, 'SSRF', `Pattern: ${ssrfResult.pattern}`, { field: ssrfResult.field, sample: ssrfResult.sample, pattern: ssrfResult.pattern });
     }
+    logWafEvent(req, 'SSRF', `Pattern: ${ssrfResult.pattern}`, false);
   }
 
   // 17. XXE (for XML content)
@@ -1012,14 +1119,10 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     const xxeResult = inspectValue(req.body, XXE_PATTERNS, 'XXE');
     if (xxeResult.matched) {
       ipState.violations++;
-      wafStats.blockedRequests++;
-      logWafEvent(req, 'XXE', `Pattern: ${xxeResult.pattern}`, true);
       if (WAF_CONFIG.blockMode) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid request',
-        });
+        return blockRequest(req, res, 'XXE', `Pattern: ${xxeResult.pattern}`, { field: xxeResult.field, sample: xxeResult.sample, pattern: xxeResult.pattern });
       }
+      logWafEvent(req, 'XXE', `Pattern: ${xxeResult.pattern}`, false);
     }
   }
 
@@ -1028,14 +1131,10 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     const ldapResult = inspectValue(allInputs.query, LDAP_INJECTION_PATTERNS, 'LDAP_INJECTION');
     if (ldapResult.matched) {
       ipState.violations++;
-      wafStats.blockedRequests++;
-      logWafEvent(req, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`, true);
       if (WAF_CONFIG.blockMode) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid request',
-        });
+        return blockRequest(req, res, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`, { field: ldapResult.field, sample: ldapResult.sample, pattern: ldapResult.pattern });
       }
+      logWafEvent(req, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`, false);
     }
   }
 
@@ -1049,8 +1148,8 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
 /**
  * Agregar IP a la blacklist
  */
-export function blacklistIP(ip: string): void {
-  blacklistedIPs.add(ip);
+export function blacklistIP(ip: string, durationMs = DEFAULT_BLOCK_MS): void {
+  blacklistedIPs.set(ip, durationMs === Infinity ? Infinity : Date.now() + durationMs);
   console.log(`[WAF] IP blacklisted: ${ip}`);
 }
 
@@ -1123,8 +1222,24 @@ export function getWafStats(): {
 /**
  * Obtener lista de IPs bloqueadas
  */
+/**
+ * Últimos bloqueos del WAF, del más reciente al más viejo.
+ * Se filtran por referencia o por ruta para ir directo al caso que se
+ * está investigando.
+ */
+export function getRecentWafEvents(
+  options: { reference?: string; path?: string; limit?: number } = {}
+): WafEvent[] {
+  const { reference, path, limit = 50 } = options;
+  return recentEvents
+    .filter(e => !reference || e.reference === reference.toUpperCase())
+    .filter(e => !path || e.path.includes(path))
+    .slice(0, Math.min(limit, MAX_RECENT_EVENTS));
+}
+
 export function getBlockedIPs(): string[] {
-  return Array.from(blacklistedIPs);
+  // Sólo las vigentes: las vencidas se descartan al consultarlas
+  return Array.from(blacklistedIPs.keys()).filter(isBlacklisted);
 }
 
 /**
