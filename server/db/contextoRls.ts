@@ -106,16 +106,19 @@ export interface EstadoDeLaBase {
  * rol (el usuario de la app no puede crear roles), y una base copiada de otra (staging) trae esa marca sin las políticas. Por eso el arranque
  * mira el estado real, no el historial de migraciones.
  */
-export async function estadoDeLaBase(sequelize: Sequelize): Promise<EstadoDeLaBase> {
+export async function estadoDeLaBase(sequelize: Sequelize, rolDeLaApp: string = ROL_DE_LA_APP): Promise<EstadoDeLaBase> {
+  if (!/^[a-z_][a-z0-9_]*$/.test(rolDeLaApp)) throw new Error('nombre de rol inválido');
   const tablas = Object.keys(TABLAS)
     .map((t) => `('${t}')`)
     .join(',');
+  // Las funciones de privilegios (pg_has_role, has_table_privilege) FALLAN si el rol no existe, y con un nombre escrito en la consulta
+  // Postgres las evalúa antes de mirar cualquier condición. Por eso se consultan por el oid del rol, dentro de una subconsulta que no
+  // devuelve nada si el rol no está.
   const [filas] = (await sequelize.query(
     `SELECT
-       EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_DE_LA_APP}') AS rol,
-       COALESCE(pg_has_role(current_user, '${ROL_DE_LA_APP}', 'MEMBER'), false) AS puede,
-       CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROL_DE_LA_APP}') AND to_regclass('public.users') IS NOT NULL
-            THEN has_table_privilege('${ROL_DE_LA_APP}', 'public.users', 'SELECT') ELSE false END AS permisos,
+       EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${rolDeLaApp}') AS rol,
+       COALESCE((SELECT pg_has_role(current_user, r.oid, 'MEMBER') FROM pg_roles r WHERE r.rolname = '${rolDeLaApp}'), false) AS puede,
+       COALESCE((SELECT has_table_privilege(r.oid, to_regclass('public.users'), 'SELECT') FROM pg_roles r WHERE r.rolname = '${rolDeLaApp}'), false) AS permisos,
        (SELECT COALESCE(bool_and(n >= 4), true)
           FROM (SELECT (SELECT count(*) FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.tabla) AS n
                   FROM (VALUES ${tablas}) AS t(tabla)

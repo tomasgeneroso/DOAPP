@@ -66,6 +66,11 @@ describe('migración de RLS: up idempotente, down y vuelta a aplicar', () => {
     expect(await veAjenos()).toBe(0);
   });
 
+  it('con la base REAL y un rol que no existe (staging antes de crear doapp_app) la comprobación no revienta: dice que falta el rol', async () => {
+    const e = await estadoDeLaBase(duenoDelEsquema(), 'doapp_rol_que_no_existe');
+    expect(e).toMatchObject({ rol: false, puedeTomarlo: false, permisos: false });
+  });
+
   it('si el usuario de la base no puede crear roles o las tablas no son suyas, la migración NO falla (no puede frenar un deploy)', async () => {
     const roto: any = {
       sequelize: { query: async () => { throw new Error('permission denied to create role'); } },
