@@ -1,7 +1,7 @@
 /**
  * PM2 Configuration for DOAPP — STAGING
  * Runs a second copy of the app on port 3002, from /var/www/doapp-staging,
- * against the STAGING database (set STAGING_DATABASE_URL / DATABASE_URL in
+ * against the STAGING database (set DB_NAME / DB_USER / DB_PASSWORD in
  * /var/www/doapp-staging/.env). Deployed by .github/workflows/staging.yml.
  */
 module.exports = {
@@ -17,7 +17,9 @@ module.exports = {
     max_memory_restart: '1G',
     env: {
       NODE_ENV: 'production',
-      PORT: 3002
+      PORT: 3002,
+      // Activa la guarda que impide arrancar contra la base de producción (server/config/guardaDeStaging.ts)
+      APP_ENV: 'staging'
     },
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     error_file: '/var/log/pm2/doapp-staging-error.log',

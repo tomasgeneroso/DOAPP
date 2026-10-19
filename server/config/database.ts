@@ -2,10 +2,14 @@ import 'reflect-metadata';
 import { config } from 'dotenv';
 import { Sequelize } from 'sequelize-typescript';
 import { instalarRls } from '../db/contextoRls.js';
+import { verificarBaseDeStaging } from './guardaDeStaging.js';
 
 // CRITICAL: Load .env FIRST before anything else
 // This ensures all environment variables are available when Sequelize initializes
 config();
+
+// Staging con la base de producción: no arranca (ver guardaDeStaging.ts)
+verificarBaseDeStaging();
 
 // Load test env if needed
 if (process.env.NODE_ENV === 'test' && !process.env.DB_PASSWORD) {
