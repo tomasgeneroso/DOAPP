@@ -151,7 +151,10 @@ export function pasarelaSinIva(conIva: number): number {
 export const MP_FEE_BY_RELEASE_DAYS: Record<number, { base: number; withVat: number }> = {
   0: { base: 0.0599, withVat: 0.0725 },
   5: { base: 0.0519, withVat: 0.0628 },
-  10: { base: 0.0419, withVat: 0.0507 },
+  // 10 días: 4,19 % hasta el 2026-09-17; el 2026-10-19 un pago real de $5.267,03 liquidó $4.987,35 (5,31 % con IVA = 4,39 % + IVA) y la
+  // tarifa publicada para tarjeta de crédito a 10 días es 4,39 %. Con 4,19 % DOAPP ponía la diferencia en cada operación. Los otros dos plazos
+  // NO se releyeron: volver a leerlos del panel de MP (Tu negocio → Costos) porque MP subió esta tarifa.
+  10: { base: 0.0439, withVat: 0.0531 },
 };
 
 /**

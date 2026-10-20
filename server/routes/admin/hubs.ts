@@ -166,6 +166,46 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
 });
 
 /**
+ * GET /api/admin/hubs/financial/mercadopago
+ * Lo que Mercado Pago todavía tiene que liquidarle a DOAPP: la suma de lo que acredita (neto, ya descontada su tarifa) de los pagos cobrados
+ * cuya fecha de liberación no llegó, por día. Es lo que el panel de Mercado Pago llama «a liquidar»: hasta ahora este dashboard no lo mostraba
+ * porque el pago no guardaba ni el neto ni la fecha.
+ */
+router.get('/financial/mercadopago', async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { sequelize } = await import('../../config/database.js');
+    const { QueryTypes } = await import('sequelize');
+    const base = `FROM payments
+        WHERE mercadopago_payment_id IS NOT NULL
+          AND money_release_date > now()
+          AND status NOT IN ('pending', 'processing', 'failed', 'cancelled', 'refunded')`;
+    const [total] = (await sequelize.query(
+      `SELECT COALESCE(SUM(net_received_amount), 0)::float AS monto, COUNT(*)::int AS pagos,
+              COUNT(*) FILTER (WHERE net_received_amount IS NULL)::int AS sin_neto, MIN(money_release_date) AS proxima ${base}`,
+      { type: QueryTypes.SELECT },
+    )) as Array<{ monto: number; pagos: number; sin_neto: number; proxima: Date | null }>;
+    const porDia = (await sequelize.query(
+      `SELECT to_char(money_release_date AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS dia,
+              COALESCE(SUM(net_received_amount), 0)::float AS monto, COUNT(*)::int AS pagos ${base}
+        GROUP BY 1 ORDER BY 1 LIMIT 12`,
+      { type: QueryTypes.SELECT },
+    )) as Array<{ dia: string; monto: number; pagos: number }>;
+    res.json({
+      success: true,
+      mercadopago: {
+        porLiquidarARS: Math.round((total?.monto || 0) * 100) / 100,
+        pagosPorLiquidar: total?.pagos || 0,
+        pagosSinNeto: total?.sin_neto || 0,
+        proximaLiberacion: total?.proxima ?? null,
+        porDia: porDia.map((d) => ({ dia: d.dia, montoARS: Math.round(d.monto * 100) / 100, pagos: d.pagos })),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/admin/hubs/growth/overview
  * Dashboard rápido: usuarios, contratos, tendencias
  */

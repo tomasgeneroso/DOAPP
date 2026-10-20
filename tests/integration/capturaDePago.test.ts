@@ -154,6 +154,55 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
     expect(mockObtenerPago).toHaveBeenCalledWith(idMp, 'mercadopago');
   });
 
+  /* ---------------- el costo real de Mercado Pago ---------------- */
+
+  it('guarda lo que MP descontó, lo que acredita y cuándo lo libera (antes solo el webhook, que está apagado)', async () => {
+    const { id, pref } = await crearPago('pagador', { processingCharge: 1000 });
+    mockObtenerPago.mockResolvedValue(
+      aprobado({
+        fee_details: [{ type: 'mercadopago_fee', fee_payer: 'collector', amount: 1115.1 }],
+        transaction_details: { net_received_amount: 19884.9 },
+        money_release_date: '2026-10-30T12:00:00.000-03:00',
+      }),
+    );
+    const r = await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+    expect(r.status).toBe(200);
+    const p: any = await Payment.findByPk(id);
+    expect(Number(p.processingFee)).toBe(1115.1);
+    expect(Number(p.netReceivedAmount)).toBe(19884.9);
+    expect(new Date(p.moneyReleaseDate).toISOString()).toBe('2026-10-30T15:00:00.000Z');
+  });
+
+  it('si MP cobró más de lo que se le cobró al cliente por procesamiento, se avisa a administración UNA vez (incidente 2026-10-19: 4,19 % contra 4,39 %)', async () => {
+    const admin: any = await User.create({ email: 'admin@captura.test', name: 'Admin', username: 'capadmin', password: 'password123', role: 'admin', adminRole: 'admin' } as any);
+    emails.push('admin@captura.test');
+    try {
+      const { id, pref } = await crearPago('pagador', { processingCharge: 880 }); // cobrado sin IVA
+      mockObtenerPago.mockResolvedValue(aprobado({ fee_details: [{ fee_payer: 'collector', amount: 1115.1 }], transaction_details: { net_received_amount: 19884.9 } }));
+      await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+      const avisos: any[] = await Notification.findAll({ where: { recipientId: admin.id, relatedId: id } as any });
+      expect(avisos).toHaveLength(1);
+      expect(avisos[0].title).toContain('tarifa de Mercado Pago');
+      expect(avisos[0].message).toContain('el trabajador cobra el precio entero');
+    } finally {
+      await Notification.destroy({ where: { recipientId: admin.id } });
+      await User.destroy({ where: { id: admin.id }, force: true });
+    }
+  });
+
+  it('si la tarifa de MP queda cubierta por lo cobrado, no hay aviso', async () => {
+    const admin: any = await User.create({ email: 'admin2@captura.test', name: 'Admin', username: 'capadmin2', password: 'password123', role: 'admin', adminRole: 'admin' } as any);
+    emails.push('admin2@captura.test');
+    try {
+      const { id, pref } = await crearPago('pagador', { processingCharge: 925 });
+      mockObtenerPago.mockResolvedValue(aprobado({ fee_details: [{ fee_payer: 'collector', amount: 1115.1 }] }));
+      await capturar('pagador', pref, { paymentId: String(++contadorIdMp) });
+      expect(await Notification.count({ where: { recipientId: admin.id, relatedId: id } as any })).toBe(0);
+    } finally {
+      await User.destroy({ where: { id: admin.id }, force: true });
+    }
+  });
+
   /* ---------------- los "no" de F1 ---------------- */
 
   it('sin id de pago de MercadoPago no hay nada que verificar: NO se da por pagado', async () => {

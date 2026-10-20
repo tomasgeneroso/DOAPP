@@ -1,3 +1,4 @@
+import MercadoPagoPorLiquidar from '../../components/admin/MercadoPagoPorLiquidar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, CreditCard, Send, TrendingUp, Loader2, Lock, Users, AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
@@ -123,6 +124,8 @@ export default function FinancialHub() {
             </div>
           ))}
         </div>
+
+        <MercadoPagoPorLiquidar />
 
         {/* Bandeja de pendientes */}
         <div className="mb-4 flex items-center gap-2">

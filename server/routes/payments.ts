@@ -12,6 +12,7 @@ import { Notification } from "../models/sql/Notification.model.js";
 import { PaymentProof } from "../models/sql/PaymentProof.model.js";
 import mercadopagoService from "../services/mercadopago.js";
 import { datosDeLiberacionDeMp } from "../services/liberacionDeSaldo.js";
+import { registrarCostoRealDeMp } from "../services/costoRealDeMp.js";
 import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env.js";
@@ -911,6 +912,19 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     payment.mercadopagoPaymentId = mpPaymentId;
     payment.mercadopagoStatus = String(mpPaymentData.status);
     payment.mercadopagoStatusDetail = String(mpPaymentData.status_detail || mpPaymentData.status);
+    // Lo que MP descontó de verdad y lo que acredita: se guarda y se compara con lo cobrado al cliente (avisa a administración si MP cobró más).
+    try {
+      const costo = await registrarCostoRealDeMp(payment, mpPaymentData);
+      await Payment.update(
+        {
+          ...(costo.processingFee !== undefined && { processingFee: costo.processingFee }),
+          ...(costo.netReceivedAmount !== undefined && { netReceivedAmount: costo.netReceivedAmount }),
+        } as any,
+        { where: { id: payment.id } },
+      );
+    } catch (e: any) {
+      logger.silentError('payments', 'No se pudo guardar el costo real de Mercado Pago', e, { paymentId: payment.id });
+    }
     console.log("✅ [CAPTURE] Step 6 - Payment record updated. New status:", payment.status);
 
     // Log payment capture success

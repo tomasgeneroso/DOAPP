@@ -1,3 +1,4 @@
+import MercadoPagoPorLiquidar from "../../components/admin/MercadoPagoPorLiquidar";
 import { useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
@@ -123,6 +124,9 @@ export default function AdminDashboard() {
           {t('admin.dashboard.welcome', 'Bienvenido')}, <span className="font-semibold">{user?.name}</span>
         </p>
       </div>
+
+      {/* Lo que Mercado Pago todavía tiene que liquidar (neto, por fecha de liberación) */}
+      {["owner", "super_admin", "admin"].includes(String((user as any)?.adminRole || "")) && <MercadoPagoPorLiquidar />}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

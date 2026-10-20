@@ -1,3 +1,4 @@
+import { registrarCostoRealDeMp } from '../services/costoRealDeMp.js';
 import express from 'express';
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { Payment } from "../models/sql/Payment.model.js";
@@ -650,83 +651,11 @@ async function handlePaymentWebhook(data: any, ip: string) {
     foundPayment.cardBrand = paymentMethodInfo.card_brand ?? undefined;
 
     /**
-     * La tarifa REAL de esta operacion. MP la informa en `fee_details` (una
-     * entrada por concepto, con quien la paga) y el neto en
-     * `transaction_details.net_received_amount`. Es lo que se descuenta al
-     * trabajador: la tarifa fija del .env queda de respaldo para cuando esto
-     * no llego.
+     * La tarifa REAL de esta operacion (fee_details), lo que MP acredita (net_received_amount) y cuándo lo libera, guardados en el pago y
+     * comparados con lo que se le cobró al cliente por procesamiento: ver services/costoRealDeMp.ts. Lo mismo hace capture-order, que es el
+     * camino real de pago mientras este webhook no procesa pagos.
      */
-    const feeDetails: Array<{ amount?: number; fee_payer?: string; type?: string }> =
-      Array.isArray(mpPaymentData.fee_details) ? mpPaymentData.fee_details : [];
-    const comisionMp = feeDetails
-      .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
-      .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
-    if (comisionMp > 0) foundPayment.processingFee = Math.round(comisionMp * 100) / 100;
-    const neto = Number(mpPaymentData.transaction_details?.net_received_amount);
-    if (Number.isFinite(neto) && neto > 0) foundPayment.netReceivedAmount = Math.round(neto * 100) / 100;
-    if (mpPaymentData.money_release_date) {
-      const d = new Date(mpPaymentData.money_release_date);
-      if (!isNaN(d.getTime())) foundPayment.moneyReleaseDate = d;
-    }
-
-    /**
-     * DOAPP no pone la diferencia. Nunca.
-     *
-     * Al cliente se le cobró una tasa de procesamiento fija (processingCharge),
-     * calculada para cubrir la tarifa de Mercado Pago. Esa tarifa depende del
-     * plazo de acreditación configurado en el panel de MP —una opción de la
-     * CUENTA, no de cada pago— así que en condiciones normales coincide.
-     *
-     * Deja de coincidir cuando alguien cambia el plazo en el panel de MP y no
-     * actualiza la tasa acá: de golpe cada pago con tarjeta cuesta 5,99% y se
-     * está cobrando 4,19%. La pérdida es chica por operación y no rompe nada,
-     * que es justo lo que la hace peligrosa: no se nota hasta el cierre.
-     *
-     * Esta comparación es la que lo hace notar el mismo día.
-     */
-    try {
-      const cobrado = Number((foundPayment as any).processingCharge) || 0;
-      if (cobrado > 0 && comisionMp > 0) {
-        const { pasarelaSinIva } = await import('../../shared/pricing/processingCost.js');
-        const realSinIva = pasarelaSinIva(comisionMp);
-        // Un peso de tolerancia: los redondeos de MP no son una alarma.
-        if (realSinIva > cobrado + 1) {
-          const diferencia = Math.round((realSinIva - cobrado) * 100) / 100;
-          const { logMoneyEvent } = await import('../utils/auditLog.js');
-          await logMoneyEvent({
-            action: 'PROCESSING_FEE_MISMATCH',
-            actor: 'system',
-            severity: 'high',
-            description:
-              `Mercado Pago cobró más de lo que se le cobró al cliente por procesamiento: ` +
-              `$${realSinIva} contra $${cobrado} (diferencia $${diferencia}). ` +
-              `Revisá el plazo de acreditación en el panel de MP y la tasa en /admin/platform.`,
-            paymentId: String(foundPayment.id),
-            userId: foundPayment.payerId ? String(foundPayment.payerId) : undefined,
-            monto: diferencia,
-            moneda: 'ARS',
-            metadata: { cobradoAlCliente: cobrado, tarifaRealSinIva: realSinIva, tarifaConIva: comisionMp },
-          }).catch(() => {});
-
-          const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
-          for (const admin of admins) {
-            await Notification.create({
-              recipientId: admin.id,
-              type: 'error',
-              category: 'admin',
-              title: 'La tarifa de Mercado Pago no coincide',
-              message:
-                `En este pago MP cobró $${realSinIva} de tarifa y al cliente se le cobraron $${cobrado}: ` +
-                `DOAPP está poniendo $${diferencia} por operación. Suele ser el plazo de acreditación ` +
-                `cambiado en el panel de MP. Ajustá la tasa en Panel → Fase de la plataforma.`,
-              relatedModel: 'Payment',
-              relatedId: foundPayment.id,
-              sentVia: ['in_app'],
-            } as any).catch(() => {});
-          }
-        }
-      }
-    } catch { /* la conciliación no puede impedir que se procese el pago */ }
+    await registrarCostoRealDeMp(foundPayment, mpPaymentData);
 
     if (status === 'succeeded' || status === 'approved') {
       /**
