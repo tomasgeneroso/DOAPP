@@ -93,7 +93,7 @@
   height: 2.75rem;
   line-height: 2.75rem;
   margin: 0.125rem;
-  border-radius: 0.75rem;
+  border-radius: 9999px;
   color: #1f2937;
   font-size: 0.875rem;
   font-weight: 500;
@@ -368,46 +368,204 @@
   background: #6b7280;
 }
 
-/* ── Calendario de rango (RangoDeFechas): los días entre el inicio y el fin se pintan como una banda ── */
+/* ── Calendario de rango (RangoDeFechas) ──────────────────────────────────────────────────────────────────────
+   Como al elegir un vuelo: el primer y el último día son círculos sólidos con el número en blanco y los días de entre medio van sobre
+   una banda continua más clara. Cada día es una celda cuadrada SIN separación, así la banda no se corta; el círculo y el medio tramo de
+   banda detrás de los extremos se dibujan con ::before / ::after (dentro de la celda, detrás del número). */
 .rango-calendario {
+  --rango-circulo: #0369a1;
+  --rango-banda: #dbeafe;
+  --rango-texto-banda: #1e3a8a;
   box-shadow: none !important;
   border: 0 !important;
   border-radius: 0 !important;
 }
 
-.rango-calendario .react-datepicker__day--in-range,
-.rango-calendario .react-datepicker__day--in-selecting-range {
-  background: #e0f2fe;
-  color: #0369a1;
+.dark .rango-calendario {
+  --rango-circulo: #0ea5e9;
+  --rango-banda: rgba(14, 165, 233, 0.22);
+  --rango-texto-banda: #e0f2fe;
+}
+
+.rango-calendario .react-datepicker__month-container {
+  min-width: 19.5rem;
+}
+
+.rango-calendario .react-datepicker__week {
+  display: flex;
+  justify-content: center;
+}
+
+.rango-calendario .react-datepicker__day {
+  position: relative;
+  isolation: isolate;
+  width: 2.75rem;
+  height: 2.75rem;
+  line-height: 1;
+  margin: 0;
   border-radius: 0;
+  background: transparent;
   transform: none;
   box-shadow: none;
-  margin-left: 0;
-  margin-right: 0;
-  width: 3rem;
+  border: 0;
+  font-weight: 500;
+  transition: color 0.15s;
 }
 
-.dark .rango-calendario .react-datepicker__day--in-range,
-.dark .rango-calendario .react-datepicker__day--in-selecting-range {
-  background: #0c4a6e;
-  color: #bae6fd;
+/* Pasar el mouse: un círculo suave, sin agrandar (agrandar movía el borde de la banda). */
+.rango-calendario .react-datepicker__day::after {
+  content: "";
+  position: absolute;
+  inset: 0.125rem;
+  border-radius: 9999px;
+  background: transparent;
+  z-index: -1;
+  transition: background 0.15s;
 }
 
+.rango-calendario .react-datepicker__day:hover {
+  transform: none;
+  background: transparent;
+  color: inherit;
+}
+
+.rango-calendario .react-datepicker__day:hover::after {
+  background: rgba(14, 165, 233, 0.16);
+}
+
+/* Banda entre el inicio y el fin (también mientras se elige el fin: `in-selecting-range`), del mismo alto que los círculos. */
+.rango-calendario .react-datepicker__day--in-range,
+.rango-calendario .react-datepicker__day--in-selecting-range {
+  color: var(--rango-texto-banda);
+  border-radius: 0;
+}
+
+.rango-calendario .react-datepicker__day--in-range::before,
+.rango-calendario .react-datepicker__day--in-selecting-range::before {
+  content: "";
+  position: absolute;
+  inset: 0.125rem 0;
+  background: var(--rango-banda);
+  z-index: -2;
+}
+
+.rango-calendario .react-datepicker__day--in-range:hover::after,
+.rango-calendario .react-datepicker__day--in-selecting-range:hover::after {
+  background: rgba(14, 165, 233, 0.28);
+}
+
+/* Extremos: celda transparente, círculo sólido detrás del número y medio tramo de banda hacia el lado del rango. */
 .rango-calendario .react-datepicker__day--range-start,
 .rango-calendario .react-datepicker__day--range-end,
-.rango-calendario .react-datepicker__day--selecting-range-start {
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-  color: white;
-  border-radius: 0.75rem;
-  transform: scale(1.05);
-  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.3);
+.rango-calendario .react-datepicker__day--selecting-range-start,
+.rango-calendario .react-datepicker__day--selected {
+  background: transparent;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.rango-calendario .react-datepicker__day--range-start::after,
+.rango-calendario .react-datepicker__day--range-end::after,
+.rango-calendario .react-datepicker__day--selecting-range-start::after,
+.rango-calendario .react-datepicker__day--selected::after {
+  background: var(--rango-circulo);
+}
+
+.rango-calendario .react-datepicker__day--range-start::before,
+.rango-calendario .react-datepicker__day--range-end::before,
+.rango-calendario .react-datepicker__day--selecting-range-start::before {
+  content: "";
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  background: var(--rango-banda);
+  z-index: -2;
+}
+
+.rango-calendario .react-datepicker__day--range-start::before,
+.rango-calendario .react-datepicker__day--selecting-range-start::before {
+  left: 50%;
+  right: 0;
+}
+
+.rango-calendario .react-datepicker__day--range-end::before {
+  left: 0;
+  right: 50%;
+}
+
+/* Un extremo que además está «en rango» (así lo marca la librería) conserva solo su medio tramo, no la celda entera. */
+.rango-calendario .react-datepicker__day--range-start.react-datepicker__day--in-range::before {
+  inset: 0.125rem 0 0.125rem 50%;
+}
+
+.rango-calendario .react-datepicker__day--range-end.react-datepicker__day--in-range::before {
+  inset: 0.125rem 50% 0.125rem 0;
+}
+
+/* Un solo día (inicio y fin el mismo, o todavía sin fin): círculo solo, sin banda. */
+.rango-calendario .react-datepicker__day--range-start.react-datepicker__day--range-end::before,
+.rango-calendario .react-datepicker__day--selecting-range-start:not(.react-datepicker__day--in-selecting-range)::before {
+  display: none;
+}
+
+/* Hoy: un aro, salvo que ya sea un extremo (ahí manda el círculo). */
+.rango-calendario .react-datepicker__day--today {
+  color: var(--rango-circulo);
+  font-weight: 700;
+}
+
+.rango-calendario .react-datepicker__day--today::after {
+  box-shadow: inset 0 0 0 2px var(--rango-circulo);
+}
+
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--range-start,
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--range-end,
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--selected {
+  color: #ffffff;
+}
+
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--range-start::after,
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--range-end::after,
+.rango-calendario .react-datepicker__day--today.react-datepicker__day--selected::after {
+  box-shadow: none;
+}
+
+/* El día con el foco del teclado no se pinta como seleccionado (era el aro blanco suelto): solo se ve el contorno de foco. */
+.rango-calendario .react-datepicker__day--keyboard-selected:not(.react-datepicker__day--range-start):not(.react-datepicker__day--range-end):not(.react-datepicker__day--selected):not(.react-datepicker__day--in-range):not(.react-datepicker__day--in-selecting-range) {
+  background: transparent;
+  color: #1f2937;
+  box-shadow: none;
+  transform: none;
+}
+
+.dark .rango-calendario .react-datepicker__day--keyboard-selected:not(.react-datepicker__day--range-start):not(.react-datepicker__day--range-end):not(.react-datepicker__day--selected):not(.react-datepicker__day--in-range):not(.react-datepicker__day--in-selecting-range) {
+  color: #e5e7eb;
+}
+
+.rango-calendario .react-datepicker__day:focus-visible {
+  outline: 2px solid var(--rango-circulo);
+  outline-offset: -2px;
+  border-radius: 9999px;
+}
+
+/* Fuera del mes: se ve, pero apagado. Deshabilitados: tachados suave y sin mouse. */
+.rango-calendario .react-datepicker__day--outside-month {
+  opacity: 0.45;
 }
 
 .rango-calendario .react-datepicker__day--disabled {
   opacity: 0.35;
   cursor: not-allowed;
+  background: transparent;
 }
 
-.rango-calendario .react-datepicker__month-container {
-  min-width: 300px;
+.rango-calendario .react-datepicker__day--disabled:hover::after {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rango-calendario .react-datepicker__day,
+  .rango-calendario .react-datepicker__day::after {
+    transition: none;
+  }
 }

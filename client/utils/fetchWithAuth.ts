@@ -1,3 +1,4 @@
+import { errorDeRedLegible, normalizarRespuestaDeError } from "./respuestasDeError";
 import { clientPerformanceMonitor } from '../hooks/usePerformance';
 
 /**
@@ -41,10 +42,16 @@ export function setupFetchInterceptor() {
     const startTime = performance.now();
 
     if (url.startsWith("/api/")) {
-      const response = await originalFetch(input, {
-        ...init,
-        credentials: 'include', // Importante: envía las cookies automáticamente
-      });
+      let response: Response;
+      try {
+        response = await originalFetch(input, {
+          ...init,
+          credentials: 'include', // Importante: envía las cookies automáticamente
+        });
+      } catch (error) {
+        // «Failed to fetch» no le dice nada a nadie: se dice que no hubo conexión con el servidor.
+        throw errorDeRedLegible(error);
+      }
 
       // Record API call timing
       const duration = performance.now() - startTime;
@@ -57,7 +64,8 @@ export function setupFetchInterceptor() {
         }
       }
 
-      return response;
+      // Una respuesta de error siempre vuelve con un `message` legible (nginx/Cloudflare devuelven HTML, algunas rutas no traen motivo).
+      return normalizarRespuestaDeError(response);
     }
 
     // For non-API calls, use original fetch

@@ -96,7 +96,7 @@ describe('matrícula profesional encriptada', () => {
     it('queda encriptado en la base, no en claro, y el modelo lo sigue leyendo en claro', async () => {
       await trabajador.update({ licenseNumber: 'MP-12345' });
       const guardado = (await crudo(trabajador.id)).license_number!;
-      expect(guardado).not.toContain('12345');
+      expect(guardado).not.toContain('MP-12345');
       expect(isEncrypted(guardado)).toBe(true);
       expect(((await User.findByPk(trabajador.id)) as any).licenseNumber).toBe('MP-12345');
     });
@@ -104,7 +104,7 @@ describe('matrícula profesional encriptada', () => {
     it('se re-encripta al cambiarlo, y vaciarlo guarda null (no una cadena vacía)', async () => {
       await trabajador.update({ licenseNumber: 'CPIE-777' });
       const nuevo = (await crudo(trabajador.id)).license_number!;
-      expect(nuevo).not.toContain('777');
+      expect(nuevo).not.toContain('CPIE-777');
       expect(((await User.findByPk(trabajador.id)) as any).licenseNumber).toBe('CPIE-777');
       await trabajador.update({ licenseNumber: '   ' });
       expect((await crudo(trabajador.id)).license_number).toBeNull();

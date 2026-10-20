@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config/env.js";
+import { mensajeSegunEstado } from "../../shared/errores/mensajesPorEstado.js";
 
 export class ErrorResponse extends Error {
   statusCode: number;
@@ -85,12 +86,30 @@ export const errorHandler = (
     error = new ErrorResponse("Error del servidor", 500);
   }
 
-  const statusCode = error.statusCode || 500;
+  /**
+   * Los errores de quienes leen el pedido (express.json, multer) llegan con su texto técnico en inglés («Unexpected token } in JSON»,
+   * «File too large») y, en el caso de multer, sin código de estado: terminaban en un 500. Son errores de quien envía, no del servidor.
+   */
+  if (err.type === "entity.parse.failed") {
+    error = new ErrorResponse("El pedido no tiene un formato válido. Recargá la página e intentá de nuevo.", 400);
+  } else if (err.type === "entity.too.large" || err.status === 413) {
+    error = new ErrorResponse(mensajeSegunEstado(413), 413);
+  } else if (err.name === "MulterError") {
+    error =
+      err.code === "LIMIT_FILE_SIZE"
+        ? new ErrorResponse("Uno de los archivos es demasiado grande. Probá con uno más liviano.", 413)
+        : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE"
+          ? new ErrorResponse("Enviaste más archivos de los permitidos.", 400)
+          : new ErrorResponse("No se pudo recibir el archivo. Probá de nuevo.", 400);
+  }
+
+  const statusCode = error.statusCode || err.status || 500;
 
   // Los 500 son los únicos que hay que mirar: el resto son respuestas
   // correctas a pedidos que no se pueden cumplir.
   if (statusCode >= 500) {
     console.error(`[${req.method} ${req.originalUrl}]`, err);
+    if (res.locals) res.locals.errorYaRegistrado = true; // respuestasDeError no repite la línea
   }
 
   res.status(statusCode).json({

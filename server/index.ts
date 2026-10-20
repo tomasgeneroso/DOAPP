@@ -14,6 +14,7 @@ import { config } from "./config/env.js";
 import { initDatabase, sequelize } from "./config/database.js";
 import { activarRlsSiLaBaseEstaLista } from "./db/contextoRls.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { respuestasDeError } from "./middleware/respuestasDeError.js";
 import { crearVerificadorDeOrigen } from "./middleware/corsOrigen.js";
 import passport from "./config/passport.js";
 import SocketService, { setSocketServiceInstance } from "./services/socket.js";
@@ -294,6 +295,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Cookie parser
 app.use(cookieParser());
+
+// Toda respuesta de error lleva un `message` legible y deja una línea en el log (ver middleware/respuestasDeError.ts).
+// Va antes de las rutas para alcanzarlas todas, también las que se agreguen.
+app.use(respuestasDeError);
 
 // Security middleware
 app.use(securityHeaders);
