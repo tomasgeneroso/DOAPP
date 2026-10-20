@@ -129,7 +129,9 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
         setLocalStatus('rejected');
         onRefresh?.();
       }
-    } catch {}
+    } catch {
+      /* sin respuesta: la tarjeta queda como estaba y se puede volver a intentar */
+    }
     setActing(false);
   };
 

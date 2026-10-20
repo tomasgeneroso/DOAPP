@@ -132,7 +132,9 @@ export default function RoleManagement() {
       });
       const data = await res.json();
       if (data.success) setPasswordStatus(data.data);
-    } catch {}
+    } catch {
+      /* el estado de la contraseña es informativo: sin respuesta no se muestra */
+    }
   };
 
   const handleAssignRole = async (password?: string) => {

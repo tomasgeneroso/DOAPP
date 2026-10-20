@@ -12,18 +12,23 @@ const SEEN_KEY = "kycWelcomeSeen";
  */
 export default function KycWelcomeModal() {
   const { user, isAuthenticated } = useAuth() as any;
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    if (user.dniVerified) return;
-    if (localStorage.getItem(SEEN_KEY)) return;
-    setOpen(true);
-  }, [isAuthenticated, user]);
+  // Ya lo vio: se lee una vez al crear el estado; cerrar lo recuerda.
+  const [visto, setVisto] = useState(() => {
+    try {
+      return !!localStorage.getItem(SEEN_KEY);
+    } catch {
+      return false;
+    }
+  });
+  const open = !!isAuthenticated && !!user && !user.dniVerified && !visto;
 
   const close = () => {
-    localStorage.setItem(SEEN_KEY, "1");
-    setOpen(false);
+    try {
+      localStorage.setItem(SEEN_KEY, "1");
+    } catch {
+      /* sin almacenamiento: se cierra igual y vuelve a aparecer la próxima vez */
+    }
+    setVisto(true);
   };
 
   if (!open) return null;

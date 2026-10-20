@@ -277,8 +277,8 @@ describe('marcas diarias del contrato', () => {
     const vista = buildDailyLog(c, 'client');
     const conFoto = vista.dias.find((d: any) => d.date === anteayer());
     const sinFoto = vista.dias.find((d: any) => d.date === ayer());
-    expect(conFoto.adjuntos).toEqual([foto]);
-    expect(sinFoto.adjuntos).toEqual([]);
+    expect(conFoto!.adjuntos).toEqual([foto]);
+    expect(sinFoto!.adjuntos).toEqual([]);
   });
 });
 
@@ -412,7 +412,7 @@ describe('el silencio pierde en disputas', () => {
   const hace = (d: number) => new Date(Date.now() - d * 86_400_000);
 
   it('abrir la disputa cuenta como hablar: el otro tiene que responder', () => {
-    const s = estadoDeSilencio({ initiatedBy: C, createdAt: hace(3), messages: [] }, C, T);
+    const s = estadoDeSilencio({ initiatedBy: C, createdAt: hace(3), messages: [] }, C, T)!;
     expect(s.ultimoEnHablar).toBe(C);
     expect(s.enSilencio).toBe(T);
     expect(s.dias).toBe(3);
@@ -422,7 +422,7 @@ describe('el silencio pierde en disputas', () => {
     const s = estadoDeSilencio({
       initiatedBy: C, createdAt: hace(10),
       messages: [{ from: T, message: 'respondo', createdAt: hace(4) }],
-    }, C, T);
+    }, C, T)!;
     // El trabajador respondio hace 4 dias; ahora el silencio es del cliente.
     expect(s.ultimoEnHablar).toBe(T);
     expect(s.enSilencio).toBe(C);
@@ -436,14 +436,14 @@ describe('el silencio pierde en disputas', () => {
     const s = estadoDeSilencio({
       initiatedBy: C, createdAt: hace(8),
       messages: [{ from: A, isAdmin: true, message: 'necesito mas datos', createdAt: hace(1) }],
-    }, C, T);
+    }, C, T)!;
     expect(s.ultimoEnHablar).toBe(C);
     expect(s.enSilencio).toBe(T);
     expect(s.dias).toBe(8);
   });
 
   it('a los 7 dias corresponde resolver', () => {
-    const s = estadoDeSilencio({ initiatedBy: T, createdAt: hace(7), messages: [] }, C, T);
+    const s = estadoDeSilencio({ initiatedBy: T, createdAt: hace(7), messages: [] }, C, T)!;
     expect(s.dias).toBeGreaterThanOrEqual(DIAS_PARA_RESPONDER);
     // El trabajador abrio y el cliente callo: gana el trabajador.
     expect(s.ultimoEnHablar).toBe(T);

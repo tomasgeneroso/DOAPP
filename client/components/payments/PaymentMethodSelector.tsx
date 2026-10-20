@@ -90,7 +90,10 @@ export default function PaymentMethodSelector({
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
   const [usdtRate, setUsdtRate] = useState<number | null>(null);
   const [binanceInfo, setBinanceInfo] = useState<{ binanceId: string | null; binanceNickname: string | null }>({ binanceId: null, binanceNickname: null });
-  const [loadingConversion, setLoadingConversion] = useState(false);
+  // La cotización lleva la clave de lo que se cotizó; «cargando» es que todavía no llegó la de lo que hay ahora.
+  const [cotizado, setCotizado] = useState<string | null>(null);
+  const claveCotizacion = `${amount}|${currency}`;
+  const loadingConversion = selectedMethod === 'binance' && currency === 'ARS' && cotizado !== claveCotizacion;
   const [quotedAt, setQuotedAt] = useState<string | null>(null);
   const [binanceTransactionId, setBinanceTransactionId] = useState('');
   const [binanceSenderUserId, setBinanceSenderUserId] = useState('');
@@ -115,7 +118,6 @@ export default function PaymentMethodSelector({
   useEffect(() => {
     if (selectedMethod !== 'binance' || currency !== 'ARS') return;
     let cancelled = false;
-    setLoadingConversion(true);
     fetch(`/api/payments/conversion/usdt?amount=${amount}`)
       .then(r => r.json())
       .then(data => {
@@ -127,9 +129,9 @@ export default function PaymentMethodSelector({
         }
       })
       .catch(console.error)
-      .finally(() => { if (!cancelled) setLoadingConversion(false); });
+      .finally(() => { if (!cancelled) setCotizado(claveCotizacion); });
     return () => { cancelled = true; };
-  }, [selectedMethod, amount, currency]);
+  }, [selectedMethod, amount, currency, claveCotizacion]);
 
   const methods: { id: PaymentMethod; label: string; sub: string; logo: React.ReactNode }[] = [
     {

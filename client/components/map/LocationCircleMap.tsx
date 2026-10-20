@@ -118,8 +118,7 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
 
     // Inicializar el mapa con Leaflet (OpenStreetMap)
     const loadMap = async () => {
-      // @ts-expect-error - Leaflet adds L to window dynamically
-      if (typeof window.L === 'undefined') {
+      if (typeof (window as any).L === 'undefined') {
         // Cargar Leaflet dinámicamente
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -138,8 +137,7 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
     };
 
     const initializeMap = () => {
-      // @ts-expect-error - Leaflet adds L to window dynamically
-      const L = window.L;
+      const L = (window as any).L;
 
       // Crear mapa centrado en las coordenadas
       const map = L.map(mapRef.current).setView([lat, lng], 13);

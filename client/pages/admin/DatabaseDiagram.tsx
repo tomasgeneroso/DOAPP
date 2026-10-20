@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import {
   ReactFlow,
@@ -28,14 +28,15 @@ function getLayoutedElements(nodes: Node[], edges: Edge[], direction: 'LR' | 'TB
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: direction, ranksep: 80, nodesep: 50, marginx: 40, marginy: 40 });
 
-  nodes.forEach(n => g.setNode(n.id, { width: 280, height: n.data.collapsed ? 44 : 44 + (n.data.entity.fields.length * 28) }));
+  const datos = (n: Node) => n.data as unknown as EntityNodeData;
+  nodes.forEach(n => g.setNode(n.id, { width: 280, height: datos(n).collapsed ? 44 : 44 + (datos(n).entity.fields.length * 28) }));
   edges.forEach(e => g.setEdge(e.source, e.target));
   Dagre.layout(g);
 
   return {
     nodes: nodes.map(n => {
       const pos = g.node(n.id);
-      return { ...n, position: { x: pos.x - 140, y: pos.y - ((n.data.collapsed ? 44 : 44 + n.data.entity.fields.length * 28) / 2) } };
+      return { ...n, position: { x: pos.x - 140, y: pos.y - ((datos(n).collapsed ? 44 : 44 + datos(n).entity.fields.length * 28) / 2) } };
     }),
     edges,
   };
@@ -87,7 +88,13 @@ export default function DatabaseDiagram() {
   const [selectedCategories, setSelectedCategories] = useState<Set<EntityCategory>>(new Set(Object.keys(CATEGORY_LABELS) as EntityCategory[]));
   const [collapsedAll, setCollapsedAll] = useState(false);
   const [collapsedSet, setCollapsedSet] = useState<Set<string>>(new Set());
-  const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
+  // Search highlight: se deriva de la búsqueda
+  const highlighted = useMemo(() => {
+    if (!search) return new Set<string>();
+    const q = search.toLowerCase();
+    return new Set(entities.filter(e => e.tableName.includes(q) || e.label.toLowerCase().includes(q)).map(e => e.id));
+  }, [search]);
+
   const [showFilters, setShowFilters] = useState(false);
   const flowRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +114,8 @@ export default function DatabaseDiagram() {
           onToggleCollapse: (id: string) => {
             setCollapsedSet(prev => {
               const next = new Set(prev);
-              next.has(id) ? next.delete(id) : next.add(id);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
               return next;
             });
           },
@@ -122,8 +130,8 @@ export default function DatabaseDiagram() {
       .map(r => buildEdge(r, collapsedSet));
   }, [selectedCategories, collapsedSet]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const applyLayout = useCallback((dir: 'LR' | 'TB' = 'LR') => {
     const rawNodes = buildNodes(collapsedSet, highlighted);
@@ -142,13 +150,6 @@ export default function DatabaseDiagram() {
     setCollapsedSet(next ? new Set(entities.map(e => e.id)) : new Set());
   };
 
-  // Search highlight
-  useEffect(() => {
-    if (!search) { setHighlighted(new Set()); return; }
-    const matched = entities.filter(e => e.tableName.includes(search.toLowerCase()) || e.label.toLowerCase().includes(search.toLowerCase())).map(e => e.id);
-    setHighlighted(new Set(matched));
-  }, [search]);
-
   // Export PNG
   const handleExport = () => {
     if (!flowRef.current) return;
@@ -162,7 +163,8 @@ export default function DatabaseDiagram() {
   const toggleCategory = (cat: EntityCategory) => {
     setSelectedCategories(prev => {
       const next = new Set(prev);
-      next.has(cat) ? next.delete(cat) : next.add(cat);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
       return next;
     });
   };
@@ -283,7 +285,7 @@ export default function DatabaseDiagram() {
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e293b" />
           <Controls showInteractive={false} className="!bg-slate-800 !border-slate-600 !rounded-xl" />
           <MiniMap
-            nodeColor={n => CATEGORY_COLORS[(n.data as EntityNodeData).entity.category] || '#64748b'}
+            nodeColor={n => CATEGORY_COLORS[(n.data as unknown as EntityNodeData).entity.category] || '#64748b'}
             maskColor="rgba(10,15,30,0.75)"
             style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
           />

@@ -90,7 +90,6 @@ const CreateDispute: React.FC = () => {
         const contractsList = response.contracts || response.data || [];
         console.log('📋 Contracts found:', contractsList.length, contractsList);
         setContracts(contractsList);
-      } else {
       }
     } catch (error) {
       console.error('Error loading contracts:', error);

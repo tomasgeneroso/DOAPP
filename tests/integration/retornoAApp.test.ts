@@ -50,7 +50,7 @@ describe('retorno de Mercado Pago a la app', () => {
   const jobs: string[] = [];
   const con = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
   const urlsDelUltimoPago = () => {
-    const args = mockCrearPago.mock.calls.at(-1)?.[0] as any;
+    const args = mockCrearPago.mock.calls[mockCrearPago.mock.calls.length - 1]?.[0] as any;
     return { exito: String(args?.successUrl), cancelado: String(args?.cancelUrl) };
   };
 

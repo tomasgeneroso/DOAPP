@@ -1341,7 +1341,7 @@ export default function FinancialTransactions() {
                           recorded, and nothing is inferred from it. */}
                       {(() => {
                         const raw = transaction.platformFeePercentage;
-                        const pct = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+                        const pct = raw === null || raw === undefined || String(raw).trim() === '' ? null : Number(raw);
                         const known = pct !== null && Number.isFinite(pct);
                         return (
                           <>

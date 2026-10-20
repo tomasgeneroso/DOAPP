@@ -26,7 +26,9 @@ export default function WorkerModeToggle() {
       });
       const data = await res.json();
       if (data.success) await refreshUser();
-    } catch {}
+    } catch {
+      /* sin respuesta: el modo queda como estaba y se puede volver a probar */
+    }
     setLoading(false);
   };
 

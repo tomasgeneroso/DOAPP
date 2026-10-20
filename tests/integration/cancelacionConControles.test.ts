@@ -11,7 +11,7 @@ import { crearUsuario } from '../helpers/fixtures.js';
  * justifica (confirmado solo o por un admin, del cliente, de esa publicación, con monto, moneda y fecha que cierren, y —si sale por Mercado
  * Pago— confirmado por Mercado Pago en ese momento). Estos tests lo prueban contra una base real; Mercado Pago se simula.
  */
-const mp = { getPayment: jest.fn<any>(), refundPayment: jest.fn<any>() };
+const mp = { getPayment: jest.fn<(...args: any[]) => Promise<any>>(), refundPayment: jest.fn<(...args: any[]) => Promise<any>>() };
 jest.mock('../../server/services/mercadopago.js', () => ({ __esModule: true, default: mp }));
 
 describe('cancelación: comprobaciones antes de mover el dinero', () => {

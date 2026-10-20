@@ -18,7 +18,7 @@ describe('RLS: cada usuario ve solo sus filas de dinero', () => {
   let A: any, B: any, C: any, admin: any, soporte: any;
   let pagoAB: any, pagoBC: any;
 
-  const filas = <T = any>(sql: string, replacements?: Record<string, unknown>) => sequelize.query<T>(sql, { type: QueryTypes.SELECT, replacements });
+  const filas = <T extends object = any>(sql: string, replacements?: Record<string, unknown>) => sequelize.query<T>(sql, { type: QueryTypes.SELECT, replacements });
   const comoA = <T>(fn: () => Promise<T>) => comoUsuario(A.id, 'user', fn);
   const comoB = <T>(fn: () => Promise<T>) => comoUsuario(B.id, 'user', fn);
 

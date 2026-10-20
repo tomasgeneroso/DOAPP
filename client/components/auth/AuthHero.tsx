@@ -108,7 +108,9 @@ export default function AuthHero({ className = "" }: { className?: string }) {
    */
   const [visible, setVisible] = useState(false);
   const [pausado, setPausado] = useState(false);
-  const [sinMovimiento, setSinMovimiento] = useState(false);
+  const [sinMovimiento, setSinMovimiento] = useState(
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   /** Fundido pendiente. En un ref para poder cancelarlo al desmontar. */
   const fundido = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,7 +120,6 @@ export default function AuthHero({ className = "" }: { className?: string }) {
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const consulta = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setSinMovimiento(consulta.matches);
     const alCambiar = (e: MediaQueryListEvent) => setSinMovimiento(e.matches);
     consulta.addEventListener?.("change", alCambiar);
     return () => consulta.removeEventListener?.("change", alCambiar);

@@ -38,18 +38,20 @@ function daysLeft(iso?: string | null): number | null {
 export default function MembershipStatus() {
   const { user, token } = useAuth() as any;
   const [usage, setUsage] = useState<Usage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [terminado, setTerminado] = useState(false);
+  // Solo hay algo que cargar si hay sesión y membresía.
+  const loading = !!token && !!user?.hasMembership && !terminado;
 
   useEffect(() => {
     if (!token) return;
     // El uso de la membresía solo existe para quien la tiene: pedirlo sin tenerla daba un 403 en la consola de todas las cuentas gratis.
-    if (!user?.hasMembership) { setLoading(false); return; }
+    if (!user?.hasMembership) return;
     let cancelled = false;
     fetch("/api/membership/usage", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => { if (!cancelled && d.success) setUsage(d.data ?? d.usage ?? d); })
       .catch(() => { /* the paid tier below still renders from the session */ })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setTerminado(true); });
     return () => { cancelled = true; };
   }, [token, user?.hasMembership]);
 

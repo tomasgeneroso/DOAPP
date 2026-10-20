@@ -40,7 +40,9 @@ describe('servidor: toda respuesta de error trae message y deja registro', () =>
     warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     error = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   const app = () => {
     const a = express();

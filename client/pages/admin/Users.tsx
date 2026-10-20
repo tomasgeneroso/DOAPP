@@ -278,8 +278,12 @@ export default function AdminUsers() {
             ? { ...u, licenseVerificationStatus: 'approved' } as any
             : u
         ));
+      } else {
+        alert(data.message || 'No se pudo aprobar la matrícula');
       }
-    } catch {}
+    } catch {
+      alert('Error de conexión: no se pudo aprobar la matrícula');
+    }
     setLicenseActionLoading(false);
   };
 
@@ -301,8 +305,12 @@ export default function AdminUsers() {
             ? { ...u, licenseVerificationStatus: 'rejected' } as any
             : u
         ));
+      } else {
+        alert(data.message || 'No se pudo rechazar la matrícula');
       }
-    } catch {}
+    } catch {
+      alert('Error de conexión: no se pudo rechazar la matrícula');
+    }
     setLicenseActionLoading(false);
   };
 
@@ -325,8 +333,12 @@ export default function AdminUsers() {
           insuranceRejectedReason: action === 'reject' ? licenseRejectReason.trim() : prev.insuranceRejectedReason,
         } : prev);
         if (action === 'reject') setLicenseRejectReason('');
+      } else {
+        alert(data.message || 'No se pudo guardar la decisión sobre el seguro');
       }
-    } catch {}
+    } catch {
+      alert('Error de conexión: no se pudo guardar la decisión sobre el seguro');
+    }
     setLicenseActionLoading(false);
   };
 

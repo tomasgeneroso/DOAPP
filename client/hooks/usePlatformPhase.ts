@@ -22,22 +22,23 @@ export function usePlatformPhase(): { phase: PhaseInfo | null; loading: boolean 
   const { user } = useAuth() as any;
   const fromUser: PhaseInfo | undefined = user?.platform;
 
-  const [phase, setPhase] = useState<PhaseInfo | null>(fromUser ?? null);
-  const [loading, setLoading] = useState(!fromUser);
+  const [pedida, setPedida] = useState<PhaseInfo | null>(null);
+  const [terminado, setTerminado] = useState(false);
 
   useEffect(() => {
-    if (fromUser) { setPhase(fromUser); setLoading(false); return; }
+    if (fromUser) return;
 
     let cancelled = false;
     fetch("/api/config/phase")
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.success) setPhase(d.data); })
+      .then((d) => { if (!cancelled && d.success) setPedida(d.data); })
       .catch(() => { /* no notice is better than a wrong one */ })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setTerminado(true); });
     return () => { cancelled = true; };
   }, [fromUser]);
 
-  return { phase, loading };
+  // Lo que ya viene en el usuario manda; si no, lo que se pidió.
+  return { phase: fromUser ?? pedida, loading: !fromUser && !terminado };
 }
 
 /**

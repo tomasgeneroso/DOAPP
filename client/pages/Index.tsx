@@ -110,9 +110,6 @@ export default function Index() {
           const clientId = typeof job.client === 'string' ? job.client : job.client?.id;
           const isMyJob = clientId === user.id;
 
-          if (isMyJob) {
-          }
-
           return isMyJob;
         });
 

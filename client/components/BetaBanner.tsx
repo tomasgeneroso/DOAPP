@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Rocket, PartyPopper } from "lucide-react";
 import { formatBetaEnd, usePlatformPhase } from "@/hooks/usePlatformPhase";
@@ -20,6 +21,8 @@ export default function BetaBanner() {
   // visitors too. Someone deciding whether to sign up is exactly who the
   // "no cobramos comisión" line is for, and they have no session yet.
   const { phase: platform } = usePlatformPhase();
+  // El «ahora» se toma una vez al montar (llamar a Date.now() en el render hace que el resultado cambie entre dibujos).
+  const [ahora] = useState(() => Date.now());
 
   // Out of beta: announce it for a while instead of the banner simply
   // vanishing. The free period was stated loudly, so its end has to be too —
@@ -31,7 +34,7 @@ export default function BetaBanner() {
     // scheduled end for the case where the beta simply expired on its own.
     const ref = platform?.phaseChangedAt || platform?.betaEndsAt;
     const endedAt = ref ? new Date(ref).getTime() : 0;
-    const daysSince = endedAt ? (Date.now() - endedAt) / 86_400_000 : Infinity;
+    const daysSince = endedAt ? (ahora - endedAt) / 86_400_000 : Infinity;
     if (!endedAt || daysSince > LAUNCH_NOTICE_DAYS || daysSince < 0) return null;
     return (
       <div className="bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800">

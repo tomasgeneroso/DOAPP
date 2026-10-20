@@ -16,11 +16,13 @@ const DURACION_MS = 250;
 export default function Transicion({ mostrar, children, className = "" }: { mostrar: boolean; children: ReactNode; className?: string }) {
   const [montado, setMontado] = useState(mostrar);
   const [abierto, setAbierto] = useState(mostrar);
-  const ultimo = useRef<ReactNode>(children);
-  if (mostrar) ultimo.current = children;
+  // Lo último que se mostró, para que no cambie el contenido a mitad de la salida.
+  const [ultimo, setUltimo] = useState<ReactNode>(children);
+  if (mostrar && children !== ultimo) setUltimo(children);
 
   useEffect(() => {
     if (mostrar) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- entrada/salida animada: el estado cambia en respuesta a la prop `mostrar` y se completa con temporizadores; no se puede derivar
       setMontado(true);
       // un cuadro después de montar, para que la transición parta del estado cerrado
       const f = requestAnimationFrame(() => requestAnimationFrame(() => setAbierto(true)));
@@ -29,7 +31,7 @@ export default function Transicion({ mostrar, children, className = "" }: { most
     setAbierto(false);
     const t = window.setTimeout(() => {
       setMontado(false);
-      ultimo.current = null;
+      setUltimo(null);
     }, DURACION_MS);
     return () => window.clearTimeout(t);
   }, [mostrar]);
@@ -42,7 +44,7 @@ export default function Transicion({ mostrar, children, className = "" }: { most
       style={{ transitionDuration: `${DURACION_MS}ms` }}
       aria-hidden={!abierto || undefined}
     >
-      <div className="min-h-0 overflow-hidden">{mostrar ? children : ultimo.current}</div>
+      <div className="min-h-0 overflow-hidden">{mostrar ? children : ultimo}</div>
     </div>
   );
 }

@@ -24,6 +24,8 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  // Espejo del ref para dibujar (cursor y transición): los refs no se leen mientras se renderiza.
+  const [arrastrando, setArrastrando] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const reset = useCallback(() => {
@@ -31,10 +33,12 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
     setOffset({ x: 0, y: 0 });
   }, []);
 
-  // Reset transform whenever a new image opens.
-  useEffect(() => {
+  // Reset transform whenever a new image opens (se ajusta al cambiar `open`/`src`, sin efecto).
+  const [imagenActual, setImagenActual] = useState(`${open}|${src}`);
+  if (imagenActual !== `${open}|${src}`) {
+    setImagenActual(`${open}|${src}`);
     if (open) reset();
-  }, [open, src, reset]);
+  }
 
   // Close on Escape.
   useEffect(() => {
@@ -62,6 +66,7 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
   const onPointerDown = (e: React.PointerEvent) => {
     if (scale <= 1) return;
     dragging.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
+    setArrastrando(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
@@ -75,6 +80,7 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
 
   const onPointerUp = () => {
     dragging.current = null;
+    setArrastrando(false);
   };
 
   if (!open) return null;
@@ -138,7 +144,7 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
-        style={{ cursor: scale > 1 ? (dragging.current ? 'grabbing' : 'grab') : 'auto', touchAction: 'none' }}
+        style={{ cursor: scale > 1 ? (arrastrando ? 'grabbing' : 'grab') : 'auto', touchAction: 'none' }}
       >
         <img
           src={src}
@@ -147,7 +153,7 @@ export default function ImageViewerModal({ open, src, alt = '', onClose }: Image
           className="max-h-full max-w-full select-none object-contain will-change-transform"
           style={{
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-            transition: dragging.current ? 'none' : 'transform 0.15s ease-out',
+            transition: arrastrando ? 'none' : 'transform 0.15s ease-out',
           }}
         />
       </div>

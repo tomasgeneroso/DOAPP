@@ -46,10 +46,10 @@ export default function CalleYNumero({
   onAddressResolved?: (d: DireccionElegida) => void;
   labels: { street: string; number: string; streetPlaceholder: string; numberPlaceholder: string };
 }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [itemsGuardados, setItems] = useState<Item[]>([]);
   const [abierta, setAbierta] = useState(false);
-  const [buscando, setBuscando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [buscandoGuardado, setBuscando] = useState(false);
+  const [avisoGuardado, setAviso] = useState<string | null>(null);
   const [rango, setRango] = useState<{ desde: number; hasta: number } | null>(null);
   const [activa, setActiva] = useState(-1);
   const envoltorio = useRef<HTMLDivElement>(null);
@@ -70,6 +70,11 @@ export default function CalleYNumero({
 
   // Lo que se busca es la calle con el número que se va escribiendo en el otro campo.
   const consulta = [street, number].filter(Boolean).join(" ").trim();
+  // Con una consulta corta no hay nada que mostrar: se deriva, en vez de vaciar el estado dentro del efecto.
+  const corta = consulta.length < MINIMO_PARA_BUSCAR;
+  const items = corta ? [] : itemsGuardados;
+  const buscando = !corta && buscandoGuardado;
+  const aviso = corta ? null : avisoGuardado;
 
   useEffect(() => {
     if (saltar.current) {
@@ -78,12 +83,7 @@ export default function CalleYNumero({
     }
     if (espera.current) clearTimeout(espera.current);
     control.current?.abort();
-    if (consulta.length < MINIMO_PARA_BUSCAR) {
-      setItems([]);
-      setAviso(null);
-      setBuscando(false);
-      return;
-    }
+    if (corta) return;
     espera.current = setTimeout(async () => {
       const c = new AbortController();
       control.current = c;

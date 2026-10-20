@@ -37,12 +37,18 @@ export default function AddressAutocomplete({
   className?: string;
   id?: string;
 }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [itemsGuardados, setItems] = useState<Item[]>([]);
   const [abierta, setAbierta] = useState(false);
-  const [buscando, setBuscando] = useState(false);
+  const [buscandoGuardado, setBuscando] = useState(false);
   const [activa, setActiva] = useState(-1);
-  const [sinResultados, setSinResultados] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [sinResultadosGuardado, setSinResultados] = useState(false);
+  const [avisoGuardado, setAviso] = useState<string | null>(null);
+  // Con una consulta corta no hay nada que mostrar: se deriva, en vez de vaciar el estado dentro del efecto.
+  const corta = value.trim().length < MINIMO_PARA_BUSCAR;
+  const items = corta ? [] : itemsGuardados;
+  const buscando = !corta && buscandoGuardado;
+  const sinResultados = !corta && sinResultadosGuardado;
+  const aviso = corta ? null : avisoGuardado;
   const [pista, setPista] = useState<string | null>(null);
   const envoltorio = useRef<HTMLDivElement>(null);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,13 +71,7 @@ export default function AddressAutocomplete({
     }
     if (espera.current) clearTimeout(espera.current);
     control.current?.abort();
-    if (value.trim().length < MINIMO_PARA_BUSCAR) {
-      setItems([]);
-      setSinResultados(false);
-      setAviso(null);
-      setBuscando(false);
-      return;
-    }
+    if (corta) return;
     espera.current = setTimeout(async () => {
       const c = new AbortController();
       control.current = c;

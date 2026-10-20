@@ -418,7 +418,9 @@ export default function ChatScreen() {
       const res = await fetch('/api/chat/conversations', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setConversations(data.data || []);
-    } catch {}
+    } catch {
+      /* sin respuesta: la lista queda vacía y se vuelve a pedir al reabrir */
+    }
     setLoadingConversations(false);
   };
 
@@ -429,7 +431,9 @@ export default function ChatScreen() {
       const res = await fetch('/api/jobs?status=open&limit=50', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setAllMyJobs(data.jobs || []);
-    } catch {}
+    } catch {
+      /* sin respuesta: la lista queda vacía y se vuelve a pedir al reabrir */
+    }
     setLoadingMyJobs(false);
   };
 
@@ -678,7 +682,9 @@ export default function ChatScreen() {
         setPriceProposalAmount('');
         fetchConversationData();
       }
-    } catch {}
+    } catch {
+      /* sin respuesta: la propuesta no se envió y se puede reintentar */
+    }
     setPriceProposalLoading(false);
   };
 
@@ -1435,10 +1441,6 @@ export default function ChatScreen() {
             {messages.map((message, idx) => {
               // Get message text - check multiple possible field names
               const messageText = String(message.message || (message as any).content || (message as any).text || '');
-
-              // Debug: Log first message to verify code is running
-              if (idx === 0) {
-              }
 
               // Detect system messages - check for || delimiter or system type/action
               const isQuoteMessage = message.metadata?.action === 'quote';

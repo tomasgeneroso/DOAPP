@@ -8,11 +8,11 @@ export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'noToken'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'noToken'>(token ? 'loading' : 'noToken');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (!token) { setStatus('noToken'); return; }
+    if (!token) return;
 
     fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
       .then(r => r.json())

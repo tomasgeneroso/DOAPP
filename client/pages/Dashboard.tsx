@@ -127,8 +127,6 @@ export default function Dashboard() {
         credentials: 'include',
       });
       const jobsData = await jobsRes.json();
-      if (jobsData.jobs && jobsData.jobs.length > 0) {
-      }
 
       if (contractsData.success && proposalsData.success) {
         const contracts = contractsData.contracts || [];

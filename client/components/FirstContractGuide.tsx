@@ -61,7 +61,13 @@ export default function FirstContractGuide() {
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [expanded, setExpanded] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === "1";
+    } catch {
+      return false; // sin acceso al almacenamiento (modo privado): la guía se muestra
+    }
+  });
 
   // Mark "browse" step as visited
   useEffect(() => {
@@ -69,10 +75,6 @@ export default function FirstContractGuide() {
       localStorage.setItem(BROWSE_VISITED_KEY, "1");
     }
   }, [location.pathname]);
-
-  useEffect(() => {
-    setDismissed(localStorage.getItem(STORAGE_KEY) === "1");
-  }, []);
 
   if (!isAuthenticated || !user) return null;
 

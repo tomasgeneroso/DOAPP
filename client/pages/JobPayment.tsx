@@ -5,7 +5,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
-import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye, ChevronDown } from "lucide-react";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
 import { PROCESSING_COST_LABEL, PROCESSING_COST_HELP } from "../../shared/pricing/processingCost";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
@@ -690,12 +690,13 @@ export default function JobPayment() {
           </div>
 
           {/* Tips before paying */}
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">💡</span>
-              <h3 className="font-semibold text-amber-900 dark:text-amber-200">{t('jobPayment.tipsTitle', 'Consejos antes de publicar')}</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-300">
+          <details className="group border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
+            <summary className="flex cursor-pointer list-none items-center gap-2 p-6 [&::-webkit-details-marker]:hidden">
+              <span className="text-lg" aria-hidden="true">💡</span>
+              <h3 className="flex-1 font-semibold text-amber-900 dark:text-amber-200">{t('jobPayment.tipsTitle', 'Consejos antes de publicar')}</h3>
+              <ChevronDown className="h-5 w-5 text-amber-700 dark:text-amber-300 transition-transform duration-300 group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+            </summary>
+            <ul className="space-y-2 px-6 pb-6 text-sm text-amber-800 dark:text-amber-300 animate-fadeIn">
               <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span><Trans i18nKey="jobPayment.tip1" components={{ b: <strong /> }} defaults="Pedile al trabajador que te muestre su <b>código de verificación</b> al iniciar el trabajo para confirmar su identidad." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span><Trans i18nKey="jobPayment.tip2" components={{ b: <strong /> }} defaults="La comisión de publicación <b>no se reembolsa</b> una vez que hay un <b>trabajador seleccionado</b>. Antes de eso, si cancelás, vuelve a tu saldo con el resto." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span><Trans i18nKey="jobPayment.tip3" components={{ b: <strong /> }} defaults="Podés cancelar hasta el inicio del trabajo. Si todavía <b>no hay ningún trabajador seleccionado</b>, <b>precio y comisión vuelven a tu saldo a favor</b>, para republicar sin costo; retirarlo a tu banco descuenta la mitad de la comisión. Con trabajador seleccionado: con <b>más de 24 horas</b> de anticipación el precio vuelve a tu saldo; con <b>24 horas o menos</b>, <b>la mitad es para vos y la otra mitad para el trabajador</b>. La comisión no se reembolsa una vez que hay un trabajador seleccionado, y el costo de procesamiento del pago no se reembolsa nunca: la pasarela ya lo cobró." /></span></li>
@@ -704,7 +705,7 @@ export default function JobPayment() {
               <li className="flex items-start gap-2"><span className="mt-0.5">🛡️</span> <span><Trans i18nKey="jobPayment.tip6" components={{ b: <strong /> }} defaults="Si el trabajo no se completa correctamente, podés abrir una <b>disputa</b> y el dinero queda retenido en escrow hasta resolverse." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">⭐</span> <span><Trans i18nKey="jobPayment.tip7" components={{ b: <strong /> }} defaults="Después de completado el trabajo, acordate de <b>dejar una reseña</b>: ayuda a otros clientes y mejora el ecosistema." /></span></li>
             </ul>
-          </div>
+          </details>
 
           {/* Info */}
           <div className="p-6 bg-blue-50 dark:bg-blue-900/20">

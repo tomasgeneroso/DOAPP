@@ -49,6 +49,7 @@ export default function Modal({ open, onClose, title, icon, tone = "neutral", si
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- entrada/salida animada: el estado cambia en respuesta a la prop `open` y se completa con temporizadores; no se puede derivar
       setMontado(true);
       const f = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
       return () => cancelAnimationFrame(f);

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Clock, Wallet, Undo2, AlertTriangle, Info, Landmark } from "lucide-react";
@@ -41,9 +41,9 @@ const pesos = (n: number) => `$${Number(n || 0).toLocaleString("es-AR", { maximu
 export default function CancelacionResultadoModal({ resultado: actual, onClose }: Props) {
   const { t } = useTranslation();
   // Se conserva el último resultado mientras la ventana se va, para que no se vacíe a mitad de la transición de salida.
-  const ultimo = useRef(actual);
-  if (actual) ultimo.current = actual;
-  const resultado = actual ?? ultimo.current;
+  const [ultimo, setUltimo] = useState(actual);
+  if (actual && actual !== ultimo) setUltimo(actual);
+  const resultado = actual ?? ultimo;
   if (!resultado) return null;
 
   const { refund, avisos } = resultado;

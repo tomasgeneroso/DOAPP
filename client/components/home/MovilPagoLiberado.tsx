@@ -32,7 +32,12 @@ const MS_MOSTRANDO_RESULTADO = 5200;
 
 export default function MovilPagoLiberado({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
-  const [paso, setPaso] = useState<Paso>("en_curso");
+  // Con «reducir movimiento» no hay ciclo: se arranca directamente en el estado final.
+  const sinMovimiento =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [paso, setPaso] = useState<Paso>(sinMovimiento ? "liberado" : "en_curso");
   const [tocado, setTocado] = useState(false);
   /**
    * Un teléfono quieto se lee como una captura de pantalla pegada.
@@ -45,28 +50,14 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
   const [montado, setMontado] = useState(false);
   const [vueltas, setVueltas] = useState(0);
 
-  const sinMovimiento =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   useEffect(() => {
     if (sinMovimiento) return;
     const id = requestAnimationFrame(() => setMontado(true));
     return () => cancelAnimationFrame(id);
   }, [sinMovimiento]);
 
-  // Cada vez que se libera el pago, se renueva la llave de los elementos que
-  // celebran, para que la animación corra de nuevo en la vuelta siguiente.
   useEffect(() => {
-    if (paso === "liberado") setVueltas((v) => v + 1);
-  }, [paso]);
-
-  useEffect(() => {
-    if (sinMovimiento) {
-      setPaso("liberado");
-      return;
-    }
+    if (sinMovimiento) return;
     // Un solo temporizador por paso: encadenarlos con setTimeout anidados deja
     // temporizadores huérfanos si el componente se desmonta a mitad del ciclo.
     const espera =
@@ -75,7 +66,10 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
           : MS_MOSTRANDO_RESULTADO;
 
     const id = setTimeout(() => {
-      setPaso((p) => (p === "en_curso" ? "confirmando" : p === "confirmando" ? "liberado" : "en_curso"));
+      const siguiente: Paso = paso === "en_curso" ? "confirmando" : paso === "confirmando" ? "liberado" : "en_curso";
+      // Cada vez que se libera el pago se renueva la llave de los elementos que celebran, para que la animación corra de nuevo.
+      if (siguiente === "liberado") setVueltas((v) => v + 1);
+      setPaso(siguiente);
     }, espera);
 
     return () => clearTimeout(id);

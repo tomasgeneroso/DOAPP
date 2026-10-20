@@ -29,13 +29,14 @@ const TONOS: Record<string, string> = {
  * que es público (los trabajos publicados en el muro).
  */
 export default function TrabajosPublicados({ userId, esPropio, token }: { userId: string; esPropio: boolean; token?: string | null }) {
-  const [trabajos, setTrabajos] = useState<TrabajoPublicado[] | null>(null);
-  const [fallo, setFallo] = useState(false);
+  const clave = `${userId}|${esPropio}`;
+  const [respuesta, setRespuesta] = useState<{ clave: string; trabajos: TrabajoPublicado[] | null; fallo: boolean } | null>(null);
+  // Mientras la respuesta guardada sea de otra persona (o no haya ninguna), se está cargando.
+  const trabajos = respuesta?.clave === clave ? respuesta.trabajos : null;
+  const fallo = respuesta?.clave === clave && respuesta.fallo;
 
   useEffect(() => {
     let vivo = true;
-    setTrabajos(null);
-    setFallo(false);
     const url = esPropio ? "/api/jobs/my-jobs" : `/api/jobs?client=${encodeURIComponent(userId)}&limit=50`;
     fetch(url, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : undefined })
       .then((r) => (r.ok ? r.json() : null))
@@ -43,13 +44,13 @@ export default function TrabajosPublicados({ userId, esPropio, token }: { userId
         if (!vivo) return;
         const lista = d?.jobs ?? d?.data;
         if (!d?.success || !Array.isArray(lista)) {
-          setFallo(true);
+          setRespuesta({ clave, trabajos: null, fallo: true });
           return;
         }
-        setTrabajos(lista as TrabajoPublicado[]);
+        setRespuesta({ clave, trabajos: lista as TrabajoPublicado[], fallo: false });
       })
       .catch(() => {
-        if (vivo) setFallo(true);
+        if (vivo) setRespuesta({ clave, trabajos: null, fallo: true });
       });
     return () => {
       vivo = false;

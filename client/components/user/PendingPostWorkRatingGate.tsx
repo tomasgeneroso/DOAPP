@@ -31,12 +31,17 @@ export default function PendingPostWorkRatingGate() {
   const [pending, setPending] = useState<PendingRating[]>([]);
   const lastFetch = useRef(0);
 
+  // Otra sesión (o ninguna): lo pendiente de la anterior no se le muestra a la siguiente persona.
+  const sesion = isAuthenticated && token ? token : null;
+  const [sesionDeLaLista, setSesionDeLaLista] = useState(sesion);
+  if (sesionDeLaLista !== sesion) {
+    setSesionDeLaLista(sesion);
+    setPending([]);
+  }
+
   const fetchPending = useCallback(
     async (force = false) => {
-      if (!isAuthenticated || !token) {
-        setPending([]);
-        return;
-      }
+      if (!isAuthenticated || !token) return;
       const now = Date.now();
       if (!force && now - lastFetch.current < MIN_INTERVAL_MS) return;
       lastFetch.current = now;
@@ -66,6 +71,7 @@ export default function PendingPostWorkRatingGate() {
 
   // Al entrar a la app y al navegar (como mucho una vez por minuto)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- dispara un pedido de red al navegar; el estado se actualiza cuando responde, no dentro del efecto
     void fetchPending();
   }, [fetchPending, location.pathname]);
 

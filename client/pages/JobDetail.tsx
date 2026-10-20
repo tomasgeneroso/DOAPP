@@ -1,3 +1,4 @@
+import CarruselDeFotos from "../components/jobDetail/CarruselDeFotos";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -2371,24 +2372,7 @@ export default function JobDetail() {
                 <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">
                   {t("jobs.photos", "Fotos del trabajo")}
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {(job as any).images.map((img: string, i: number) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => openImage(getImageUrl(img), `${job.title} — foto ${i + 1}`)}
-                      className="block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 cursor-zoom-in"
-                    >
-                      <img
-                        src={getImageUrl(img)}
-                        alt={`${job.title} — foto ${i + 1}`}
-                        className="h-full w-full object-cover transition-opacity hover:opacity-90"
-                        // Si el archivo ya no está en el servidor, no queda un cuadro vacío con borde: se oculta la foto entera.
-                        onError={(e) => { (e.currentTarget.parentElement ?? e.currentTarget).style.display = 'none'; }}
-                      />
-                    </button>
-                  ))}
-                </div>
+                <CarruselDeFotos fotos={(job as any).images} titulo={job.title} alAbrir={(url, alt) => openImage(url, alt)} />
               </div>
             )}
 

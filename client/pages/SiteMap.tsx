@@ -181,8 +181,7 @@ export default function SiteMap() {
     if (!mapRef.current || loading) return;
 
     const loadMap = async () => {
-      // @ts-expect-error - Leaflet is loaded dynamically
-      if (typeof window.L === 'undefined') {
+      if (typeof (window as any).L === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
         script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
@@ -220,8 +219,7 @@ export default function SiteMap() {
     };
 
     const initializeMap = () => {
-      // @ts-expect-error - Leaflet is loaded dynamically
-      const L = window.L;
+      const L = (window as any).L;
 
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -256,8 +254,7 @@ export default function SiteMap() {
   const updateMarkers = () => {
     if (!mapInstanceRef.current) return;
 
-    // @ts-expect-error - Leaflet is loaded dynamically
-    const L = window.L;
+    const L = (window as any).L;
     const map = mapInstanceRef.current;
 
     // Limpiar marcadores anteriores

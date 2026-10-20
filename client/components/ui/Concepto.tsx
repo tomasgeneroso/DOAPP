@@ -51,6 +51,7 @@ export default function Concepto({ c, children }: Props) {
   // destello del globo en un lugar equivocado.
   useLayoutEffect(() => {
     if (abierto) ubicar();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- se mide el globo antes de pintarlo (useLayoutEffect) y al cerrar se descarta la medida para que no quede un lugar viejo
     else setLugar(null);
   }, [abierto, ubicar]);
 

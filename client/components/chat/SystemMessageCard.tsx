@@ -246,8 +246,8 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     setDialogLoading(true);
     try {
       const endpoint = isDirectProposal
-        ? `/api/proposals/${message.metadata.proposalId}/accept-direct`
-        : `/api/proposals/${message.metadata.proposalId}/approve`;
+        ? `/api/proposals/${message.metadata?.proposalId}/accept-direct`
+        : `/api/proposals/${message.metadata?.proposalId}/approve`;
 
       const response = await fetch(endpoint, {
         method: 'PUT',
@@ -297,8 +297,8 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     setDialogLoading(true);
     try {
       const endpoint = isDirectProposal
-        ? `/api/proposals/${message.metadata.proposalId}/reject-direct`
-        : `/api/proposals/${message.metadata.proposalId}/reject`;
+        ? `/api/proposals/${message.metadata?.proposalId}/reject-direct`
+        : `/api/proposals/${message.metadata?.proposalId}/reject`;
 
       const response = await fetch(endpoint, {
         method: 'PUT',
@@ -339,7 +339,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const doWithdraw = async () => {
     setDialogLoading(true);
     try {
-      const response = await fetch(`/api/proposals/${message.metadata.proposalId}/withdraw`, {
+      const response = await fetch(`/api/proposals/${message.metadata?.proposalId}/withdraw`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -129,7 +129,9 @@ export default function QuoteForm() {
       });
       const data = await res.json();
       if (data.success) setJobResults(data.jobs || []);
-    } catch {}
+    } catch {
+      /* sin respuesta: la búsqueda queda sin resultados y se puede repetir */
+    }
   };
 
   const handleJobSearchChange = (q: string) => {
@@ -162,7 +164,9 @@ export default function QuoteForm() {
         setRecipientName(data.user.name);
         setRecipientInfo(prev => ({ ...prev, name: data.user.name, email: data.user.email || '' }));
       }
-    } catch {}
+    } catch {
+      /* sin respuesta: el nombre se completa a mano */
+    }
   };
 
   const loadQuote = async (quoteId: string) => {
@@ -187,7 +191,9 @@ export default function QuoteForm() {
         if (q.recipientInfo) setRecipientInfo({ name: q.recipientInfo.name || '', address: q.recipientInfo.address || '', city: q.recipientInfo.city || '', cuit: q.recipientInfo.cuit || '' });
         if (q.recipient) setRecipientName(q.recipient.name);
       }
-    } catch {}
+    } catch {
+      /* sin respuesta: el formulario queda vacío */
+    }
     setLoading(false);
   };
 

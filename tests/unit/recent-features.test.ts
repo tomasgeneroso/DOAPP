@@ -436,8 +436,8 @@ describe('6. Personal Pairing Code', () => {
   });
 
   it('pairing fails with wrong code', () => {
-    const contractPairingCode = 'ABC123';
-    const wrongInput = 'XYZ999';
+    const contractPairingCode: string = 'ABC123';
+    const wrongInput: string = 'XYZ999';
     expect(contractPairingCode !== wrongInput).toBe(true);
   });
 
