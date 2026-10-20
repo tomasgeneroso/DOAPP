@@ -388,7 +388,7 @@ router.get("/:id/completed-by-category", async (req: Request, res: Response): Pr
     const reviewsByContract: Record<string, { rating: number; workQualityRating?: number }> = {};
     reviews.forEach(review => {
       reviewsByContract[review.contractId] = {
-        rating: review.rating,
+        rating: review.rating ?? 0,
         workQualityRating: review.workQualityRating,
       };
     });

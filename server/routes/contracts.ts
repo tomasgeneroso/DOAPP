@@ -4294,17 +4294,21 @@ router.post(
       job.autoSelectAt = scheduleAutoSelectAt as any; // Guardar hora de auto-selección
       await job.save();
 
+      // Con auto-selección programada todavía no hay trabajador elegido (`elegido` es null): no hay propuesta que aprobar ni
+      // otras que rechazar, y antes esto fallaba con un 500 DESPUÉS de haber creado el contrato.
+      const elegido: string | null = selectedDoerId;
+
       // Marcar propuesta como aprobada (la seleccionada)
-      const selectedProposal = proposals.find((p: any) => p.doerId.toString() === selectedDoerId.toString());
+      const selectedProposal = elegido ? proposals.find((p: any) => p.doerId.toString() === elegido) : undefined;
       if (selectedProposal) {
         selectedProposal.status = 'approved';
         await (selectedProposal as any).save();
       }
 
       // Solo rechazar otras propuestas si faltan <= 1 hora (cierra postulaciones)
-      if (shouldCloseProposals) {
+      if (shouldCloseProposals && elegido) {
         for (const proposal of proposals) {
-          if (proposal.freelancerId.toString() !== selectedDoerId.toString()) {
+          if (proposal.freelancerId.toString() !== elegido) {
             proposal.status = 'rejected';
             await (proposal as any).save();
           }
@@ -4330,32 +4334,33 @@ router.post(
       const emailService = (await import('../services/email.js')).default;
       const jobPopulated = populatedContract!.job as any;
 
-      await emailService.sendContractCreatedEmail(
-        clientId.toString(),
-        selectedDoerId,
-        contract.id.toString(),
-        jobPopulated.title || 'Contrato',
-        price,
-        'ARS'
-      );
+      const datosDelAviso = {
+        action: 'created',
+        contract: populatedContract,
+        expressCheckout: true,
+        paymentMethod,
+        needsAdminApproval,
+        autoSelectedWorker: !!scheduleAutoSelectAt,
+        proposalsClosed: shouldCloseProposals
+      };
 
-      socketService.notifyContractUpdate(
-        contract.id.toString(),
-        clientId.toString(),
-        selectedDoerId,
-        {
-          action: 'created',
-          contract: populatedContract,
-          expressCheckout: true,
-          paymentMethod,
-          needsAdminApproval,
-          autoSelectedWorker: !!scheduleAutoSelectAt,
-          proposalsClosed: shouldCloseProposals
-        }
-      );
+      if (elegido) {
+        await emailService.sendContractCreatedEmail(
+          clientId.toString(),
+          elegido,
+          contract.id.toString(),
+          jobPopulated.title || 'Contrato',
+          price,
+          'ARS'
+        );
+        socketService.notifyContractUpdate(contract.id.toString(), clientId.toString(), elegido, datosDelAviso);
+      } else {
+        // Sin trabajador todavía (auto-selección programada): se avisa solo al cliente; el trabajador se entera cuando se elija.
+        socketService.notifyUser(clientId.toString(), 'contract:updated', { contractId: contract.id.toString(), ...datosDelAviso });
+      }
 
       socketService.notifyDashboardRefresh(clientId.toString());
-      socketService.notifyDashboardRefresh(selectedDoerId);
+      if (elegido) socketService.notifyDashboardRefresh(elegido);
 
       // Respuesta al cliente con información clara
       res.status(201).json({
@@ -4548,7 +4553,9 @@ router.post(
       contract.status = 'cancelled';
       await contract.save();
 
-      // Actualizar trabajo: remover doerId y volver a 'open'
+      // Actualizar trabajo: remover doerId y volver a 'open'. Antes de borrarlo se guarda a quién hay que avisar: acá abajo
+      // `job.doerId.toString()` fallaba siempre (ya era null) y la cancelación terminaba en un 500 con la selección ya cancelada.
+      const trabajadorQueSeVa: string | null = job.doerId ? String(job.doerId) : (contract as any).doerId ? String((contract as any).doerId) : null;
       job.doerId = null as any;
       job.status = 'open';
       await job.save();
@@ -4566,17 +4573,19 @@ router.post(
         order: [['createdAt', 'DESC']]
       });
 
-      // Notificar al worker
-      socketService.notifyUser(
-        job.doerId.toString(),
-        'worker_selection_cancelled',
-        {
-          jobId,
-          jobTitle: (job as any).title,
-          cancelledAt: new Date(),
-          reason: 'El cliente canceló la selección'
-        }
-      );
+      // Notificar al worker (el que se acaba de sacar: `job.doerId` ya es null a esta altura)
+      if (trabajadorQueSeVa) {
+        socketService.notifyUser(
+          trabajadorQueSeVa,
+          'worker_selection_cancelled',
+          {
+            jobId,
+            jobTitle: (job as any).title,
+            cancelledAt: new Date(),
+            reason: 'El cliente canceló la selección'
+          }
+        );
+      }
 
       // Notificar al cliente
       socketService.notifyDashboardRefresh(userId.toString());

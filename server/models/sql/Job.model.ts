@@ -221,7 +221,7 @@ export class Job extends Model {
   // Optional: time when worker should be auto-selected (if client chooses scheduling)
   @AllowNull(true)
   @Column(DataType.DATE)
-  autoSelectAt?: Date;
+  autoSelectAt?: Date | null;
 
   // If true, the job has a single delivery (no per-task deadlines)
   // If false, each task can have its own due date as a guide
