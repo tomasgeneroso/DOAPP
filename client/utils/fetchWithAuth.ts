@@ -1,4 +1,4 @@
-import { errorDeRedLegible, normalizarRespuestaDeError } from "./respuestasDeError";
+import { conTopeDeEspera, errorDeRedLegible, normalizarRespuestaDeError } from "./respuestasDeError";
 import { clientPerformanceMonitor } from '../hooks/usePerformance';
 
 /**
@@ -43,14 +43,15 @@ export function setupFetchInterceptor() {
 
     if (url.startsWith("/api/")) {
       let response: Response;
+      // Un pedido que no responde nunca dejaba la pantalla en «enviando…» para siempre: pasado un tiempo se corta y se avisa.
+      const espera = conTopeDeEspera({ ...init, credentials: 'include' /* Importante: envía las cookies automáticamente */ });
       try {
-        response = await originalFetch(input, {
-          ...init,
-          credentials: 'include', // Importante: envía las cookies automáticamente
-        });
+        response = await originalFetch(input, espera.init);
       } catch (error) {
         // «Failed to fetch» no le dice nada a nadie: se dice que no hubo conexión con el servidor.
-        throw errorDeRedLegible(error);
+        throw errorDeRedLegible(error, espera.vencio());
+      } finally {
+        espera.limpiar();
       }
 
       // Record API call timing

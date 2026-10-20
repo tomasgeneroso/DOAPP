@@ -1,3 +1,4 @@
+import { minimoHoy } from "../../shared/fechas/limites";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -442,7 +443,7 @@ function ProfessionalTab({ data, onSaved }: { data: Analytics; onSaved: (d: Part
           </label>
           <label className="text-sm">
             <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.licenseExpiry", "Vence el")}</span>
-            <input type="date" value={licenseExpiresAt} onChange={(e) => setLicenseExpiresAt(e.target.value)} className={inputCls} />
+            <input type="date" min={minimoHoy()} value={licenseExpiresAt} onChange={(e) => setLicenseExpiresAt(e.target.value)} className={inputCls} />
           </label>
         </div>
         {expDays !== null && (

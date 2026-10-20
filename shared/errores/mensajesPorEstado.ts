@@ -27,6 +27,8 @@ const TEXTOS: Record<number, string> = {
   504: 'El servidor tardó demasiado en responder. Probá de nuevo.',
 };
 
+export const MENSAJE_TIEMPO_AGOTADO = 'El servidor tardó demasiado en responder. Probá de nuevo en un momento; si sigue pasando, avisanos.';
+
 export const MENSAJE_SIN_CONEXION = 'No pudimos conectar con el servidor. Revisá tu conexión a internet e intentá de nuevo.';
 
 /** El texto por defecto para un código de estado, con el código al final (`(error 413)`) para que soporte sepa de qué se trata. */

@@ -13,11 +13,17 @@ export default function CarruselDeFotos({
   fotos,
   titulo,
   alAbrir,
+  encabezado,
+  avisarSiNoCargan = false,
 }: {
   fotos: string[];
   titulo: string;
   /** Se llama al tocar la foto grande, con su dirección y su texto alternativo (para abrirla ampliada). */
   alAbrir?: (url: string, alt: string) => void;
+  /** Si se pasa, el carrusel se dibuja dentro de su propia tarjeta con este título, y la tarjeta entera desaparece si no hay fotos que mostrar. */
+  encabezado?: string;
+  /** Con `encabezado`: si NINGUNA foto carga, en vez de desaparecer avisa (para el dueño, que subió fotos y las tiene que ver). */
+  avisarSiNoCargan?: boolean;
 }) {
   const [rotas, setRotas] = useState<Set<string>>(new Set());
   const [actual, setActual] = useState(0);
@@ -41,7 +47,17 @@ export default function CarruselDeFotos({
     miniaturaActiva.current?.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [indice]);
 
-  if (total === 0) return null;
+  if (total === 0) {
+    if (!encabezado || !avisarSiNoCargan || fotos.length === 0) return null;
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <h2 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">{encabezado}</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Las fotos de este trabajo no se pueden mostrar porque los archivos ya no están en el servidor. Podés subirlas de nuevo desde «Editar».
+        </p>
+      </div>
+    );
+  }
 
   const alTeclear = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowRight") {
@@ -69,7 +85,7 @@ export default function CarruselDeFotos({
   const marcarRota = (foto: string) => setRotas((prev) => new Set(prev).add(foto));
   const alt = (i: number) => `${titulo} — foto ${i + 1} de ${total}`;
 
-  return (
+  const carrusel = (
     <section aria-roledescription="carrusel" aria-label={`Fotos de ${titulo}`} onKeyDown={alTeclear}>
       <div
         className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900"
@@ -151,5 +167,13 @@ export default function CarruselDeFotos({
         </div>
       )}
     </section>
+  );
+
+  if (!encabezado) return carrusel;
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">{encabezado}</h2>
+      {carrusel}
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { mensajeDeError } from '../../shared/errores/mensajesPorEstado.js';
+import { mensajeDeError, MENSAJE_TIEMPO_AGOTADO } from '../../shared/errores/mensajesPorEstado.js';
 
 /**
  * Toda respuesta de error del servidor lleva un `message` legible, y deja una línea en el log.
@@ -15,8 +15,29 @@ import { mensajeDeError } from '../../shared/errores/mensajesPorEstado.js';
 /** Respuestas que son parte del funcionamiento normal y llenarían el log de ruido. */
 const SIN_REGISTRO = new Set([401, 404, 429]);
 
+/**
+ * Un pedido que no responde nunca es lo peor que le puede pasar a una pantalla: queda en «enviando…» sin error ni nada en el log. Pasado este
+ * tiempo se contesta 503 con un mensaje claro y se deja la ruta en el registro. El pedido sigue corriendo por detrás (no se puede cancelar una
+ * consulta a medias), pero quien lo hizo ya sabe qué pasó y a nosotros nos queda la línea `[HTTP 503] POST /api/…`.
+ */
+export const TIEMPO_MAXIMO_DE_RESPUESTA_MS = 45_000;
+const SIN_LIMITE_DE_TIEMPO = ['/socket.io', '/api/uploads', '/uploads'];
+
 export function respuestasDeError(req: Request, res: Response, next: NextFunction): void {
   const jsonOriginal = res.json.bind(res);
+
+  const limite = Number(process.env.TIEMPO_MAXIMO_DE_RESPUESTA_MS) || TIEMPO_MAXIMO_DE_RESPUESTA_MS;
+  const ruta = (req.originalUrl || req.url || '').split('?')[0];
+  if (!SIN_LIMITE_DE_TIEMPO.some((p) => ruta.startsWith(p))) {
+    const reloj = setTimeout(() => {
+      if (res.headersSent) return;
+      res.status(503).json({ success: false, code: 'TIEMPO_AGOTADO', message: MENSAJE_TIEMPO_AGOTADO });
+    }, limite);
+    (reloj as unknown as { unref?: () => void }).unref?.();
+    const apagar = () => clearTimeout(reloj);
+    res.once('finish', apagar);
+    res.once('close', apagar);
+  }
 
   res.json = ((cuerpo?: unknown) => {
     const status = res.statusCode;

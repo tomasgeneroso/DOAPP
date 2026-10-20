@@ -2366,14 +2366,15 @@ export default function JobDetail() {
               </p>
             </div>
 
-            {/* Job photos */}
+            {/* Fotos del trabajo: tarjeta propia, que no aparece si ninguna foto carga */}
             {Array.isArray((job as any).images) && (job as any).images.length > 0 && (
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
-                <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">
-                  {t("jobs.photos", "Fotos del trabajo")}
-                </h2>
-                <CarruselDeFotos fotos={(job as any).images} titulo={job.title} alAbrir={(url, alt) => openImage(url, alt)} />
-              </div>
+              <CarruselDeFotos
+                fotos={(job as any).images}
+                titulo={job.title}
+                encabezado={t("jobs.photos", "Fotos del trabajo")}
+                avisarSiNoCargan={!!isOwnJob}
+                alAbrir={(url, alt) => openImage(url, alt)}
+              />
             )}
 
             {/* Job Tasks - visible to owner and workers */}

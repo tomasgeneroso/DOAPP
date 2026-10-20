@@ -744,6 +744,16 @@ export default function JobPayment() {
                 onBinanceDataChange={setBinanceData}
               />
 
+              {(paymentMethod === 'mercadopago' || paymentMethod === 'bank_transfer') && (
+                <p role="note" className={`mt-4 rounded-xl border px-4 py-3 text-sm ${paymentMethod === 'mercadopago' ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'}`}>
+                  {paymentMethod === 'mercadopago' ? (
+                    <><strong>Con Mercado Pago</strong> el pago se confirma automáticamente apenas Mercado Pago lo acredita: no hace falta que lo apruebe nadie del equipo.</>
+                  ) : (
+                    <><strong>Con transferencia</strong>, después de transferir tocá «Ya pagué» y enviá el formulario: un administrador revisa el comprobante (24-48 hs hábiles) y recién ahí se confirma el pago.</>
+                  )}
+                </p>
+              )}
+
               {paymentMethod === 'bank_transfer' && (
                 <div className="mt-6">
                   <TransferenciaBancaria

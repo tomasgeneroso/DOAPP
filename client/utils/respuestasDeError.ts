@@ -1,4 +1,21 @@
-import { MENSAJE_SIN_CONEXION, mensajeDeError, mensajeSegunEstado, motivoDelCuerpo } from "../../shared/errores/mensajesPorEstado";
+import { MENSAJE_SIN_CONEXION, MENSAJE_TIEMPO_AGOTADO, mensajeDeError, mensajeSegunEstado, motivoDelCuerpo } from "../../shared/errores/mensajesPorEstado";
+
+/** Cuánto espera la pantalla una respuesta antes de rendirse (los pedidos con archivos esperan más: una foto por datos móviles tarda). */
+export const ESPERA_MAXIMA_MS = 60_000;
+export const ESPERA_MAXIMA_CON_ARCHIVOS_MS = 180_000;
+
+/** Los `init` de un fetch con un tope de espera, salvo que quien llama ya traiga su propia señal (por ejemplo, para cancelar). */
+export function conTopeDeEspera(init: RequestInit | undefined): { init: RequestInit | undefined; limpiar: () => void; vencio: () => boolean } {
+  if (init?.signal) return { init, limpiar: () => {}, vencio: () => false };
+  const control = new AbortController();
+  const conArchivos = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  let vencido = false;
+  const reloj = setTimeout(() => {
+    vencido = true;
+    control.abort();
+  }, conArchivos ? ESPERA_MAXIMA_CON_ARCHIVOS_MS : ESPERA_MAXIMA_MS);
+  return { init: { ...init, signal: control.signal }, limpiar: () => clearTimeout(reloj), vencio: () => vencido };
+}
 
 /**
  * Que ninguna pantalla muestre un error sin motivo.
@@ -41,7 +58,8 @@ export async function normalizarRespuestaDeError(respuesta: Response): Promise<R
 }
 
 /** Un corte de red (sin conexión, servidor caído, bloqueo del navegador) se dice con palabras; una cancelación voluntaria se deja pasar. */
-export function errorDeRedLegible(error: unknown): unknown {
+export function errorDeRedLegible(error: unknown, vencio = false): unknown {
+  if (vencio) return new Error(MENSAJE_TIEMPO_AGOTADO);
   if (error instanceof DOMException && error.name === "AbortError") return error;
   if (error instanceof TypeError) return new TypeError(MENSAJE_SIN_CONEXION);
   return error;

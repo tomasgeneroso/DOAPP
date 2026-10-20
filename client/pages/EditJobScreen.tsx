@@ -93,6 +93,8 @@ export default function EditJobScreen() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [existingImages, setExistingImages] = useState<string[]>([]);
+  // Fotos guardadas en el trabajo cuyo archivo ya no está en el servidor: se muestran como «no disponible» y se pueden quitar.
+  const [fotosRotas, setFotosRotas] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [jobStatus, setJobStatus] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
@@ -827,15 +829,24 @@ export default function EditJobScreen() {
                 <div className="flex flex-wrap gap-3">
                   {existingImages.map((img, index) => (
                     <div key={index} className="relative group">
-                      <img
-                        src={getImageUrl(img)}
-                        alt={`Imagen ${index + 1}`}
-                        className="h-24 w-24 object-cover rounded-lg border border-slate-600"
-                      />
+                      {fotosRotas.has(img) ? (
+                        <div className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-500 p-1 text-center text-[11px] text-slate-400">
+                          <ImageIcon className="h-5 w-5" aria-hidden="true" />
+                          Foto no disponible
+                        </div>
+                      ) : (
+                        <img
+                          src={getImageUrl(img)}
+                          alt={`Imagen ${index + 1}`}
+                          className="h-24 w-24 object-cover rounded-lg border border-slate-600"
+                          onError={() => setFotosRotas((prev) => new Set(prev).add(img))}
+                        />
+                      )}
                       <button
                         type="button"
+                        aria-label={`Quitar la imagen ${index + 1}`}
                         onClick={() => handleRemoveExistingImage(img)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className={`absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 ${fotosRotas.has(img) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'} transition-opacity`}
                       >
                         <X className="h-3 w-3" />
                       </button>

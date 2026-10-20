@@ -70,6 +70,41 @@ export default function JobApplicationSummary() {
     }
   }, [loading, user, navigate, id]);
 
+  /** Un trabajo de varios lugares no se toma de un clic: el cliente elige entre las propuestas (el servidor lo rechaza con JOB_REQUIRES_PROPOSAL). */
+  const variosLugares = Number((job as any)?.maxWorkers) > 1;
+
+  const handlePostularse = async () => {
+    if (!user || !job) return;
+    setAccepting(true);
+    setError(null);
+    try {
+      const inicio = job.startDate ? new Date(job.startDate).getTime() : NaN;
+      const fin = (job as any).endDate ? new Date((job as any).endDate).getTime() : NaN;
+      const dias = Number.isFinite(inicio) && Number.isFinite(fin) ? Math.max(1, Math.ceil((fin - inicio) / 86_400_000)) : 1;
+      const lugares = Math.max(1, Number((job as any).maxWorkers) || 1);
+      const response = await fetch("/api/proposals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          job: job.id,
+          coverLetter: "Me postulo para este trabajo con el precio publicado para mi lugar.",
+          proposedPrice: Math.round((Number(job.price) / lugares) * 100) / 100,
+          estimatedDuration: dias,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        navigate("/my-jobs?tab=applied");
+      } else {
+        setError(data.message || "No se pudo enviar la postulación");
+      }
+    } catch (err: any) {
+      setError(err.message || "Error al procesar la solicitud");
+    } finally {
+      setAccepting(false);
+    }
+  };
+
   const handleAccept = async () => {
     if (!user || !job) return;
 
@@ -430,11 +465,17 @@ export default function JobApplicationSummary() {
             )}
             </Transicion>
 
+            {variosLugares && (
+              <p role="note" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                Este trabajo busca <strong>{Number((job as any).maxWorkers)} trabajadores</strong>: tu postulación queda como propuesta y el cliente elige a quiénes contrata.
+              </p>
+            )}
+
             {/* Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Apply without quote */}
               <button
-                onClick={handleAccept}
+                onClick={variosLugares ? handlePostularse : handleAccept}
                 disabled={accepting}
                 className="flex flex-col items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-5 font-semibold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -443,8 +484,8 @@ export default function JobApplicationSummary() {
                 ) : (
                   <CheckCircle className="h-6 w-6" />
                 )}
-                <span className="text-base">{t('jobApply.applyNow')}</span>
-                <span className="text-xs text-sky-100 font-normal">{t('jobApply.noQuote')}</span>
+                <span className="text-base">{variosLugares ? "Postularme" : t('jobApply.applyNow')}</span>
+                <span className="text-xs text-sky-100 font-normal">{variosLugares ? "Con el precio publicado, sin cotización" : t('jobApply.noQuote')}</span>
               </button>
 
               {/* Apply with quote */}

@@ -53,10 +53,27 @@ function sortRows(rows: any[], sortBy: string, sortOrder: string): any[] {
   });
 }
 
+/**
+ * Filtra por fecha de alta (`createdAt`) con `?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (los dos incluidos). Va sobre las filas ya armadas, como el
+ * orden, para valer igual en todos los padrones. Una fecha que no es una fecha se ignora.
+ */
+function filtrarPorFecha(rows: any[], query: any): any[] {
+  const dia = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const desde = dia(query?.desde);
+  const hasta = dia(query?.hasta);
+  if (!desde && !hasta) return rows;
+  return rows.filter((r) => {
+    const t = r?.createdAt ? new Date(r.createdAt) : null;
+    if (!t || Number.isNaN(t.getTime())) return false;
+    const d = t.toISOString().slice(0, 10);
+    return (!desde || d >= desde) && (!hasta || d <= hasta);
+  });
+}
+
 /** Shared tail of every registry endpoint: sort, paginate, respond. */
 function respondPaged(req: AuthRequest, res: Response, all: any[]): void {
   const { page = 1, limit = 25, sortBy = '', sortOrder = 'desc' } = req.query as any;
-  const rows = sortRows(all, String(sortBy), String(sortOrder));
+  const rows = sortRows(filtrarPorFecha(all, req.query), String(sortBy), String(sortOrder));
   const start = (Number(page) - 1) * Number(limit);
   res.json({
     success: true,
@@ -117,7 +134,7 @@ async function jobRecords(search: string, status: string) {
   const names = await nameMap(jobs.map((j: any) => j.clientId));
   return jobs.map((j: any) => ({
     id: j.id, title: j.title, category: j.category, status: j.status,
-    price: Number(j.price || 0), maxWorkers: j.maxWorkers || 1,
+    price: Number(j.price || 0), maxWorkers: j.maxWorkers || 1, clientId: j.clientId,
     client: names[j.clientId] || j.clientId, startDate: j.startDate, createdAt: j.createdAt,
   }));
 }
@@ -131,7 +148,7 @@ router.get('/jobs', async (req: AuthRequest, res: Response) => {
 router.get('/jobs/export.csv', async (req: AuthRequest, res: Response) => {
   try {
     const { search = '', status = '' } = req.query as any;
-    const all = await jobRecords(search, status);
+    const all = filtrarPorFecha(await jobRecords(search, status), req.query);
     sendCsv(res, 'trabajos', JOB_COLS as any, all.map((r: any) => JOB_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -152,8 +169,11 @@ async function contractRecords(status: string) {
   if (status) where.status = status;
   const contracts = await Contract.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
   const names = await nameMap(contracts.flatMap((c: any) => [c.clientId, c.doerId]));
+  const jobIds = [...new Set(contracts.map((c: any) => c.jobId).filter(Boolean))] as string[];
+  const jobTitles: Record<string, string> = {};
+  if (jobIds.length) for (const j of await Job.findAll({ where: { id: { [Op.in]: jobIds } }, attributes: ['id', 'title'] })) jobTitles[(j as any).id] = (j as any).title;
   return contracts.map((c: any) => ({
-    id: c.id, status: c.status, price: Number(c.price || 0), escrowStatus: c.escrowStatus,
+    id: c.id, jobId: c.jobId, jobTitle: jobTitles[c.jobId] || '', clientId: c.clientId, doerId: c.doerId, status: c.status, price: Number(c.price || 0), escrowStatus: c.escrowStatus,
     client: names[c.clientId] || c.clientId, doer: names[c.doerId] || c.doerId,
     allocatedAmount: Number(c.allocatedAmount || 0), createdAt: c.createdAt,
   }));
@@ -162,13 +182,13 @@ async function contractRecords(status: string) {
 router.get('/contracts', async (req: AuthRequest, res: Response) => {
   try {
     const { status = '' } = req.query as any;
-    const all = await contractRecords(status);
+    const all = filtrarPorFecha(await contractRecords(status), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/contracts/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await contractRecords((req.query as any).status || '');
+    const all = filtrarPorFecha(await contractRecords((req.query as any).status || ''), req.query);
     sendCsv(res, 'contratos', CONTRACT_COLS as any, all.map((r: any) => CONTRACT_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -196,13 +216,13 @@ async function disputeRecords(status: string) {
 router.get('/disputes', async (req: AuthRequest, res: Response) => {
   try {
     const { status = '' } = req.query as any;
-    const all = await disputeRecords(status);
+    const all = filtrarPorFecha(await disputeRecords(status), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/disputes/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await disputeRecords((req.query as any).status || '');
+    const all = filtrarPorFecha(await disputeRecords((req.query as any).status || ''), req.query);
     sendCsv(res, 'disputas', DISPUTE_COLS as any, all.map((r: any) => DISPUTE_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -229,6 +249,7 @@ async function paymentRecords(status: string) {
     id: p.id, paymentType: p.paymentType, status: p.status, amount: Number(p.amount || 0),
     currency: p.currency || 'ARS', platformFee: Number(p.platformFee || 0),
     workerPaymentAmount: Number(p.workerPaymentAmount || 0),
+    payerId: p.payerId, recipientId: p.recipientId ?? null, contractId: p.contractId ?? null,
     payer: names[p.payerId] || p.payerId, recipient: p.recipientId ? (names[p.recipientId] || p.recipientId) : '',
     createdAt: p.createdAt,
   }));
@@ -237,13 +258,13 @@ async function paymentRecords(status: string) {
 router.get('/payments', async (req: AuthRequest, res: Response) => {
   try {
     const { status = '' } = req.query as any;
-    const all = await paymentRecords(status);
+    const all = filtrarPorFecha(await paymentRecords(status), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/payments/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await paymentRecords((req.query as any).status || '');
+    const all = filtrarPorFecha(await paymentRecords((req.query as any).status || ''), req.query);
     sendCsv(res, 'pagos', PAYMENT_COLS as any, all.map((r: any) => PAYMENT_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -265,20 +286,20 @@ async function withdrawalRecords(status: string) {
   const names = await nameMap(ws.map((w: any) => w.userId));
   return ws.map((w: any) => ({
     id: w.id, status: w.status, amount: Number(w.amount || 0), alias: w.alias || '',
-    user: names[w.userId] || w.userId, adminNotes: w.adminNotes || '', createdAt: w.createdAt,
+    userId: w.userId, user: names[w.userId] || w.userId, adminNotes: w.adminNotes || '', createdAt: w.createdAt,
   }));
 }
 
 router.get('/withdrawals', async (req: AuthRequest, res: Response) => {
   try {
     const { status = '' } = req.query as any;
-    const all = await withdrawalRecords(status);
+    const all = filtrarPorFecha(await withdrawalRecords(status), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/withdrawals/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await withdrawalRecords((req.query as any).status || '');
+    const all = filtrarPorFecha(await withdrawalRecords((req.query as any).status || ''), req.query);
     sendCsv(res, 'retiros', WITHDRAWAL_COLS as any, all.map((r: any) => WITHDRAWAL_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -298,6 +319,7 @@ async function reviewRecords() {
   const names = await nameMap(reviews.flatMap((r: any) => [r.reviewerId, r.reviewedId]));
   return reviews.map((r: any) => ({
     id: r.id, rating: Number(r.rating || 0), comment: r.comment || '',
+    reviewerId: r.reviewerId, reviewedId: r.reviewedId,
     reviewer: names[r.reviewerId] || r.reviewerId, reviewed: names[r.reviewedId] || r.reviewedId,
     contractId: r.contractId, createdAt: r.createdAt,
   }));
@@ -306,13 +328,13 @@ async function reviewRecords() {
 router.get('/reviews', async (req: AuthRequest, res: Response) => {
   try {
     
-    const all = await reviewRecords();
+    const all = filtrarPorFecha(await reviewRecords(), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
-router.get('/reviews/export.csv', async (_req: AuthRequest, res: Response) => {
+router.get('/reviews/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await reviewRecords();
+    const all = filtrarPorFecha(await reviewRecords(), req.query);
     sendCsv(res, 'resenas', REVIEW_COLS as any, all.map((r: any) => REVIEW_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -335,20 +357,20 @@ async function ticketRecords(status: string) {
   const names = await nameMap(tickets.map((t: any) => t.createdBy));
   return tickets.map((t: any) => ({
     id: t.id, ticketNumber: t.ticketNumber, subject: t.subject, category: t.category,
-    priority: t.priority, status: t.status, creator: names[t.createdBy] || t.createdBy, createdAt: t.createdAt,
+    priority: t.priority, status: t.status, createdBy: t.createdBy, creator: names[t.createdBy] || t.createdBy, createdAt: t.createdAt,
   }));
 }
 
 router.get('/tickets', async (req: AuthRequest, res: Response) => {
   try {
     const { status = '' } = req.query as any;
-    const all = await ticketRecords(status);
+    const all = filtrarPorFecha(await ticketRecords(status), req.query);
     respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/tickets/export.csv', async (req: AuthRequest, res: Response) => {
   try {
-    const all = await ticketRecords((req.query as any).status || '');
+    const all = filtrarPorFecha(await ticketRecords((req.query as any).status || ''), req.query);
     sendCsv(res, 'tickets', TICKET_COLS as any, all.map((r: any) => TICKET_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -536,7 +558,7 @@ router.get('/insurances', async (req: AuthRequest, res: Response) => {
 router.get('/insurances/export.csv', async (req: AuthRequest, res: Response) => {
   try {
     const q = req.query as any;
-    const all = await insuranceRecords(q.search || '', q.status || '');
+    const all = filtrarPorFecha(await insuranceRecords(q.search || '', q.status || ''), req.query);
     sendCsv(res, 'seguros', INSURANCE_COLS as any, all.map((r: any) => INSURANCE_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });

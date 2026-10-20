@@ -1,3 +1,4 @@
+import { noEsAnteriorAHoy } from '../../shared/fechas/limites.js';
 import express, { Response } from 'express';
 import { Op } from 'sequelize';
 import { Quote } from '../models/sql/Quote.model.js';
@@ -122,6 +123,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
     if (!recipientId || !title || !items?.length) {
       res.status(400).json({ success: false, message: 'Destinatario, título e ítems son requeridos' });
+      return;
+    }
+    // «Válida hasta» no puede ser un día que ya pasó.
+    if (validUntil && !noEsAnteriorAHoy(validUntil)) {
+      res.status(400).json({ success: false, code: 'FECHA_ANTERIOR_A_HOY', message: 'La fecha «válida hasta» no puede ser anterior a hoy.' });
       return;
     }
 
@@ -329,6 +335,10 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     const { title, items, taxRate, otherTaxes, notes, paymentTerms, validUntil } = req.body;
+    if (validUntil && !noEsAnteriorAHoy(validUntil)) {
+      res.status(400).json({ success: false, code: 'FECHA_ANTERIOR_A_HOY', message: 'La fecha «válida hasta» no puede ser anterior a hoy.' });
+      return;
+    }
 
     let subtotal = quote.subtotal;
     let taxAmount = quote.taxAmount;

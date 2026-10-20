@@ -1,3 +1,4 @@
+import { noEsAnteriorAHoy } from '../../shared/fechas/limites.js';
 import { Router, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
@@ -879,6 +880,10 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
     if (profession !== undefined) user.profession = profession || null;
     if (licenseNumber !== undefined) user.licenseNumber = licenseNumber || null;
     if (licenseCategory !== undefined) user.licenseCategory = licenseCategory || null;
+    if (licenseExpiresAt && !noEsAnteriorAHoy(licenseExpiresAt)) {
+      res.status(400).json({ success: false, code: 'FECHA_ANTERIOR_A_HOY', message: 'La fecha de vencimiento de la matrícula no puede ser anterior a hoy.' });
+      return;
+    }
     if (licenseExpiresAt !== undefined) {
       const d = licenseExpiresAt ? new Date(licenseExpiresAt) : null;
       user.licenseExpiresAt = d && !isNaN(d.getTime()) ? d : null;

@@ -6,7 +6,7 @@ import { join } from 'path';
 import { mensajeDeError, mensajeSegunEstado, motivoDelCuerpo, MENSAJE_SIN_CONEXION } from '../shared/errores/mensajesPorEstado.js';
 import { respuestasDeError } from '../server/middleware/respuestasDeError.js';
 import { errorHandler, ErrorResponse } from '../server/middleware/errorHandler.js';
-import { normalizarRespuestaDeError, errorDeRedLegible } from '../client/utils/respuestasDeError.js';
+import { normalizarRespuestaDeError, errorDeRedLegible, conTopeDeEspera, ESPERA_MAXIMA_MS, ESPERA_MAXIMA_CON_ARCHIVOS_MS } from '../client/utils/respuestasDeError.js';
 
 /**
  * Incidente 2026-10-19: crear un trabajo con un dato inválido mostraba «Error al crear el trabajo» sin decir qué campo estaba mal, y el
@@ -151,5 +151,43 @@ describe('cliente: una respuesta de error siempre trae un motivo legible', () =>
     expect((errorDeRedLegible(new TypeError('Failed to fetch')) as Error).message).toBe(MENSAJE_SIN_CONEXION);
     const cancelado = new DOMException('cancelado', 'AbortError');
     expect(errorDeRedLegible(cancelado)).toBe(cancelado);
+  });
+});
+
+describe('un pedido que no responde nunca (antes: «enviando…» para siempre)', () => {
+  it('el servidor corta a los N segundos con 503 y un mensaje claro, y deja la línea en el log', async () => {
+    process.env.TIEMPO_MAXIMO_DE_RESPUESTA_MS = '60';
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const a = express();
+      a.use(respuestasDeError);
+      a.get('/api/colgado', () => {
+        /* nunca contesta */
+      });
+      a.get('/api/rapido', (_q, r) => void r.json({ ok: true }));
+      const r = await request(a).get('/api/colgado');
+      expect(r.status).toBe(503);
+      expect(r.body).toMatchObject({ success: false, code: 'TIEMPO_AGOTADO' });
+      expect(r.body.message).toContain('tardó demasiado');
+      expect(error.mock.calls.some((c) => String(c[0]).includes('[HTTP 503] GET /api/colgado'))).toBe(true);
+      expect((await request(a).get('/api/rapido')).body).toEqual({ ok: true }); // lo que responde a tiempo no se toca
+    } finally {
+      delete process.env.TIEMPO_MAXIMO_DE_RESPUESTA_MS;
+      jest.restoreAllMocks();
+    }
+  });
+
+  it('la pantalla también deja de esperar (más tiempo si lleva archivos) y lo dice en español', () => {
+    const normal = conTopeDeEspera({ method: 'POST', body: '{}' });
+    expect(normal.init?.signal).toBeInstanceOf(AbortSignal);
+    normal.limpiar();
+    const conArchivo = conTopeDeEspera({ method: 'POST', body: new FormData() });
+    expect(conArchivo.init?.signal).toBeInstanceOf(AbortSignal);
+    conArchivo.limpiar();
+    expect(ESPERA_MAXIMA_CON_ARCHIVOS_MS).toBeGreaterThan(ESPERA_MAXIMA_MS);
+    // quien trae su propia señal (para cancelar a mano) la conserva
+    const suya = new AbortController();
+    expect(conTopeDeEspera({ signal: suya.signal }).init?.signal).toBe(suya.signal);
+    expect((errorDeRedLegible(new DOMException('x', 'AbortError'), true) as Error).message).toContain('tardó demasiado');
   });
 });

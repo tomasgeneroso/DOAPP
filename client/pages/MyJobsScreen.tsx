@@ -33,6 +33,7 @@ import {
 import JobsCalendar from "../components/jobs/JobsCalendar";
 import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
+import ConfirmModal from "../components/ui/ConfirmModal";
 
 interface Job {
   id: string;
@@ -151,7 +152,11 @@ export default function MyJobsScreen() {
     const viewParam = searchParams.get("view");
     return viewParam === "calendar" ? "calendar" : "list";
   });
-  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "pending_approval" | "draft" | "completed" | "disputed">("all");
+  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "pending_approval" | "draft" | "completed" | "disputed" | "cancelled">("all");
+  // Eliminar un trabajo desde su tarjeta (solo los que no tienen plata de por medio: sin pagar o ya cancelados).
+  const [trabajoAEliminar, setTrabajoAEliminar] = useState<Job | null>(null);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorAlEliminar, setErrorAlEliminar] = useState<string | null>(null);
   const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected" | "completed" | "disputed">("all");
   const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
   const [confirmingProposalJobId, setConfirmingProposalJobId] = useState<string | null>(null);
@@ -637,22 +642,50 @@ export default function MyJobsScreen() {
     return null;
   };
 
+  /** Un trabajo creado pero sin pagar (estado «draft» sin publicación pagada) está PENDIENTE DE PAGO: «Borrador» confundía. */
+  const estaPendienteDePago = (job: Job) =>
+    job.status === "pending_payment" ||
+    (job.status === "draft" && !(job as any).publicationPaid) ||
+    (job.payment?.status === "pending" && job.payment?.requiresProof && !job.payment?.proofSubmitted);
+  /** Los que se pueden eliminar sin tocar plata: sin pagar o ya cancelados. El resto se cancela (con sus reglas de devolución). */
+  const sePuedeEliminar = (job: Job) => job.status === "cancelled" || (["draft", "pending_payment"].includes(job.status) && !(job as any).publicationPaid);
+
+  const eliminarTrabajo = async () => {
+    if (!trabajoAEliminar) return;
+    setEliminando(true);
+    setErrorAlEliminar(null);
+    try {
+      const res = await fetch(`/api/jobs/${trabajoAEliminar.id}`, { method: "DELETE", credentials: "include", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        setErrorAlEliminar(data.message || "No se pudo eliminar el trabajo.");
+      } else {
+        setJobs((prev) => prev.filter((j) => j.id !== trabajoAEliminar.id));
+        setTrabajoAEliminar(null);
+      }
+    } catch (e: any) {
+      setErrorAlEliminar(e?.message || "No se pudo eliminar el trabajo.");
+    } finally {
+      setEliminando(false);
+    }
+  };
+
   const getFilteredJobs = () => {
     return jobs.filter((job) => {
       if (filter === "published") {
         return job.status === "published" || job.status === "open";
       }
       if (filter === "pending_payment") {
-        return job.status === "pending_payment" ||
-               (job.payment?.status === "pending" &&
-                job.payment?.requiresProof &&
-                !job.payment?.proofSubmitted);
+        return estaPendienteDePago(job);
       }
       if (filter === "pending_approval") {
         return job.status === "pending_approval";
       }
       if (filter === "draft") {
-        return job.status === "draft";
+        return job.status === "draft" && !estaPendienteDePago(job);
+      }
+      if (filter === "cancelled") {
+        return job.status === "cancelled";
       }
       if (filter === "completed") {
         return job.status === "completed";
@@ -681,12 +714,10 @@ export default function MyJobsScreen() {
 
   // Count jobs by status
   const publishedCount = jobs.filter(j => j.status === "published" || j.status === "open").length;
-  const pendingPaymentCount = jobs.filter(j =>
-    j.status === "pending_payment" ||
-    (j.payment?.status === "pending" && j.payment?.requiresProof && !j.payment?.proofSubmitted)
-  ).length;
+  const pendingPaymentCount = jobs.filter(estaPendienteDePago).length;
+  const cancelledCount = jobs.filter(j => j.status === "cancelled").length;
   const pendingApprovalCount = jobs.filter(j => j.status === "pending_approval").length;
-  const draftCount = jobs.filter(j => j.status === "draft").length;
+  const draftCount = jobs.filter(j => j.status === "draft" && !estaPendienteDePago(j)).length;
   const completedJobsCount = jobs.filter(j => j.status === "completed").length;
   const disputedJobsCount = jobs.filter(j => j.status === "disputed").length;
 
@@ -960,7 +991,7 @@ export default function MyJobsScreen() {
         {viewMode === "list" && mainTab === "published" && (
           <>
             {/* Stats Cards — clickable filters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 mb-6">
               {[
                 { key: "all" as const, label: t('common.total', 'Total'), count: jobs.length, icon: <Briefcase className="h-8 w-8 text-slate-400" />, activeColor: "border-sky-500 bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-400/20" },
                 { key: "published" as const, label: t('jobs.filter.published', 'Publicados'), count: publishedCount, icon: <CheckCircle className="h-8 w-8 text-green-500" />, numColor: "text-green-600", activeColor: "border-green-500 bg-green-50 dark:bg-green-900/20 ring-2 ring-green-400/20" },
@@ -968,6 +999,7 @@ export default function MyJobsScreen() {
                 { key: "disputed" as const, label: t('jobs.filter.disputed', 'En Disputa'), count: disputedJobsCount, icon: <AlertTriangle className="h-8 w-8 text-orange-500" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
                 { key: "pending_payment" as const, label: t('jobs.filter.pendingPayment', 'Pago Pendiente'), count: pendingPaymentCount, icon: <AlertCircle className="h-8 w-8 text-amber-500" />, numColor: "text-amber-600", activeColor: "border-amber-500 bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-400/20" },
                 { key: "pending_approval" as const, label: t('jobs.filter.pendingApproval', 'En revisión'), count: pendingApprovalCount, icon: <Clock className="h-8 w-8 text-orange-400" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
+                { key: "cancelled" as const, label: t('jobs.filter.cancelled', 'Cancelados'), count: cancelledCount, icon: <AlertCircle className="h-8 w-8 text-red-400" />, numColor: "text-red-600", activeColor: "border-red-500 bg-red-50 dark:bg-red-900/20 ring-2 ring-red-400/20" },
                 { key: "draft" as const, label: t('jobs.filter.drafts', 'Borradores'), count: draftCount, icon: <FileText className="h-8 w-8 text-slate-400" />, numColor: "text-slate-600", activeColor: "border-slate-500 bg-slate-100 dark:bg-slate-700/50 ring-2 ring-slate-400/20" },
               ].map(({ key, label, count, icon, numColor, activeColor }) => (
                 <button
@@ -1040,8 +1072,8 @@ export default function MyJobsScreen() {
                           );
                         })()}
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                            {getStatusLabel(job.status)}
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status === "draft" && estaPendienteDePago(job) ? "pending_payment" : job.status)}`}>
+                            {job.status === "draft" && estaPendienteDePago(job) ? t('jobs.status.pending_payment', 'Pendiente de Pago') : getStatusLabel(job.status)}
                           </span>
                           {getPaymentStatusBadge(job)}
                           {/* Tipo de entrega */}
@@ -1121,6 +1153,17 @@ export default function MyJobsScreen() {
                         <FileText className="h-4 w-4" />
                         <span>{job.proposalCount} {job.proposalCount === 1 ? t('jobs.applicant', 'postulado') : t('jobs.applicants', 'postulados')}</span>
                       </div>
+
+                      {sePuedeEliminar(job) && (
+                        <button
+                          type="button"
+                          onClick={() => { setErrorAlEliminar(null); setTrabajoAEliminar(job); }}
+                          className="ml-auto flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          Eliminar
+                        </button>
+                      )}
 
                       {job.payment?.requiresProof && !job.payment?.proofSubmitted && (
                         <Link
@@ -1475,6 +1518,24 @@ export default function MyJobsScreen() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!trabajoAEliminar}
+        tone="danger"
+        loading={eliminando}
+        title="Eliminar el trabajo"
+        confirmLabel="Eliminar"
+        message={
+          <>
+            <p>
+              ¿Querés eliminar <strong>{trabajoAEliminar?.title}</strong>? Se borra para siempre y no se puede deshacer.
+            </p>
+            {errorAlEliminar && <p role="alert" className="mt-2 text-red-400">{errorAlEliminar}</p>}
+          </>
+        }
+        onConfirm={eliminarTrabajo}
+        onClose={() => setTrabajoAEliminar(null)}
+      />
     </div>
   );
 }

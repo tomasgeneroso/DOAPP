@@ -611,6 +611,8 @@ export default function App() {
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
               <Route path="padrones/contracts" element={<AdminPadron entity="contracts" title="Padrón de contratos" searchable={false} columns={[
+                { key: 'id', label: 'Contrato', type: 'id' },
+                { key: 'jobTitle', label: 'Trabajo' },
                 { key: 'status', label: 'Estado' },
                 { key: 'price', label: 'Precio', type: 'money' },
                 { key: 'escrowStatus', label: 'Escrow' },
@@ -620,11 +622,12 @@ export default function App() {
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
               <Route path="padrones/disputes" element={<AdminPadron entity="disputes" title="Padrón de disputas" searchable={false} columns={[
+                { key: 'id', label: 'Disputa', type: 'id' },
                 { key: 'category', label: 'Categoría' },
                 { key: 'status', label: 'Estado' },
                 { key: 'reason', label: 'Motivo' },
                 { key: 'resolution', label: 'Resolución' },
-                { key: 'contractId', label: 'Contrato' },
+                { key: 'contractId', label: 'Contrato', type: 'id' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
               <Route path="padrones/payments" element={<AdminPadron entity="payments" title="Padrón de pagos" searchable={false} columns={[
@@ -636,6 +639,7 @@ export default function App() {
                 { key: 'workerPaymentAmount', label: 'Pago al trabajador', type: 'money' },
                 { key: 'payer', label: 'Pagador' },
                 { key: 'recipient', label: 'Receptor' },
+                { key: 'contractId', label: 'Contrato', type: 'id' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
               <Route path="padrones/withdrawals" element={<AdminPadron entity="withdrawals" title="Padrón de retiros" searchable={false} columns={[
@@ -651,7 +655,7 @@ export default function App() {
                 { key: 'comment', label: 'Comentario' },
                 { key: 'reviewer', label: 'Autor' },
                 { key: 'reviewed', label: 'Reseñado' },
-                { key: 'contractId', label: 'Contrato' },
+                { key: 'contractId', label: 'Contrato', type: 'id' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
               <Route path="padrones/tickets" element={<AdminPadron entity="tickets" title="Padrón de tickets" searchable={false} columns={[

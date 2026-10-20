@@ -1,13 +1,58 @@
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 import { Search, Download, Loader2, Database, ArrowUp, ArrowDown, ArrowUpDown, X } from "lucide-react";
 
 export interface PadronColumn {
   key: string;
   label: string;
-  type?: "date" | "money" | "text" | "bool";
+  type?: "date" | "money" | "text" | "bool" | "id";
+  /** Adónde lleva esta celda (la gestión de esa persona, ese trabajo…). Si no se pasa, se usa el enlace estándar del padrón. */
+  link?: (row: any) => string | null;
 }
+
+const usuario = (campo: string) => (r: any) => (r[campo] ? `/admin/users/${r[campo]}` : null);
+const trabajo = (campo: string) => (r: any) => (r[campo] ? `/jobs/${r[campo]}` : null);
+const contrato = (campo: string) => (r: any) => (r[campo] ? `/contracts/${r[campo]}` : null);
+
+/**
+ * Los padrones están vinculados entre sí: el nombre de una persona lleva a su ficha de gestión, un trabajo a su publicación, un contrato a su
+ * detalle. Se declara acá, por padrón y columna, para no repetirlo en cada definición de columnas.
+ */
+const ENLACES: Record<string, Record<string, (row: any) => string | null>> = {
+  jobs: { title: trabajo("id"), client: usuario("clientId") },
+  contracts: { id: contrato("id"), jobTitle: trabajo("jobId"), client: usuario("clientId"), doer: usuario("doerId") },
+  disputes: { id: (r) => (r.id ? `/admin/disputes/${r.id}` : null), contractId: contrato("contractId") },
+  payments: { payer: usuario("payerId"), recipient: usuario("recipientId"), contractId: contrato("contractId") },
+  withdrawals: { user: usuario("userId") },
+  reviews: { reviewer: usuario("reviewerId"), reviewed: usuario("reviewedId"), contractId: contrato("contractId") },
+  tickets: { ticketNumber: (r) => (r.id ? `/admin/tickets/${r.id}` : null), creator: usuario("createdBy") },
+  licenses: { name: usuario("id") },
+  insurances: { name: usuario("id") },
+};
+
+/** Estados por los que se puede filtrar cada padrón (los mismos que usa el servidor). */
+const ESTADOS: Record<string, Array<{ value: string; label: string }>> = {
+  jobs: [
+    ["draft", "Sin pagar (borrador)"], ["pending_payment", "Pago en proceso"], ["pending_approval", "En revisión"], ["open", "Publicado"],
+    ["in_progress", "En curso"], ["paused", "Pausado"], ["completed", "Completado"], ["cancelled", "Cancelado"],
+  ].map(([value, label]) => ({ value, label })),
+  contracts: [
+    ["pending", "Pendiente"], ["ready", "Listo"], ["accepted", "Aceptado"], ["in_progress", "En curso"], ["awaiting_confirmation", "Esperando confirmación"],
+    ["completed", "Completado"], ["cancelled", "Cancelado"], ["disputed", "En disputa"], ["rejected", "Rechazado"], ["in_review", "En revisión"],
+  ].map(([value, label]) => ({ value, label })),
+  payments: [
+    ["pending", "Pendiente"], ["pending_verification", "A verificar"], ["verified", "Verificado"], ["held_escrow", "En garantía"],
+    ["confirmed_for_payout", "A pagar al trabajador"], ["completed", "Completado"], ["failed", "Fallido"], ["refunded", "Devuelto"], ["cancelled", "Cancelado"], ["disputed", "En disputa"],
+  ].map(([value, label]) => ({ value, label })),
+  withdrawals: [["pending", "Pendiente"], ["approved", "Aprobado"], ["processing", "Procesando"], ["completed", "Completado"], ["rejected", "Rechazado"]].map(([value, label]) => ({ value, label })),
+  tickets: [["open", "Abierto"], ["in_progress", "En curso"], ["waiting_response", "Esperando respuesta"], ["resolved", "Resuelto"], ["closed", "Cerrado"]].map(([value, label]) => ({ value, label })),
+  disputes: [
+    ["open", "Abierta"], ["in_review", "En revisión"], ["awaiting_info", "Falta información"], ["resolved_released", "Resuelta: se liberó"],
+    ["resolved_refunded", "Resuelta: se devolvió"], ["resolved_partial", "Resuelta: parcial"], ["cancelled", "Cancelada"],
+  ].map(([value, label]) => ({ value, label })),
+};
 
 /** Severity a row can carry, worst first. Kept generic so any registry can opt in. */
 export type PadronTone = "danger" | "warning" | "muted";
@@ -21,6 +66,7 @@ const TONE_ROW: Record<PadronTone, string> = {
 const fmt = (v: any, type?: string) => {
   if (type === "bool") return v ? "Sí" : "No";
   if (v === null || v === undefined || v === "") return "—";
+  if (type === "id") return String(v).slice(0, 8);
   if (type === "date") return new Date(v).toLocaleDateString("es-AR");
   if (type === "money") return `$${Number(v).toLocaleString("es-AR")}`;
   return String(v);
@@ -59,6 +105,9 @@ export default function Padron({
   const [total, setTotal] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [status, setStatus] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const opcionesDeEstado = statusOptions?.length ? statusOptions : ESTADOS[entity];
   const [sortBy, setSortBy] = useState("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -72,6 +121,8 @@ export default function Padron({
         limit: "25",
         search,
         ...(status ? { status } : {}),
+        ...(desde ? { desde } : {}),
+        ...(hasta ? { hasta } : {}),
         ...(sortBy ? { sortBy, sortOrder } : {}),
       }).toString();
       const res = await fetch(`/api/admin/padrones/${entity}?${qs}`, { headers: authHeaders });
@@ -83,7 +134,7 @@ export default function Padron({
       }
     } catch { /* noop */ } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entity, page, search, status, sortBy, sortOrder, token]);
+  }, [entity, page, search, status, desde, hasta, sortBy, sortOrder, token]);
 
   useEffect(() => {
     const t = setTimeout(load, 250);
@@ -91,7 +142,7 @@ export default function Padron({
   }, [load]);
 
   // reset when entity changes
-  useEffect(() => { setPage(1); setSearch(""); setStatus(""); setSortBy(""); }, [entity]);
+  useEffect(() => { setPage(1); setSearch(""); setStatus(""); setDesde(""); setHasta(""); setSortBy(""); }, [entity]);
 
   /** Click a header: first click sorts descending, clicking again flips it. */
   const toggleSort = (key: string) => {
@@ -105,7 +156,7 @@ export default function Padron({
     try {
       // The export deliberately carries the same filters as the table: a CSV
       // that silently contains more rows than what is on screen is a trap.
-      const qs = new URLSearchParams({ search, ...(status ? { status } : {}) }).toString();
+      const qs = new URLSearchParams({ search, ...(status ? { status } : {}), ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) }).toString();
       const res = await fetch(`/api/admin/padrones/${entity}/export.csv?${qs}`, { headers: authHeaders });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -152,21 +203,36 @@ export default function Padron({
           </div>
         )}
 
-        {statusOptions?.length ? (
+        {opcionesDeEstado?.length ? (
           <select
             value={status}
             onChange={(e) => { setStatus(e.target.value); setPage(1); }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
           >
             <option value="">Todos los estados</option>
-            {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {opcionesDeEstado.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         ) : null}
 
-        {(status || sortBy) && (
+        {entity !== "licenses" && entity !== "insurances" && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <label className="flex items-center gap-1.5">
+              Desde
+              <input type="date" value={desde} max={hasta || undefined} onChange={(e) => { setDesde(e.target.value); setPage(1); }}
+                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white" />
+            </label>
+            <label className="flex items-center gap-1.5">
+              Hasta
+              <input type="date" value={hasta} min={desde || undefined} onChange={(e) => { setHasta(e.target.value); setPage(1); }}
+                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white" />
+            </label>
+          </div>
+        )}
+
+        {(status || desde || hasta || sortBy) && (
           <button
             type="button"
-            onClick={() => { setStatus(""); setSortBy(""); setPage(1); }}
+            onClick={() => { setStatus(""); setDesde(""); setHasta(""); setSortBy(""); setPage(1); }}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
           >
             <X className="h-3.5 w-3.5" /> Limpiar
@@ -207,11 +273,18 @@ export default function Padron({
               const tone = rowTone?.(r);
               return (
               <tr key={r.id} className={`text-gray-800 dark:text-gray-200 ${tone ? TONE_ROW[tone] : ""}`}>
-                {columns.map((c) => (
-                  <td key={c.key} className="px-3 py-2 max-w-[280px] truncate" title={String(r[c.key] ?? "")}>
-                    {fmt(r[c.key], c.type)}
-                  </td>
-                ))}
+                {columns.map((c) => {
+                  const destino = (c.link ?? ENLACES[entity]?.[c.key])?.(r);
+                  return (
+                    <td key={c.key} className="px-3 py-2 max-w-[280px] truncate" title={String(r[c.key] ?? "")}>
+                      {destino ? (
+                        <Link to={destino} className="text-sky-600 hover:underline dark:text-sky-400">{fmt(r[c.key], c.type)}</Link>
+                      ) : (
+                        fmt(r[c.key], c.type)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
               );
             })}
