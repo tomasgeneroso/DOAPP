@@ -57,6 +57,8 @@ describe('cuenta para transferir: solo la del entorno', () => {
     expect(datosBancarios({})).toBeNull();
     // los valores de ejemplo del .env.example cuentan como «sin configurar»
     expect(datosBancarios({ BANK_CBU: '0000000000000000000000', BANK_ALIAS: 'tu.alias', BANK_CUIT: '00-00000000-0' })).toBeNull();
+    // el CUIT de ejemplo que tenía el código escrito a mano no se muestra aunque esté en el .env, pero la cuenta real sí
+    expect(datosBancarios({ BANK_CBU: '0000003100148518910535', BANK_ALIAS: 'doapppagos', BANK_CUIT: '30-12345678-9', BANK_ACCOUNT_HOLDER: 'DOAPP S.R.L.' })).toEqual({ cbu: '0000003100148518910535', alias: 'doapppagos', accountHolder: 'DOAPP S.R.L.' });
     // un CBU mal escrito se ignora, pero un alias real alcanza
     expect(datosBancarios({ BANK_CBU: '12345', BANK_ALIAS: 'doapppagos' })).toEqual({ alias: 'doapppagos' });
     expect(datosBancarios({ BANK_CBU: '12345' })).toBeNull();

@@ -15,7 +15,8 @@ export interface DatosBancarios {
   bank?: string;
 }
 
-const PLACEHOLDERS = new Set(['tu.alias', 'tu banco', 'tu razon social', 'tu razón social', '00-00000000-0']);
+// Los de ejemplo del .env.example y los que tenía el código escritos a mano (el CUIT 30-12345678-9, el alias DOAPP.PAGOS…): nunca se le muestran a un cliente.
+const PLACEHOLDERS = new Set(['tu.alias', 'tu banco', 'tu razon social', 'tu razón social', '00-00000000-0', '30-12345678-9', 'doapp.pagos']);
 
 const limpio = (v: string | undefined): string | undefined => {
   const t = (v ?? '').trim();
