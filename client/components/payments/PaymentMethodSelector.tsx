@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Building2, Copy, Check } from 'lucide-react';
 import { useEnabledPaymentMethods } from '@/hooks/useEnabledPaymentMethods';
+import { useDatosBancarios } from '@/hooks/useDatosBancarios';
 import BinanceQr from './BinanceQr';
 
 export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
@@ -11,19 +12,12 @@ export interface BinancePaymentData {
   senderUserId: string;
 }
 
-export interface BankTransferPaymentData {
-  isOwnBankAccount: boolean;
-  thirdPartyAccountHolder: string;
-  senderBankName: string;
-}
-
 interface PaymentMethodSelectorProps {
   selectedMethod: PaymentMethod;
   onMethodChange: (method: PaymentMethod) => void;
   amount: number;
   currency?: string;
   onBinanceDataChange?: (data: BinancePaymentData) => void;
-  onBankTransferDataChange?: (data: BankTransferPaymentData) => void;
 }
 
 /* ── Brand logos ─────────────────────────────── */
@@ -81,10 +75,10 @@ export default function PaymentMethodSelector({
   amount,
   currency = 'ARS',
   onBinanceDataChange,
-  onBankTransferDataChange,
 }: PaymentMethodSelectorProps) {
   const { t } = useTranslation();
   const { isEnabled, loading: loadingMethods } = useEnabledPaymentMethods();
+  const cuentaBancaria = useDatosBancarios();
 
   // Binance state
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
@@ -98,22 +92,11 @@ export default function PaymentMethodSelector({
   const [binanceTransactionId, setBinanceTransactionId] = useState('');
   const [binanceSenderUserId, setBinanceSenderUserId] = useState('');
 
-  // Bank transfer state
-  const [isOwnBankAccount, setIsOwnBankAccount] = useState(true);
-  const [thirdPartyAccountHolder, setThirdPartyAccountHolder] = useState('');
-  const [senderBankName, setSenderBankName] = useState('');
-
   useEffect(() => {
     if (selectedMethod === 'binance' && onBinanceDataChange) {
       onBinanceDataChange({ transactionId: binanceTransactionId, senderUserId: binanceSenderUserId });
     }
   }, [binanceTransactionId, binanceSenderUserId, selectedMethod, onBinanceDataChange]);
-
-  useEffect(() => {
-    if (selectedMethod === 'bank_transfer' && onBankTransferDataChange) {
-      onBankTransferDataChange({ isOwnBankAccount, thirdPartyAccountHolder, senderBankName });
-    }
-  }, [isOwnBankAccount, thirdPartyAccountHolder, senderBankName, selectedMethod, onBankTransferDataChange]);
 
   useEffect(() => {
     if (selectedMethod !== 'binance' || currency !== 'ARS') return;
@@ -181,7 +164,7 @@ export default function PaymentMethodSelector({
   })();
 
   // Only offer what the admin enabled AND the backend can actually deliver.
-  const visibleMethods = methods.filter((m) => isEnabled(m.id));
+  const visibleMethods = methods.filter((m) => isEnabled(m.id) && !(m.id === 'bank_transfer' && cuentaBancaria.disponible === false));
 
   // If the selected method gets disabled mid-session (or was remembered from a
   // previous visit), move off it instead of leaving a selection with no button.
@@ -363,92 +346,6 @@ export default function PaymentMethodSelector({
       )}
 
       {/* ── Bank Transfer ──────────────────────── */}
-      {selectedMethod === 'bank_transfer' && (
-        <div className="space-y-4 animate-fadeIn">
-          {/* Account info */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
-            <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-              <Building2 className="h-5 w-5 text-slate-500" />
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('payments.transferDetails', 'Datos para Transferencia')}</span>
-            </div>
-            <div className="p-4 space-y-2.5 text-sm">
-              {[
-                { label: t('payments.holder', 'Titular'), value: 'DOAPP S.R.L.' },
-                { label: 'CUIT', value: '30-12345678-9' },
-                { label: t('payments.bank', 'Banco'), value: 'Banco Galicia' },
-                { label: 'Alias', value: 'DOAPP.PAGOS' },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400 w-16 flex-shrink-0">{label}</span>
-                  <div className="flex items-center gap-2 flex-1 justify-end">
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{value}</span>
-                    <CopyBtn value={value} />
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 w-16 flex-shrink-0">CBU</span>
-                <div className="flex items-center gap-2 flex-1 justify-end">
-                  <code className="font-mono text-xs text-slate-700 dark:text-slate-300">0070099920000123...</code>
-                  <CopyBtn value="00700999200001234567" />
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">{t('payments.amountToTransfer', 'Monto a transferir')}</span>
-                <span className="text-lg font-bold text-slate-900 dark:text-white">
-                  ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bank name field */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-              {t('payments.issuingBank', 'Banco emisor')} <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={senderBankName}
-              onChange={(e) => setSenderBankName(e.target.value)}
-              placeholder={t('payments.issuingBankPlaceholder', 'Ej: Banco Galicia, Santander, BBVA...')}
-              className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-            />
-          </div>
-
-          {/* Own account toggle */}
-          <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3.5 hover:border-sky-300 dark:hover:border-sky-700 transition-colors">
-            <input
-              type="checkbox"
-              checked={isOwnBankAccount}
-              onChange={(e) => setIsOwnBankAccount(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              {t('payments.ownAccount', 'La cuenta bancaria está a mi nombre')}
-            </span>
-          </label>
-
-          {!isOwnBankAccount && (
-            <div className="animate-fadeIn">
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                {t('payments.accountHolder', 'Titular de la cuenta')} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={thirdPartyAccountHolder}
-                onChange={(e) => setThirdPartyAccountHolder(e.target.value)}
-                placeholder={t('payments.accountHolderPlaceholder', 'Nombre completo del titular')}
-                className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-              />
-            </div>
-          )}
-
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            {t('payments.verificationNotice', '⏱ Verificación en 24-48hs hábiles. El trabajo se publicará una vez aprobado el pago.')}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

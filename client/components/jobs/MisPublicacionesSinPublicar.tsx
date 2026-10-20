@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Clock, FileText } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { estadoDePublicacion } from "../../../shared/jobs/estadoDePublicacion";
+import { borrarBorrador, haceCuanto, leerBorrador } from "../../utils/borradorDeTrabajo";
 
 interface TrabajoPropio {
   id: string;
@@ -19,8 +20,10 @@ interface TrabajoPropio {
 const ESTADOS_QUE_NO_SE_VEN = ["draft", "pending_payment", "pending_approval", "paused"];
 
 export default function MisPublicacionesSinPublicar() {
-  const { token } = useAuth() as any;
+  const { token, user } = useAuth() as any;
   const [pendientes, setPendientes] = useState<TrabajoPropio[]>([]);
+  // El borrador de un trabajo a medio crear vive en este navegador (utils/borradorDeTrabajo.ts).
+  const [borrador, setBorrador] = useState(() => (user?.id ? leerBorrador(String(user.id)) : null));
 
   useEffect(() => {
     if (!token) return;
@@ -39,7 +42,32 @@ export default function MisPublicacionesSinPublicar() {
     };
   }, [token]);
 
-  if (pendientes.length === 0) return null;
+  const descartarBorrador = () => {
+    if (user?.id) borrarBorrador(String(user.id));
+    setBorrador(null);
+  };
+
+  if (pendientes.length === 0 && !borrador) return null;
+
+  const bloqueDelBorrador = borrador && (
+    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-900 dark:text-amber-100 ${pendientes.length > 0 ? "mt-3 border-t border-amber-200 pt-3 dark:border-amber-800" : ""}`}>
+      <FileText className="h-3.5 w-3.5 flex-shrink-0 opacity-70" aria-hidden="true" />
+      <span className="font-medium">{borrador.title.trim() || "Trabajo sin título"}</span>
+      <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium">Borrador sin publicar</span>
+      <span className="text-xs text-amber-800/90 dark:text-amber-200/80">Guardado {haceCuanto(borrador.guardadoEl)}</span>
+      <Link to="/contracts/create" className="text-xs font-semibold underline underline-offset-2">Continuar</Link>
+      <button type="button" onClick={descartarBorrador} className="text-xs underline underline-offset-2 opacity-80 hover:opacity-100">Descartar</button>
+    </div>
+  );
+
+  // Solo hay un borrador y ningún trabajo pendiente: se muestra solo, sin el encabezado de «publicaciones que no están en el muro».
+  if (pendientes.length === 0) {
+    return (
+      <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 animate-fadeIn" role="status">
+        {bloqueDelBorrador}
+      </div>
+    );
+  }
 
   return (
     <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 animate-fadeIn" role="status">
@@ -64,6 +92,7 @@ export default function MisPublicacionesSinPublicar() {
       <Link to="/my-jobs" className="mt-3 inline-block text-sm font-semibold text-amber-900 dark:text-amber-200 underline underline-offset-2">
         Ver todos en Mis trabajos
       </Link>
+      {bloqueDelBorrador}
     </div>
   );
 }

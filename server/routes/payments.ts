@@ -13,6 +13,8 @@ import { PaymentProof } from "../models/sql/PaymentProof.model.js";
 import mercadopagoService from "../services/mercadopago.js";
 import { datosDeLiberacionDeMp } from "../services/liberacionDeSaldo.js";
 import { registrarCostoRealDeMp } from "../services/costoRealDeMp.js";
+import { datosBancarios, TRANSFERENCIA_NO_DISPONIBLE } from "../services/datosBancarios.js";
+import { validarDatosDeTransferencia, documentoNormalizado } from "../../shared/pagos/transferencia.js";
 import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env.js";
@@ -147,6 +149,12 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer') {
+        // Sin una cuenta real configurada (BANK_CBU / BANK_ALIAS) no se ofrece la transferencia: antes se mostraba una cuenta de ejemplo.
+        const cuenta = datosBancarios();
+        if (!cuenta) {
+          res.status(503).json(TRANSFERENCIA_NO_DISPONIBLE);
+          return;
+        }
         // Bank Transfer - requires manual verification
         const payment = await Payment.create({
           contractId: null,
@@ -176,13 +184,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           requiresPayment: true,
           paymentId: payment.id,
           amount: totalAmountARS,
-          bankDetails: {
-            accountHolder: process.env.BANK_ACCOUNT_HOLDER || 'DOAPP S.R.L.',
-            cuit: process.env.BANK_CUIT || '30-12345678-9',
-            bank: process.env.BANK_NAME || 'Banco Galicia',
-            cbu: process.env.BANK_CBU || '0070099920000123456789',
-            alias: process.env.BANK_ALIAS || 'DOAPP.PAGOS',
-          }
+          bankDetails: cuenta,
         });
         return;
       }
@@ -346,6 +348,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer' || selectedPaymentMethod === 'binance') {
+        const cuenta = selectedPaymentMethod === 'bank_transfer' ? datosBancarios() : null;
+        if (selectedPaymentMethod === 'bank_transfer' && !cuenta) {
+          res.status(503).json(TRANSFERENCIA_NO_DISPONIBLE);
+          return;
+        }
         // Bank Transfer or Binance - requires manual verification
         const payment = await Payment.create({
           contractId: null,
@@ -375,13 +382,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           requiresPayment: true,
           paymentId: payment.id,
           amount: totalAmountARS,
-          bankDetails: selectedPaymentMethod === 'bank_transfer' ? {
-            accountHolder: process.env.BANK_ACCOUNT_HOLDER || 'DOAPP S.R.L.',
-            cuit: process.env.BANK_CUIT || '30-12345678-9',
-            bank: process.env.BANK_NAME || 'Banco Galicia',
-            cbu: process.env.BANK_CBU || '0070099920000123456789',
-            alias: process.env.BANK_ALIAS || 'DOAPP.PAGOS',
-          } : undefined
+          bankDetails: cuenta ?? undefined,
         });
         return;
       }
@@ -2109,6 +2110,47 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       return;
     }
 
+    // «Ya pagué»: una transferencia bancaria declara número de operación, quién la hizo (nombre y documento), banco y fecha. Se valida acá
+    // (la pantalla ya lo hizo, pero nada que llegue del navegador se da por bueno) y el número no puede haberse usado en OTRO pago.
+    const esTransferencia = payment.paymentMethod === 'bank_transfer';
+    const declarado = {
+      numero: String(req.body.bankReference ?? ''),
+      nombre: String(req.body.senderName ?? ''),
+      documento: String(req.body.senderDocument ?? ''),
+      banco: String(req.body.senderBankName ?? ''),
+      fecha: String(req.body.transferDate ?? ''),
+    };
+    // Se exige en los pagos de la pantalla /payment (publicación y aumento de presupuesto); en los demás (órdenes de pago al terminar, que suben
+    // solo el archivo) se valida y se guarda si vienen, pero no se rechaza si faltan.
+    const exigeDatos = esTransferencia && ['job_publication', 'budget_increase'].includes(String(payment.paymentType));
+    const trajoDatos = Object.values(declarado).some((v) => v.trim() !== '');
+    const declaraTransferencia = esTransferencia && (exigeDatos || trajoDatos);
+    if (declaraTransferencia) {
+      const { ok, errores } = validarDatosDeTransferencia(declarado, { exigirArchivo: false });
+      if (!ok) {
+        fs.promises.unlink(req.file.path).catch(() => {});
+        res.status(400).json({
+          success: false,
+          code: 'DATOS_DE_TRANSFERENCIA_INVALIDOS',
+          message: Object.values(errores).join(' '),
+          errores,
+        });
+        return;
+      }
+      const repetido = await PaymentProof.findOne({
+        where: { bankReference: { [Op.iLike]: declarado.numero.trim() }, paymentId: { [Op.ne]: paymentId }, status: { [Op.ne]: 'rejected' } } as any,
+      });
+      if (repetido) {
+        fs.promises.unlink(req.file.path).catch(() => {});
+        res.status(409).json({
+          success: false,
+          code: 'NUMERO_DE_OPERACION_REPETIDO',
+          message: 'Ese número de operación ya se usó en otro pago. Revisá el número o escribinos a soporte si creés que es un error.',
+        });
+        return;
+      }
+    }
+
     // Deactivate previous proofs for this payment
     await PaymentProof.update(
       { isActive: false },
@@ -2132,6 +2174,12 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       isOwnBankAccount: isOwnBankAccount === 'true' || isOwnBankAccount === true,
       thirdPartyAccountHolder: thirdPartyAccountHolder || null,
       senderBankName: senderBankName || null,
+      ...(declaraTransferencia && {
+        bankReference: declarado.numero.trim(),
+        senderName: declarado.nombre.trim().replace(/\s+/g, ' '),
+        senderDocument: documentoNormalizado(declarado.documento) ?? undefined,
+        transferDate: declarado.fecha,
+      }),
       status: 'pending',
       uploadedAt: new Date(),
       isActive: true,
@@ -2261,6 +2309,16 @@ router.get("/:paymentId/proofs", protect, async (req: AuthRequest, res: Response
  * gap is a dispute waiting to happen, so the number comes from the same
  * function that does the charging.
  */
+/**
+ * GET /api/payments/bank-details
+ * La cuenta para pagar por transferencia, tal como está en el entorno (BANK_CBU, BANK_ALIAS…). La pantalla de pago la pide al elegir
+ * «Transferencia»; si no hay cuenta configurada responde disponible:false y la opción no se ofrece.
+ */
+router.get("/bank-details", protect, async (_req: AuthRequest, res: Response): Promise<void> => {
+  const cuenta = datosBancarios();
+  res.json({ success: true, disponible: !!cuenta, bankDetails: cuenta });
+});
+
 router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     /**

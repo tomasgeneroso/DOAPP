@@ -476,6 +476,13 @@ router.get("/:paymentId/proofs", protect, requireRole('admin', 'super_admin', 'o
       uploadedBy: p.user ? { id: p.user.id, name: p.user.name } : null,
       uploadedAt: p.uploadedAt,
       isActive: p.isActive,
+      // «Ya pagué»: lo que declaró quien transfirió, para cruzarlo con el extracto
+      bankReference: p.bankReference ?? null,
+      senderName: p.senderName ?? null,
+      senderDocument: p.senderDocument ?? null,
+      senderBankName: p.senderBankName ?? null,
+      transferDate: p.transferDate ?? null,
+      transferAmount: p.transferAmount != null ? Number(p.transferAmount) : null,
     });
 
     res.json({

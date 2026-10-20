@@ -3437,6 +3437,16 @@ export default function PendingPayments() {
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded ${labelClass}`}>{label}</span>
                       <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 dark:text-sky-400 hover:underline inline-flex items-center gap-1">Abrir en pestaña nueva <ExternalLink className="h-3 w-3" /></a>
                     </div>
+                    {(r.bankReference || r.senderName || r.senderDocument || r.transferDate) && (
+                      <dl className="mb-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 rounded-lg bg-slate-50 p-2 text-xs dark:bg-slate-900/40">
+                        {r.bankReference && (<><dt className="text-slate-500 dark:text-slate-400">N° de operación</dt><dd className="font-medium text-slate-800 dark:text-slate-100 break-all">{r.bankReference}</dd></>)}
+                        {r.senderName && (<><dt className="text-slate-500 dark:text-slate-400">Transfirió</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{r.senderName}</dd></>)}
+                        {r.senderDocument && (<><dt className="text-slate-500 dark:text-slate-400">Documento</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{r.senderDocument}</dd></>)}
+                        {r.senderBankName && (<><dt className="text-slate-500 dark:text-slate-400">Banco de origen</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{r.senderBankName}</dd></>)}
+                        {r.transferDate && (<><dt className="text-slate-500 dark:text-slate-400">Fecha</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{String(r.transferDate).slice(0, 10).split('-').reverse().join('/')}</dd></>)}
+                        {r.transferAmount != null && (<><dt className="text-slate-500 dark:text-slate-400">Monto declarado</dt><dd className="font-medium tabular-nums text-slate-800 dark:text-slate-100">${Number(r.transferAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</dd></>)}
+                      </dl>
+                    )}
                     {isPdf ? (
                       <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-8 text-sky-600 dark:text-sky-400 hover:underline border border-gray-200 dark:border-gray-700 rounded-lg">
                         <FileText className="h-6 w-6" /> Abrir PDF del comprobante

@@ -240,6 +240,16 @@ export class PaymentProof extends Model {
   })
   bankReference?: string;
 
+  // «Ya pagué»: quién hizo la transferencia (nombre y documento) y cuándo, para cruzar el comprobante con el extracto.
+  @Column({ type: DataType.STRING(160), allowNull: true, field: 'sender_name' })
+  senderName?: string;
+
+  @Column({ type: DataType.STRING(20), allowNull: true, field: 'sender_document' })
+  senderDocument?: string;
+
+  @Column({ type: DataType.DATEONLY, allowNull: true, field: 'transfer_date' })
+  transferDate?: string;
+
   // ============================================
   // TIMESTAMPS
   // ============================================

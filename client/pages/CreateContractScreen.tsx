@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { borrarBorrador, guardarBorrador, haceCuanto, leerBorrador } from "../utils/borradorDeTrabajo";
 import ComoFuncionaElPago from "@/components/pagos/ComoFuncionaElPago";
 const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
@@ -73,32 +74,44 @@ export default function CreateContractScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, refreshUser, token } = useAuth();
+  // Borrador guardado en este navegador (ver utils/borradorDeTrabajo.ts): se lee una vez y siembra los valores iniciales.
+  const [borrador] = useState(() => (user?.id ? leerBorrador(String(user.id)) : null));
+  const fechaDelBorrador = (iso: string | null | undefined) => {
+    const d = iso ? new Date(iso) : null;
+    return d && Number.isFinite(d.getTime()) && d.getTime() > Date.now() ? d : null; // una fecha que ya pasó no se retoma
+  };
+  const formRef = useRef<HTMLFormElement>(null);
+  const [cambiosDelFormulario, setCambiosDelFormulario] = useState(0);
+  const [guardadoEl, setGuardadoEl] = useState<string | null>(null);
+  const sinGuardar = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState(borrador?.category ?? "");
+  const [selectedTags, setSelectedTags] = useState<string[]>(borrador?.tags ?? []);
   const [customTag, setCustomTag] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState(borrador?.location ?? "");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [maxWorkers, setMaxWorkers] = useState(1);
-  const [requirements, setRequirements] = useState(['', '', '']);
+  const [maxWorkers, setMaxWorkers] = useState(borrador?.maxWorkers ?? 1);
+  const [requirements, setRequirements] = useState(borrador?.requirements?.length ? borrador.requirements : ['', '', '']);
   // Tareas (pasos para terminar, cada una con su día) con «entrega por tareas». Distintas de los requisitos de finalización.
-  const [tareas, setTareas] = useState<TareaDeCreacion[]>([{ title: '', dueDate: null }, { title: '', dueDate: null }]);
-  const [vacancyTaskAssignments, setVacancyTaskAssignments] = useState<Array<{ slot: number; taskName: string }>>([]);
-  const [endDateFlexible, setEndDateFlexible] = useState(false);
-  const [allowCounterOffers, setAllowCounterOffers] = useState(true);
-  const [singleDelivery, setSingleDelivery] = useState(true);
-  const [neighborhood, setNeighborhood] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [addressStreet, setAddressStreet] = useState("");
-  const [addressNumber, setAddressNumber] = useState("");
-  const [addressDetails, setAddressDetails] = useState("");
+  const [tareas, setTareas] = useState<TareaDeCreacion[]>(
+    borrador?.tareas?.length ? (borrador.tareas as TareaDeCreacion[]) : [{ title: '', dueDate: null }, { title: '', dueDate: null }],
+  );
+  const [vacancyTaskAssignments, setVacancyTaskAssignments] = useState<Array<{ slot: number; taskName: string }>>(borrador?.vacancyTaskAssignments ?? []);
+  const [endDateFlexible, setEndDateFlexible] = useState(borrador?.endDateFlexible ?? false);
+  const [allowCounterOffers, setAllowCounterOffers] = useState(borrador?.allowCounterOffers ?? true);
+  const [singleDelivery, setSingleDelivery] = useState(borrador?.singleDelivery ?? true);
+  const [neighborhood, setNeighborhood] = useState(borrador?.neighborhood ?? "");
+  const [postalCode, setPostalCode] = useState(borrador?.postalCode ?? "");
+  const [addressStreet, setAddressStreet] = useState(borrador?.addressStreet ?? "");
+  const [addressNumber, setAddressNumber] = useState(borrador?.addressNumber ?? "");
+  const [addressDetails, setAddressDetails] = useState(borrador?.addressDetails ?? "");
   // Provincia y localidad de la «Ubicación» elegida: acotan las calles que se ofrecen.
   const [contextoGeo, setContextoGeo] = useState<{ provincia?: string; ciudad?: string } | null>(null);
-  const [budget, setBudget] = useState("");
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [isQuotable, setIsQuotable] = useState(false); // "A cotizar" option
+  const [budget, setBudget] = useState(borrador?.budget ?? "");
+  const [latitude, setLatitude] = useState<number | null>(borrador?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(borrador?.longitude ?? null);
+  const [isQuotable, setIsQuotable] = useState(borrador?.isQuotable ?? false); // "A cotizar" option
 
   /**
    * Pago al terminar. Dos estados: si la opcion existe y si el cliente la
@@ -107,7 +120,7 @@ export default function CreateContractScreen() {
    * tiene que verse sin esperar un deploy.
    */
   const [pagoAlTerminarDisponible, setPagoAlTerminarDisponible] = useState(false);
-  const [sinProteccion, setSinProteccion] = useState(false);
+  const [sinProteccion, setSinProteccion] = useState(borrador?.sinProteccion ?? false);
 
   useEffect(() => {
     let vivo = true;
@@ -130,10 +143,54 @@ export default function CreateContractScreen() {
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
 
   // Date overlap validation state
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(() => fechaDelBorrador(borrador?.startDate));
+  const [endDate, setEndDate] = useState<Date | null>(() => fechaDelBorrador(borrador?.endDate));
   const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string; conflictStartDate?: Date; conflictEndDate?: Date } | null>(null);
   const [userJobs, setUserJobs] = useState<any[]>([]);
+
+  // Autoguardado del borrador en este navegador, unos instantes después del último cambio.
+  const [textoDelFormulario] = useState(() => ({ title: borrador?.title ?? "", summary: borrador?.summary ?? "", description: borrador?.description ?? "" }));
+  useEffect(() => {
+    if (!user?.id || sinGuardar.current) return;
+    const timer = window.setTimeout(() => {
+      if (sinGuardar.current || !user?.id) return;
+      const f = formRef.current ? new FormData(formRef.current) : null;
+      const texto = (n: string, porDefecto: string) => (f ? String(f.get(n) ?? "") : porDefecto);
+      const guardado = guardarBorrador(String(user.id), {
+        title: texto("title", textoDelFormulario.title),
+        summary: texto("summary", textoDelFormulario.summary),
+        description: texto("description", textoDelFormulario.description),
+        category: selectedCategory,
+        tags: selectedTags,
+        location,
+        neighborhood,
+        postalCode,
+        addressStreet,
+        addressNumber,
+        addressDetails,
+        budget,
+        isQuotable,
+        allowCounterOffers,
+        singleDelivery,
+        maxWorkers,
+        requirements,
+        tareas: tareas as Array<{ title: string; dueDate: unknown }>,
+        vacancyTaskAssignments,
+        endDateFlexible,
+        startDate: startDate ? startDate.toISOString() : null,
+        endDate: endDate ? endDate.toISOString() : null,
+        latitude,
+        longitude,
+        sinProteccion,
+      });
+      setGuardadoEl(guardado ? new Date().toISOString() : null);
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [
+    user?.id, cambiosDelFormulario, selectedCategory, selectedTags, location, neighborhood, postalCode, addressStreet, addressNumber, addressDetails, budget,
+    isQuotable, allowCounterOffers, singleDelivery, maxWorkers, requirements, tareas, vacancyTaskAssignments, endDateFlexible, startDate, endDate,
+    latitude, longitude, sinProteccion, textoDelFormulario,
+  ]);
 
   // Check if user has banking info configured
   const hasBankingInfo = !!(
@@ -342,6 +399,10 @@ export default function CreateContractScreen() {
 
       await refreshUser();
 
+      // Publicado: el borrador ya no hace falta (y no se vuelve a guardar al salir de la pantalla).
+      sinGuardar.current = true;
+      if (user?.id) borrarBorrador(String(user.id));
+
       if (data.requiresPayment) {
         navigate(`/jobs/${data.job.id}/payment`);
       } else {
@@ -466,7 +527,26 @@ export default function CreateContractScreen() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-10 space-y-8">
+        {borrador && (
+          <div role="status" className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100 animate-fadeIn">
+            <span>
+              Retomaste tu <strong>borrador sin publicar</strong>, guardado {haceCuanto(borrador.guardadoEl)}. Las fotos no se guardan: hay que volver a elegirlas.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                sinGuardar.current = true;
+                if (user?.id) borrarBorrador(String(user.id));
+                window.location.reload();
+              }}
+              className="font-semibold underline underline-offset-2 hover:no-underline"
+            >
+              Descartar borrador
+            </button>
+          </div>
+        )}
+
+        <form ref={formRef} onSubmit={handleSubmit} onInput={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
               label={t('jobs.titleLabel', 'Job title')}
@@ -475,6 +555,7 @@ export default function CreateContractScreen() {
             >
               <input
                 name="title"
+                defaultValue={borrador?.title ?? ""}
                 type="text"
                 required
                 placeholder={t('jobs.titlePlaceholder', 'E.g.: Kitchen pipe repair')}
@@ -489,6 +570,7 @@ export default function CreateContractScreen() {
             >
               <input
                 name="summary"
+                defaultValue={borrador?.summary ?? ""}
                 type="text"
                 required
                 maxLength={200}
@@ -504,6 +586,7 @@ export default function CreateContractScreen() {
             >
               <textarea
                 name="description"
+                defaultValue={borrador?.description ?? ""}
                 rows={5}
                 required
                 placeholder={t('jobs.descriptionPlaceholder', 'Describe the problem, what you expect to be done, if special materials are needed, etc.')}
@@ -1158,6 +1241,12 @@ export default function CreateContractScreen() {
           </details>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400 animate-fadeIn">{error}</p>}
+
+          {guardadoEl && (
+            <p className="text-xs text-slate-500 dark:text-slate-400" aria-live="polite">
+              Borrador guardado en este navegador a las {new Date(guardadoEl).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}. Podés salir y seguir después.
+            </p>
+          )}
 
           <div className="flex items-center justify-end gap-x-6">
             <Link

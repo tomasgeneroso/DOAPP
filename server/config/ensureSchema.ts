@@ -251,6 +251,9 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'payment_proofs.sequence', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS sequence INTEGER` },
   { label: 'payment_proofs.uploaded_by_role', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS uploaded_by_role VARCHAR(16)` },
   { label: 'payment_proofs.bank_reference', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS bank_reference VARCHAR(120)` },
+  { label: 'payment_proofs.sender_name', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS sender_name VARCHAR(160)` },
+  { label: 'payment_proofs.sender_document', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS sender_document VARCHAR(20)` },
+  { label: 'payment_proofs.transfer_date', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS transfer_date DATE` },
   { label: 'payment_proofs bank_reference index', sql: `CREATE INDEX IF NOT EXISTS payment_proofs_bank_reference ON payment_proofs (bank_reference)` },
 
   // --- payment_proofs: file columns nullable for text-only notes ---
