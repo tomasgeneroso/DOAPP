@@ -146,6 +146,7 @@ router.post(
       if (!errors.isEmpty()) {
         res.status(400).json({
           success: false,
+          message: errors.array().map((e: any) => String(e.msg)).filter((v, i, a) => v && a.indexOf(v) === i).join('. ') || 'Datos inválidos',
           errors: errors.array(),
         });
         return;
@@ -367,6 +368,7 @@ router.post(
       if (!errors.isEmpty()) {
         res.status(400).json({
           success: false,
+          message: errors.array().map((e: any) => String(e.msg)).filter((v, i, a) => v && a.indexOf(v) === i).join('. ') || 'Datos inválidos',
           errors: errors.array(),
         });
         return;
@@ -696,6 +698,7 @@ router.put("/complete-registration", protect, [
     if (!errors.isEmpty()) {
       res.status(400).json({
         success: false,
+        message: errors.array().map((e: any) => String(e.msg)).filter((v, i, a) => v && a.indexOf(v) === i).join('. ') || 'Datos inválidos',
         errors: errors.array(),
       });
       return;
@@ -1807,6 +1810,7 @@ router.post(
       if (!errors.isEmpty()) {
         res.status(400).json({
           success: false,
+          message: errors.array().map((e: any) => String(e.msg)).filter((v, i, a) => v && a.indexOf(v) === i).join('. ') || 'Datos inválidos',
           errors: errors.array(),
         });
         return;
@@ -1871,6 +1875,7 @@ router.post(
       if (!errors.isEmpty()) {
         res.status(400).json({
           success: false,
+          message: errors.array().map((e: any) => String(e.msg)).filter((v, i, a) => v && a.indexOf(v) === i).join('. ') || 'Datos inválidos',
           errors: errors.array(),
         });
         return;

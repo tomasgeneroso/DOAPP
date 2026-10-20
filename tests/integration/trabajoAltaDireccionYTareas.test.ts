@@ -117,4 +117,13 @@ describe('POST /api/jobs: dirección y tareas', () => {
     expect(r.status).toBe(201);
     expect(await JobTask.count({ where: { jobId: r.body.job.id } })).toBe(0);
   });
+
+  it('un dato inválido responde con el MOTIVO (antes sin mensaje: la pantalla decía «Error al crear el trabajo» sin decir qué campo)', async () => {
+    const r = await publicar({ startDate: 'mañana', title: '' });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('DATOS_INVALIDOS');
+    expect(r.body.message).toContain('El título es requerido');
+    expect(r.body.message).toContain('Fecha de inicio inválida');
+    expect(Array.isArray(r.body.errors)).toBe(true);
+  });
 });

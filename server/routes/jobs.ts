@@ -876,8 +876,12 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        // Con el motivo en `message`: sin él la pantalla mostraba «Error al crear el trabajo» sin decir qué campo estaba mal.
+        const motivos = [...new Set(errors.array().map((e: any) => String(e.msg)))];
         res.status(400).json({
           success: false,
+          code: 'DATOS_INVALIDOS',
+          message: motivos.join('. '),
           errors: errors.array(),
         });
         return;
