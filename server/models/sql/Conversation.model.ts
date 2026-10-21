@@ -221,7 +221,11 @@ export class Conversation extends Model {
    * Validate at least 2 participants
    */
   @BeforeValidate
-  static validateParticipants(instance: Conversation) {
+  static validateParticipants(instance: Conversation, options?: { fields?: string[] }) {
+    // Solo se exige cuando se está ESCRIBIENDO la lista de participantes. Una actualización de otra cosa (el último mensaje, la fecha) arma una
+    // instancia sin `participants` y esto la rechazaba con «at least 2 participants»: la cotización se enviaba pero fallaba justo después, sin
+    // actualizar la conversación ni avisar al chat en vivo.
+    if (options?.fields && !options.fields.includes('participants')) return;
     if (!instance.participants || instance.participants.length < 2) {
       throw new Error('Conversation must have at least 2 participants');
     }

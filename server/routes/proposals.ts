@@ -101,6 +101,19 @@ async function createOrUpdateGroupChat(job: Job, workerIds: string[]): Promise<C
   }
 }
 
+/**
+ * La cotización de cada propuesta, con su detalle (conceptos, impuestos, notas, condiciones de pago): quien se postula con una cotización la
+ * manda como propuesta, y quien la recibe veía la propuesta pero NO lo que se cotizó. Una por propuesta (la última).
+ */
+const CAMPOS_DE_LA_COTIZACION = ['id', 'proposalId', 'quoteNumber', 'title', 'items', 'subtotal', 'taxRate', 'taxAmount', 'otherTaxes', 'total', 'notes', 'paymentTerms', 'validUntil', 'status'];
+async function cotizacionesDeLasPropuestas(proposalIds: string[]): Promise<Record<string, any>> {
+  if (proposalIds.length === 0) return {};
+  const quotes = await Quote.findAll({ where: { proposalId: proposalIds }, attributes: CAMPOS_DE_LA_COTIZACION, order: [['createdAt', 'DESC']] });
+  const porPropuesta: Record<string, any> = {};
+  for (const q of quotes) if (!porPropuesta[(q as any).proposalId]) porPropuesta[(q as any).proposalId] = q.toJSON();
+  return porPropuesta;
+}
+
 // @route   GET /api/proposals
 // @desc    Obtener propuestas del usuario (enviadas o recibidas)
 // @access  Private
@@ -149,10 +162,13 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       order: [['createdAt', 'DESC']]
     });
 
+    const cotizaciones = await cotizacionesDeLasPropuestas(proposals.map((p) => p.id));
+    const conCotizacion = proposals.map((p) => ({ ...p.toJSON(), quote: cotizaciones[p.id] || null }));
+
     res.json({
       success: true,
       count: proposals.length,
-      proposals,
+      proposals: conCotizacion,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -262,13 +278,7 @@ router.get("/job/:jobId",
 
     // Attach quote data for each proposal (workers who applied via quote)
     const proposalIds = proposals.map(p => p.id);
-    const quotes = proposalIds.length > 0
-      ? await Quote.findAll({
-          where: { proposalId: proposalIds },
-          attributes: ['id', 'proposalId', 'quoteNumber', 'title', 'total', 'status'],
-        })
-      : [];
-    const quoteByProposalId = Object.fromEntries(quotes.map(q => [q.proposalId, q]));
+    const quoteByProposalId = await cotizacionesDeLasPropuestas(proposalIds);
 
     const proposalsWithQuote = proposals.map(p => ({
       ...p.toJSON(),
@@ -351,6 +361,7 @@ router.get("/:id",
     }
 
     const transformedProposal = proposal.toJSON() as any;
+    transformedProposal.quote = (await cotizacionesDeLasPropuestas([proposal.id]))[proposal.id] || null;
 
     res.json({
       success: true,
@@ -713,7 +724,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     }
 
     // Extract optional allocated amount from request body
-    const { allocatedAmount } = req.body;
+    const { allocatedAmount } = req.body ?? {};
 
     const proposal = await Proposal.findByPk(req.params.id, {
       include: [
@@ -848,7 +859,8 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     // No se devuelve a la tarjeta porque un reembolso parcial cuesta una
     // operación en la pasarela y puede fallar según el medio de pago. El saldo
     // es inmediato y el cliente lo retira cuando quiera.
-    if (liquidacion.aFavor > 0) {
+    const saldoAFavor = liquidacion.aFavor > 0 ? liquidacion.aFavor : 0;
+    if (saldoAFavor > 0) {
       await acreditarSaldo(
         job.clientId,
         liquidacion.aFavor,
@@ -1101,6 +1113,30 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     // Send real-time notification
     socketService.notifyUser(proposal.freelancerId, "notification:new", notification.toJSON());
 
+    // Al cliente se le avisa que quedó plata a su favor: pagó la publicación por más de lo que se acordó y la diferencia es suya, en su saldo.
+    let avisoDelSaldo: string | undefined;
+    if (saldoAFavor > 0) {
+      const monto = `$${saldoAFavor.toLocaleString('es-AR')}`;
+      avisoDelSaldo = `La cotización aceptada ($${liquidacion.acordado.toLocaleString('es-AR')}) es menor a lo que pagaste por la publicación ($${liquidacion.yaPagado.toLocaleString('es-AR')}): te quedaron ${monto} a favor en tu saldo.`;
+      try {
+        const avisoAlCliente = await Notification.create({
+          recipientId: req.user.id,
+          type: 'info',
+          category: 'payment',
+          title: 'Te quedó saldo a favor',
+          message: `${avisoDelSaldo} Lo podés usar o retirar desde Balance (se habilita cuando Mercado Pago libera el pago original).`,
+          relatedModel: 'Job',
+          relatedId: job.id,
+          actionText: 'Ver balance',
+          data: { jobId: job.id, proposalId: proposal.id, saldoAFavor },
+          read: false,
+        });
+        socketService.notifyUser(req.user.id, 'notification:new', avisoAlCliente.toJSON());
+      } catch (e) {
+        logger.error('proposals', `No se pudo avisar al cliente del saldo a favor: ${(e as Error).message}`);
+      }
+    }
+
     // Notify admin panel of new contract
     const populatedContract = await Contract.findByPk(contract.id, {
       include: [
@@ -1143,7 +1179,8 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       success: true,
       proposal,
       contractId: contract.id,
-      message: "Propuesta aprobada y contrato creado",
+      saldoAFavor,
+      message: avisoDelSaldo ? `Propuesta aprobada y contrato creado. ${avisoDelSaldo}` : "Propuesta aprobada y contrato creado",
     });
   } catch (error: any) {
     res.status(500).json({

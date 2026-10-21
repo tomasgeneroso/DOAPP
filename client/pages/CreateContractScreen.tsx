@@ -462,6 +462,15 @@ export default function CreateContractScreen() {
       return;
     }
 
+    // Las fechas se piden ANTES de mandar nada: el servidor las rechazaba con «Fecha de inicio inválida» y la persona no sabía qué faltaba.
+    const sinFecha = !startDate ? 'Elegí cuándo empieza el trabajo.' : !endDateFlexible && !endDate ? 'Elegí cuándo termina el trabajo, o marcá «Todavía no lo sé».' : null;
+    if (sinFecha) {
+      setError(sinFecha);
+      setIsSubmitting(false);
+      document.querySelector('input[name="startDate"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     if (!singleDelivery) {
       const leidas = leerTareasDeCreacion(tareas, { inicio: startDate, fin: endDateFlexible ? null : endDate });
       if (leidas.ok === false) {

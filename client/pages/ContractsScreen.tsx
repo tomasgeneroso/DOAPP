@@ -371,7 +371,7 @@ export default function ContractsScreen() {
                             {getStatusLabel(contract.status)}
                           </span>
                           <span className="text-sm text-slate-600 dark:text-slate-400">
-                            {isClient ? t('contracts.asClient', 'Como Cliente') : t('contracts.asFreelancer', 'Como Freelancer')}
+                            {isClient ? t('contracts.asClient', 'Como Cliente') : t('contracts.asFreelancer', 'Como Trabajador')}
                           </span>
                         </div>
                       </div>

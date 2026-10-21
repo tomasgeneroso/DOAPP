@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -53,6 +54,7 @@ interface Contract {
 export default function ContractSummary() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const saldoAFavor = Number((useLocation().state as { saldoAFavor?: number } | null)?.saldoAFavor) || 0;
   const { t } = useTranslation();
   const { user, token } = useAuth();
   const [contract, setContract] = useState<Contract | null>(null);
@@ -165,6 +167,7 @@ export default function ContractSummary() {
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AvisoSaldoAFavor monto={saldoAFavor} className="mb-4" />
           {/* Header */}
           <div className="mb-6">
             <button
@@ -250,7 +253,7 @@ export default function ContractSummary() {
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3">
                   <User className="h-4 w-4" />
-                  {t('contracts.freelancer', 'Freelancer')}
+                  {t('contracts.freelancer', 'Trabajador')}
                 </div>
                 <div className="flex items-center gap-3">
                   {contract.doer.avatar ? (

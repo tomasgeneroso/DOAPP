@@ -1,3 +1,4 @@
+import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { Link, useSearchParams } from "react-router-dom";
@@ -261,8 +262,8 @@ export default function ProposalsScreen() {
                     const price = proposal.proposedPrice || proposal.price || 0;
 
                     return (
+                      <div key={proposal.id}>
                       <Link
-                        key={proposal.id}
                         to={`/proposals/${proposal.id}`}
                         className="block bg-white dark:bg-slate-800 rounded-xl border-2 border-sky-200 dark:border-sky-800 p-6 hover:shadow-lg transition-shadow"
                       >
@@ -313,7 +314,7 @@ export default function ProposalsScreen() {
                               className="h-8 w-8 rounded-full object-cover"
                             />
                             <span>
-                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Freelancer') + ": "}
+                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Trabajador') + ": "}
                               {otherParty.name}
                             </span>
                           </div>
@@ -325,6 +326,8 @@ export default function ProposalsScreen() {
                           </div>
                         </div>
                       </Link>
+                      <DetalleDeCotizacion cotizacion={(proposal as any).quote} />
+                      </div>
                     );
                   })}
                 </div>
@@ -344,8 +347,8 @@ export default function ProposalsScreen() {
                     const price = proposal.proposedPrice || proposal.price || 0;
 
                     return (
+                      <div key={proposal.id}>
                       <Link
-                        key={proposal.id}
                         to={`/proposals/${proposal.id}`}
                         className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
                       >
@@ -390,7 +393,7 @@ export default function ProposalsScreen() {
                               className="h-8 w-8 rounded-full object-cover"
                             />
                             <span>
-                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Freelancer') + ": "}
+                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Trabajador') + ": "}
                               {otherParty.name}
                             </span>
                           </div>
@@ -402,6 +405,8 @@ export default function ProposalsScreen() {
                           </div>
                         </div>
                       </Link>
+                      <DetalleDeCotizacion cotizacion={(proposal as any).quote} />
+                      </div>
                     );
                   })}
                 </div>

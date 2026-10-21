@@ -292,6 +292,12 @@ app.use(performanceMiddleware());
 // Body parser
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Express 5: un pedido sin cuerpo (PUT /proposals/:id/approve, POST /auth/logout…) deja `req.body` en undefined, y `const { x } = req.body` revienta
+// con un 500. Con cuerpo vacío, las rutas ven `{}` como siempre.
+app.use((req, _res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // Cookie parser
 app.use(cookieParser());
@@ -352,13 +358,17 @@ const uploadsCors = (req: express.Request, res: express.Response, next: express.
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
 };
+// Los archivos se GUARDAN en `process.cwd()/uploads` (middleware/upload.ts, routes/jobs.ts) pero antes solo se servían desde `<código>/../uploads`: si
+// PM2 arrancaba la app desde otra carpeta no coincidían y TODAS las fotos nuevas daban 404. Se sirven desde las dos (la segunda solo si la primera no
+// tiene el archivo).
 const uploadsStatic = express.static(path.join(__dirname, "../uploads"));
+const uploadsStaticDelProceso = express.static(path.join(process.cwd(), "uploads"));
 // Las carpetas privadas (DNI, selfie, matrícula, seguro, comprobantes de pago, facturas, recibos) sólo las ve su
 // dueño o un administrador; el resto (avatares, fotos de trabajos, blog, portfolio) sigue siendo público.
-app.use("/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic);
+app.use("/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
 // Also under /api/uploads so images load through nginx's /api proxy (nginx often
 // doesn't proxy /uploads). getImageUrl() points here.
-app.use("/api/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic);
+app.use("/api/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
 
 // Feature Flags
 import { features } from './featureFlags.js';

@@ -95,8 +95,10 @@ export interface EstadoDeLaBase {
   rol: boolean;
   /** El usuario de la app puede pasar a ese rol (SET ROLE). */
   puedeTomarlo: boolean;
-  /** El rol tiene permisos sobre las tablas (si no, la app no podría leer nada al actuar como él). */
+  /** El rol tiene permisos sobre TODAS las tablas y secuencias (si no, lo que las use falla con «permission denied»). */
   permisos: boolean;
+  /** Las que no: tablas que otro usuario creó (el que corre la app no puede darles permisos) o creadas después de dar los permisos. */
+  sinPermiso: string[];
   /** Las tablas de dinero que existen tienen sus políticas (4 cada una). */
   politicas: boolean;
 }
@@ -118,19 +120,33 @@ export async function estadoDeLaBase(sequelize: Sequelize, rolDeLaApp: string = 
     `SELECT
        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${rolDeLaApp}') AS rol,
        COALESCE((SELECT pg_has_role(current_user, r.oid, 'MEMBER') FROM pg_roles r WHERE r.rolname = '${rolDeLaApp}'), false) AS puede,
-       COALESCE((SELECT has_table_privilege(r.oid, to_regclass('public.users'), 'SELECT') FROM pg_roles r WHERE r.rolname = '${rolDeLaApp}'), false) AS permisos,
+       COALESCE((
+         SELECT array_agg(nombre ORDER BY nombre) FROM (
+           SELECT t.tablename::text AS nombre FROM pg_tables t, pg_roles r
+            WHERE r.rolname = '${rolDeLaApp}' AND t.schemaname = 'public'
+              AND NOT (has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'SELECT')
+                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'INSERT')
+                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'UPDATE')
+                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'DELETE'))
+           UNION ALL
+           SELECT ('secuencia ' || c.relname)::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, pg_roles r
+            WHERE r.rolname = '${rolDeLaApp}' AND n.nspname = 'public' AND c.relkind = 'S'
+              AND NOT has_sequence_privilege(r.oid, c.oid, 'USAGE')
+         ) faltantes
+       ), ARRAY[]::text[]) AS sin_permiso,
        (SELECT COALESCE(bool_and(n >= 4), true)
           FROM (SELECT (SELECT count(*) FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.tabla) AS n
                   FROM (VALUES ${tablas}) AS t(tabla)
                  WHERE to_regclass('public.' || t.tabla) IS NOT NULL) x) AS politicas`,
   )) as any[];
   const r = filas?.[0] ?? {};
-  return { rol: !!r.rol, puedeTomarlo: !!r.puede, permisos: !!r.permisos, politicas: !!r.politicas };
+  const sinPermiso: string[] = Array.isArray(r.sin_permiso) ? r.sin_permiso : [];
+  return { rol: !!r.rol, puedeTomarlo: !!r.puede, permisos: !!r.rol && sinPermiso.length === 0, sinPermiso, politicas: !!r.politicas };
 }
 
 const estaListo = (e: EstadoDeLaBase) => e.rol && e.puedeTomarlo && e.permisos && e.politicas;
 const queFalta = (e: EstadoDeLaBase) =>
-  [!e.rol && `el rol ${ROL_DE_LA_APP} no existe`, e.rol && !e.puedeTomarlo && 'el usuario de la app no puede usar ese rol', e.rol && !e.permisos && `el rol no tiene permisos sobre las tablas`, !e.politicas && 'faltan las políticas de las tablas de dinero (¿el usuario de la app es su dueño?)']
+  [!e.rol && `el rol ${ROL_DE_LA_APP} no existe`, e.rol && !e.puedeTomarlo && 'el usuario de la app no puede usar ese rol', e.rol && !e.permisos && `el rol no tiene permisos sobre: ${e.sinPermiso.slice(0, 12).join(', ')}${e.sinPermiso.length > 12 ? '…' : ''} (hay que darselos como superusuario: GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${ROL_DE_LA_APP}; GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${ROL_DE_LA_APP};)`, !e.politicas && 'faltan las políticas de las tablas de dinero (¿el usuario de la app es su dueño?)']
     .filter(Boolean)
     .join('; ');
 

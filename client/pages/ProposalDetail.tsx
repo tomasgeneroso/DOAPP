@@ -1,3 +1,4 @@
+import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
@@ -220,7 +221,7 @@ export default function ProposalDetail() {
 
       if (data.success) {
         if (data.contractId) {
-          navigate(`/contracts/${data.contractId}/summary`);
+          navigate(`/contracts/${data.contractId}/summary`, { state: { saldoAFavor: data.saldoAFavor || 0 } });
         } else {
           loadProposal();
         }
@@ -428,6 +429,7 @@ export default function ProposalDetail() {
                 {proposal.coverLetter}
               </p>
             </div>
+            <DetalleDeCotizacion cotizacion={(proposal as any).quote} />
           </div>
 
           {/* Details Grid */}
@@ -441,7 +443,7 @@ export default function ProposalDetail() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                    Freelancer
+                    Trabajador
                   </p>
                   <Link to={`/users/${proposal.freelancer.id}`} className="flex items-center gap-3 group">
                     <img
@@ -584,7 +586,12 @@ export default function ProposalDetail() {
         open={confirmAcceptOpen}
         tone="success"
         title={t('proposals.acceptProposal', 'Aceptar propuesta')}
-        message={t('proposals.confirmAccept', '¿Aceptar esta propuesta? Se creará el contrato automáticamente.')}
+        message={
+          t('proposals.confirmAccept', '¿Aceptar esta propuesta? Se creará el contrato automáticamente.') +
+          (proposal && proposal.proposedPrice < proposal.job.price
+            ? ` ${t('proposals.saldoAFavorAviso', 'Como el precio acordado es menor a lo que pagaste por la publicación, la diferencia te queda a favor en tu saldo.')}`
+            : '')
+        }
         confirmLabel={t('common.accept', 'Aceptar')}
         loading={actionLoading}
         onConfirm={doAccept}

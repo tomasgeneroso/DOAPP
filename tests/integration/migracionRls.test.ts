@@ -62,8 +62,25 @@ describe('migración de RLS: up idempotente, down y vuelta a aplicar', () => {
     expect((await estadoDeLaBase(duenoDelEsquema())).politicas).toBe(false);
     expect(await activarRlsSiLaBaseEstaLista(duenoDelEsquema())).toBe(true);
     expect((await politicas())[0].n).toBe(12);
-    expect(await estadoDeLaBase(duenoDelEsquema())).toEqual({ rol: true, puedeTomarlo: true, permisos: true, politicas: true });
+    expect(await estadoDeLaBase(duenoDelEsquema())).toEqual({ rol: true, puedeTomarlo: true, permisos: true, sinPermiso: [], politicas: true });
     expect(await veAjenos()).toBe(0);
+  });
+
+  it('una tabla a la que el rol de la app NO tiene permisos (la creó otro usuario) se detecta por su nombre: antes RLS se activaba igual y esa tabla daba «permission denied»', async () => {
+    const dueno = duenoDelEsquema();
+    await dueno.query('DROP TABLE IF EXISTS zz_tabla_sin_permiso');
+    await dueno.query('CREATE TABLE zz_tabla_sin_permiso (id int)');
+    await dueno.query('REVOKE ALL ON zz_tabla_sin_permiso FROM doapp_app');
+    try {
+      const e = await estadoDeLaBase(dueno);
+      expect(e.permisos).toBe(false);
+      expect(e.sinPermiso).toContain('zz_tabla_sin_permiso');
+      // y activarRlsSiLaBaseEstaLista lo arregla si puede (el dueño de la tabla puede dar permisos)
+      await dueno.query('GRANT SELECT, INSERT, UPDATE, DELETE ON zz_tabla_sin_permiso TO doapp_app');
+      expect((await estadoDeLaBase(dueno)).sinPermiso).not.toContain('zz_tabla_sin_permiso');
+    } finally {
+      await dueno.query('DROP TABLE IF EXISTS zz_tabla_sin_permiso');
+    }
   });
 
   it('con la base REAL y un rol que no existe (staging antes de crear doapp_app) la comprobación no revienta: dice que falta el rol', async () => {

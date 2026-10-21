@@ -1,3 +1,4 @@
+import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
 import CarruselDeFotos from "../components/jobDetail/CarruselDeFotos";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
@@ -72,6 +73,7 @@ import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
+import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -88,6 +90,7 @@ export default function JobDetail() {
   const [applying, setApplying] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saldoAFavor, setSaldoAFavor] = useState(0);
   const [showCancelModal, setShowCancelModal] = useState(false);
   // Qué pasó con el dinero al cancelar, cuando hay algo que explicar (devolución a revisión, un aviso). Si no hay nada, se sigue de largo.
   const [resultadoCancelacion, setResultadoCancelacion] = useState<ResultadoDeCancelacion | null>(null);
@@ -1157,6 +1160,7 @@ export default function JobDetail() {
       const data = await response.json();
 
       if (data.success) {
+        setSaldoAFavor(Number(data.saldoAFavor) || 0);
         setShowSelectConfirmModal(false);
         setSelectedProposal(null);
         // Refresh job data
@@ -1314,6 +1318,7 @@ export default function JobDetail() {
         <meta name="description" content={job.summary} />
       </Helmet>
       <div className="container mx-auto px-4 py-8">
+        <AvisoSaldoAFavor monto={saldoAFavor} className="mb-4" />
         {/* Back Button - Only visible on mobile */}
         <div className="mb-6 md:hidden">
           <Link
@@ -3776,6 +3781,7 @@ export default function JobDetail() {
                                 </Link>
                               </div>
                             )}
+                            {proposal.quote && <DetalleDeCotizacion cotizacion={proposal.quote} />}
 
                             {/* View Full Proposal Link for Counter-offers */}
                             {proposal.isCounterOffer && (

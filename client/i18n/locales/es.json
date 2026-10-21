@@ -971,7 +971,7 @@
     "contractStatus": "Estado del contrato",
     "contractWillBeCreated": "Se creará un contrato con el trabajador",
     "copyJobCode": "Copiar código del trabajo",
-    "couldNotIdentifyFreelancer": "No se pudo identificar al profesional",
+    "couldNotIdentifyFreelancer": "No se pudo identificar al trabajador",
     "couldNotLoad": "No se pudo cargar el trabajo",
     "counterOffer": "Contraoferta",
     "counterOfferDifferent": "Contraoferta - distinta del precio original de",
@@ -1191,7 +1191,7 @@
       "completedDesc": "Los contratos que completes se mostrar�n aqu� como parte de tu historial."
     },
     "asClient": "Como Cliente",
-    "asFreelancer": "Como Freelancer",
+    "asFreelancer": "Como Trabajador",
     "created": "Creado",
     "report": "Reportar",
     "reportProblem": "Reportar un problema",
@@ -1485,7 +1485,7 @@
       "step4": "Ambas partes confirman que el trabajo se completó satisfactoriamente",
       "step5": "El dinero se libera al profesional automáticamente"
     },
-    "freelancer": "Profesional",
+    "freelancer": "Trabajador",
     "errorPublishing": "No se pudo publicar el trabajo. Probá de nuevo.",
     "createPageTitle": "Crear nuevo contrato - DoApp",
     "createMetaDescription": "Publicá un nuevo trabajo o servicio en DoApp.",
@@ -1945,7 +1945,7 @@
       "idNumber": "Número de ID",
       "idNumberPlaceholder": "Sin puntos ni guiones",
       "taxStatus": "Estado fiscal",
-      "freelancer": "Freelancer",
+      "freelancer": "Trabajador",
       "autonomo": "Autónomo",
       "monotributo": "Monotributo",
       "responsableInscripto": "Responsable inscripto"
@@ -2827,7 +2827,7 @@
     "counterOffer": "CONTRAOFERTA",
     "original": "Original",
     "client": "Cliente",
-    "freelancer": "Profesional",
+    "freelancer": "Trabajador",
     "directApplications": "Postulaciones directas",
     "jobPrice": "Precio del trabajo"
   },

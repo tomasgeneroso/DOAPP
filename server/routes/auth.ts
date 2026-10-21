@@ -1697,7 +1697,7 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 // @access  Private
 router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { refreshToken: token } = req.body;
+    const { refreshToken: token } = req.body ?? {};
 
     if (token) {
       await revokeRefreshToken(token, getClientIp(req), "Logged out");

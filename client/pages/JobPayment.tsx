@@ -622,7 +622,7 @@ export default function JobPayment() {
                     <div className="flex flex-col">
                       <span>Presupuesto del trabajo</span>
                       <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        (Se pagará al freelancer al completar)
+                        (Se pagará al trabajador al completar)
                       </span>
                     </div>
                     <span>${jobPrice.toLocaleString('es-AR')} ARS</span>
