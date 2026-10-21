@@ -122,8 +122,8 @@ export interface ResultadoPagoConSaldo {
 }
 
 /**
- * Paga una publicación (pendiente de pago) con el saldo a favor, sin pasarela. Se gasta primero el crédito vinculado a esta misma
- * publicación y después el resto del saldo. Deja un pago `completed` (método `balance`) que es el «pago actual» de la publicación: si se
+ * Paga una REPROGRAMACIÓN (publicación pendiente de pago cuyo pago volvió al saldo) con el saldo a favor, sin pasarela. La ruta ya comprobó
+ * que el crédito vinculado a la publicación cubre el total. Deja un pago `completed` (método `balance`) que es el «pago actual» de la publicación: si se
  * vuelve a cancelar sin trabajador, se puede devolver otra vez (es otro pago).
  *
  * `monto` = precio + comisión + IVA de la comisión (no hay costo de procesamiento: no pasó por una pasarela).
@@ -167,7 +167,6 @@ export async function pagarPublicacionConSaldo(
     isEscrow: false,
   } as any);
 
-  const creditoQueQueda = r2(Math.max(0, (Number((job as any).publicationCredit) || 0) - total));
   const requiereAprobacion = await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true);
   const estado = requiereAprobacion ? 'pending_approval' : 'open';
   await Job.update(
@@ -177,7 +176,8 @@ export async function pagarPublicacionConSaldo(
       publicationPaidAt: new Date(),
       publicationPaymentId: pago.id,
       publicationAmount: total,
-      publicationCredit: creditoQueQueda,
+      // El crédito de esta publicación se usó entero: lo que sobre (si bajó el precio) queda como saldo libre.
+      publicationCredit: 0,
     } as any,
     { where: { id: job.id } },
   );

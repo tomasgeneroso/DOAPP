@@ -105,15 +105,26 @@ describe('saldo vinculado a una publicación', () => {
     expect(Number(pagoConSaldo.amount)).toBeCloseTo(antes - (await saldo()), 2);
   });
 
-  it('con saldo insuficiente no paga y no cambia nada', async () => {
+  it('el saldo NO paga una publicación nueva: solo una reprogramación cuyo crédito cubre el total', async () => {
+    const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
+    // saldo libre de sobra, pero la publicación no tiene crédito vinculado
+    await acreditarSaldo(String(cliente.id), 900000, 'saldo ganado', { relatedModel: 'Job', relatedId: cliente.id });
     const { job } = await publicacionPagada(500000);
     await Job.update({ status: 'pending_payment', publicationPaid: false } as any, { where: { id: job.id } });
     const antes = await saldo();
     const p = await request(app).post('/api/payments/create-order').set(con(cliente)).send({ jobId: job.id, paymentType: 'job_publication', paymentMethod: 'balance' });
-    expect(p.status).toBe(402);
-    expect(p.body.code).toBe('SALDO_INSUFICIENTE');
+    expect(p.status).toBe(409);
+    expect(p.body.code).toBe('SALDO_SOLO_PARA_REPROGRAMAR');
     expect(await saldo()).toBe(antes);
     expect((await leer(job.id)).status).toBe('pending_payment');
+
+    // con crédito, pero que no cubre el total (subió el precio): tampoco
+    await Job.update({ publicationCredit: 1000 } as any, { where: { id: job.id } });
+    const q = await request(app).post('/api/payments/create-order').set(con(cliente)).send({ jobId: job.id, paymentType: 'job_publication', paymentMethod: 'balance' });
+    expect(q.status).toBe(409);
+    expect(q.body.creditoVinculado).toBe(1000);
+    expect(await saldo()).toBe(antes);
+    await Job.update({ publicationCredit: 0 } as any, { where: { id: job.id } });
   });
 
   it('retirar saldo vinculado baja el crédito de la publicación y avisa; lo libre se gasta primero', async () => {

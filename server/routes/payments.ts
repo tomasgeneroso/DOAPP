@@ -153,6 +153,21 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         try {
           const total = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
           const { pagarPublicacionConSaldo, saldoDe } = await import('../services/creditoDePublicacion.js');
+          // El saldo solo paga una REPROGRAMACIÓN: la publicación cuyo pago volvió al saldo. Para cualquier otra publicación se paga por la
+          // pasarela o transferencia, así las cuentas quedan claras (el saldo ganado trabajando no se mezcla con publicar).
+          const credito = Number((job as any).publicationCredit) || 0;
+          if (credito + 0.005 < total) {
+            res.status(409).json({
+              success: false,
+              code: 'SALDO_SOLO_PARA_REPROGRAMAR',
+              message: credito > 0
+                ? `El saldo vinculado a esta publicación ($${credito.toLocaleString('es-AR')}) no cubre el total ($${total.toLocaleString('es-AR')}). Pagala por Mercado Pago o transferencia.`
+                : 'El saldo solo sirve para volver a publicar una publicación cancelada que ya habías pagado. Elegí otro medio de pago.',
+              creditoVinculado: credito,
+              total,
+            });
+            return;
+          }
           const saldo = await saldoDe(String(userId));
           if (saldo + 0.005 < total) {
             res.status(402).json({ success: false, code: 'SALDO_INSUFICIENTE', message: `Tu saldo ($${saldo.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`, saldo, total });

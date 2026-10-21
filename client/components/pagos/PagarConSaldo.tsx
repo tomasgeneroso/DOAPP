@@ -10,8 +10,8 @@ interface SaldoDelCliente {
 }
 
 /**
- * Pagar la publicación con el saldo a favor, sin pasarela (y sin el costo de procesamiento). Solo aparece si el saldo alcanza.
- * El saldo vinculado a esta misma publicación (lo que volvió cuando se canceló sin trabajador) se gasta primero.
+ * Reprogramar una publicación: se paga con el saldo que volvió de ella al cancelarse, sin pasarela (y sin costo de procesamiento). Solo aparece
+ * si el saldo vinculado a ESTA publicación cubre el total; para cualquier otra publicación se paga por Mercado Pago o transferencia.
  */
 export default function PagarConSaldo({
   token,
@@ -46,18 +46,17 @@ export default function PagarConSaldo({
     };
   }, [token]);
 
-  if (!saldo || !(total > 0) || saldo.balance + 0.005 < total) return null;
-  const propio = saldo.publicacionesVinculadas?.find((p) => p.jobId === jobId)?.monto ?? 0;
+  const propio = saldo?.publicacionesVinculadas?.find((p) => p.jobId === jobId)?.monto ?? 0;
+  if (!saldo || !(total > 0) || propio + 0.005 < total) return null;
 
   return (
     <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-900/20">
       <div className="flex items-start gap-3">
         <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden />
         <div className="flex-1 text-sm text-emerald-900 dark:text-emerald-100">
-          <p className="font-semibold">Pagar con tu saldo a favor</p>
+          <p className="font-semibold">Reprogramar con el saldo de esta publicación</p>
           <p className="mt-1">
-            Tenés {plata(saldo.balance)}
-            {propio > 0 ? ` (${plata(propio)} vienen de esta misma publicación)` : ""}. Se descuentan {plata(total)} y no pagás costo de procesamiento.
+            Cuando se canceló, {plata(propio)} volvieron a tu saldo vinculados a ella. Se descuentan {plata(total)} y no pagás costo de procesamiento.
           </p>
           <button
             type="button"
