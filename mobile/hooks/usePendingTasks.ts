@@ -126,7 +126,8 @@ export function usePendingTasks(): PendingTasksResult {
         id: 'selfie',
         label: 'Selfie de verificación',
         desc: 'Confirmá que sos vos con una selfie. Suma credibilidad a tu perfil.',
-        done: !!u.selfieUrl,
+        // Quien verificó su identidad con Didit ya se sacó la selfie ahí (prueba de vida y comparación con el documento): no se la pedimos de nuevo.
+        done: !!u.selfieUrl || !!u.dniVerified || u.kycStatus === 'Approved',
         priority: 'high',
         section: 'basic',
         to: VERIFY_ROUTE,
