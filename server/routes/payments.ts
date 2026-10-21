@@ -131,7 +131,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // Antes este camino publicaba sin cobrar nada y marcaba el trabajo como pagado: el costo del trabajo no se cobraba nunca.
       const jobPrice = parseFloat(job.price as any) || 0;
       const { comision: commissionResult, gastar } = await comisionDePublicacion(user as any, job as any, jobPrice);
-      if (gastar) await gastarCupoDeExencion(user, job, gastar);
+      // Con saldo el cupo se gasta recién cuando el pago salió bien (si el saldo no alcanza, no se pierde).
+      if (gastar && selectedPaymentMethod !== 'balance') await gastarCupoDeExencion(user, job, gastar);
       const publicationCost = commissionResult.commission;
       const vat = commissionResult.vat;
 
@@ -146,6 +147,25 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       const totalAmountARS = split.clientPays;
 
       console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (trabajo: ${jobPrice.toFixed(2)}, comision: ${publicationCost.toFixed(2)}, procesamiento ${(split.rate * 100).toFixed(2)}%: ${split.processingCharge.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${split.totalVat.toFixed(2)} | el trabajador recibe ${split.workerReceives.toFixed(2)}) - ${selectedPaymentMethod}`);
+
+      // Con saldo a favor: no pasa por una pasarela (sin costo de procesamiento). Se paga el precio + la comisión + su IVA.
+      if (selectedPaymentMethod === 'balance') {
+        try {
+          const total = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
+          const { pagarPublicacionConSaldo, saldoDe } = await import('../services/creditoDePublicacion.js');
+          const saldo = await saldoDe(String(userId));
+          if (saldo + 0.005 < total) {
+            res.status(402).json({ success: false, code: 'SALDO_INSUFICIENTE', message: `Tu saldo ($${saldo.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`, saldo, total });
+            return;
+          }
+          const r = await pagarPublicacionConSaldo(job, String(userId), total, { monto: publicationCost, porcentaje: commissionResult.rate });
+          if (gastar) await gastarCupoDeExencion(user, job, gastar);
+          res.json({ success: true, paidWithBalance: true, message: 'Publicación pagada con tu saldo.', paymentId: r.paymentId, amount: r.monto, jobStatus: r.estado });
+        } catch (e: any) {
+          res.status(500).json({ success: false, message: e?.message || 'No se pudo pagar con saldo.' });
+        }
+        return;
+      }
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer') {

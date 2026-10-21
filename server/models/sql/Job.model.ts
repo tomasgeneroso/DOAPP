@@ -565,6 +565,16 @@ export class Job extends Model {
   pendingBalanceDeduction!: number;
 
   /**
+   * Saldo a favor que volvió de ESTA publicación cuando se canceló sin trabajador (precio + comisión + IVA). No es plata ganada trabajando:
+   * está vinculada a la publicación y alcanza para volver a publicarla (reprogramar). Si el cliente la retira, baja a 0 y para publicar de nuevo
+   * hay que pagar entera otra vez.
+   */
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(12, 2))
+  publicationCredit!: number;
+
+  /**
    * Por donde quiere el cliente que vuelva su plata si se cancela: 'saldo'
    * (queda en la app, sin costo) o 'devolucion' (sale por Mercado Pago al
    * medio con que pago, descontando lo que corresponda). Se guarda cuando el

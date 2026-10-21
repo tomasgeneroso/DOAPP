@@ -1,0 +1,215 @@
+import { Op } from 'sequelize';
+import { Job } from '../models/sql/Job.model.js';
+import BalanceTransaction from '../models/sql/BalanceTransaction.model.js';
+import { User } from '../models/sql/User.model.js';
+import { Notification } from '../models/sql/Notification.model.js';
+
+/**
+ * Saldo vinculado a una publicación.
+ *
+ * Cuando una publicación se cancela sin trabajador, su precio vuelve como saldo a favor. Esa plata NO es ganada trabajando: es de esa
+ * publicación (`jobs.publication_credit`) y alcanza para volver a publicarla. Reglas:
+ *  - Reprogramar una publicación ya devuelta la deja en «pendiente de pago»: se paga (con este saldo o por la pasarela), no sale gratis.
+ *  - Si el cliente retira ese saldo, el crédito de la publicación baja; para publicarla de nuevo hay que pagar entera otra vez.
+ *  - Una publicación se devuelve una sola vez por pago: al pagarla de nuevo es otro pago y vuelve a poder devolverse.
+ */
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Marca el saldo que volvió de esta publicación como suyo. */
+export async function vincularCredito(jobId: string, monto: number): Promise<void> {
+  await Job.update({ publicationCredit: r2(Math.max(0, monto)) } as any, { where: { id: jobId } });
+}
+
+/** ¿El pago actual de esta publicación ya se devolvió al saldo? (el libro lo dice: la devolución anota el pago del que salió) */
+export async function publicacionDevuelta(job: { id: string; publicationPaymentId?: string | null }): Promise<boolean> {
+  if (!job.publicationPaymentId) return false;
+  const fila = await BalanceTransaction.findOne({
+    where: { type: 'refund', metadata: { origen: 'cancelacion', jobId: String(job.id), pagoId: String(job.publicationPaymentId) } } as any,
+    attributes: ['id'],
+  }).catch(() => null);
+  return !!fila;
+}
+
+export interface CreditoVinculado {
+  jobId: string;
+  titulo: string;
+  monto: number;
+}
+
+/**
+ * Los créditos de publicaciones del usuario, acotados a su saldo: si gastó saldo en otra cosa, no puede haber más plata vinculada que
+ * saldo. Se recorta primero lo más viejo (lo más nuevo se conserva).
+ */
+export async function creditosVinculados(userId: string, saldo: number): Promise<CreditoVinculado[]> {
+  const trabajos: any[] = await Job.findAll({
+    where: { clientId: userId, publicationCredit: { [Op.gt]: 0 } } as any,
+    attributes: ['id', 'title', 'publicationCredit', 'cancelledAt', 'updatedAt'],
+    order: [['updatedAt', 'DESC']],
+  });
+  let queda = Math.max(0, saldo);
+  const out: CreditoVinculado[] = [];
+  for (const j of trabajos) {
+    const monto = r2(Math.min(Number(j.publicationCredit) || 0, queda));
+    if (monto <= 0) continue;
+    out.push({ jobId: String(j.id), titulo: String(j.title), monto });
+    queda = r2(queda - monto);
+  }
+  return out;
+}
+
+export interface DesgloseDelSaldo {
+  total: number;
+  /** Lo que no está vinculado a ninguna publicación (ganado trabajando, devoluciones de otro tipo, etc.). */
+  libre: number;
+  /** Lo vinculado a publicaciones canceladas. */
+  vinculado: number;
+  publicaciones: CreditoVinculado[];
+}
+
+export async function desgloseDelSaldo(userId: string, saldo: number): Promise<DesgloseDelSaldo> {
+  const publicaciones = await creditosVinculados(userId, saldo);
+  const vinculado = r2(publicaciones.reduce((s, c) => s + c.monto, 0));
+  return { total: r2(saldo), libre: r2(Math.max(0, saldo - vinculado)), vinculado, publicaciones };
+}
+
+/**
+ * Al retirar `monto` del saldo: se gasta primero lo libre y recién después lo vinculado (lo más viejo primero). Lo vinculado que se retira
+ * baja el crédito de su publicación y se le avisa al cliente que esa publicación ya no se puede reprogramar sin pagar de nuevo.
+ * Devuelve las publicaciones afectadas.
+ */
+export async function consumirCreditosAlRetirar(userId: string, monto: number, saldoAntes: number): Promise<CreditoVinculado[]> {
+  const { libre, publicaciones } = await desgloseDelSaldo(userId, saldoAntes);
+  let sobre = r2(monto - libre);
+  if (sobre <= 0) return [];
+  const afectadas: CreditoVinculado[] = [];
+  // Del más viejo al más nuevo
+  for (const c of [...publicaciones].reverse()) {
+    if (sobre <= 0) break;
+    const sacado = r2(Math.min(c.monto, sobre));
+    const nuevo = r2(c.monto - sacado);
+    await Job.update({ publicationCredit: nuevo } as any, { where: { id: c.jobId } });
+    afectadas.push({ ...c, monto: sacado });
+    sobre = r2(sobre - sacado);
+  }
+  for (const a of afectadas) {
+    await Notification.create({
+      recipientId: userId,
+      type: 'warning',
+      category: 'payment',
+      title: 'Retiraste el saldo de una publicación',
+      message: `Retiraste $${a.monto.toLocaleString('es-AR')} que estaban vinculados a "${a.titulo}". Para volver a publicarla vas a tener que pagarla de nuevo.`,
+      relatedModel: 'Job',
+      relatedId: a.jobId,
+      read: false,
+    } as any).catch(() => {
+      /* el retiro ya se hizo; el aviso es secundario */
+    });
+  }
+  return afectadas;
+}
+
+/** Cuánto saldo total tiene el usuario (para decidir si alcanza). */
+export async function saldoDe(userId: string): Promise<number> {
+  const u: any = await User.findByPk(userId, { attributes: ['id', 'balanceArs'] });
+  return Number(u?.balanceArs) || 0;
+}
+
+export interface ResultadoPagoConSaldo {
+  paymentId: string;
+  monto: number;
+  estado: 'pending_approval' | 'open';
+}
+
+/**
+ * Paga una publicación (pendiente de pago) con el saldo a favor, sin pasarela. Se gasta primero el crédito vinculado a esta misma
+ * publicación y después el resto del saldo. Deja un pago `completed` (método `balance`) que es el «pago actual» de la publicación: si se
+ * vuelve a cancelar sin trabajador, se puede devolver otra vez (es otro pago).
+ *
+ * `monto` = precio + comisión + IVA de la comisión (no hay costo de procesamiento: no pasó por una pasarela).
+ */
+export async function pagarPublicacionConSaldo(
+  job: Job,
+  userId: string,
+  monto: number,
+  comision: { monto: number; porcentaje: number },
+): Promise<ResultadoPagoConSaldo> {
+  const [{ debitarSaldo }, { Payment }, { moduloActivo }, { MODULO_APROBACION_DE_PUBLICACIONES }, { DONDE_ES_ADMIN }] = await Promise.all([
+    import('./quotePayment.js'),
+    import('../models/sql/Payment.model.js'),
+    import('./moduleFlags.js'),
+    import('../../shared/constants/modulos.js'),
+    import('../utils/admins.js'),
+  ]);
+
+  const total = r2(monto);
+  if (!(total > 0)) throw new Error('El monto de la publicación debe ser mayor a cero.');
+
+  // El pago primero: si el saldo no alcanza, debitarSaldo falla y no cambia nada.
+  await debitarSaldo(String(userId), total, `Publicación "${job.title}" pagada con saldo`, {
+    relatedModel: 'Job',
+    relatedId: String(job.id),
+    metadata: { origen: 'publicacion_con_saldo', jobId: String(job.id) },
+  });
+
+  const pago: any = await Payment.create({
+    contractId: null,
+    payerId: userId,
+    recipientId: null,
+    amount: total,
+    currency: 'ARS',
+    status: 'completed',
+    paymentType: 'job_publication',
+    paymentMethod: 'balance',
+    description: `Publicación pagada con saldo: ${job.title}`,
+    platformFee: comision.monto,
+    platformFeePercentage: comision.porcentaje,
+    isEscrow: false,
+  } as any);
+
+  const creditoQueQueda = r2(Math.max(0, (Number((job as any).publicationCredit) || 0) - total));
+  const requiereAprobacion = await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true);
+  const estado = requiereAprobacion ? 'pending_approval' : 'open';
+  await Job.update(
+    {
+      status: estado,
+      publicationPaid: true,
+      publicationPaidAt: new Date(),
+      publicationPaymentId: pago.id,
+      publicationAmount: total,
+      publicationCredit: creditoQueQueda,
+    } as any,
+    { where: { id: job.id } },
+  );
+
+  await Notification.create({
+    recipientId: userId,
+    type: requiereAprobacion ? 'info' : 'success',
+    category: 'payment',
+    title: requiereAprobacion ? 'Publicación pagada con saldo: en revisión' : 'Trabajo publicado',
+    message: requiereAprobacion
+      ? `Pagaste "${job.title}" con tu saldo ($${total.toLocaleString('es-AR')}). Un administrador la revisa y, apenas la apruebe, queda visible.`
+      : `Pagaste "${job.title}" con tu saldo ($${total.toLocaleString('es-AR')}) y ya está publicada.`,
+    relatedModel: 'Job',
+    relatedId: String(job.id),
+    sentVia: ['in_app'],
+  } as any).catch(() => {});
+
+  if (requiereAprobacion) {
+    const admins = await User.findAll({ where: { ...DONDE_ES_ADMIN } });
+    for (const admin of admins) {
+      await Notification.create({
+        recipientId: admin.id,
+        type: 'warning',
+        category: 'admin',
+        title: 'Publicación pagada para aprobar',
+        message: `El cliente pagó con saldo la publicación "${job.title}" ($${total.toLocaleString('es-AR')} ARS). Aprobala o rechazala desde Publicaciones.`,
+        relatedModel: 'Job',
+        relatedId: String(job.id),
+        sentVia: ['in_app'],
+      } as any).catch(() => {});
+    }
+  }
+
+  return { paymentId: String(pago.id), monto: total, estado };
+}

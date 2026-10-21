@@ -8,6 +8,7 @@ import { liquidarCancelacion, type LiquidacionCancelacion } from '../../shared/p
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { acreditarSaldo } from './quotePayment.js';
+import { vincularCredito } from './creditoDePublicacion.js';
 import { componentesDelPago } from './payoutAmount.js';
 import { disponibleDesdeDeUnaDevolucion } from './liberacionDeSaldo.js';
 import { problemaDelCatalogo, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
@@ -299,6 +300,8 @@ export async function liquidarCancelacionDePublicacion(
         },
       });
       acreditado = true;
+      // Sin trabajador, ese saldo es de ESTA publicación: sirve para volver a publicarla (reprogramar) y, si se retira, ya no.
+      if (!hasWorker) await vincularCredito(String(job.id), liq.aCliente).catch(() => {});
 
       await Notification.create({
         recipientId: job.clientId,

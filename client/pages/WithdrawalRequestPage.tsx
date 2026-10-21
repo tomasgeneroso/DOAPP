@@ -149,9 +149,9 @@ export default function WithdrawalRequestPage() {
         setSubmitting(false);
         confirmDialog({
           tone: 'warning',
-          title: 'Retirar saldo devuelto tiene un costo',
+          title: data.detalle ? 'Retirar saldo devuelto tiene un costo' : 'Vas a retirar saldo de una publicación',
           message: data.message,
-          confirmLabel: `Retirar $${Number(data.detalle?.recibirias || 0).toLocaleString('es-AR')}`,
+          confirmLabel: data.detalle ? `Retirar $${Number(data.detalle.recibirias || 0).toLocaleString('es-AR')}` : 'Retirar igual',
           onConfirm: () => { void enviarRetiro(amountNum, true); },
         });
         return;

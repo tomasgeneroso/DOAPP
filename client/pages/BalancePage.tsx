@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -24,6 +25,7 @@ export default function BalancePage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
+  const [vinculado, setVinculado] = useState<{ libre: number; total: number; publicaciones: Array<{ jobId: string; titulo: string; monto: number }> }>({ libre: 0, total: 0, publicaciones: [] });
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +47,7 @@ export default function BalancePage() {
       const balanceData = await balanceRes.json();
       if (balanceData.success) {
         setBalance(balanceData.balance);
+        setVinculado({ libre: Number(balanceData.saldoLibre) || 0, total: Number(balanceData.saldoVinculado) || 0, publicaciones: balanceData.publicacionesVinculadas || [] });
       }
 
       // Fetch summary
@@ -236,6 +239,20 @@ export default function BalancePage() {
                   ${(balance || 0).toLocaleString("es-AR")}
                 </p>
                 <p className="text-xs opacity-70 mt-1">ARS (Pesos Argentinos)</p>
+                {vinculado.total > 0 && (
+                  <div className="mt-3 space-y-1 text-sm">
+                    <p>Libre (ganado y otras devoluciones): <strong>${vinculado.libre.toLocaleString("es-AR")}</strong></p>
+                    <p>Vinculado a publicaciones canceladas: <strong>${vinculado.total.toLocaleString("es-AR")}</strong></p>
+                    <ul className="text-xs opacity-90 list-disc pl-5">
+                      {vinculado.publicaciones.map((p) => (
+                        <li key={p.jobId}>
+                          <Link to={`/jobs/${p.jobId}`} className="underline">{p.titulo}</Link>: ${p.monto.toLocaleString("es-AR")}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs opacity-80">El saldo vinculado sirve para volver a publicar esas publicaciones. Si lo retirás, hay que pagarlas de nuevo.</p>
+                  </div>
+                )}
               </div>
               <div className="flex flex-col items-end gap-4">
                 <button

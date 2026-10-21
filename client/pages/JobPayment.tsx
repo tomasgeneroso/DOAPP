@@ -6,6 +6,7 @@ import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye, ChevronDown } from "lucide-react";
+import PagarConSaldo from "@/components/pagos/PagarConSaldo";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payments/PaymentMethodSelector";
 import TransferenciaBancaria from "@/components/payments/TransferenciaBancaria";
 import { validarDatosDeTransferencia, documentoNormalizado, type DatosDeTransferencia, type ErroresDeTransferencia } from "../../shared/pagos/transferencia";
@@ -221,6 +222,25 @@ export default function JobPayment() {
   // Un segundo clic (o un doble toque) mientras el primer pago sigue en curso no tiene que crear otra orden: la primera ya cambió el
   // estado del trabajo y la segunda volvía con «no está esperando el pago».
   const pagoEnCurso = useRef(false);
+
+  /** Paga la publicación con el saldo a favor: no pasa por la pasarela. */
+  const pagarConSaldo = async () => {
+    try {
+      const response = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ jobId: id, paymentType: 'job_publication', paymentMethod: 'balance' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || 'No se pudo pagar con tu saldo.');
+      await refreshUser();
+      toast.success('Publicación pagada con tu saldo', data.jobStatus === 'pending_approval' ? 'Un administrador la revisa y te avisamos cuando se publique.' : 'Tu trabajo ya está publicado.');
+      navigate('/my-jobs');
+    } catch (e) {
+      toast.error('No se pudo pagar con saldo', e instanceof Error ? e.message : 'Probá de nuevo o elegí otro medio de pago.');
+    }
+  };
 
   const handlePayment = async () => {
     if (pagoEnCurso.current) return;
@@ -736,6 +756,9 @@ export default function JobPayment() {
           {/* Medios de pago: un contrato libre de comisión se paga igual (el trabajo y el costo del medio de pago) */}
           {(
             <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              {!isBudgetIncrease && quote && (
+                <PagarConSaldo token={token} jobId={String(id)} total={Math.round((quote.price + quote.commission + quote.vat) * 100) / 100} disabled={processing} onPagar={pagarConSaldo} />
+              )}
               <PaymentMethodSelector
                 selectedMethod={paymentMethod}
                 onMethodChange={setPaymentMethod}

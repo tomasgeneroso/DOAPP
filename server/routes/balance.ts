@@ -38,6 +38,11 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       disponibleParaRetirar: retirable.disponible,
       enLiberacion: retirable.enLiberacion,
       proximaLiberacion: retirable.proximaLiberacion,
+      ...(await (async () => {
+        const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
+        const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);
+        return { saldoLibre: d.libre, saldoVinculado: d.vinculado, publicacionesVinculadas: d.publicaciones };
+      })()),
     });
   } catch (error: any) {
     console.error("Error fetching balance:", error);
@@ -335,11 +340,25 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     const costoPasarela = Math.round(retencionPasarela * factor * 100) / 100;
     const retencion = Math.round((costoComision + costoPasarela) * 100) / 100;
 
-    if (retencion > 0 && req.body.aceptaCostoPasarela !== true) {
+    // Saldo vinculado a publicaciones canceladas: retirarlo hace que esas publicaciones ya no se puedan reprogramar sin pagar de nuevo.
+    // Se gasta primero lo libre; lo vinculado entra recién cuando lo libre no alcanza.
+    const { desgloseDelSaldo: desglose } = await import('../services/creditoDePublicacion.js');
+    const vinculadoQueSeRetira = await (async () => {
+      const d = await desglose(String(userId), saldoTotal);
+      const sobre = Math.round((amount - d.libre) * 100) / 100;
+      return sobre > 0 ? d.publicaciones : [];
+    })();
+    const avisoVinculado = vinculadoQueSeRetira.length > 0
+      ? `Parte de tu saldo está vinculado a publicaciones canceladas (${vinculadoQueSeRetira.map((p) => `"${p.titulo}"`).join(', ')}). Si lo retirás, esas publicaciones ya no se pueden reprogramar: para publicarlas de nuevo vas a tener que pagarlas otra vez.`
+      : '';
+
+    if ((retencion > 0 || avisoVinculado) && req.body.aceptaCostoPasarela !== true) {
       res.status(409).json({
         success: false,
         requiereConfirmacion: true,
+        publicacionesVinculadas: vinculadoQueSeRetira,
         message:
+          retencion <= 0 ? avisoVinculado : avisoVinculado + ' ' +
           `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} son devoluciones de publicaciones canceladas. ` +
           `Dentro de la app los usás sin costo. Transferirlos al banco descuenta ` +
           [
@@ -413,6 +432,12 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         retencion,
       }
     });
+
+    // El saldo vinculado a publicaciones que se retira ya no está: esas publicaciones se vuelven a publicar pagando de nuevo.
+    if (vinculadoQueSeRetira.length > 0) {
+      const { consumirCreditosAlRetirar } = await import('../services/creditoDePublicacion.js');
+      await consumirCreditosAlRetirar(String(userId), amount, saldoTotal).catch((e: any) => console.error('No se pudo anotar el saldo vinculado retirado:', e?.message));
+    }
 
     // Send email notification
     const emailService = (await import('../services/email.js')).default;

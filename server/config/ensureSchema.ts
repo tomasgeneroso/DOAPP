@@ -79,6 +79,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // Parte de un aumento de precio reservada del saldo a favor hasta que se
   // acredita el pago del resto. Se escribia sin columna: se perdia.
   { label: 'jobs.pending_balance_deduction', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pending_balance_deduction NUMERIC(12,2) NOT NULL DEFAULT 0` },
+  // Saldo a favor que volvio de ESTA publicacion cancelada (sirve para reprogramarla pagando con el). Si se retira, baja.
+  { label: 'jobs.publication_credit', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS publication_credit NUMERIC(12,2) NOT NULL DEFAULT 0` },
   // Por donde eligio el cliente que vuelva su plata si se cancela.
   { label: 'jobs.cancellation_refund_preference', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_refund_preference VARCHAR(20)` },
   // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.

@@ -68,11 +68,12 @@ describe('reprogramar una publicación sin postulantes, dos veces', () => {
     await vencerYReprogramar(1);
   });
 
-  it('la devolución de la publicación se reconoce en el libro (para no devolverla dos veces al volver a vencer)', async () => {
-    const donde = { type: 'refund', metadata: { origen: 'cancelacion', jobId: trabajo.id } } as any;
-    expect(await BalanceTransaction.findOne({ where: donde })).toBeNull();
-    await BalanceTransaction.createRefund(cliente.id, 1000, 0, 'Saldo a favor por cancelación', undefined, { origen: 'cancelacion', jobId: trabajo.id } as any);
-    expect(await BalanceTransaction.findOne({ where: donde })).not.toBeNull();
-    expect(await BalanceTransaction.findOne({ where: { ...donde, metadata: { origen: 'cancelacion', jobId: '00000000-0000-0000-0000-000000000000' } } })).toBeNull();
+  it('la devolución se reconoce por pago: el mismo pago no se devuelve dos veces, uno nuevo sí', async () => {
+    const { publicacionDevuelta } = await import('../../server/services/creditoDePublicacion.js');
+    const job = { id: trabajo.id, publicationPaymentId: '11111111-1111-1111-1111-111111111111' };
+    expect(await publicacionDevuelta(job)).toBe(false);
+    await BalanceTransaction.createRefund(cliente.id, 1000, 0, 'Saldo a favor por cancelación', undefined, { origen: 'cancelacion', jobId: trabajo.id, pagoId: job.publicationPaymentId } as any);
+    expect(await publicacionDevuelta(job)).toBe(true);
+    expect(await publicacionDevuelta({ ...job, publicationPaymentId: '22222222-2222-2222-2222-222222222222' })).toBe(false);
   });
 });

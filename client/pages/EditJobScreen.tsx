@@ -414,6 +414,16 @@ export default function EditJobScreen() {
         throw new Error(data.message || "Error al actualizar el trabajo");
       }
 
+      // Una publicación que ya se había devuelto al saldo se reprograma pero no sale gratis: hay que pagarla (con el saldo vinculado o por la pasarela).
+      if (data.requiresPayment) {
+        toastSuccess(
+          t('jobs.rescheduledPending', 'Trabajo reprogramado'),
+          t('jobs.rescheduledPendingDesc', 'Falta pagar la publicación para volver a publicarla. Podés pagarla con tu saldo a favor.')
+        );
+        navigate(data.redirectTo || `/jobs/${id}/payment`);
+        return;
+      }
+
       // Show success message based on whether it needs approval
       if (data.requiresApproval) {
         toastSuccess(

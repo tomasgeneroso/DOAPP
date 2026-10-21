@@ -29,6 +29,7 @@ import { leerTareasDeCreacion, type ResultadoDeTareas } from "../../shared/jobs/
 import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
+import { publicacionDevuelta } from "../services/creditoDePublicacion.js";
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 
@@ -1311,6 +1312,10 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     // If job was rejected or cancelled by admin (not permanently), change to pending_approval when edited
     const requiresReapproval = ['rejected', 'cancelled'].includes(job.status) && !job.permanentlyCancelled;
 
+    // Una publicación cuyo pago ya volvió al saldo (se canceló sin trabajador) NO sale gratis al reprogramarla: queda pendiente de pago y se
+    // paga entera, con el saldo vinculado a ella si alcanza o por la pasarela. Ahí el precio se puede cambiar libremente: todavía no está pagado.
+    const hayQuePagarDeNuevo = job.status === 'cancelled' && !job.permanentlyCancelled && (await publicacionDevuelta(job as any));
+
     // Prepare update data.
     //
     // SÓLO los campos de contenido que la persona puede editar. Antes era `{ ...req.body }`: el dueño del
@@ -1530,7 +1535,13 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
       }
     }
 
-    if (requiresReapproval) {
+    if (requiresReapproval && hayQuePagarDeNuevo) {
+      updateData.status = 'pending_payment';
+      updateData.publicationPaid = false;
+      updateData.rejectedReason = null;
+      updateData.reviewedBy = null;
+      updateData.reviewedAt = null;
+    } else if (requiresReapproval) {
       updateData.status = 'pending_approval';
       updateData.rejectedReason = null; // Clear previous rejection reason
       updateData.reviewedBy = null;
@@ -1545,7 +1556,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     const newPrice = req.body.price !== undefined ? Number(req.body.price) : null;
     const oldPrice = Number(job.price);
 
-    if (newPrice !== null && newPrice !== oldPrice) {
+    if (newPrice !== null && newPrice !== oldPrice && !hayQuePagarDeNuevo) {
       const priceDifference = newPrice - oldPrice;
 
       if (priceDifference > 0) {
@@ -1804,7 +1815,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     socketService.notifyAdminJobUpdated(updatedJob?.toJSON());
 
     // If job was resubmitted for approval, notify as a new job for admin
-    if (requiresReapproval && updatedJob) {
+    if (requiresReapproval && !hayQuePagarDeNuevo && updatedJob) {
       socketService.notifyNewJob(updatedJob.toJSON());
       console.log(`🔔 Job ${job.id} resubmitted for approval, notified admin panel`);
     }
@@ -1812,10 +1823,14 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     res.json({
       success: true,
       job: updatedJob?.toJSON(),
-      message: requiresReapproval
-        ? "Trabajo actualizado y enviado para aprobación"
-        : "Trabajo actualizado exitosamente",
-      requiresApproval: requiresReapproval,
+      message: hayQuePagarDeNuevo
+        ? "Trabajo reprogramado. Falta pagar la publicación para volver a publicarla."
+        : requiresReapproval
+          ? "Trabajo actualizado y enviado para aprobación"
+          : "Trabajo actualizado exitosamente",
+      requiresApproval: requiresReapproval && !hayQuePagarDeNuevo,
+      requiresPayment: hayQuePagarDeNuevo,
+      redirectTo: hayQuePagarDeNuevo ? `/jobs/${job.id}/payment` : undefined,
     });
   } catch (error: any) {
     console.error('❌ Error updating job:', error.message);

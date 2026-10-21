@@ -86,7 +86,7 @@ export type PaymentType =
    */
   | 'on_completion';
 
-export type PaymentMethod = 'paypal' | 'mercadopago' | 'astropay' | 'bank_transfer' | 'binance';
+export type PaymentMethod = 'paypal' | 'mercadopago' | 'astropay' | 'bank_transfer' | 'binance' | 'balance';
 
 @Table({
   tableName: 'payments',
