@@ -501,7 +501,7 @@ router.put(
        */
       let liquidacion: any = null;
       let resultadoLiquidacion: any = null;
-      let mensajeDeCancelacion: (liq: any) => string = () => '';
+      let mensajeDeCancelacion: (liq: any, titulo?: string, pendienteHasta?: string | null) => string = () => '';
       if (status !== 'approved' && (job as any).publicationPaid) {
         const { liquidarCancelacionDePublicacion, mensajeDeCancelacion: mdc } = await import('../../services/jobCancellation.js');
         mensajeDeCancelacion = mdc;
@@ -526,7 +526,7 @@ router.put(
           salida,
         });
         liquidacion = r.liq;
-        resultadoLiquidacion = { salida: r.salida, devueltoPorMp: r.devueltoPorMp, problemas: r.errores, plataMovida: r.plataMovida };
+        resultadoLiquidacion = { salida: r.salida, devueltoPorMp: r.devueltoPorMp, problemas: r.errores, plataMovida: r.plataMovida, pendienteHasta: r.pendienteHasta };
       }
 
       void logAudit({
@@ -573,7 +573,7 @@ router.put(
               ? ' Todavía no pudimos acreditar tu dinero: administración lo está revisando y te avisamos apenas esté.'
               : resultadoLiquidacion?.salida === 'devolucion'
               ? ` Se devolvieron $${Number(resultadoLiquidacion.devueltoPorMp).toLocaleString('es-AR')} al medio con que pagaste; según el banco puede tardar unos días.`
-              : ` ${mensajeDeCancelacion(liquidacion)}`;
+              : ` ${mensajeDeCancelacion(liquidacion, undefined, resultadoLiquidacion?.pendienteHasta)}`;
           return status === 'rejected'
             ? `Tu publicación "${job.title}" fue rechazada y quedó cancelada. Motivo: ${rejectedReason}.${plata}`
             : `Se aprobó tu pedido de cancelar "${job.title}".${plata}`;
@@ -591,7 +591,9 @@ router.put(
 
       res.json({
         success: true,
-        message: status === 'approved' ? 'Publicación aprobada' : status === 'rejected' ? 'Publicación rechazada y saldo devuelto al cliente' : 'Cancelación aprobada y saldo devuelto al cliente',
+        message: status === 'approved'
+          ? 'Publicación aprobada'
+          : `${status === 'rejected' ? 'Publicación rechazada' : 'Cancelación aprobada'} y ${resultadoLiquidacion?.pendienteHasta ? 'devolución a favor del cliente, pendiente de liquidar hasta que Mercado Pago libere el pago' : 'saldo devuelto al cliente'}`,
         data: updatedJob,
         liquidacion,
         ...(resultadoLiquidacion || {}),

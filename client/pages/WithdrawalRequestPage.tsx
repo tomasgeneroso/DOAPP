@@ -22,6 +22,7 @@ import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import Transicion from "../components/ui/Transicion";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
+import { etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem } from "../../shared/pagos/aFavorPendiente";
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ export default function WithdrawalRequestPage() {
   // A favor PENDIENTE de liquidar: todavía no está en el saldo (Mercado Pago no liberó el pago original).
   const [aFavorPendiente, setAFavorPendiente] = useState(0);
   const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
+  const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +70,7 @@ export default function WithdrawalRequestPage() {
         setProximaLiberacion(balanceData.proximaLiberacion || null);
         setAFavorPendiente(Number(balanceData.aFavorPendiente) || 0);
         setProximaLiquidacion(balanceData.proximaLiquidacion || null);
+        setAFavorDetalle(Array.isArray(balanceData.aFavorPendienteDetalle) ? balanceData.aFavorPendienteDetalle : []);
       }
 
       // Load withdrawals
@@ -334,10 +337,22 @@ export default function WithdrawalRequestPage() {
             </p>
           )}
           {aFavorPendiente > 0 && (
-            <p className="mt-2 text-xs text-sky-100">
-              + ${aFavorPendiente.toLocaleString('es-AR')} a favor pendientes de liquidar: todavía no son tuyos. Pasan a tu saldo
-              {proximaLiquidacion ? ` el ${new Date(proximaLiquidacion).toLocaleDateString('es-AR')}` : ''}, cuando Mercado Pago libera el pago original.
-            </p>
+            <div className="mt-2 text-xs text-sky-100">
+              <p>
+                + ${aFavorPendiente.toLocaleString('es-AR')} a favor pendientes de liquidar: todavía no son tuyos, no los podés usar ni retirar. Pasan a tu saldo
+                {aFavorDetalle.length <= 1 && proximaLiquidacion ? ` el ${fechaDeLiquidacion(proximaLiquidacion)}` : ''}, cuando Mercado Pago libera el pago original.
+              </p>
+              {aFavorDetalle.length > 1 && (
+                <ul className="mt-1 space-y-0.5">
+                  {aFavorDetalle.map((a) => (
+                    <li key={a.id}>
+                      • {etiquetaDelAFavor(a.motivo)}: ${a.monto.toLocaleString('es-AR')}
+                      {a.disponibleDesde ? ` · pasa a tu saldo el ${fechaDeLiquidacion(a.disponibleDesde)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
 

@@ -1,5 +1,6 @@
 import { BalanceTransaction, WithdrawalRequest, ApiResponse } from '../types';
 import { get, post } from './api';
+import type { AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente';
 
 /**
  * Servicio para gestión de balance y retiros
@@ -16,6 +17,8 @@ interface BalanceData {
   /** A favor PENDIENTE de liquidar: todavía no está en el saldo (Mercado Pago no liberó el pago original). */
   aFavorPendiente?: number;
   proximaLiquidacion?: string | null;
+  /** Cada cosa a favor pendiente, con su motivo y la fecha en que pasa al saldo. */
+  aFavorPendienteDetalle?: AFavorPendienteItem[];
 }
 
 interface BalanceSummary {

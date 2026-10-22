@@ -979,13 +979,27 @@ ${ctaBlock}
     await this.sendEmail({ to, subject: `Precio modificado · DOAPP`, html });
   }
 
-  async sendBalanceRefundEmail(to: string, userName: string, amount: number, reason: string, newBalance: number): Promise<void> {
+  /**
+   * `pendienteHasta`: si el reembolso quedó a favor PENDIENTE (el pago original sigue en Mercado Pago) la fecha en que pasa al saldo. En ese caso el
+   * mail no dice que ya está en el balance: todavía no se puede usar ni retirar.
+   */
+  async sendBalanceRefundEmail(to: string, userName: string, amount: number, reason: string, newBalance: number, pendienteHasta?: string | null): Promise<void> {
+    const hasta = pendienteHasta ? new Date(pendienteHasta).toLocaleDateString('es-AR') : null;
     const html = this.tpl({
       eyebrow: 'Reembolso',
-      accent: 'green',
-      preheader: 'El reembolso ya está disponible en tu balance.',
-      title: 'Te devolvimos tu dinero.',
-      body: `
+      accent: hasta ? 'amber' : 'green',
+      preheader: hasta ? `El reembolso está a tu favor y pasa a tu saldo el ${hasta}.` : 'El reembolso ya está disponible en tu balance.',
+      title: hasta ? 'Tenés un reembolso a tu favor.' : 'Te devolvimos tu dinero.',
+      body: hasta
+        ? `
+        <p>Hola <strong>${userName}</strong>, procesamos un reembolso a tu favor en DoApp. Todavía está pendiente de liquidar porque el pago original sigue en Mercado Pago: pasa a tu saldo el <strong>${hasta}</strong> y recién ahí lo podés usar para publicar un nuevo trabajo o retirarlo a tu CBU.</p>
+        ${this.detailCard([
+          { label: 'Motivo', value: reason },
+          { label: 'Pasa a tu saldo el', value: hasta, highlight: true },
+          { label: 'Tu saldo hoy', value: `$${newBalance.toLocaleString('es-AR')} ARS` },
+        ])}
+      `
+        : `
         <p>Hola <strong>${userName}</strong>, procesamos un reembolso a tu balance de DoApp. Ya podés usarlo para publicar un nuevo trabajo o retirarlo a tu CBU.</p>
         ${this.detailCard([
           { label: 'Motivo', value: reason },
@@ -993,10 +1007,10 @@ ${ctaBlock}
         ])}
       `,
       amount: `$${amount.toLocaleString('es-AR')} ARS`,
-      amountLabel: 'Reembolso',
+      amountLabel: hasta ? 'A tu favor (pendiente)' : 'Reembolso',
       cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
     });
-    await this.sendEmail({ to, subject: 'Reembolso acreditado · DOAPP', html });
+    await this.sendEmail({ to, subject: hasta ? 'Reembolso a tu favor (pendiente) · DOAPP' : 'Reembolso acreditado · DOAPP', html });
   }
 
   async sendConfirmationReminder(to: string, userName: string, jobTitle: string, contractId: string, isClient: boolean): Promise<void> {

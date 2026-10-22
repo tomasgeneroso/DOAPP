@@ -164,6 +164,8 @@ export interface DatosParaLasAlertas {
   devoluciones: Array<{ monto: number; pagoId: string | null }>;
   /** Lo que ya se descontó con ajustes manuales atados a esta publicación (scripts/ajustarSaldo --publicacion). */
   corregidoAMano?: number;
+  /** Plata a favor del dueño que todavía NO está en su saldo (el pago original sigue en Mercado Pago), con la fecha en que pasa a ser saldo. */
+  pendientes?: Array<{ monto: number; disponibleDesde: string | null }>;
 }
 
 /** Lo que no cierra de una publicación, en palabras y con qué hacer. Pura: se prueba sin base de datos. */
@@ -268,6 +270,16 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
   if (d.reprogramada) {
     alertas.push({ nivel: 'info', titulo: 'Fue reprogramada', detalle: 'Las fechas anteriores figuran abajo, en «Publicación».' });
   }
+  const pendientes = d.pendientes ?? [];
+  if (pendientes.length > 0) {
+    const total = r2(pendientes.reduce((s, x) => s + x.monto, 0));
+    const primera = pendientes.map((x) => x.disponibleDesde).filter((x): x is string => !!x).sort()[0];
+    alertas.push({
+      nivel: 'info',
+      titulo: 'Hay plata a favor del dueño pendiente de liquidar',
+      detalle: `${pesos(total)} que todavía NO están en el saldo de ${d.duenoNombre || 'el dueño'}: el pago original sigue en Mercado Pago${primera ? ` y pasan a su saldo el ${new Date(primera).toLocaleDateString('es-AR')}` : ''}. Hasta entonces no los puede usar ni retirar.`,
+    });
+  }
   if (d.creditoVinculado > 0) {
     alertas.push({
       nivel: 'info',
@@ -371,6 +383,11 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
   const corregidoAMano = r2(movimientos.filter((m) => m.origen === 'ajuste_manual' && m.estado === 'completed' && m.monto < 0).reduce((s, m) => s + Math.abs(m.monto), 0));
   // Solo la devolución de la publicación cancelada: otras (un trabajador que no está disponible, un contrato cancelado) se respaldan con el pago del contrato.
   const devoluciones = movimientos.filter((m, i) => m.tipo === 'refund' && m.estado === 'completed' && esDevolucionDeLaPublicacion(movimientosCrudos[i]?.metadata));
+  // Lo que se le devolvió a este dueño por esta publicación pero todavía no es saldo (a favor pendiente): no cuenta como devuelto hasta liquidarse.
+  const pendientes = movimientos
+    .map((m, i) => ({ m, meta: (movimientosCrudos[i]?.metadata || {}) as Record<string, any> }))
+    .filter(({ m, meta }) => m.tipo === 'refund' && m.estado === 'pending' && meta.pendienteDeLiquidacion === true && m.publicacionId === String(jobId))
+    .map(({ m, meta }) => ({ monto: m.monto, disponibleDesde: meta.disponibleDesde ? String(meta.disponibleDesde) : null }));
 
   const dueno = persona(job.clientId);
   const elegidos = Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 0;
@@ -440,6 +457,7 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     pago: pago ? { monto: pago.monto, moneda: pago.moneda, estado: pago.estado, medio: pago.medio, aprobadoPorElPagador: pago.aprobadoPorElPagador, esManual: pago.esManual } : null,
     devoluciones: devoluciones.map((d) => ({ monto: d.monto, pagoId: d.pagoId })),
     corregidoAMano,
+    pendientes,
   });
 
   const contratosSalida = contratos.map((c) => ({

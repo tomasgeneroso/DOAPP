@@ -91,7 +91,7 @@ export default function CancelJobModal({
               <p className="text-sm text-emerald-200">
                 {t(
                   "jobs.cancelNoWorker",
-                  "Todavía no hay un trabajador seleccionado, así que el precio y la comisión vuelven a tu saldo a favor. Con ese saldo podés volver a publicar sin pagar de nuevo. Si en cambio lo retirás a tu banco, se descuenta la mitad de la comisión por la revisión ya hecha. El costo de procesamiento del pago no se devuelve: la pasarela ya lo cobró.",
+                  "Todavía no hay un trabajador seleccionado, así que el precio y la comisión quedan a tu favor. Si Mercado Pago ya liberó el pago original (unos 10 días después de pagar) pasan a tu saldo en el momento; si todavía no, quedan «a favor pendientes» y pasan a tu saldo cuando se libere. Con ese saldo podés volver a publicar sin pagar de nuevo. Si en cambio lo retirás a tu banco, se descuenta la mitad de la comisión por la revisión ya hecha. El costo de procesamiento del pago no se devuelve: la pasarela ya lo cobró.",
                 )}
               </p>
             </div>
@@ -150,7 +150,7 @@ export default function CancelJobModal({
                   <span className="mt-0.5 block text-xs text-slate-300">
                     {t(
                       "jobs.refundRouteBalanceHelp",
-                      "Queda en tu cuenta de DOAPP, sin descuentos, y lo usás para volver a publicar sin pagar de nuevo. Podés retirarlo al banco cuando quieras.",
+                      "Queda a tu favor en DOAPP, sin descuentos. Si Mercado Pago todavía no liberó el pago original (unos 10 días desde que pagaste), figura como «a favor pendiente»: no lo podés usar ni retirar hasta esa fecha. Cuando pasa a tu saldo, lo usás para volver a publicar sin pagar de nuevo o lo retirás al banco.",
                     )}
                   </span>
                 </span>

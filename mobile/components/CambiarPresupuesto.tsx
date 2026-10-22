@@ -214,7 +214,7 @@ export default function CambiarPresupuesto({
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={[styles.hojaTitulo, { color: themeColors.text.primary }]}>Cambiar el presupuesto</Text>
               <Text style={[styles.parrafo, { color: themeColors.text.secondary }]}>
-                Precio actual: {pesos(job.price)}. Si lo subís, pagás la diferencia (más comisión, costo de procesamiento e IVA); si lo bajás, la diferencia vuelve a tu saldo.
+                Precio actual: {pesos(job.price)}. Si lo subís, pagás la diferencia (más comisión, costo de procesamiento e IVA); si lo bajás, la diferencia vuelve a tu favor (a tu saldo cuando Mercado Pago libera el pago original; hasta entonces figura como «a favor pendiente»).
               </Text>
 
               <Text style={[styles.etiqueta, { color: themeColors.text.primary }]}>Nuevo presupuesto ($)</Text>

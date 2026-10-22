@@ -20,6 +20,7 @@ import {
   Building2,
 } from "lucide-react";
 import type { BalanceTransaction } from "@/types";
+import { esAFavorPendiente, fechaDeLiquidacion } from "../../shared/pagos/aFavorPendiente";
 
 export default function BalancePage() {
   const { t } = useTranslation();
@@ -381,6 +382,13 @@ export default function BalancePage() {
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
                               {getTypeLabel(transaction.type)}
                             </span>
+                            {/* A favor pendiente: figura acá pero todavía no sumó al saldo (el pago original sigue en Mercado Pago). */}
+                            {esAFavorPendiente(transaction) && (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                                {t('balance.pendingBadge', 'A favor pendiente')}
+                                {transaction.metadata?.disponibleDesde ? ` · ${t('balance.pendingSince', 'pasa a tu saldo el')} ${fechaDeLiquidacion(String(transaction.metadata.disponibleDesde))}` : ''}
+                              </span>
+                            )}
                             {/* Payment method badge */}
                             {getPaymentMethodIcon(transaction) && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
@@ -405,15 +413,19 @@ export default function BalancePage() {
                       <div className="text-right">
                         <p
                           className={`text-xl font-bold ${
-                            transaction.amount >= 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
+                            esAFavorPendiente(transaction)
+                              ? "text-sky-600 dark:text-sky-400"
+                              : transaction.amount >= 0
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                           }`}
                         >
                           {transaction.amount >= 0 ? "+" : ""}${Math.abs(transaction.amount).toLocaleString("es-AR")}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {t('balance.balanceLabel', 'Saldo')}: ${transaction.balanceAfter.toLocaleString("es-AR")}
+                          {esAFavorPendiente(transaction)
+                            ? t('balance.notBalanceYet', 'Todavía no es saldo')
+                            : `${t('balance.balanceLabel', 'Saldo')}: $${transaction.balanceAfter.toLocaleString("es-AR")}`}
                         </p>
                       </div>
                     </div>

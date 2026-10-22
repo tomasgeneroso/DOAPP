@@ -131,7 +131,7 @@ describe('el pago manual del administrador usa la MISMA fecha de liberación que
   it('el cobro de un contrato con varios trabajadores y las devoluciones llevan su fecha de liberación en el asiento', () => {
     const contratos = readFileSync(join(process.cwd(), 'server/routes/contracts.ts'), 'utf8');
     expect(contratos).toMatch(/disponibleDesdeDeUnCobro\(contract as any, payment as any\)/);
-    expect((contratos.match(/disponibleDesdeDelPagoDelContrato/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect((contratos.match(/liberacionDelPagoDelContrato|disponibleDesdeDelPagoDelContrato/g) || []).length).toBeGreaterThanOrEqual(2);
     const cancelacion = readFileSync(join(process.cwd(), 'server/services/jobCancellation.ts'), 'utf8');
     expect(cancelacion).toMatch(/disponibleDesde: disponibleDesdeDeUnaDevolucion\(pagoReal as any\)/);
     const jobs = readFileSync(join(process.cwd(), 'server/routes/jobs.ts'), 'utf8');

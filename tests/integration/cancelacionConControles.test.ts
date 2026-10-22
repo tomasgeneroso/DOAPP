@@ -14,6 +14,13 @@ import { crearUsuario } from '../helpers/fixtures.js';
 const mp = { getPayment: jest.fn<(...args: any[]) => Promise<any>>(), refundPayment: jest.fn<(...args: any[]) => Promise<any>>() };
 jest.mock('../../server/services/mercadopago.js', () => ({ __esModule: true, default: mp }));
 
+/**
+ * Un pago que Mercado Pago ya liberó (más de diez días desde que se aprobó). Lo que se devuelve de un pago TODAVÍA retenido en Mercado Pago no es saldo
+ * sino «a favor pendiente» hasta que se libere (ver tests/integration/devolucionesPendientes.test.ts): estos tests miden las comprobaciones antes de
+ * mover el dinero, no la espera, así que arrancan con el pago ya liberado.
+ */
+const haceDoceDias = () => new Date(Date.now() - 12 * 86_400_000);
+
 describe('cancelación: comprobaciones antes de mover el dinero', () => {
   let cliente: any;
   let admin: any;
@@ -59,6 +66,7 @@ describe('cancelación: comprobaciones antes de mover el dinero', () => {
       platformFee: 3600,
       processingCharge: 1781.22,
       mercadopagoStatus: 'approved',
+      approvedAt: haceDoceDias(),
       ...pago,
     } as any);
     creados.pagos.push(p.id);
@@ -96,7 +104,7 @@ describe('cancelación: comprobaciones antes de mover el dinero', () => {
     Notification.findAll({ where: { recipientId: admin.id, category: 'admin', actionUrl: `/admin/guia-de-errores#${codigo}` } as any });
 
   it('un pago confirmado a mano por un administrador acredita el saldo, y deja anotado qué se comprobó', async () => {
-    const { job, pago } = await publicacion({ mercadopagoStatus: null, approvedBy: String(admin.id), approvedAt: new Date() });
+    const { job, pago } = await publicacion({ mercadopagoStatus: null, approvedBy: String(admin.id), approvedAt: haceDoceDias() });
     const antes = await saldo();
     const r = await cancelar(job);
     expect(r.plataMovida).toBe(true);
@@ -136,7 +144,7 @@ describe('cancelación: comprobaciones antes de mover el dinero', () => {
   });
 
   it('pidió devolución al medio de pago pero el pago se confirmó a mano y no tiene número de operación: queda como saldo, informativo, sin alarmar a nadie', async () => {
-    const { job } = await publicacion({ mercadopagoStatus: null, approvedBy: String(admin.id), approvedAt: new Date() });
+    const { job } = await publicacion({ mercadopagoStatus: null, approvedBy: String(admin.id), approvedAt: haceDoceDias() });
     const antes = await saldo();
     const r = await cancelar(job, 'devolucion');
     expect(r.salida).toBe('saldo');
@@ -231,7 +239,7 @@ describe('cancelación: tope de devolución al medio de pago y fecha de liberaci
     const iva = comision * 0.21;
     const p: any = await Payment.create({
       payerId: cliente.id, recipientId: cliente.id, amount: precio + comision + iva, amountArs: precio + comision + iva, currency: 'ARS', status: 'held_escrow',
-      paymentType: 'job_publication', paymentMethod: 'mercadopago', platformFee: comision, processingCharge: 0, mercadopagoStatus: 'approved',
+      paymentType: 'job_publication', paymentMethod: 'mercadopago', platformFee: comision, processingCharge: 0, mercadopagoStatus: 'approved', approvedAt: haceDoceDias(),
       mercadopagoPaymentId: `mp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...pago,
     } as any);
     creados.pagos.push(p.id);
@@ -269,18 +277,24 @@ describe('cancelación: tope de devolución al medio de pago y fecha de liberaci
     expect(r.salida).toBe('devolucion');
   });
 
-  it('el saldo a favor se suma YA pero lleva la fecha en que Mercado Pago libera el pago original: no se puede retirar antes', async () => {
+  it('mientras Mercado Pago no libere el pago original, lo que vuelve es a favor PENDIENTE (no suma al saldo) y lleva la fecha en que pasa a ser saldo', async () => {
     const libera = new Date(Date.now() + 6 * 86_400_000);
-    const { job } = await publicacion(10_000, { moneyReleaseDate: libera });
-    await cancelar(job, 'saldo');
+    const { job, pago } = await publicacion(10_000, { moneyReleaseDate: libera });
+    const antes = Number(((await User.findByPk(cliente.id)) as any).balanceArs);
+    const r = await cancelar(job, 'saldo');
+    expect(r.plataMovida).toBe(true);
+    expect(r.pendienteHasta).toBe(libera.toISOString());
     const asiento: any = await BalanceTransaction.findOne({ where: { userId: cliente.id, type: 'refund' } as any, order: [['createdAt', 'DESC']] });
     expect(Number(asiento.amount)).toBeGreaterThan(0);
+    expect(asiento.status).toBe('pending');
+    expect(asiento.metadata.pagoId).toBe(pago.id);
     expect(new Date(asiento.metadata.disponibleDesde).getTime()).toBe(libera.getTime());
-    const { saldoRetirable } = await import('../../server/services/liberacionDeSaldo.js');
-    const saldo = Number(((await User.findByPk(cliente.id)) as any).balanceArs);
-    const r = await saldoRetirable(String(cliente.id), saldo);
-    expect(r.enLiberacion).toBeGreaterThan(0);
-    expect(r.proximaLiberacion?.getTime()).toBe(libera.getTime());
+    // El saldo no se movió: el cliente no tiene todavía esa plata, ni para usarla ni para retirarla.
+    expect(Number(((await User.findByPk(cliente.id)) as any).balanceArs)).toBe(antes);
+    const { saldoPendienteDeLiquidar } = await import('../../server/services/liberacionDeSaldo.js');
+    const pendiente = await saldoPendienteDeLiquidar(String(cliente.id));
+    expect(pendiente.monto).toBeGreaterThan(0);
+    expect(pendiente.proximaLiquidacion?.getTime()).toBe(libera.getTime());
   });
 
   it('si Mercado Pago ya liberó ese pago, el asiento no lleva espera', async () => {

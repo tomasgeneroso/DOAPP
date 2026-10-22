@@ -182,6 +182,30 @@ describe('app: resultado de la cancelación y modal sin cortes', () => {
     expect(r.cuerpo).not.toContain('Si lo retirás a tu banco');
   });
 
+  it('si lo que vuelve quedó a favor PENDIENTE (el pago sigue en Mercado Pago) el resumen NO dice que ya está acreditado: dice cuándo pasa al saldo', async () => {
+    const { resumenDeCancelacion } = await import('../mobile/utils/resumenDeCancelacion.js');
+    const r = resumenDeCancelacion('x', {
+      salida: 'saldo',
+      plataMovida: true,
+      pendienteHasta: '2026-11-02T12:00:00.000Z',
+      refund: { toClient: 40356, toWorker: 0, commissionWithheld: 0, processingNotRefunded: 0, onWithdrawal: { comision: 1800 } },
+    });
+    const fecha = new Date('2026-11-02T12:00:00.000Z').toLocaleDateString('es-AR');
+    expect(r.cuerpo).toContain('Saldo a favor pendiente');
+    expect(r.cuerpo).toContain(`Pasa a tu saldo el ${fecha}`);
+    expect(r.cuerpo).not.toContain('Saldo a favor acreditado');
+    expect(r.cuerpo).toContain(`• A favor pendiente: $40.356 (pasa a tu saldo el ${fecha})`);
+    expect(r.cuerpo).not.toContain('Si lo retirás a tu banco'); // todavía no se puede retirar nada
+  });
+
+  it('la lista de movimientos de la web y de la app distingue el «a favor pendiente» del saldo acreditado (misma función de la carpeta shared)', () => {
+    for (const pantalla of ['client/pages/BalancePage.tsx', 'mobile/app/balance.tsx']) {
+      const src = leer(pantalla);
+      expect([pantalla, /esAFavorPendiente\(/.test(src)]).toEqual([pantalla, true]);
+      expect([pantalla, /shared\/pagos\/aFavorPendiente/.test(src)]).toEqual([pantalla, true]);
+    }
+  });
+
   it('el modal de cancelar de la app deja el título y los botones fijos y scrollea el medio; el banco se elige de una lista', () => {
     const job = leer('mobile/app/job/[id].tsx');
     expect(job).toMatch(/modalContent: \{[^}]*maxHeight: '92%'/);

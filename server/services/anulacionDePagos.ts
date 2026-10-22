@@ -13,7 +13,8 @@ import { logMoneyEvent } from '../utils/auditLog.js';
  * prueba). Deja de contar como ingreso y como dinero recibido; sus facturas pasan a «void». Es la contracara de `ajustarSaldo`.
  *
  * No toca saldos: si ese pago ya había generado saldo a favor (una devolución al cancelar la publicación), lo avisa para que se descuente
- * antes con `ajustarSaldo --publicacion=...`. No sirve para un pago confirmado por una pasarela (Mercado Pago, AstroPay, PayPal): ahí el
+ * antes con `ajustarSaldo --publicacion=...`. Lo que todavía es a favor PENDIENTE de liquidar (no llegó a ser saldo) sí se cancela junto con el pago:
+ * esa plata nunca va a existir. No sirve para un pago confirmado por una pasarela (Mercado Pago, AstroPay, PayPal): ahí el
  * dinero entró de verdad y corresponde un reembolso (se rechaza, salvo `forzar`).
  */
 
@@ -26,6 +27,8 @@ export interface ResultadoDeLaAnulacion {
   facturas: string[];
   /** Plata que esa publicación devolvió al saldo y todavía no se descontó con un ajuste manual. */
   faltaDescontar: number;
+  /** Plata a favor PENDIENTE de liquidar que apuntaba a este pago y se cancela con él (o se cancelaría, en la vista previa). */
+  aFavorPendienteCancelado: number;
   publicaciones: string[];
 }
 
@@ -77,11 +80,22 @@ export async function anularPagoSinDinero(
     if (faltaDescontar > 0.01) escribir(`   ⚠ Falta descontar ${pesos(faltaDescontar)}: usá ajustarSaldo --publicacion=<id> antes de anular el pago.`);
   }
 
+  // A favor PENDIENTE que apunta a este pago o a sus publicaciones: todavía no es saldo, así que no hay nada que descontar; se cancela con el pago.
+  const pendientes: any[] = await BalanceTransaction.findAll({
+    where: {
+      type: 'refund',
+      status: 'pending',
+      [Op.or]: [{ metadata: { pagoId: String(pago.id) } }, { metadata: { pagoOrigenId: String(pago.id) } }, ...trabajos.map((j) => ({ metadata: { jobId: String(j.id) } }))],
+    } as any,
+  });
+  const aFavorPendienteCancelado = Math.round(pendientes.reduce((acc, m) => acc + (Number(m.amount) || 0), 0) * 100) / 100;
+  if (aFavorPendienteCancelado > 0) escribir(`   a favor pendiente de liquidar que apunta a este pago: ${pesos(aFavorPendienteCancelado)} (se cancela junto con el pago: esa plata no llegó a ser saldo)`);
+
   const facturas: any[] = await Invoice.findAll({ where: { paymentId: String(pago.id) } as any, attributes: ['id', 'invoiceNumber', 'status', 'total'] });
   for (const f of facturas) escribir(`   factura ${f.invoiceNumber}: ${pesos(f.total)} (${f.status})`);
 
   escribir(`\nMotivo: ${motivo}`);
-  escribir(`Se haría: el pago pasa a «cancelled»${facturas.length > 0 ? ` y ${facturas.length} factura(s) a «void»` : ''}.`);
+  escribir(`Se haría: el pago pasa a «cancelled»${facturas.length > 0 ? ` y ${facturas.length} factura(s) a «void»` : ''}${pendientes.length > 0 ? `, y ${pendientes.length} a favor pendiente(s) a «failed»` : ''}.`);
   if (facturas.some((f) => f.status !== 'void')) escribir('Ojo con las facturas: si ya se informaron a ARCA, consultá a tu contador por la nota de crédito.');
 
   const resultado: ResultadoDeLaAnulacion = {
@@ -90,6 +104,7 @@ export async function anularPagoSinDinero(
     anulado: false,
     facturas: facturas.map((f) => String(f.invoiceNumber)),
     faltaDescontar,
+    aFavorPendienteCancelado,
     publicaciones: trabajos.map((j) => String(j.id)),
   };
   if (!opciones.aplicar) {
@@ -103,6 +118,12 @@ export async function anularPagoSinDinero(
     pago.status = 'cancelled';
     pago.adminNotes = [pago.adminNotes, `Anulado (sin dinero real): ${motivo}`].filter(Boolean).join(' | ');
     await pago.save({ transaction: t });
+    for (const m of pendientes) {
+      await m.update(
+        { status: 'failed', metadata: { ...(m.metadata || {}), pendienteDeLiquidacion: false, cancelada: { motivo: `se anuló el pago ${pago.id}: ${motivo}`, el: new Date().toISOString() } } },
+        { transaction: t },
+      );
+    }
     for (const f of facturas) {
       if (f.status !== 'void') {
         f.status = 'void';

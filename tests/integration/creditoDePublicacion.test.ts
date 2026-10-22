@@ -36,6 +36,9 @@ describe('saldo vinculado a una publicación', () => {
     const p: any = await Payment.create({
       payerId: cliente.id, recipientId: cliente.id, amount: precio * 1.1, amountArs: precio * 1.1, currency: 'ARS', status: 'held_escrow',
       paymentType: 'job_publication', paymentMethod: 'mercadopago', platformFee: precio * 0.1, processingCharge: 0, mercadopagoStatus: 'approved',
+      // Mercado Pago ya liberó este pago (más de diez días): lo que vuelve es saldo en el momento. Si el pago siguiera retenido, lo que vuelve sería «a favor
+      // pendiente» y no se vincularía a la publicación hasta liberarse (ver tests/integration/devolucionesPendientes.test.ts).
+      approvedAt: new Date(Date.now() - 12 * 86_400_000),
     } as any);
     pagos.push(p.id);
     const j: any = await crearTrabajo(cliente.id, { status: 'open', price: precio, publicationPaid: true, publicationPaymentId: p.id, selectedWorkers: [] });

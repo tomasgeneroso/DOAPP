@@ -352,12 +352,56 @@ export async function acreditarSaldoPendiente(
         balanceAfter: Math.round((saldo + monto) * 100) / 100,
         description: descripcion,
         status: 'pending',
+        relatedContractId: ref.relatedModel === 'Contract' ? ref.relatedId : undefined,
         metadata: { ...ref.metadata, pendienteDeLiquidacion: true, relatedModel: ref.relatedModel, relatedId: ref.relatedId },
       } as any,
       { transaction: t },
     );
     return String((fila as any).id);
   }));
+}
+
+/** ¿Todavía falta para esa fecha (ISO)? Sin fecha, no falta nada. */
+export const faltaParaLiberar = (disponibleDesde?: string | null, ahora: Date = new Date()): boolean => !!disponibleDesde && new Date(disponibleDesde).getTime() > ahora.getTime();
+
+export interface ResultadoDeLaDevolucion {
+  /** true = quedó a favor PENDIENTE (no está en el saldo); false = ya es saldo. */
+  pendiente: boolean;
+  /** Cuándo pasa a ser saldo, si es pendiente (ISO). */
+  disponibleDesde?: string;
+}
+
+/**
+ * Le devuelve plata a un cliente. Si el pago original TODAVÍA está en Mercado Pago (`metadata.disponibleDesde` es futura) la plata no está en la cuenta
+ * de la plataforma: el cliente la ve a su favor, PENDIENTE, y no la puede usar ni retirar hasta esa fecha (`acreditarSaldoPendiente`; la pasa a saldo
+ * `liquidarSaldoPendiente`). Si el pago ya está liberado (o no pasó por Mercado Pago) es saldo en el momento. Regla del dueño: si el dinero no está en
+ * la cuenta de DOAPP, el cliente tampoco puede usarlo como saldo.
+ *
+ * Todo crédito de devolución tiene que pasar su `disponibleDesde`: sin él se toma como ya liberado (lo vigila tests/todoCreditoTieneFechaDeLiberacion).
+ */
+export async function acreditarDevolucion(
+  userId: string,
+  monto: number,
+  descripcion: string,
+  ref: { relatedModel?: string; relatedId?: string; metadata?: Record<string, any> } = {},
+): Promise<ResultadoDeLaDevolucion> {
+  if (!(monto > 0)) return { pendiente: false };
+  const desde = typeof ref.metadata?.disponibleDesde === 'string' ? (ref.metadata.disponibleDesde as string) : undefined;
+  if (faltaParaLiberar(desde)) {
+    await acreditarSaldoPendiente(userId, monto, descripcion, { relatedModel: ref.relatedModel, relatedId: ref.relatedId, metadata: { ...(ref.metadata || {}), disponibleDesde: desde as string } });
+    return { pendiente: true, disponibleDesde: desde };
+  }
+  // sin-espera: el pago original ya está liberado (o no pasó por Mercado Pago): la plata existe en la cuenta de la plataforma, es saldo en el momento.
+  await acreditarSaldo(userId, monto, descripcion, { ...ref, tipo: 'refund' });
+  return { pendiente: false };
+}
+
+/** Cómo se le dice al cliente lo que quedó a su favor: saldo ya, o pendiente hasta que Mercado Pago libere el pago. */
+export function fraseDelAFavor(monto: number, r: ResultadoDeLaDevolucion): string {
+  const m = `$${Number(monto || 0).toLocaleString('es-AR')}`;
+  return r.pendiente && r.disponibleDesde
+    ? `Quedaron ${m} a tu favor, PENDIENTES de liquidar: todavía no son tuyos. Pasan a tu saldo el ${new Date(r.disponibleDesde).toLocaleDateString('es-AR')}, cuando Mercado Pago libera el pago original; recién ahí los podés usar en la app o retirar.`
+    : `Se acreditaron ${m} a tu saldo.`;
 }
 
 export type ResultadoDeLiquidacion =
@@ -394,8 +438,11 @@ export async function liquidarSaldoPendiente(asientoId: string, ahora: Date = ne
     if (desde > ahora.getTime()) return { liquidado: false, motivo: 'todavia_no', userId, monto };
     if (meta.bloqueada) return { liquidado: false, motivo: 'pago_en_problemas', detalle: String(meta.bloqueada.motivo || ''), userId, monto };
 
-    if (meta.pagoId) {
-      const pago: any = await Payment.findByPk(String(meta.pagoId), { attributes: ['id', 'status', 'refundedAmount'], transaction: t });
+    // El pago del que sale la plata: el de la publicación (`pagoId`) o el del contrato (`pagoOrigenId`; no se llama `pagoId` para que no se lo confunda
+    // con la devolución de una publicación cancelada, que `publicacionDevuelta` busca por ese nombre).
+    const pagoDeOrigen = meta.pagoId || meta.pagoOrigenId;
+    if (pagoDeOrigen) {
+      const pago: any = await Payment.findByPk(String(pagoDeOrigen), { attributes: ['id', 'status', 'refundedAmount'], transaction: t });
       const motivo = !pago ? 'el pago original ya no existe' : PAGO_SIN_PLATA.includes(String(pago.status)) ? `el pago original está ${pago.status}` : Number(pago.refundedAmount) > 0 ? 'el pago original tiene un reembolso' : '';
       if (motivo) {
         await fila.update({ metadata: { ...meta, bloqueada: { motivo, el: ahora.toISOString() } } }, { transaction: t });
@@ -412,6 +459,16 @@ export async function liquidarSaldoPendiente(asientoId: string, ahora: Date = ne
     );
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
+    // Una publicación cancelada sin trabajador: su devolución sirve para volver a publicarla, pero solo desde que es saldo de verdad. Y solo si la
+    // publicación sigue sin pagarse de nuevo: si el cliente ya la pagó otra vez (es otro pago), este saldo es libre, no está vinculado a nada.
+    if (meta.vincularAlLiquidar === true && meta.jobId) {
+      const { Job } = await import('../models/sql/Job.model.js');
+      const trabajo: any = await Job.findByPk(String(meta.jobId), { attributes: ['id', 'status', 'publicationPaymentId'], transaction: t });
+      const sigueSinRepagar = !!trabajo && (!meta.pagoId || String(trabajo.publicationPaymentId || '') === String(meta.pagoId));
+      if (sigueSinRepagar && ['cancelled', 'pending_payment'].includes(String(trabajo.status))) {
+        await Job.update({ publicationCredit: monto } as never, { where: { id: String(meta.jobId) }, transaction: t });
+      }
+    }
     return { liquidado: true, monto, userId };
   }));
   if (descuadre) await avisarDescuadre((resultado as any).userId, descuadre, 'acreditar');
@@ -623,7 +680,7 @@ export async function trabajadorNoDisponible(
   opcion: 'liberar' | 'parcial' | 'saldo',
   motivo: string,
   nuevoPrecio?: number,
-): Promise<{ ok: boolean; motivo?: string; aFavor?: number; precioPublicado?: number }> {
+): Promise<{ ok: boolean; motivo?: string; aFavor?: number; precioPublicado?: number; pendienteHasta?: string | null }> {
   const { sequelize } = await import('../config/database.js');
   const { Contract } = await import('../models/sql/Contract.model.js');
   const { Proposal } = await import('../models/sql/Proposal.model.js');
@@ -706,6 +763,8 @@ export async function trabajadorNoDisponible(
     await job.save({ transaction: t });
   });
 
+  let pendienteHasta: string | null = null;
+  let resultadoDeLaDevolucion: ResultadoDeLaDevolucion = { pendiente: false };
   if (aFavor > 0) {
     // Lo que vuelve es el precio (o la diferencia), sin retencion al retirar:
     // la comision ya se retuvo en el acto porque hubo un trabajador
@@ -716,7 +775,9 @@ export async function trabajadorNoDisponible(
     // bloqueo de fila. Si fallara acá, el contrato ya quedo cancelado y el
     // saldo no se acredito: por eso se avisa a administracion y no se traga.
     try {
-      await acreditarSaldo(
+      // Si el pago del contrato todavía está en Mercado Pago, lo que vuelve queda a favor PENDIENTE: pasa al saldo cuando lo libere.
+      const liberacion = await (await import('./liberacionDeSaldo.js')).liberacionDelPagoDelContrato(String(contract.id));
+      const devolucion = await acreditarDevolucion(
         String(contract.clientId),
         aFavor,
         opcion === 'parcial'
@@ -730,11 +791,14 @@ export async function trabajadorNoDisponible(
             jobId: job.id,
             motivo: 'trabajador_no_disponible',
             alRetirar: { comision: 0 },
-            // Se suma ya, pero se retira recién cuando Mercado Pago libera el pago del contrato.
-            disponibleDesde: await (await import('./liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
+            // Hasta cuándo espera a Mercado Pago (si esa fecha todavía no pasó, es a favor pendiente y no saldo).
+            disponibleDesde: liberacion.disponibleDesde,
+            pagoOrigenId: liberacion.pagoId,
           },
         },
       );
+      resultadoDeLaDevolucion = devolucion;
+      if (devolucion.pendiente) pendienteHasta = devolucion.disponibleDesde ?? null;
     } catch (e: any) {
       return { ok: false, motivo: `contrato cancelado pero el saldo no se acredito: ${e.message}` };
     }
@@ -742,8 +806,10 @@ export async function trabajadorNoDisponible(
 
   const mensajePorOpcion = {
     liberar: `"${job.title}" volvió a estar publicado con el precio que ya abonaste. Otro trabajador puede tomarlo por ese mismo monto sin que pagues nada más.`,
-    parcial: `"${job.title}" volvió a estar publicado a $${precioNuevo.toLocaleString('es-AR')} y se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo.`,
-    saldo: `Se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo. Podés usarlos en la app o pedir su transferencia al banco; ninguna de las dos tiene costo.`,
+    parcial: `"${job.title}" volvió a estar publicado a $${precioNuevo.toLocaleString('es-AR')}. ${fraseDelAFavor(aFavor, resultadoDeLaDevolucion)}`,
+    saldo: pendienteHasta
+      ? fraseDelAFavor(aFavor, resultadoDeLaDevolucion)
+      : `Se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo. Podés usarlos en la app o pedir su transferencia al banco; ninguna de las dos tiene costo.`,
   };
 
   await Notification.create({
@@ -768,7 +834,7 @@ export async function trabajadorNoDisponible(
     console.error('No se pudo aplicar la escalera de cancelaciones:', e.message);
   }
 
-  return { ok: true, aFavor, precioPublicado: opcion === 'saldo' ? 0 : precioNuevo };
+  return { ok: true, aFavor, precioPublicado: opcion === 'saldo' ? 0 : precioNuevo, pendienteHasta };
 }
 
 /**

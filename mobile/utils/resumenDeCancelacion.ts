@@ -10,6 +10,8 @@ export interface RespuestaDeCancelacion {
   /** false = el dinero quedó para revisión y todavía NO está en la cuenta. */
   plataMovida?: boolean;
   devueltoPorMp?: number;
+  /** Si lo que le toca al cliente quedó a favor PENDIENTE (el pago original sigue en Mercado Pago): la fecha en que pasa a su saldo. */
+  pendienteHasta?: string | null;
   refund?: {
     toClient: number;
     toWorker: number;
@@ -33,24 +35,29 @@ export function resumenDeCancelacion(tituloDelTrabajo: string, r: RespuestaDeCan
   const refund = r.refund;
   const enRevision = r.plataMovida === false && (refund?.toClient ?? 0) > 0;
   const porMp = r.salida === 'devolucion' && !enRevision;
+  // A favor pero todavía no es saldo: no se puede usar ni retirar hasta que Mercado Pago libere el pago original.
+  const pendienteHasta = !enRevision && !porMp ? r.pendienteHasta ?? null : null;
+  const fecha = pendienteHasta ? new Date(pendienteHasta).toLocaleDateString('es-AR') : '';
   const avisos = r.avisos ?? [];
   const paraRevisar = enRevision || avisos.some((a) => a.gravedad !== 'baja');
 
   const estado = enRevision
     ? '⏳ Tu dinero está en revisión. Cancelamos la publicación, pero todavía no pudimos acreditarlo. Administración ya fue avisada y te avisamos apenas esté.'
-    : porMp
-      ? '↩️ Devolución en camino a tu medio de pago. Según el banco puede tardar unos días en verse.'
-      : '✅ Saldo a favor acreditado. Lo usás para volver a publicar sin pagar de nuevo, o lo retirás a tu banco.';
+    : pendienteHasta
+      ? `⏳ Saldo a favor pendiente. Tu dinero está a tu favor, pero todavía no es saldo: el pago original sigue en Mercado Pago. Pasa a tu saldo el ${fecha}; recién ahí lo podés usar para volver a publicar sin pagar de nuevo o retirarlo a tu banco.`
+      : porMp
+        ? '↩️ Devolución en camino a tu medio de pago. Según el banco puede tardar unos días en verse.'
+        : '✅ Saldo a favor acreditado. Lo usás para volver a publicar sin pagar de nuevo, o lo retirás a tu banco.';
 
   const filas: string[] = [];
   if (refund && !enRevision) {
     if (porMp) filas.push(`• Devuelto a tu medio de pago: ${pesos(r.devueltoPorMp ?? 0)}`);
-    else if (refund.toClient > 0) filas.push(`• Saldo a favor: ${pesos(refund.toClient)}`);
+    else if (refund.toClient > 0) filas.push(pendienteHasta ? `• A favor pendiente: ${pesos(refund.toClient)} (pasa a tu saldo el ${fecha})` : `• Saldo a favor: ${pesos(refund.toClient)}`);
     if (refund.toWorker > 0) filas.push(`• Para el trabajador (cancelación tardía): ${pesos(refund.toWorker)}`);
     if (refund.commissionWithheld > 0) filas.push(`• Comisión que no se devuelve: ${pesos(refund.commissionWithheld)}`);
     if (refund.processingNotRefunded > 0) filas.push(`• Costo de procesamiento (no se devuelve, la pasarela ya lo cobró): ${pesos(refund.processingNotRefunded)}`);
     const retencion = refund.onWithdrawal?.comision ?? 0;
-    if (!porMp && retencion > 0) {
+    if (!porMp && !pendienteHasta && retencion > 0) {
       filas.push(`• Si lo retirás a tu banco recibís: ${pesos(Math.max(0, refund.toClient - retencion))} (se descuentan ${pesos(retencion)} de comisión por la revisión ya hecha)`);
     }
   }

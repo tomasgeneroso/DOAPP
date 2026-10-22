@@ -33,8 +33,10 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
     const retirable = await saldoRetirable(String(req.user.id), Number(user.balanceArs) || 0);
     // Lo que sobró de un presupuesto es a favor del cliente, pero PENDIENTE: no está en su saldo hasta que Mercado Pago libera el pago original.
-    const { saldoPendienteDeLiquidar } = await import('../services/liberacionDeSaldo.js');
+    const { saldoPendienteDeLiquidar, aFavorPendienteDetalle } = await import('../services/liberacionDeSaldo.js');
     const pendiente = await saldoPendienteDeLiquidar(String(req.user.id));
+    // Cada cosa que tiene a favor pendiente, con su motivo (sobrante de un presupuesto, cancelación, baja de precio) y la fecha en que pasa a su saldo.
+    const detalleDelAFavor = pendiente.monto > 0 ? await aFavorPendienteDetalle(String(req.user.id)) : [];
     res.status(200).json({
       success: true,
       balance: user.balanceArs || 0,
@@ -43,6 +45,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       proximaLiberacion: retirable.proximaLiberacion,
       aFavorPendiente: pendiente.monto,
       proximaLiquidacion: pendiente.proximaLiquidacion,
+      aFavorPendienteDetalle: detalleDelAFavor,
       ...(await (async () => {
         const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
         const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);
@@ -130,12 +133,12 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Calculate totals by type using raw SQL aggregation
+    // Calculate totals by type using raw SQL aggregation. Solo lo que ya se movió: un asiento pendiente (a favor pendiente de liquidar) todavía no es saldo.
     const { QueryTypes } = await import('sequelize');
     const stats = await (sequelize as any).query(
       `SELECT type, SUM(amount) as total, COUNT(*) as count
        FROM "balance_transactions"
-       WHERE "user_id" = :userId
+       WHERE "user_id" = :userId AND "status" = 'completed'
        GROUP BY type`,
       {
         replacements: { userId },

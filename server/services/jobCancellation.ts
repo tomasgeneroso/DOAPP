@@ -7,7 +7,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { liquidarCancelacion, type LiquidacionCancelacion } from '../../shared/pricing/processingCost.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
-import { acreditarSaldo } from './quotePayment.js';
+import { acreditarSaldo, acreditarDevolucion } from './quotePayment.js';
 import { vincularCredito, pagadaConSaldoSegunElLibro } from './creditoDePublicacion.js';
 import { componentesDelPago } from './payoutAmount.js';
 import { disponibleDesdeDeUnaDevolucion } from './liberacionDeSaldo.js';
@@ -84,6 +84,11 @@ export interface ResultadoCancelacionPublicacion {
   controles: Control[];
   /** Si de verdad se movió plata al cliente (saldo o devolución). false = quedó para revisión y NO hay que decirle que ya tiene su dinero. */
   plataMovida: boolean;
+  /**
+   * Si lo que le toca al cliente quedó a favor PENDIENTE (el pago original sigue en Mercado Pago): la fecha en que pasa a su saldo. null = ya es saldo (o salió
+   * por Mercado Pago, o no se movió plata). Mientras sea pendiente no lo puede usar ni retirar.
+   */
+  pendienteHasta: string | null;
 }
 
 const $ = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
@@ -220,6 +225,7 @@ export async function liquidarCancelacionDePublicacion(
 
   let devueltoPorMp = 0;
   let acreditado = false;
+  let pendienteHasta: string | null = null;
 
   if (moverPlata && salida === 'devolucion') {
     try {
@@ -277,10 +283,11 @@ export async function liquidarCancelacionDePublicacion(
       const client = await User.findByPk(job.clientId, { attributes: ['id'] });
       if (!client) throw new Error('el cliente del trabajo no existe');
 
-      await acreditarSaldo(String(job.clientId), liq.aCliente, `Saldo a favor por cancelación de "${job.title}"`, {
+      // Si el pago original todavía está en Mercado Pago, la plata no está en la cuenta de DOAPP: queda a favor PENDIENTE (el cliente la ve, no la puede
+      // usar ni retirar) y pasa a su saldo cuando Mercado Pago la libera (ver acreditarDevolucion).
+      const devolucion = await acreditarDevolucion(String(job.clientId), liq.aCliente, `Saldo a favor por cancelación de "${job.title}"`, {
         relatedModel: 'Job',
         relatedId: job.id,
-        tipo: 'refund',
         metadata: {
           reason: `job_cancelled_${liq.regla}`,
           origen: 'cancelacion',
@@ -295,21 +302,25 @@ export async function liquidarCancelacionDePublicacion(
           actor: opts.actor,
           // Que se comprobo del pago antes de acreditar: quien lo confirmo, monto y fecha. Es lo que se mira si despues hay un reclamo.
           comprobaciones: control.controles.map(({ id, ok, esperado, encontrado }) => ({ id, ok, esperado, encontrado })),
-          // Se suma ya, pero se retira recién cuando Mercado Pago libera el pago original (si esa fecha todavía no pasó).
+          // Hasta cuándo espera a Mercado Pago (si esa fecha todavía no pasó, es a favor pendiente y no saldo).
           disponibleDesde: disponibleDesdeDeUnaDevolucion(pagoReal as any),
           pagoId: (pagoReal as any)?.id ?? null,
+          // Sin trabajador, esta devolución sirve para volver a publicar: se vincula a la publicación cuando pasa a ser saldo.
+          ...(!hasWorker ? { vincularAlLiquidar: true } : {}),
         },
       });
       acreditado = true;
-      // Sin trabajador, ese saldo es de ESTA publicación: sirve para volver a publicarla (reprogramar) y, si se retira, ya no.
-      if (!hasWorker) await vincularCredito(String(job.id), liq.aCliente).catch(() => {});
+      pendienteHasta = devolucion.pendiente ? devolucion.disponibleDesde ?? null : null;
+      // Sin trabajador, ese saldo es de ESTA publicación: sirve para volver a publicarla (reprogramar) y, si se retira, ya no. Si todavía es pendiente,
+      // se vincula recién cuando se liquida (liquidarSaldoPendiente): hasta entonces no hay saldo que vincular.
+      if (!hasWorker && !devolucion.pendiente) await vincularCredito(String(job.id), liq.aCliente).catch(() => {});
 
       await Notification.create({
         recipientId: job.clientId,
-        type: 'success',
+        type: pendienteHasta ? 'info' : 'success',
         category: 'payment',
-        title: 'Saldo a favor acreditado',
-        message: mensajeDeCancelacion(liq, job.title),
+        title: pendienteHasta ? 'Saldo a favor pendiente' : 'Saldo a favor acreditado',
+        message: mensajeDeCancelacion(liq, job.title, pendienteHasta),
         relatedModel: 'Job',
         relatedId: job.id,
         read: false,
@@ -413,7 +424,7 @@ export async function liquidarCancelacionDePublicacion(
     actor: `${opts.actor.tipo === 'admin' ? 'admin' : 'user'}:${opts.actor.id}`,
   });
 
-  return { liq, trabajadores: selectedWorkers, porTrabajador, salida, devueltoPorMp, errores, problemas, controles, plataMovida: devueltoPorMp > 0 || acreditado };
+  return { liq, trabajadores: selectedWorkers, porTrabajador, salida, devueltoPorMp, errores, problemas, controles, plataMovida: devueltoPorMp > 0 || acreditado, pendienteHasta };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -421,9 +432,16 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 /**
  * El mensaje para el cliente, con el desglose y sin eufemismos. Dice las dos
  * cosas que importan: cuanto tiene ahora como saldo (y que usarlo no cuesta),
- * y cuanto le quedaria si lo retira a efectivo.
+ * y cuanto le quedaria si lo retira a efectivo. Si el pago original sigue en
+ * Mercado Pago (`pendienteHasta`), lo que le toca es a favor PENDIENTE: todavia
+ * no es suyo, y el mensaje lo dice con la fecha.
  */
-export function mensajeDeCancelacion(liq: LiquidacionCancelacion, titulo?: string): string {
+export function mensajeDeCancelacion(liq: LiquidacionCancelacion, titulo?: string, pendienteHasta?: string | null): string {
+  const hasta = pendienteHasta ? new Date(pendienteHasta).toLocaleDateString('es-AR') : null;
+  const aFavor = (detalle: string, conVolver: boolean) =>
+    hasta
+      ? `Te quedan ${$(liq.aCliente)} a favor ${detalle}, pendientes de liquidar: pasan a tu saldo el ${hasta}, cuando Mercado Pago libera el pago original (hasta entonces no los podés usar ni retirar).${conVolver ? ' Cuando estén en tu saldo podés volver a publicar sin pagar de nuevo.' : ''}`
+      : `Tenés ${$(liq.aCliente)} de saldo a favor ${detalle}${conVolver ? ': podés volver a publicar sin pagar de nuevo.' : '.'}`;
   const h = POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
   const que = titulo ? `"${titulo}"` : 'la publicación';
   const retencion = liq.alRetirar.comision;
@@ -435,10 +453,10 @@ export function mensajeDeCancelacion(liq: LiquidacionCancelacion, titulo?: strin
     ? ` El costo de procesamiento del pago (${$(liq.procesamientoNoVuelve)}) no se devuelve: la pasarela ya lo cobró.`
     : '';
   const m: Record<LiquidacionCancelacion['regla'], string> = {
-    antes_de_aprobar: `Se canceló ${que} antes de aprobarse. Tenés ${$(liq.aCliente)} de saldo a favor (precio y comisión): podés volver a publicar sin pagar de nuevo.${retiro}${proc}`,
-    sin_trabajador: `Se canceló ${que} sin trabajador seleccionado. Tenés ${$(liq.aCliente)} de saldo a favor (precio y comisión): podés volver a publicar sin pagar de nuevo.${retiro}${proc}`,
-    con_tiempo: `Se canceló ${que}. Tenés ${$(liq.aCliente)} de saldo a favor (el precio del trabajo; la comisión de publicación no se devuelve porque ya había un trabajador seleccionado).${retiro}${proc}`,
-    tardia_con_trabajador: `Se canceló ${que} con menos de ${h} horas. La mitad del precio es para el trabajador que reservó el día (${$(liq.aTrabajador)}); la otra mitad, ${$(liq.aCliente)}, es tu saldo a favor. La comisión de publicación no se devuelve.${retiro}${proc}`,
+    antes_de_aprobar: `Se canceló ${que} antes de aprobarse. ${aFavor('(precio y comisión)', true)}${retiro}${proc}`,
+    sin_trabajador: `Se canceló ${que} sin trabajador seleccionado. ${aFavor('(precio y comisión)', true)}${retiro}${proc}`,
+    con_tiempo: `Se canceló ${que}. ${aFavor('(el precio del trabajo; la comisión de publicación no se devuelve porque ya había un trabajador seleccionado)', false)}${retiro}${proc}`,
+    tardia_con_trabajador: `Se canceló ${que} con menos de ${h} horas. La mitad del precio es para el trabajador que reservó el día (${$(liq.aTrabajador)}); la otra mitad, ${$(liq.aCliente)}, ${hasta ? `queda a tu favor, pendiente de liquidar: pasa a tu saldo el ${hasta}, cuando Mercado Pago libera el pago original` : 'es tu saldo a favor'}. La comisión de publicación no se devuelve.${retiro}${proc}`,
   };
   return m[liq.regla];
 }

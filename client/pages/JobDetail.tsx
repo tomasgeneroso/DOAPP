@@ -1004,12 +1004,13 @@ export default function JobDetail() {
          * en `problemas`: se muestra y NO se navega, porque irse al dashboard
          * dejaría al cliente esperando un dinero que nadie le va a mandar solo.
          */
-        if ((Array.isArray(data.avisos) && data.avisos.length > 0) || data.plataMovida === false) {
+        if ((Array.isArray(data.avisos) && data.avisos.length > 0) || data.plataMovida === false || data.pendienteHasta) {
           setResultadoCancelacion({
             titulo: job.title,
             salida: data.salida,
             plataMovida: data.plataMovida,
             devueltoPorMp: data.devueltoPorMp,
+            pendienteHasta: data.pendienteHasta,
             refund: data.refund,
             avisos: Array.isArray(data.avisos) ? data.avisos : [],
           });

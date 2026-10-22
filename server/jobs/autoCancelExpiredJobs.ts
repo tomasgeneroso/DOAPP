@@ -35,8 +35,9 @@ async function processExpiredJob(job: Job, sendEmail: boolean = true): Promise<b
     // escrow para siempre: sin trabajador, sin reembolso y sin forma de
     // reprogramar. Se liquida con la misma regla que cualquier cancelacion
     // aprobada sin trabajador (T&C 9.2): el precio vuelve como saldo a favor
-    // menos la pasarela; la comision de publicacion queda. Con el saldo puede
-    // volver a publicar sin pagar de nuevo.
+    // menos la pasarela; la comision de publicacion queda. Si Mercado Pago todavia
+    // no libero el pago original queda «a favor pendiente» y pasa a saldo cuando lo
+    // libere; con ese saldo puede volver a publicar sin pagar de nuevo.
     //
     // Una publicación se devuelve UNA vez. Reprogramar un trabajo sin postulantes lo vuelve a publicar con el mismo pago, y si vence otra vez
     // sin nadie (reprogramar otra vez es válido) no se acredita de nuevo lo que ya volvió al saldo.

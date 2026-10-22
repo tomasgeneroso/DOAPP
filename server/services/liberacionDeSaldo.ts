@@ -1,5 +1,8 @@
 import { QueryTypes } from 'sequelize';
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.js';
+import type { AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente.js';
+
+export type { AFavorPendienteItem };
 
 /**
  * CUÁNDO el saldo de un usuario se puede retirar.
@@ -14,6 +17,10 @@ import { PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.
  *
  * Cada crédito lleva su fecha en `metadata.disponibleDesde` (ISO). Retirar toma solo lo que ya está disponible. Usar el saldo dentro de la app
  * (pagar una publicación) no espera: no sale plata de la plataforma.
+ *
+ * Las devoluciones al CLIENTE son la excepción: si el pago original TODAVÍA está en Mercado Pago no hay plata en la cuenta de la plataforma que
+ * respalde ese saldo, así que no se suma. Queda «a favor pendiente» (un asiento `pending`, ver `acreditarDevolucion`) y pasa a saldo cuando
+ * Mercado Pago libera el pago (`liquidarSaldoPendiente`). Regla del dueño: si el dinero no está en la cuenta de DOAPP, el cliente tampoco lo usa.
  */
 
 export interface ContratoParaLiberar {
@@ -27,7 +34,12 @@ export interface PagoParaLiberar {
   paidAt?: Date | string | null;
   createdAt?: Date | string | null;
   moneyReleaseDate?: Date | string | null;
+  /** Cómo se pagó. Una transferencia confirmada a mano o un pago con saldo no pasan por Mercado Pago: no hay nada que esperar. */
+  paymentMethod?: string | null;
 }
+
+/** Medios de pago cuya plata ya está en la cuenta de la plataforma (o nunca salió de ella) en cuanto se confirman. */
+const SIN_ESPERA_DE_MP = ['bank_transfer', 'balance'];
 
 /** Lo que tarda Mercado Pago en liberar un pago cuando no informó la fecha. `PAYMENT_RELEASE_DAYS` lo cambia; `0` apaga la espera. */
 export const DIAS_DE_LIBERACION_MP_POR_DEFECTO = 10;
@@ -64,6 +76,8 @@ const hasta = (v: Date | string | null | undefined): number => {
  */
 export function liberaMpEl(pago: PagoParaLiberar | null | undefined): Date | null {
   if (!pago) return null;
+  // Una transferencia que un administrador confirmó (la plata ya está en el banco) o una publicación pagada con saldo no esperan a Mercado Pago.
+  if (pago.paymentMethod && SIN_ESPERA_DE_MP.includes(String(pago.paymentMethod))) return null;
   const real = hasta(pago.moneyReleaseDate);
   if (real > 0) return new Date(real);
   const dias = diasDeLiberacionMp();
@@ -173,25 +187,80 @@ export async function saldoPendienteDeLiquidar(userId: string): Promise<SaldoPen
   return { monto, proximaLiquidacion: monto > 0 && filas[0]?.proxima ? new Date(filas[0].proxima) : null };
 }
 
-/** `disponibleDesde` de una devolución que viene del pago de publicación de un trabajo (baja de precio, cancelación). */
-export async function disponibleDesdeDeLaPublicacion(job: { publicationPaymentId?: string | null }): Promise<string | undefined> {
-  if (!job?.publicationPaymentId) return undefined;
+const motivoDelAFavor = (m: Record<string, any> | null | undefined): AFavorPendienteItem['motivo'] => {
+  if (m?.origen === 'equipo_parcial' || (m?.origen === 'cotizacion_menor' && !m?.reason)) return 'sobrante_de_presupuesto';
+  if (m?.origen === 'cancelacion') return 'cancelacion';
+  if (String(m?.reason || '').startsWith('price_decrease') || m?.previousPrice !== undefined || m?.oldPrice !== undefined) return 'baja_de_precio';
+  return 'otro';
+};
+
+/** Cada cosa que el cliente tiene a favor PENDIENTE, con su motivo y la fecha en que pasa a su saldo (la más próxima primero). */
+export async function aFavorPendienteDetalle(userId: string): Promise<AFavorPendienteItem[]> {
+  const { sequelize } = await import('../config/database.js');
+  const filas = (await sequelize.query(
+    `SELECT id, amount, description, metadata FROM balance_transactions
+      WHERE user_id = :userId AND status = 'pending' AND amount > 0 AND metadata->>'pendienteDeLiquidacion' = 'true'
+      ORDER BY (metadata->>'disponibleDesde')::timestamptz ASC NULLS LAST LIMIT 50`,
+    { replacements: { userId }, type: QueryTypes.SELECT },
+  )) as Array<{ id: string; amount: string | number; description: string; metadata: Record<string, any> | null }>;
+  return filas.map((f) => ({
+    id: String(f.id),
+    monto: r2(Number(f.amount) || 0),
+    motivo: motivoDelAFavor(f.metadata),
+    descripcion: String(f.description || ''),
+    disponibleDesde: f.metadata?.disponibleDesde ? String(f.metadata.disponibleDesde) : null,
+  }));
+}
+
+/** Cuándo libera Mercado Pago el pago de donde sale una devolución, y cuál es ese pago (la devolución lo anota para poder comprobarlo al liquidarla). */
+export interface LiberacionDeUnPago {
+  /** undefined = ya está liberado (o no se sabe): no hay nada que esperar. */
+  disponibleDesde?: string;
+  pagoId?: string;
+}
+
+const ATRIBUTOS_DE_LIBERACION = ['id', 'approvedAt', 'paidAt', 'createdAt', 'moneyReleaseDate', 'paymentMethod'];
+
+/** Liberación del pago de publicación de un trabajo (baja de precio, cancelación). */
+export async function liberacionDeLaPublicacion(job: { publicationPaymentId?: string | null }): Promise<LiberacionDeUnPago> {
+  if (!job?.publicationPaymentId) return {};
   try {
     const { Payment } = await import('../models/sql/Payment.model.js');
-    const pago = await Payment.findByPk(job.publicationPaymentId, { attributes: ['approvedAt', 'paidAt', 'createdAt', 'moneyReleaseDate'] });
-    return disponibleDesdeDeUnaDevolucion(pago as any);
+    const pago = await Payment.findByPk(job.publicationPaymentId, { attributes: ATRIBUTOS_DE_LIBERACION });
+    return { disponibleDesde: disponibleDesdeDeUnaDevolucion(pago as any), pagoId: pago ? String((pago as any).id) : undefined };
   } catch {
-    return undefined; // sin el dato no se inventa una espera
+    return {}; // sin el dato no se inventa una espera
+  }
+}
+
+/** `disponibleDesde` de una devolución que viene del pago de publicación de un trabajo (baja de precio, cancelación). */
+export async function disponibleDesdeDeLaPublicacion(job: { publicationPaymentId?: string | null }): Promise<string | undefined> {
+  return (await liberacionDeLaPublicacion(job)).disponibleDesde;
+}
+
+/**
+ * Liberación del pago de un contrato (baja del precio de un contrato, cancelación aprobada, trabajador que no puede). Si el contrato no tiene un pago
+ * propio —los trabajos de varios lugares y las cotizaciones se pagan con el pago de la publicación— se usa el de la publicación del trabajo: sin esto
+ * esas devoluciones se tomaban por ya liberadas y entraban al saldo con la plata todavía en Mercado Pago.
+ */
+export async function liberacionDelPagoDelContrato(contractId: string): Promise<LiberacionDeUnPago> {
+  try {
+    const { Payment } = await import('../models/sql/Payment.model.js');
+    let pago: any = await Payment.findOne({ where: { contractId }, attributes: ATRIBUTOS_DE_LIBERACION, order: [['createdAt', 'ASC']] });
+    if (!pago) {
+      const { Contract } = await import('../models/sql/Contract.model.js');
+      const { Job } = await import('../models/sql/Job.model.js');
+      const contrato: any = await Contract.findByPk(contractId, { attributes: ['id', 'jobId'] });
+      const trabajo: any = contrato?.jobId ? await Job.findByPk(contrato.jobId, { attributes: ['id', 'publicationPaymentId'] }) : null;
+      if (trabajo?.publicationPaymentId) pago = await Payment.findByPk(trabajo.publicationPaymentId, { attributes: ATRIBUTOS_DE_LIBERACION });
+    }
+    return pago ? { disponibleDesde: disponibleDesdeDeUnaDevolucion(pago), pagoId: String(pago.id) } : {};
+  } catch {
+    return {};
   }
 }
 
 /** `disponibleDesde` de una devolución que viene del pago de un contrato (baja del precio de un contrato). */
 export async function disponibleDesdeDelPagoDelContrato(contractId: string): Promise<string | undefined> {
-  try {
-    const { Payment } = await import('../models/sql/Payment.model.js');
-    const pago = await Payment.findOne({ where: { contractId }, attributes: ['approvedAt', 'paidAt', 'createdAt', 'moneyReleaseDate'], order: [['createdAt', 'ASC']] });
-    return disponibleDesdeDeUnaDevolucion(pago as any);
-  } catch {
-    return undefined;
-  }
+  return (await liberacionDelPagoDelContrato(contractId)).disponibleDesde;
 }

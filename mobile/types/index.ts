@@ -355,6 +355,8 @@ export interface BalanceTransaction {
   balanceAfter: number;
   description: string;
   status: 'pending' | 'completed' | 'failed';
+  /** metadata.pendienteDeLiquidacion + status 'pending' = a favor pendiente: todavía no sumó al saldo. */
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 

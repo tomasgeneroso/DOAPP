@@ -2395,14 +2395,18 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
 
     const mensajes: Record<string, string> = {
       liberar: "El trabajo volvió a estar publicado con el precio que ya abonaste.",
-      parcial: `El trabajo volvió a estar publicado a $${(r.precioPublicado || 0).toLocaleString('es-AR')} y $${(r.aFavor || 0).toLocaleString('es-AR')} quedaron a tu favor.`,
-      saldo: `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó como saldo a favor. La comisión de publicación no se devuelve porque ya hubo un trabajador seleccionado; retirar el saldo a tu banco no tiene costo.`,
+      parcial: `El trabajo volvió a estar publicado a $${(r.precioPublicado || 0).toLocaleString('es-AR')} y $${(r.aFavor || 0).toLocaleString('es-AR')} quedaron a tu favor${r.pendienteHasta ? `, pendientes de liquidar: pasan a tu saldo el ${new Date(r.pendienteHasta).toLocaleDateString('es-AR')}, cuando Mercado Pago libera el pago` : ''}.`,
+      saldo: r.pendienteHasta
+        ? `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó a tu favor, pendiente de liquidar: pasa a tu saldo el ${new Date(r.pendienteHasta).toLocaleDateString('es-AR')}, cuando Mercado Pago libera el pago original (hasta entonces no lo podés usar ni retirar). La comisión de publicación no se devuelve porque ya hubo un trabajador seleccionado; retirar el saldo a tu banco no tiene costo.`
+        : `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó como saldo a favor. La comisión de publicación no se devuelve porque ya hubo un trabajador seleccionado; retirar el saldo a tu banco no tiene costo.`
     };
 
     res.json({
       success: true,
       message: mensajes[opcion],
       aFavor: r.aFavor,
+      // Si el pago del contrato sigue en Mercado Pago, lo que vuelve queda a favor PENDIENTE hasta esta fecha.
+      pendienteHasta: r.pendienteHasta ?? null,
       precioPublicado: r.precioPublicado,
     });
   } catch (error: any) {
@@ -3248,6 +3252,9 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
     }
 
     let transaction;
+    // Si baja el precio, la diferencia vuelve al cliente: a favor PENDIENTE si el pago sigue en Mercado Pago, saldo si ya lo liberó.
+    let fraseDeLaBaja = '';
+    let pendienteHastaDeLaBaja: string | null = null;
 
     if (priceDifference > 0) {
       // Price increased - check if user has enough balance
@@ -3287,22 +3294,25 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
     } else if (priceDifference < 0) {
       // Price decreased - refund to user balance
       const refundAmount = Math.abs(priceDifference);
-      const { acreditarSaldo } = await import('../services/quotePayment.js');
-      await acreditarSaldo(String(userId), refundAmount, 'Reembolso por reducción de precio de contrato', {
+      const { acreditarDevolucion, fraseDelAFavor } = await import('../services/quotePayment.js');
+      const liberacion = await (await import('../services/liberacionDeSaldo.js')).liberacionDelPagoDelContrato(String(contract.id));
+      const devolucion = await acreditarDevolucion(String(userId), refundAmount, 'Reembolso por reducción de precio de contrato', {
         relatedModel: 'Contract',
         relatedId: String(contract.id),
-        tipo: 'refund',
         metadata: {
           previousPrice,
           newPrice,
-          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
-          disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
+          // Hasta cuándo espera a Mercado Pago (ver services/liberacionDeSaldo.ts): si todavía no pasó, es a favor pendiente y no saldo.
+          disponibleDesde: liberacion.disponibleDesde,
+          pagoOrigenId: liberacion.pagoId,
           reason: reason || 'Reducción de precio',
           // Ya hubo trabajador seleccionado, así que la comisión se retuvo en
           // su momento: retirar este saldo no cuesta nada.
           alRetirar: { comision: 0 },
         },
       });
+      fraseDeLaBaja = fraseDelAFavor(refundAmount, devolucion);
+      pendienteHastaDeLaBaja = devolucion.pendiente ? devolucion.disponibleDesde ?? null : null;
       await client.reload();
       transaction = await BalanceTransaction.findOne({
         where: { userId, relatedContractId: contract.id },
@@ -3371,7 +3381,8 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         client.name,
         Math.abs(priceDifference),
         `Reducción de precio en contrato ${contract.id}`,
-        client.balanceArs
+        client.balanceArs,
+        pendienteHastaDeLaBaja,
       );
     }
 
@@ -3380,11 +3391,13 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
       message: priceDifference > 0
         ? 'Precio aumentado y diferencia pagada desde saldo'
         : priceDifference < 0
-          ? 'Precio reducido y diferencia reembolsada a tu saldo'
+          ? `Precio reducido. ${fraseDeLaBaja}`
           : 'Precio actualizado',
       contract,
       transaction,
-      newBalance: client.balanceArs
+      newBalance: client.balanceArs,
+      // Si la diferencia quedó a favor PENDIENTE: la fecha en que pasa a su saldo.
+      pendienteHasta: pendienteHastaDeLaBaja,
     });
   } catch (error: any) {
     console.error("Error modifying contract price:", error);
@@ -3588,6 +3601,8 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
 
       const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
       let transaction;
+      // Si baja el precio, la diferencia vuelve al cliente: a favor PENDIENTE si el pago sigue en Mercado Pago, saldo si ya lo liberó.
+      let fraseDeLaBaja = '';
 
       if (priceDifference > 0) {
         // Price increased - deduct from client balance
@@ -3616,20 +3631,22 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       } else if (priceDifference < 0) {
         // Price decreased - refund to client
         const refundAmount = Math.abs(priceDifference);
-        const { acreditarSaldo } = await import('../services/quotePayment.js');
-        await acreditarSaldo(String(client.id), refundAmount, 'Reembolso por reducción de precio de contrato', {
+        const { acreditarDevolucion, fraseDelAFavor } = await import('../services/quotePayment.js');
+        const liberacion = await (await import('../services/liberacionDeSaldo.js')).liberacionDelPagoDelContrato(String(contract.id));
+        const devolucion = await acreditarDevolucion(String(client.id), refundAmount, 'Reembolso por reducción de precio de contrato', {
           relatedModel: 'Contract',
           relatedId: String(contract.id),
-          tipo: 'refund',
           metadata: {
             previousPrice,
             newPrice,
-            // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
-            disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDelPagoDelContrato(String(contract.id)),
+            // Hasta cuándo espera a Mercado Pago (ver services/liberacionDeSaldo.ts): si todavía no pasó, es a favor pendiente y no saldo.
+            disponibleDesde: liberacion.disponibleDesde,
+            pagoOrigenId: liberacion.pagoId,
             reason: contract.pendingModification.notes,
             alRetirar: { comision: 0 },
           },
         });
+        fraseDeLaBaja = ` ${fraseDelAFavor(refundAmount, devolucion)}`;
         await client.reload();
         transaction = await BalanceTransaction.findOne({
           where: { userId: client.id, relatedContractId: contract.id },
@@ -3677,7 +3694,7 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
         type: 'success',
         category: 'contract',
         title: 'Cambio de precio aprobado',
-        message: `El trabajador ha aprobado el cambio de precio del contrato a $${newPrice.toLocaleString('es-AR')}`,
+        message: `El trabajador ha aprobado el cambio de precio del contrato a $${newPrice.toLocaleString('es-AR')}.${fraseDeLaBaja}`,
         relatedModel: 'Contract',
         relatedId: contract.id,
         actionUrl: `/contracts/${contract.id}`,

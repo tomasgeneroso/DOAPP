@@ -17,6 +17,8 @@ export interface ResultadoDeCancelacion {
   /** false = el dinero quedó para revisión y todavía NO está en la cuenta del cliente. */
   plataMovida?: boolean;
   devueltoPorMp?: number;
+  /** Si lo que le toca al cliente quedó a favor PENDIENTE (el pago original sigue en Mercado Pago): la fecha en que pasa a su saldo. */
+  pendienteHasta?: string | null;
   refund?: {
     toClient: number;
     toWorker: number;
@@ -49,6 +51,9 @@ export default function CancelacionResultadoModal({ resultado: actual, onClose }
   const { refund, avisos } = resultado;
   const enRevision = resultado.plataMovida === false && (refund?.toClient ?? 0) > 0;
   const porMp = resultado.salida === "devolucion" && !enRevision;
+  // A favor pero todavía no es saldo: no se puede usar ni retirar hasta que Mercado Pago libere el pago original.
+  const pendienteHasta = !enRevision && !porMp ? resultado.pendienteHasta ?? null : null;
+  const fechaPendiente = pendienteHasta ? new Date(pendienteHasta).toLocaleDateString("es-AR") : "";
 
   const estado = enRevision
     ? {
@@ -60,6 +65,17 @@ export default function CancelacionResultadoModal({ resultado: actual, onClose }
           "Cancelamos la publicación, pero todavía no pudimos acreditar tu dinero. Administración ya fue avisada: lo revisa y te avisamos apenas esté.",
         ),
       }
+    : pendienteHasta
+      ? {
+          icono: <Clock className="h-6 w-6 text-sky-400" aria-hidden="true" />,
+          caja: "border-sky-600/50 bg-sky-900/20",
+          titulo: t("jobs.cancelResult.pendingTitle", "Saldo a favor pendiente"),
+          texto: t(
+            "jobs.cancelResult.pendingText",
+            "Tu dinero está a tu favor, pero todavía no es saldo: el pago original sigue en Mercado Pago. Pasa a tu saldo el {{fecha}}; recién ahí lo podés usar para volver a publicar sin pagar de nuevo o retirarlo a tu banco.",
+            { fecha: fechaPendiente },
+          ),
+        }
     : porMp
       ? {
           icono: <Undo2 className="h-6 w-6 text-sky-400" aria-hidden="true" />,
@@ -80,7 +96,12 @@ export default function CancelacionResultadoModal({ resultado: actual, onClose }
     if (porMp) {
       filas.push({ etiqueta: t("jobs.cancelResult.rowRefunded", "Devuelto a tu medio de pago"), valor: pesos(resultado.devueltoPorMp ?? 0), destacada: true });
     } else if (refund.toClient > 0) {
-      filas.push({ etiqueta: t("jobs.cancelResult.rowCredit", "Saldo a favor"), valor: pesos(refund.toClient), destacada: true });
+      filas.push({
+        etiqueta: pendienteHasta ? t("jobs.cancelResult.rowPending", "A favor pendiente") : t("jobs.cancelResult.rowCredit", "Saldo a favor"),
+        valor: pesos(refund.toClient),
+        destacada: true,
+        nota: pendienteHasta ? t("jobs.cancelResult.rowPendingNote", "Pasa a tu saldo el {{fecha}}.", { fecha: fechaPendiente }) : undefined,
+      });
     }
     if (refund.toWorker > 0) {
       filas.push({
@@ -101,7 +122,7 @@ export default function CancelacionResultadoModal({ resultado: actual, onClose }
     }
   }
 
-  const alRetirar = !porMp && !enRevision && refund && retencionAlRetirar > 0 ? Math.max(0, refund.toClient - retencionAlRetirar) : null;
+  const alRetirar = !porMp && !enRevision && !pendienteHasta && refund && retencionAlRetirar > 0 ? Math.max(0, refund.toClient - retencionAlRetirar) : null;
 
   return (
     <Modal

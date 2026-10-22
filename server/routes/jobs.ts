@@ -1320,6 +1320,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     // Editar una publicación pausada la marca como editada: al volver a publicarla pasa por revisión.
     const editadaMientrasPausada = job.status === 'paused';
     const hayQuePagarDeNuevo = job.status === 'cancelled' && !job.permanentlyCancelled && (await publicacionDevuelta(job as any));
+    // Si el cliente baja el presupuesto de un trabajo ya pagado: lo que le queda a favor y cómo decírselo (pendiente mientras el pago siga en Mercado Pago).
+    let aFavorDeLaBaja: { monto: number; pendiente: boolean; disponibleDesde?: string; frase: string } | null = null;
 
     // Prepare update data.
     //
@@ -1766,14 +1768,16 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
           // Saldo a favor, acreditado de verdad y con asiento. Antes creaba un
           // asiento 'pending' sin tocar el saldo: el cliente veia una
           // devolucion que nunca llegaba y el libro no cerraba con el saldo.
-          const { acreditarSaldo } = await import('../services/quotePayment.js');
-          await acreditarSaldo(String(req.user.id), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
+          const { acreditarDevolucion, fraseDelAFavor } = await import('../services/quotePayment.js');
+          // Si el pago de la publicación sigue en Mercado Pago, la baja queda a favor PENDIENTE: no es saldo hasta que lo libere.
+          const baja = await acreditarDevolucion(String(req.user.id), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
             relatedModel: 'Job',
             relatedId: job.id,
             metadata: {
               origen: 'cotizacion_menor',
               reason: 'price_decrease',
-              // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+              pagoId: job.publicationPaymentId ? String(job.publicationPaymentId) : undefined,
+              // Hasta cuándo espera a Mercado Pago (ver services/liberacionDeSaldo.ts).
               disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
               oldPrice,
               newPrice,
@@ -1781,6 +1785,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
               alRetirar: { comision: 0 },
             },
           });
+          aFavorDeLaBaja = { monto: refundAmount, pendiente: baja.pendiente, disponibleDesde: baja.disponibleDesde, frase: fraseDelAFavor(refundAmount, baja) };
 
           // Crear notificación al usuario
           const { Notification } = await import('../models/sql/Notification.model.js');
@@ -1788,8 +1793,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
             recipientId: req.user.id,
             type: 'info',
             category: 'payment',
-            title: 'Saldo a favor generado',
-            message: `Se ha generado un saldo a favor de $${refundAmount.toLocaleString('es-AR')} por la reducción del presupuesto de tu trabajo "${job.title}".`,
+            title: baja.pendiente ? 'Saldo a favor pendiente' : 'Saldo a favor generado',
+            message: `${aFavorDeLaBaja.frase} Es por la reducción del presupuesto de tu trabajo "${job.title}".`,
             relatedModel: 'Job',
             relatedId: job.id,
             data: { refundAmount, oldPrice, newPrice },
@@ -1844,14 +1849,18 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     res.json({
       success: true,
       job: updatedJob?.toJSON(),
-      message: hayQuePagarDeNuevo
+      message: (hayQuePagarDeNuevo
         ? "Trabajo reprogramado. Falta pagar la publicación para volver a publicarla."
         : requiresReapproval
           ? "Trabajo actualizado y enviado para aprobación"
-          : "Trabajo actualizado exitosamente",
+          : "Trabajo actualizado exitosamente") + (aFavorDeLaBaja ? ` ${aFavorDeLaBaja.frase}` : ''),
       requiresApproval: requiresReapproval && !hayQuePagarDeNuevo,
       requiresPayment: hayQuePagarDeNuevo,
       redirectTo: hayQuePagarDeNuevo ? `/jobs/${job.id}/payment` : undefined,
+      // Lo que quedó a favor por bajar el presupuesto: saldo en el momento, o pendiente hasta que Mercado Pago libere el pago original.
+      saldoAFavor: aFavorDeLaBaja && !aFavorDeLaBaja.pendiente ? aFavorDeLaBaja.monto : 0,
+      saldoAFavorPendiente: aFavorDeLaBaja?.pendiente ? aFavorDeLaBaja.monto : 0,
+      saldoAFavorDesde: aFavorDeLaBaja?.pendiente ? aFavorDeLaBaja.disponibleDesde : undefined,
     });
   } catch (error: any) {
     console.error('❌ Error updating job:', error.message);
@@ -2258,14 +2267,16 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
 
       // Acreditar con asiento en el libro. Antes se tocaba balanceArs a secas:
       // el saldo subia y ninguna transaccion lo explicaba.
-      const { acreditarSaldo } = await import('../services/quotePayment.js');
-      await acreditarSaldo(String(client.id), refundAmount, `Saldo a favor por bajar el precio de "${job.title}"`, {
+      const { acreditarDevolucion, fraseDelAFavor } = await import('../services/quotePayment.js');
+      // Si el pago de la publicación sigue en Mercado Pago, la baja queda a favor PENDIENTE: no es saldo hasta que lo libere.
+      const baja = await acreditarDevolucion(String(client.id), refundAmount, `Saldo a favor por bajar el precio de "${job.title}"`, {
         relatedModel: 'Job',
         relatedId: job.id,
         metadata: {
           origen: 'cotizacion_menor',
           reason: 'price_decrease',
-          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
+          pagoId: job.publicationPaymentId ? String(job.publicationPaymentId) : undefined,
+          // Hasta cuándo espera a Mercado Pago (ver services/liberacionDeSaldo.ts).
           disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
           oldPrice: currentPrice,
           newPrice,
@@ -2297,7 +2308,7 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
 
       res.json({
         success: true,
-        message: `Presupuesto reducido. Se acreditaron $${refundAmount.toLocaleString('es-AR')} ARS a tu balance.`,
+        message: `Presupuesto reducido. ${fraseDelAFavor(refundAmount, baja)}`,
         job: {
           id: job.id,
           title: job.title,
@@ -2308,7 +2319,10 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
         },
         balanceUpdate: {
           refundedAmount: refundAmount,
-          newBalance: userBalance + refundAmount,
+          // Si quedó pendiente el saldo no cambia: lo que se suma es a favor pendiente de liquidar.
+          newBalance: baja.pendiente ? userBalance : userBalance + refundAmount,
+          pendiente: baja.pendiente,
+          disponibleDesde: baja.pendiente ? baja.disponibleDesde : undefined,
         },
       });
       return;
@@ -2917,8 +2931,11 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
           ? `Se canceló "${job.title}". Todavía no pudimos acreditar tu dinero: administración lo está revisando y te avisamos apenas esté.`
           : r.salida === 'devolucion'
             ? `Se canceló "${job.title}" y se devolvieron $${r.devueltoPorMp.toLocaleString('es-AR')} al medio con que pagaste. Según el banco puede tardar unos días.`
-            : mensajeDeCancelacion(liq, job.title),
+            : mensajeDeCancelacion(liq, job.title, r.pendienteHasta),
       plataMovida: r.plataMovida,
+      // Si el pago original sigue en Mercado Pago, lo que le toca queda a favor PENDIENTE (no es saldo, no se usa ni se retira) hasta esta fecha.
+      pendienteHasta: r.pendienteHasta,
+      saldoAFavorPendiente: r.pendienteHasta ? liq.aCliente : 0,
       refundTotal: liq.retieneApp === 0,
       salida: r.salida,
       devueltoPorMp: r.devueltoPorMp,
@@ -3518,24 +3535,28 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
       updateData.priceChangedAt = new Date();
 
       // Si el trabajo ya fue pagado, crear saldo a favor para el cliente
+      let fraseDeLaBaja = '';
       if (job.publicationPaid) {
         const refundAmount = Math.abs(priceDifference);
         // La baja la acepta el TRABAJADOR y el saldo a favor es del CLIENTE. acreditarSaldo lo acredita de verdad (saldo + asiento en la misma
         // transacción) y, al ser otro usuario, lo hace como operación de sistema (RLS). Antes se creaba un asiento 'pending' sin saldo antes/después
         // y la ruta devolvía 500 cuando aceptaba el último trabajador: la baja quedaba sin aplicar.
-        const { acreditarSaldo } = await import('../services/quotePayment.js');
-        await acreditarSaldo(String(job.clientId), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
+        const { acreditarDevolucion, fraseDelAFavor } = await import('../services/quotePayment.js');
+        // Si el pago de la publicación sigue en Mercado Pago, la baja queda a favor PENDIENTE: no es saldo hasta que lo libere.
+        const baja = await acreditarDevolucion(String(job.clientId), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
           relatedModel: 'Job',
           relatedId: job.id,
           metadata: {
             origen: 'baja_aceptada_por_todos',
             reason: 'price_decrease_accepted',
+            pagoId: job.publicationPaymentId ? String(job.publicationPaymentId) : undefined,
             oldPrice,
             newPrice,
             alRetirar: { comision: 0 },
             disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any),
           },
         });
+        fraseDeLaBaja = ` ${fraseDelAFavor(refundAmount, baja)}`;
       }
 
       await job.update(updateData);
@@ -3547,7 +3568,7 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
         type: 'success',
         category: 'job',
         title: 'Reducción de precio aprobada',
-        message: `Todos los trabajadores han aceptado la reducción de precio de tu trabajo "${job.title}". El nuevo precio es $${newPrice.toLocaleString('es-AR')}.`,
+        message: `Todos los trabajadores han aceptado la reducción de precio de tu trabajo "${job.title}". El nuevo precio es $${newPrice.toLocaleString('es-AR')}.${fraseDeLaBaja}`,
         relatedModel: 'Job',
         relatedId: job.id,
         data: { oldPrice, newPrice },

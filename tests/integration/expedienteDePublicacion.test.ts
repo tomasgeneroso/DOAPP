@@ -144,4 +144,19 @@ describe('expediente de una publicación (admin)', () => {
     // pagada con saldo: la devolución sin pago anotado es legítima
     expect(alertasDeLaPublicacion({ ...base, pagoId: null, pago: null, pagadaConSaldo: true, devoluciones: [{ monto: 5000, pagoId: null }] })).toEqual([]);
   });
+
+  it('plata a favor del dueño pendiente de liquidar: se avisa (informativo) con el monto y la fecha, y NO cuenta como devuelta', () => {
+    const base = {
+      estado: 'cancelled', precio: 5000, figuraPagada: true, pagoId: 'p1', pagadaConSaldo: false, creditoVinculado: 0, pausadaPorAdmin: false, reprogramada: false, duenoNombre: 'Ana',
+      pago: { monto: 5000, moneda: 'ARS', estado: 'held_escrow' }, devoluciones: [] as Array<{ monto: number; pagoId: string | null }>,
+    };
+    const alertas = alertasDeLaPublicacion({ ...base, pendientes: [{ monto: 5000, disponibleDesde: '2026-11-02T12:00:00.000Z' }] });
+    expect(alertas).toHaveLength(1);
+    expect(alertas[0]).toMatchObject({ nivel: 'info', titulo: 'Hay plata a favor del dueño pendiente de liquidar' });
+    expect(alertas[0].detalle).toContain('$5.000');
+    expect(alertas[0].detalle).toMatch(/NO están en el saldo de Ana/);
+    expect(alertas[0].detalle).toContain(new Date('2026-11-02T12:00:00.000Z').toLocaleDateString('es-AR'));
+    // sin pendientes, ninguna alerta nueva
+    expect(alertasDeLaPublicacion({ ...base, pendientes: [] })).toEqual([]);
+  });
 });

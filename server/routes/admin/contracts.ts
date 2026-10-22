@@ -1287,6 +1287,8 @@ router.post(
 
       const yaLiquidado = ['refunded', 'completed', 'cancelled_settled'].includes(String(contract.paymentStatus));
       let liquidacion: { aCliente: number; aTrabajador: number; procesamientoNoVuelve: number; retieneApp: number; alRetirar: { comision: number }; regla: string } | null = null;
+      // Si lo que le toca al cliente quedó a favor PENDIENTE (el pago del contrato sigue en Mercado Pago): la fecha en que pasa a su saldo.
+      let clientePendienteHasta: string | null = null;
 
       /**
        * Si el que se bajo fue el TRABAJADOR y la publicacion puede volver a
@@ -1351,22 +1353,30 @@ router.post(
         // acreditarSaldo bloquea la fila y escribe el asiento en la misma
         // transaccion. alRetirar viaja en la metadata para que el retiro sepa
         // que descontar si saca este saldo a efectivo.
-        const { acreditarSaldo } = await import('../../services/quotePayment.js');
+        const { acreditarSaldo, acreditarDevolucion } = await import('../../services/quotePayment.js');
         // Lo que se reparte sale del pago del cliente: no se puede retirar antes de que Mercado Pago lo libere.
-        const { disponibleDesdeDelPagoDelContrato } = await import('../../services/liberacionDeSaldo.js');
-        const disponibleDesde = await disponibleDesdeDelPagoDelContrato(String(contract.id));
-        const acreditar = async (userId: string, monto: number, tipo: 'refund' | 'payment', descripcion: string) => {
-          if (monto <= 0) return;
-          await acreditarSaldo(userId, monto, descripcion, {
+        const { liberacionDelPagoDelContrato } = await import('../../services/liberacionDeSaldo.js');
+        const { disponibleDesde, pagoId: pagoOrigenId } = await liberacionDelPagoDelContrato(String(contract.id));
+        const metadataBase = { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion };
+
+        // El cliente: lo que le toca es a favor PENDIENTE mientras el pago siga en Mercado Pago (no es saldo, no se usa ni se retira); saldo si ya se liberó.
+        if (liquidacion.aCliente > 0) {
+          const devolucion = await acreditarDevolucion(String(contract.clientId), liquidacion.aCliente, `Saldo a favor por cancelación de "${job?.title || 'contrato'}"`, {
             relatedModel: 'Contract',
             relatedId: String(contract.id),
-            tipo,
-            metadata: { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion, disponibleDesde },
+            metadata: { ...metadataBase, disponibleDesde, pagoOrigenId },
           });
-        };
-
-        await acreditar(String(contract.clientId), liquidacion.aCliente, 'refund', `Saldo a favor por cancelación de "${job?.title || 'contrato'}"`);
-        await acreditar(String(contract.doerId), liquidacion.aTrabajador, 'payment', `Compensación por cancelación tardía de "${job?.title || 'contrato'}"`);
+          clientePendienteHasta = devolucion.pendiente ? devolucion.disponibleDesde ?? null : null;
+        }
+        // El trabajador cobra su compensación como siempre: se suma al saldo y se retira desde `disponibleDesde`.
+        if (liquidacion.aTrabajador > 0) {
+          await acreditarSaldo(String(contract.doerId), liquidacion.aTrabajador, `Compensación por cancelación tardía de "${job?.title || 'contrato'}"`, {
+            relatedModel: 'Contract',
+            relatedId: String(contract.id),
+            tipo: 'payment',
+            metadata: { ...metadataBase, disponibleDesde, pagoOrigenId },
+          });
+        }
 
         contract.paymentStatus = 'refunded';
         contract.escrowStatus = 'refunded';
@@ -1420,7 +1430,7 @@ router.post(
               : '')
           : suMonto > 0
             ? esCliente
-              ? ` Tenés ${$(suMonto)} de saldo a favor${liquidacion.retieneApp > 0 ? ' (la comisión de publicación no se devuelve: ya había un trabajador seleccionado)' : ' (precio y comisión)'}. Usarlo en tu próxima publicación no cuesta nada.${retencion > 0 ? ` Si lo retirás a tu cuenta se descuentan ${$(retencion)} de la comisión por la revisión ya hecha: recibirías ${$(Math.max(0, suMonto - retencion))}.` : ' Retirarlo a tu cuenta tampoco tiene costo.'}${proc}`
+              ? ` Tenés ${$(suMonto)} ${clientePendienteHasta ? `a favor, pendientes de liquidar (pasan a tu saldo el ${new Date(clientePendienteHasta).toLocaleDateString('es-AR')}, cuando Mercado Pago libera el pago; hasta entonces no los podés usar ni retirar)` : 'de saldo a favor'}${liquidacion.retieneApp > 0 ? ' (la comisión de publicación no se devuelve: ya había un trabajador seleccionado)' : ' (precio y comisión)'}. Usarlo en tu próxima publicación no cuesta nada.${retencion > 0 ? ` Si lo retirás a tu cuenta se descuentan ${$(retencion)} de la comisión por la revisión ya hecha: recibirías ${$(Math.max(0, suMonto - retencion))}.` : ' Retirarlo a tu cuenta tampoco tiene costo.'}${proc}`
               : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo. Podés pedir la transferencia desde Balance.`
             : esCliente
               ? ' No hay saldo a devolver en este caso.'

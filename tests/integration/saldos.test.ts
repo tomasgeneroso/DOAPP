@@ -76,6 +76,8 @@ describe('saldos: acreditar, debitar, liquidar y auditar', () => {
       status: 'held_escrow',
       // Un pago confirmado por Mercado Pago: sin esto la cancelación no acredita nada (PAGO-SIN-CONFIRMAR).
       mercadopagoStatus: 'approved',
+      // Mercado Pago ya liberó este pago (más de diez días): lo que vuelve es saldo en el momento. Con el pago retenido sería «a favor pendiente».
+      approvedAt: new Date(Date.now() - 12 * 86_400_000),
       paymentType: 'job_publication',
       platformFee: 3600,
       processingCharge: 1781.22,

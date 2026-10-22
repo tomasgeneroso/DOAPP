@@ -1005,7 +1005,7 @@ export default function JobDetailScreen() {
               {
                 id: 'saldo' as const,
                 titulo: 'Dejarlo como saldo a favor',
-                ayuda: 'Queda en tu cuenta de DOAPP, sin descuentos, y lo usás para volver a publicar sin pagar de nuevo.',
+                ayuda: 'Queda a tu favor en DOAPP, sin descuentos. Si Mercado Pago todavía no liberó el pago original (unos 10 días desde que pagaste), figura como «a favor pendiente»: no lo podés usar ni retirar hasta esa fecha. Después pasa a tu saldo y lo usás para volver a publicar sin pagar de nuevo.',
               },
               {
                 id: 'devolucion' as const,

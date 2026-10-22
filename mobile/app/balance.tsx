@@ -28,6 +28,7 @@ import {
   Filter,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { esAFavorPendiente, etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente';
 import { useAuth } from '../context/AuthContext';
 import { getBalance, getTransactions, requestWithdrawal, getWithdrawals } from '../services/balance';
 import { extraerFacturas, pedirDireccionDeDescarga } from '../services/facturas';
@@ -48,6 +49,7 @@ export default function BalanceScreen() {
   const [proximaLiberacion, setProximaLiberacion] = useState<string | null>(null);
   const [aFavorPendiente, setAFavorPendiente] = useState(0);
   const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
+  const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -82,6 +84,7 @@ export default function BalanceScreen() {
         setProximaLiberacion(balanceRes.data.proximaLiberacion || null);
         setAFavorPendiente(balanceRes.data.aFavorPendiente || 0);
         setProximaLiquidacion(balanceRes.data.proximaLiquidacion || null);
+        setAFavorDetalle(balanceRes.data.aFavorPendienteDetalle || []);
         setPendingBalance(balanceRes.data.pendingBalance || 0);
       }
 
@@ -294,10 +297,19 @@ export default function BalanceScreen() {
           {aFavorPendiente > 0 && (
             <View style={styles.pendingRow}>
               <Clock size={14} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.pendingText}>
-                A favor pendiente: {formatPrice(aFavorPendiente)} (todavía no es tuyo
-                {proximaLiquidacion ? `; pasa a tu saldo el ${new Date(proximaLiquidacion).toLocaleDateString('es-AR')}` : ''})
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingText}>
+                  A favor pendiente: {formatPrice(aFavorPendiente)} (todavía no es tuyo: no lo podés usar ni retirar
+                  {aFavorDetalle.length <= 1 && proximaLiquidacion ? `; pasa a tu saldo el ${fechaDeLiquidacion(proximaLiquidacion)}` : ''})
+                </Text>
+                {aFavorDetalle.length > 1 &&
+                  aFavorDetalle.map((a) => (
+                    <Text key={a.id} style={styles.pendingText}>
+                      • {etiquetaDelAFavor(a.motivo)}: {formatPrice(a.monto)}
+                      {a.disponibleDesde ? ` · pasa a tu saldo el ${fechaDeLiquidacion(a.disponibleDesde)}` : ''}
+                    </Text>
+                  ))}
+              </View>
             </View>
           )}
 
@@ -509,11 +521,18 @@ export default function BalanceScreen() {
                     <Text style={[styles.txDate, { color: themeColors.text.muted }]}>
                       {formatDate(tx.createdAt)}
                     </Text>
+                    {/* A favor pendiente: figura acá pero todavía no sumó al saldo (el pago original sigue en Mercado Pago). */}
+                    {esAFavorPendiente(tx) && (
+                      <Text style={[styles.txDate, { color: colors.primary[600] }]}>
+                        A favor pendiente
+                        {tx.metadata?.disponibleDesde ? ` · pasa a tu saldo el ${fechaDeLiquidacion(String(tx.metadata.disponibleDesde))}` : ''}
+                      </Text>
+                    )}
                   </View>
                   <Text
                     style={[
                       styles.txAmount,
-                      { color: tx.amount >= 0 ? colors.success[500] : colors.danger[500] },
+                      { color: esAFavorPendiente(tx) ? colors.primary[600] : tx.amount >= 0 ? colors.success[500] : colors.danger[500] },
                     ]}
                   >
                     {tx.amount >= 0 ? '+' : ''}
