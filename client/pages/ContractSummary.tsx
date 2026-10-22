@@ -54,7 +54,9 @@ interface Contract {
 export default function ContractSummary() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const saldoAFavor = Number((useLocation().state as { saldoAFavor?: number } | null)?.saldoAFavor) || 0;
+  const estadoDeLaNavegacion = useLocation().state as { saldoAFavor?: number; saldoAFavorDesde?: string | null } | null;
+  const saldoAFavor = Number(estadoDeLaNavegacion?.saldoAFavor) || 0;
+  const saldoAFavorDesde = estadoDeLaNavegacion?.saldoAFavorDesde || null;
   const { t } = useTranslation();
   const { user, token } = useAuth();
   const [contract, setContract] = useState<Contract | null>(null);
@@ -167,7 +169,7 @@ export default function ContractSummary() {
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <AvisoSaldoAFavor monto={saldoAFavor} className="mb-4" />
+          <AvisoSaldoAFavor monto={saldoAFavor} pendienteHasta={saldoAFavorDesde} className="mb-4" />
           {/* Header */}
           <div className="mb-6">
             <button

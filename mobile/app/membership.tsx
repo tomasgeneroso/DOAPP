@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   currentPlanLabel: { color: 'rgba(255,255,255,0.8)', fontSize: fontSize.sm },
-  currentPlanName: { color: '#fff', fontSize: fontSize.xxl || 28, fontWeight: fontWeight.bold },
+  currentPlanName: { color: '#fff', fontSize: fontSize['3xl'], fontWeight: fontWeight.bold },
   currentPlanSub: { color: 'rgba(255,255,255,0.9)', fontSize: fontSize.sm },
   sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, marginBottom: spacing.md },
   planCard: {

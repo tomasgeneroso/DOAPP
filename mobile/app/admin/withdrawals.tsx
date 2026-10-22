@@ -185,7 +185,7 @@ export default function AdminWithdrawals() {
               <View style={styles.withdrawalHeader}>
                 <View style={styles.amountContainer}>
                   <Banknote size={20} color={colors.success} />
-                  <Text style={[styles.amount, { color: colors.text }]}>
+                  <Text style={[styles.amount, { color: colors.text.primary }]}>
                     ${withdrawal.amount?.toLocaleString('es-AR')}
                   </Text>
                 </View>
@@ -225,8 +225,8 @@ export default function AdminWithdrawals() {
               </View>
 
               {withdrawal.approvedBy && (
-                <View style={[styles.adminBadge, { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={[styles.adminText, { color: colors.primary }]}>
+                <View style={[styles.adminBadge, { backgroundColor: colors.primary[600] + '20' }]}>
+                  <Text style={[styles.adminText, { color: colors.primary[600] }]}>
                     Aprobado por: {withdrawal.approvedBy.name}
                   </Text>
                 </View>

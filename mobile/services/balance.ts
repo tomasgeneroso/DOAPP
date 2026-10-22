@@ -13,6 +13,9 @@ interface BalanceData {
   disponibleParaRetirar?: number;
   enLiberacion?: number;
   proximaLiberacion?: string | null;
+  /** A favor PENDIENTE de liquidar: todavía no está en el saldo (Mercado Pago no liberó el pago original). */
+  aFavorPendiente?: number;
+  proximaLiquidacion?: string | null;
 }
 
 interface BalanceSummary {

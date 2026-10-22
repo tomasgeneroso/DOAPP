@@ -37,6 +37,8 @@ const CLASES = {
     patrones: [
       /^password$/i, /secret/i, /^.*token$/i, /verificationcode$/i,
       /^refreshtoken/i, /apikey/i, /privatekey/i, /passwordreset/i,
+      // el hash de una contraseña o de un token también es un secreto: filtrarlo permite probar contraseñas fuera de línea
+      /^passwordhash$/i, /tokenhash$/i,
     ],
     severidad: 'alta',
     regla: 'SEC-01',
@@ -180,6 +182,8 @@ function auditarRutas() {
       const src = readFileSync(ruta, 'utf8');
       const lineas = src.split('\n');
       lineas.forEach((linea, i) => {
+        // Un comentario que cita el código viejo (`{ ...req.body }`) no es el código: la regla mira solo líneas que se ejecutan.
+        if (/^\s*(\/\/|\*|\/\*)/.test(linea)) return;
         // create(req.body) / update(req.body) / { ...req.body }
         const masivo =
           /\.(create|update|bulkCreate)\(\s*req\.body\s*[,)]/.test(linea) ||

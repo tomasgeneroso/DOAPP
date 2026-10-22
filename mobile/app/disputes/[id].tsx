@@ -130,7 +130,7 @@ export default function DisputeDetailScreen() {
 
   const loadDispute = useCallback(async () => {
     try {
-      const response = await get<{ data: Dispute }>(`/disputes/${id}`);
+      const response = await get<Dispute>(`/disputes/${id}`);
       if (response.success && response.data) {
         setDispute(response.data);
         setError(null);

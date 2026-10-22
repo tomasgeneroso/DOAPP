@@ -32,6 +32,9 @@ export default function WithdrawalRequestPage() {
   const [balance, setBalance] = useState(0);
   const [enLiberacion, setEnLiberacion] = useState(0);
   const [proximaLiberacion, setProximaLiberacion] = useState<string | null>(null);
+  // A favor PENDIENTE de liquidar: todavía no está en el saldo (Mercado Pago no liberó el pago original).
+  const [aFavorPendiente, setAFavorPendiente] = useState(0);
+  const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -63,6 +66,8 @@ export default function WithdrawalRequestPage() {
         setBalance(balanceData.disponibleParaRetirar ?? balanceData.balance);
         setEnLiberacion(Number(balanceData.enLiberacion) || 0);
         setProximaLiberacion(balanceData.proximaLiberacion || null);
+        setAFavorPendiente(Number(balanceData.aFavorPendiente) || 0);
+        setProximaLiquidacion(balanceData.proximaLiquidacion || null);
       }
 
       // Load withdrawals
@@ -326,6 +331,12 @@ export default function WithdrawalRequestPage() {
               + ${enLiberacion.toLocaleString('es-AR')} ya están en tu saldo de DOAPP, pero Mercado Pago todavía no liberó ese pago
               {proximaLiberacion ? `: los vas a poder retirar desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')}` : ''}.
               {' '}No se retiran solos: cuando llegue la fecha, el retiro lo pedís vos desde esta pantalla.
+            </p>
+          )}
+          {aFavorPendiente > 0 && (
+            <p className="mt-2 text-xs text-sky-100">
+              + ${aFavorPendiente.toLocaleString('es-AR')} a favor pendientes de liquidar: todavía no son tuyos. Pasan a tu saldo
+              {proximaLiquidacion ? ` el ${new Date(proximaLiquidacion).toLocaleDateString('es-AR')}` : ''}, cuando Mercado Pago libera el pago original.
             </p>
           )}
         </div>

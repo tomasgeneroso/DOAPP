@@ -102,6 +102,8 @@ export interface User {
   balance?: number;
   isBanned?: boolean;
   banReason?: string;
+  bannedAt?: string;
+  banExpiresAt?: string;
   availabilitySchedule?: AvailabilitySchedule;
   isAvailabilityPublic?: boolean;
   // Credibility ladder / verification — served by GET /auth/me.
@@ -285,7 +287,7 @@ export interface Message {
     proposalId?: string;
     proposalStatus?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
     contractId?: string;
-    action?: 'job_application' | 'direct_contract_proposal' | 'direct_proposal_accepted' | 'direct_proposal_rejected';
+    action?: 'job_application' | 'job_attachment' | 'direct_contract_proposal' | 'direct_proposal_accepted' | 'direct_proposal_rejected';
     isCounterOffer?: boolean;
     directProposal?: {
       title: string;
@@ -376,6 +378,11 @@ export interface ApiResponse<T> {
   message?: string;
   data?: T;
   error?: string;
+  /** Código HTTP, cuando la respuesta fue un error. */
+  status?: number;
+  // El servidor devuelve el cuerpo tal cual y muchas rutas ponen los datos al costado de `success` (`{ success, contracts: [...] }`, `{ success, job }`):
+  // la app lee esos campos directamente, así que el tipo los admite.
+  [campo: string]: any;
 }
 
 export interface PaginatedResponse<T> {

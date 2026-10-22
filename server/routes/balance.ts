@@ -32,12 +32,17 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     // El saldo se suma en el momento del hecho, pero solo se retira desde que Mercado Pago libera ese pago (services/liberacionDeSaldo.ts).
     const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
     const retirable = await saldoRetirable(String(req.user.id), Number(user.balanceArs) || 0);
+    // Lo que sobró de un presupuesto es a favor del cliente, pero PENDIENTE: no está en su saldo hasta que Mercado Pago libera el pago original.
+    const { saldoPendienteDeLiquidar } = await import('../services/liberacionDeSaldo.js');
+    const pendiente = await saldoPendienteDeLiquidar(String(req.user.id));
     res.status(200).json({
       success: true,
       balance: user.balanceArs || 0,
       disponibleParaRetirar: retirable.disponible,
       enLiberacion: retirable.enLiberacion,
       proximaLiberacion: retirable.proximaLiberacion,
+      aFavorPendiente: pendiente.monto,
+      proximaLiquidacion: pendiente.proximaLiquidacion,
       ...(await (async () => {
         const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
         const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);

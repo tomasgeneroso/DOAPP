@@ -150,6 +150,29 @@ export async function saldoRetirable(userId: string, saldoTotal: number, opcione
 }
 
 
+export interface SaldoPendienteDeLiquidar {
+  /** Plata que el cliente va a tener a favor, pero que todavía no es suya porque Mercado Pago no liberó el pago original. NO está en su saldo. */
+  monto: number;
+  /** La próxima fecha en que algo de eso pasa a ser saldo. */
+  proximaLiquidacion: Date | null;
+}
+
+/**
+ * Lo que un usuario tiene a favor PENDIENTE de liquidar: asientos «pending» marcados con `pendienteDeLiquidacion` (ver `acreditarSaldoPendiente`). No
+ * suma a su saldo, no se puede usar ni retirar; pasa a saldo cuando llega su `disponibleDesde`.
+ */
+export async function saldoPendienteDeLiquidar(userId: string): Promise<SaldoPendienteDeLiquidar> {
+  const { sequelize } = await import('../config/database.js');
+  const filas = (await sequelize.query(
+    `SELECT COALESCE(SUM(amount), 0)::float AS monto, MIN((metadata->>'disponibleDesde')::timestamptz) AS proxima
+       FROM balance_transactions
+      WHERE user_id = :userId AND status = 'pending' AND amount > 0 AND metadata->>'pendienteDeLiquidacion' = 'true'`,
+    { replacements: { userId }, type: QueryTypes.SELECT },
+  )) as Array<{ monto: number; proxima: Date | null }>;
+  const monto = r2(Number(filas[0]?.monto) || 0);
+  return { monto, proximaLiquidacion: monto > 0 && filas[0]?.proxima ? new Date(filas[0].proxima) : null };
+}
+
 /** `disponibleDesde` de una devolución que viene del pago de publicación de un trabajo (baja de precio, cancelación). */
 export async function disponibleDesdeDeLaPublicacion(job: { publicationPaymentId?: string | null }): Promise<string | undefined> {
   if (!job?.publicationPaymentId) return undefined;

@@ -221,7 +221,7 @@ export default function ProposalDetail() {
 
       if (data.success) {
         if (data.contractId) {
-          navigate(`/contracts/${data.contractId}/summary`, { state: { saldoAFavor: data.saldoAFavor || 0 } });
+          navigate(`/contracts/${data.contractId}/summary`, { state: { saldoAFavor: data.saldoAFavor || 0, saldoAFavorDesde: data.saldoAFavorDesde || null } });
         } else {
           loadProposal();
         }

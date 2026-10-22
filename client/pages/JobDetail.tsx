@@ -94,6 +94,7 @@ export default function JobDetail() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saldoAFavor, setSaldoAFavor] = useState(0);
+  const [saldoAFavorDesde, setSaldoAFavorDesde] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   // Qué pasó con el dinero al cancelar, cuando hay algo que explicar (devolución a revisión, un aviso). Si no hay nada, se sigue de largo.
   const [resultadoCancelacion, setResultadoCancelacion] = useState<ResultadoDeCancelacion | null>(null);
@@ -1203,6 +1204,7 @@ export default function JobDetail() {
 
       if (data.success) {
         setSaldoAFavor(Number(data.saldoAFavor) || 0);
+        setSaldoAFavorDesde(data.saldoAFavorDesde || null);
         setShowSelectConfirmModal(false);
         setSelectedProposal(null);
         // Refresh job data
@@ -1360,7 +1362,7 @@ export default function JobDetail() {
         <meta name="description" content={job.summary} />
       </Helmet>
       <div className="container mx-auto px-4 py-8">
-        <AvisoSaldoAFavor monto={saldoAFavor} className="mb-4" />
+        <AvisoSaldoAFavor monto={saldoAFavor} pendienteHasta={saldoAFavorDesde} className="mb-4" />
         {/* Back Button - Only visible on mobile */}
         <div className="mb-6 md:hidden">
           <Link

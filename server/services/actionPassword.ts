@@ -70,7 +70,7 @@ export async function createActionPassword(
 
 /** Verify and stamp last use. */
 export async function verifyActionPassword(action: ActionKey, plain: string): Promise<boolean> {
-  const row = await ActionPassword.findByPk(action);
+  const row = await ActionPassword.scope('withSecrets').findByPk(action);
   if (!row || !plain) return false;
   const ok = await row.compare(plain);
   if (ok) await row.update({ lastUsedAt: new Date() });
@@ -100,7 +100,7 @@ export async function completeActionPasswordReset(
 ): Promise<{ ok: boolean; message?: string }> {
   if (newPlain.length < 8) return { ok: false, message: 'La contrasena debe tener al menos 8 caracteres' };
 
-  const row = await ActionPassword.findByPk(action);
+  const row = await ActionPassword.scope('withSecrets').findByPk(action);
   if (!row || !row.resetTokenHash || !row.resetTokenExpires) {
     return { ok: false, message: 'No hay una recuperacion pendiente' };
   }

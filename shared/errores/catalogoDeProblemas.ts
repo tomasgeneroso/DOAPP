@@ -267,6 +267,20 @@ export const CATALOGO_DE_PROBLEMAS = {
     gravedad: 'media',
   },
 
+  'SALDO-PENDIENTE-BLOQUEADO': {
+    codigo: 'SALDO-PENDIENTE-BLOQUEADO',
+    titulo: 'Un saldo a favor pendiente no se pudo pasar al saldo del cliente',
+    paraElUsuario: 'Tu saldo a favor pendiente está en revisión: administración tiene que confirmar el pago original antes de acreditarlo. Ya fue avisada.',
+    queSignifica:
+      'Lo que sobró del presupuesto de una publicación quedó a favor del cliente como PENDIENTE hasta que Mercado Pago liberara el pago original. Llegó la fecha, pero el pago original se devolvió, se cayó, se contracargó o ya no existe, así que acreditarlo daría la misma plata dos veces. El asiento queda marcado como bloqueado y no se vuelve a intentar solo.',
+    causas: ['El pago original se reembolsó (total o parcialmente), por Mercado Pago o por un administrador.', 'Hubo un contracargo o el pago figura caído.', 'El pago original ya no existe en la base.'],
+    queHacer: [
+      { texto: 'Abrí el expediente de la publicación: mirá el estado del pago y qué se devolvió.', ruta: '/admin/jobs' },
+      { texto: 'Si el cliente ya recibió esa plata por el reembolso, el asiento pendiente no corresponde: queda bloqueado y no suma a su saldo. Si el pago original es válido, avisá a ingeniería para desbloquearlo.' },
+    ],
+    gravedad: 'media',
+  },
+
   'TRABAJADOR-COMPENSACION-FALLIDA': {
     codigo: 'TRABAJADOR-COMPENSACION-FALLIDA',
     titulo: 'No se pudo acreditar la compensación al trabajador por una cancelación tardía',

@@ -277,17 +277,28 @@ describe('nadie aprueba un pago propio (salvo el dueño)', () => {
       expect((await recargar(p.id)).status).toBe('pending_verification');
     });
 
-    it('otra persona del equipo no es frenada: el comprobante se aprueba', async () => {
+    it('otra persona del equipo no es frenada: el comprobante se aprueba y se le avisa al pagador', async () => {
       const p = await pagoDe(adminPagador.id, null);
       const proof = await comprobanteDe(p.id, adminPagador.id);
 
       const r = await aprobarComprobante(otroAdmin, p.id, proof.id);
 
-      // Solo se prueba que la regla la deja pasar. Esta ruta vieja después falla al avisarle al pagador (arma la notificación con campos que ya no
-      // existen y devuelve 500 con el comprobante ya aprobado): no es de esta regla y no se afirma acá.
-      expect(r.status).not.toBe(403);
-      expect(r.body.code).not.toBe(CODIGO);
+      // Esta ruta vieja armaba el aviso con campos que ya no existen y terminaba en 500 con el comprobante ya aprobado.
+      expect([r.status, r.body.message]).toEqual([200, 'Comprobante aprobado exitosamente']);
       expect(((await PaymentProof.findByPk(proof.id)) as any).status).toBe('approved');
+      expect((await recargar(p.id)).status).toBe('approved');
+      expect(await Notification.count({ where: { recipientId: adminPagador.id, title: 'Comprobante aprobado' } as any })).toBe(1);
+    });
+
+    it('rechazar un comprobante también responde bien y le avisa al pagador (la misma ruta vieja fallaba igual)', async () => {
+      const p = await pagoDe(cliente.id, null);
+      const proof = await comprobanteDe(p.id, cliente.id);
+
+      const r = await request(app).post(`/api/payments/${p.id}/proof/${proof.id}/reject`).set(con(otroAdmin)).send({ reason: 'No se lee el monto' });
+
+      expect([r.status, r.body.message]).toEqual([200, 'Comprobante rechazado']);
+      expect(((await PaymentProof.findByPk(proof.id)) as any).status).toBe('rejected');
+      expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Comprobante rechazado' } as any })).toBe(1);
     });
   });
 

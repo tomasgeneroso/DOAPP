@@ -139,12 +139,15 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
   // 2. Devoluciones 'pending' de más de un día.
   const hace1d = Date.now() - 86_400_000;
   for (const a of pendientes) {
-    if (new Date(a.createdAt).getTime() < hace1d) {
+    // Un saldo a favor PENDIENTE DE LIQUIDAR espera a Mercado Pago por diseño: solo es un atraso si su fecha ya pasó hace más de un día.
+    const meta = (a.metadata || {}) as Record<string, any>;
+    const desde = meta.pendienteDeLiquidacion === true && meta.disponibleDesde ? new Date(meta.disponibleDesde).getTime() : new Date(a.createdAt).getTime();
+    if (desde < hace1d) {
       hallazgos.push({
         invariante: 2,
         gravedad: 'media',
         titulo: 'Devolución pendiente que nunca se completó',
-        detalle: `Asiento de $${Number(a.amount).toLocaleString('es-AR')} del ${new Date(a.createdAt).toLocaleDateString('es-AR')} sigue en pending.`,
+        detalle: `Asiento de $${Number(a.amount).toLocaleString('es-AR')} del ${new Date(a.createdAt).toLocaleDateString('es-AR')} sigue en pending${meta.pendienteDeLiquidacion === true ? ` (tenía que pasar a saldo el ${new Date(desde).toLocaleDateString('es-AR')}${meta.bloqueada ? `; está bloqueado: ${meta.bloqueada.motivo}` : ''})` : ''}.`,
         monto: Number(a.amount),
         userId: String(a.userId),
       });
@@ -246,7 +249,7 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
             COALESCE(SUM(amount) FILTER (WHERE metadata->>'origen' = 'equipo_parcial' OR (metadata->>'origen' = 'cotizacion_menor' AND NOT (metadata ? 'reason'))), 0) AS devuelto,
             COALESCE(SUM(amount) FILTER (WHERE metadata->>'reason' = 'price_decrease' OR metadata->>'origen' = 'baja_aceptada_por_todos'), 0) AS bajas
        FROM balance_transactions
-      WHERE type = 'refund' AND status = 'completed' AND metadata ? 'jobId'
+      WHERE type = 'refund' AND status IN ('completed', 'pending') AND metadata ? 'jobId'
       GROUP BY 1
      HAVING SUM(amount) FILTER (WHERE metadata->>'origen' = 'equipo_parcial' OR (metadata->>'origen' = 'cotizacion_menor' AND NOT (metadata ? 'reason'))) > 0`,
     { type: QueryTypes.SELECT },

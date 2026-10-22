@@ -190,7 +190,7 @@ export default function AdminDisputes() {
               </View>
             </View>
 
-            <Text style={[styles.disputeReason, { color: colors.text }]} numberOfLines={2}>
+            <Text style={[styles.disputeReason, { color: colors.text.primary }]} numberOfLines={2}>
               {dispute.reason}
             </Text>
 

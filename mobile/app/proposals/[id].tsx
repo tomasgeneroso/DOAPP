@@ -134,7 +134,7 @@ export default function ProposalDetailScreen() {
   const handleReject = () => {
     Alert.prompt('Rechazar propuesta', '¿Por qué rechazás esta propuesta? (opcional)', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Rechazar', style: 'destructive', onPress: async (reason) => {
+      { text: 'Rechazar', style: 'destructive', onPress: async (reason?: string) => {
         setActionLoading(true);
         try {
           const res = await put<any>(`/proposals/${proposal.id || id}/reject`, { reason: reason || '' });

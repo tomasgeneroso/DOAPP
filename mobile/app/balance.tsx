@@ -46,6 +46,8 @@ export default function BalanceScreen() {
   const [balance, setBalance] = useState(0);
   const [enLiberacion, setEnLiberacion] = useState(0);
   const [proximaLiberacion, setProximaLiberacion] = useState<string | null>(null);
+  const [aFavorPendiente, setAFavorPendiente] = useState(0);
+  const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -78,6 +80,8 @@ export default function BalanceScreen() {
         setBalance(balanceRes.data.disponibleParaRetirar ?? balanceRes.data.balance ?? 0);
         setEnLiberacion(balanceRes.data.enLiberacion || 0);
         setProximaLiberacion(balanceRes.data.proximaLiberacion || null);
+        setAFavorPendiente(balanceRes.data.aFavorPendiente || 0);
+        setProximaLiquidacion(balanceRes.data.proximaLiquidacion || null);
         setPendingBalance(balanceRes.data.pendingBalance || 0);
       }
 
@@ -286,6 +290,16 @@ export default function BalanceScreen() {
         <View style={[styles.balanceCard, { backgroundColor: colors.primary[600] }]}>
           <Text style={styles.balanceLabel}>Saldo disponible</Text>
           <Text style={styles.balanceAmount}>{formatPrice(balance)}</Text>
+
+          {aFavorPendiente > 0 && (
+            <View style={styles.pendingRow}>
+              <Clock size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.pendingText}>
+                A favor pendiente: {formatPrice(aFavorPendiente)} (todavía no es tuyo
+                {proximaLiquidacion ? `; pasa a tu saldo el ${new Date(proximaLiquidacion).toLocaleDateString('es-AR')}` : ''})
+              </Text>
+            </View>
+          )}
 
           {enLiberacion > 0 && (
             <View style={styles.pendingRow}>

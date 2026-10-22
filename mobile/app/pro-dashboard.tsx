@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     alignItems: 'center',
   },
-  usageValue: { fontSize: fontSize.xxl || 28, fontWeight: fontWeight.bold },
+  usageValue: { fontSize: fontSize['3xl'], fontWeight: fontWeight.bold },
   usageLabel: { fontSize: fontSize.xs, marginTop: spacing.xs },
   resetText: { fontSize: fontSize.sm, lineHeight: 20 },
   benefitRow: {

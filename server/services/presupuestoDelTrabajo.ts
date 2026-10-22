@@ -18,10 +18,16 @@ import { avisarProblemasDeDinero } from './controlesDeDinero.js';
  * de ESE trabajador contra el presupuesto entero: en un trabajo de $5.000 para dos, elegir al primero por $2.500 devolvía $2.500 que eran del segundo, y
  * elegir al segundo devolvía otros $2.500 (o fallaba después de haberlos acreditado). Lo contratado y lo ya devuelto salen de los contratos y del libro,
  * no de un contador: el barrido puede repetirse sin devolver dos veces.
+ *
+ * Y es a favor PENDIENTE hasta que la plata existe de verdad en la cuenta de la plataforma. El pago del cliente sigue en Mercado Pago hasta su fecha de
+ * liberación (unos diez días): hasta entonces lo que sobró es un asiento «pending» que NO suma al saldo (no se puede usar ni retirar). Al llegar la fecha,
+ * `liquidarSaldosPendientes` lo pasa a saldo y recién ahí el cliente lo tiene. Si el pago original ya está liberado (o no es de Mercado Pago), se suma al
+ * saldo en el momento.
  */
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const $ = (n: number) => `$${n.toLocaleString('es-AR')}`;
+const dia = (iso: string) => new Date(iso).toLocaleDateString('es-AR');
 
 /** Un contrato cancelado o rechazado ya no usa presupuesto: ese lugar vuelve a estar libre. */
 const ESTADOS_SIN_PRESUPUESTO = ['cancelled', 'rejected'];
@@ -40,15 +46,15 @@ export async function presupuestoContratado(jobId: string): Promise<number> {
 }
 
 /**
- * Lo que ya volvió al saldo del cliente por no usarse. Cuentan las devoluciones de esta publicación por «cotizacion_menor» sin motivo (las que
- * hacía la aprobación de una propuesta, antes de este cambio) y las de «equipo_parcial». NO cuentan las bajas de precio (`reason: price_decrease`):
- * esas también bajan `job.price`, así que contarlas descontaría dos veces.
+ * Lo que ya volvió al cliente por no usarse, esté en su saldo o pendiente de liquidar. Cuentan las devoluciones de esta publicación por
+ * «cotizacion_menor» sin motivo (las que hacía la aprobación de una propuesta, antes de este cambio) y las de «equipo_parcial». NO cuentan las bajas de
+ * precio (`reason: price_decrease`): esas también bajan `job.price`, así que contarlas descontaría dos veces.
  */
 export async function presupuestoDevuelto(jobId: string): Promise<number> {
   const filas = (await conSistema(() =>
     sequelize.query(
       `SELECT COALESCE(SUM(amount), 0) AS total FROM balance_transactions
-        WHERE type = 'refund' AND status = 'completed' AND metadata->>'jobId' = :jobId
+        WHERE type = 'refund' AND status IN ('completed', 'pending') AND metadata->>'jobId' = :jobId
           AND (metadata->>'origen' = 'equipo_parcial' OR (metadata->>'origen' = 'cotizacion_menor' AND NOT (metadata ? 'reason')))`,
       { replacements: { jobId: String(jobId) }, type: QueryTypes.SELECT },
     ),
@@ -75,11 +81,15 @@ export function equipoCerrado(job: { status?: unknown; selectedWorkers?: unknown
 }
 
 export interface PresupuestoDevuelto {
-  /** Lo que se acreditó al saldo del cliente (0 si no sobraba nada o el equipo sigue abierto). */
+  /** Lo que quedó a favor del cliente (0 si no sobraba nada o el equipo sigue abierto). */
   devuelto: number;
+  /** true si es a favor PENDIENTE de liquidar: todavía no está en su saldo. false si ya se sumó al saldo. */
+  pendiente?: boolean;
+  /** Cuándo pasa a ser saldo, si es pendiente (ISO). */
+  disponibleDesde?: string;
   pagado: number;
   contratado: number;
-  /** Texto para el cliente («te quedaron $X a favor en tu saldo»). */
+  /** Texto para el cliente. */
   aviso?: string;
   /** La notificación creada, por si quien llama quiere emitirla por socket. */
   notificacion?: { toJSON: () => unknown };
@@ -88,12 +98,11 @@ export interface PresupuestoDevuelto {
 const NADA: PresupuestoDevuelto = { devuelto: 0, pagado: 0, contratado: 0 };
 
 /**
- * Devuelve al saldo del cliente lo que sobró del presupuesto, si el equipo ya está cerrado. Idempotente: lo sobrante se calcula de los contratos y
- * del libro, así que repetirlo (la ruta y el barrido a la vez, un reintento) no acredita dos veces. Un candado por trabajo evita que dos corridas
- * simultáneas lean el mismo estado.
+ * Deja a favor del cliente lo que sobró del presupuesto, si el equipo ya está cerrado. Idempotente: lo sobrante se calcula de los contratos y del
+ * libro, así que repetirlo (la ruta y el barrido a la vez, un reintento) no lo duplica. Un candado por trabajo evita que dos corridas simultáneas lean
+ * el mismo estado.
  *
- * El crédito queda disponible para retirar cuando Mercado Pago libera el pago original; usarlo dentro de la app no espera. NO crea ningún pedido de
- * retiro.
+ * Es a favor PENDIENTE mientras Mercado Pago no libere el pago original (ver arriba) y saldo en el momento si ya lo liberó. NO crea ningún pedido de retiro.
  */
 export async function devolverPresupuestoSinUsar(jobId: string, opciones: { lugaresPedidos?: number } = {}): Promise<PresupuestoDevuelto> {
   return sequelize.transaction(async (t) => {
@@ -108,45 +117,53 @@ export async function devolverPresupuestoSinUsar(jobId: string, opciones: { luga
     const contratado = await presupuestoContratado(String(job.id));
     const contratos = await Contract.count({ where: { jobId: job.id, status: { [Op.notIn]: ESTADOS_SIN_PRESUPUESTO } } as never });
     const varios = (opciones.lugaresPedidos ?? (Number(job.maxWorkers) || 1)) > 1;
-
-    const { acreditarSaldo } = await import('./quotePayment.js');
-    await acreditarSaldo(
-      String(job.clientId),
-      sobrante,
+    const descripcion =
       contratos === 1
         ? `Diferencia a favor: publicaste por ${$(pagado)} y la cotización aceptada fue de ${$(contratado)}.`
-        : `Diferencia a favor: publicaste por ${$(pagado)} y los trabajadores contratados suman ${$(contratado)}.`,
-      {
-        relatedModel: 'Job',
-        relatedId: job.id,
-        // Este saldo no se ganó trabajando: es plata que el cliente ya pagó y que vuelve. Se retira recién cuando Mercado Pago libera el pago
-        // original (ver services/liberacionDeSaldo.ts).
-        metadata: { origen: varios ? 'equipo_parcial' : 'cotizacion_menor', jobId: String(job.id), contratado, pagado, disponibleDesde: await disponibleDesdeDeLaPublicacion(job) },
-      },
-    );
+        : `Diferencia a favor: publicaste por ${$(pagado)} y los trabajadores contratados suman ${$(contratado)}.`;
+    const disponibleDesde = await disponibleDesdeDeLaPublicacion(job);
+    const metadata = {
+      origen: varios ? 'equipo_parcial' : 'cotizacion_menor',
+      jobId: String(job.id),
+      contratado,
+      pagado,
+      pagoId: job.publicationPaymentId ? String(job.publicationPaymentId) : undefined,
+    };
 
-    const aviso =
+    const { acreditarSaldo, acreditarSaldoPendiente } = await import('./quotePayment.js');
+    if (disponibleDesde) {
+      // El pago original todavía está en Mercado Pago: lo que sobró es del cliente, pero todavía no lo tiene. Pasa a su saldo en esa fecha.
+      await acreditarSaldoPendiente(String(job.clientId), sobrante, descripcion, { relatedModel: 'Job', relatedId: job.id, metadata: { ...metadata, disponibleDesde } });
+    } else {
+      // sin-espera: el pago original ya está liberado (o no pasó por Mercado Pago): la plata existe en la cuenta de la plataforma, es saldo en el momento.
+      await acreditarSaldo(String(job.clientId), sobrante, descripcion, { relatedModel: 'Job', relatedId: job.id, metadata });
+    }
+
+    const queda =
       contratos === 1
-        ? `La cotización aceptada (${$(contratado)}) es menor a lo que pagaste por la publicación (${$(pagado)}): te quedaron ${$(sobrante)} a favor en tu saldo.`
-        : `Los trabajadores contratados suman ${$(contratado)} y pagaste ${$(pagado)} por la publicación: te quedaron ${$(sobrante)} a favor en tu saldo.`;
+        ? `La cotización aceptada (${$(contratado)}) es menor a lo que pagaste por la publicación (${$(pagado)})`
+        : `Los trabajadores contratados suman ${$(contratado)} y pagaste ${$(pagado)} por la publicación`;
+    const aviso = disponibleDesde
+      ? `${queda}: te quedan ${$(sobrante)} a favor, PENDIENTES de liquidar. Pasan a tu saldo el ${dia(disponibleDesde)}, cuando Mercado Pago libera el pago original; hasta entonces todavía no son tuyos.`
+      : `${queda}: te quedaron ${$(sobrante)} a favor en tu saldo.`;
     let notificacion: PresupuestoDevuelto['notificacion'];
     try {
       notificacion = (await Notification.create({
         recipientId: job.clientId,
         type: 'info',
         category: 'payment',
-        title: 'Te quedó saldo a favor',
-        message: `${aviso} Lo podés usar o retirar desde Balance (se habilita cuando Mercado Pago libera el pago original). No se retira solo: el retiro lo pedís vos.`,
+        title: disponibleDesde ? 'Te quedó saldo a favor pendiente' : 'Te quedó saldo a favor',
+        message: `${aviso} Cuando esté en tu saldo lo podés usar en la app o pedir su retiro desde Balance. No se retira solo: el retiro lo pedís vos.`,
         relatedModel: 'Job',
         relatedId: job.id,
         actionText: 'Ver balance',
-        data: { jobId: job.id, saldoAFavor: sobrante },
+        data: { jobId: job.id, saldoAFavor: sobrante, pendiente: !!disponibleDesde, disponibleDesde },
         read: false,
       } as never)) as unknown as PresupuestoDevuelto['notificacion'];
     } catch (e) {
       console.error('[presupuesto] no se pudo avisar al cliente del saldo a favor:', (e as Error).message);
     }
-    return { devuelto: sobrante, pagado, contratado, aviso, notificacion };
+    return { devuelto: sobrante, pendiente: !!disponibleDesde, disponibleDesde, pagado, contratado, aviso, notificacion };
   });
 }
 
@@ -166,7 +183,7 @@ export async function intentarDevolverPresupuesto(jobId: string, opciones: { lug
   }
 }
 
-/** El barrido: busca los trabajos con el equipo cerrado y presupuesto sin usar, y lo devuelve. Devuelve cuántos trabajos tenían algo para devolver. */
+/** El barrido: busca los trabajos con el equipo cerrado y presupuesto sin usar, y lo deja a favor del cliente. Devuelve cuántos trabajos tenían algo. */
 export async function devolverPresupuestosSinUsar(): Promise<number> {
   const hace7Dias = new Date(Date.now() - 7 * 86_400_000);
   const candidatos = (await Job.findAll({
@@ -188,4 +205,52 @@ export async function devolverPresupuestosSinUsar(): Promise<number> {
     if (r.devuelto > 0) con += 1;
   }
   return con;
+}
+
+/**
+ * Pasa a saldo lo que estaba a favor pendiente y cuya fecha llegó: el pago original se liberó, la plata ya está en la cuenta de la plataforma y recién
+ * ahora el cliente la tiene. Avisa al cliente. Si el pago original se devolvió o se cayó, no acredita y avisa a administración (una sola vez: el asiento
+ * queda marcado). Devuelve cuántos asientos se liquidaron.
+ */
+export async function liquidarSaldosPendientes(ahora: Date = new Date()): Promise<number> {
+  const { liquidarSaldoPendiente } = await import('./quotePayment.js');
+  const vencidos = (await conSistema(() =>
+    sequelize.query(
+      `SELECT id FROM balance_transactions
+        WHERE status = 'pending' AND amount > 0 AND metadata->>'pendienteDeLiquidacion' = 'true'
+          AND COALESCE(metadata->>'disponibleDesde', '') <> '' AND (metadata->>'disponibleDesde')::timestamptz <= :ahora
+          AND NOT (metadata ? 'bloqueada')
+        ORDER BY created_at ASC LIMIT 500`,
+      { replacements: { ahora }, type: QueryTypes.SELECT },
+    ),
+  )) as Array<{ id: string }>;
+
+  let liquidados = 0;
+  for (const { id } of vencidos) {
+    try {
+      const r = await liquidarSaldoPendiente(String(id), ahora);
+      if (r.liquidado) {
+        liquidados += 1;
+        await Notification.create({
+          recipientId: r.userId,
+          type: 'success',
+          category: 'payment',
+          title: 'Ya tenés tu saldo a favor',
+          message: `Mercado Pago liberó el pago original: ${$(r.monto)} pasaron a tu saldo. Los podés usar en la app o pedir su retiro desde Balance (el retiro lo pedís vos; no se hace solo).`,
+          relatedModel: 'BalanceTransaction',
+          relatedId: id,
+          actionText: 'Ver balance',
+          read: false,
+        } as never).catch(() => undefined);
+      } else if ('motivo' in r && r.motivo === 'pago_en_problemas') {
+        await avisarProblemasDeDinero(
+          [{ codigo: 'SALDO-PENDIENTE-BLOQUEADO', detalle: `asiento ${id} de ${$(r.monto ?? 0)} del usuario ${r.userId}: ${r.detalle}` }],
+          { titulo: 'Un saldo a favor pendiente no se pudo liquidar', relatedModel: 'BalanceTransaction', relatedId: String(id), userId: r.userId },
+        );
+      }
+    } catch (e) {
+      console.error(`[presupuesto] no se pudo liquidar el asiento ${id}:`, (e as Error).message);
+    }
+  }
+  return liquidados;
 }

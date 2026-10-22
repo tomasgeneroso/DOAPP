@@ -321,6 +321,104 @@ export async function acreditarSaldo(
 }
 
 /**
+ * Anota plata que el cliente va a tener a favor pero que TODAVÍA NO ES SUYA: la del pago original sigue en Mercado Pago y no llegó a la cuenta de la
+ * plataforma. Queda como asiento «pending» del libro, con `metadata.pendienteDeLiquidacion` y la fecha en `disponibleDesde`: no suma al saldo, no se
+ * puede usar ni retirar. `liquidarSaldoPendiente` lo pasa a «completed» cuando llega esa fecha, y recién ahí el cliente lo tiene en su saldo.
+ *
+ * `balanceBefore`/`balanceAfter` guardan el saldo proyectado (el modelo exige que cierren con el monto); se corrigen con los reales al liquidar.
+ */
+export async function acreditarSaldoPendiente(
+  userId: string,
+  monto: number,
+  descripcion: string,
+  ref: { relatedModel?: string; relatedId?: string; metadata: Record<string, any> & { disponibleDesde: string } },
+): Promise<string | null> {
+  if (!(monto > 0)) return null;
+
+  const { sequelize } = await import('../config/database.js');
+  const { User } = await import('../models/sql/User.model.js');
+  const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+  return conSistema(() => sequelize.transaction(async (t) => {
+    const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
+    if (!user) throw new Error(`Usuario ${userId} no encontrado al anotar saldo pendiente`);
+    const saldo = parseFloat(String((user as any).balanceArs)) || 0;
+    const fila = await BalanceTransaction.create(
+      {
+        userId,
+        type: 'refund',
+        amount: monto,
+        balanceBefore: saldo,
+        balanceAfter: Math.round((saldo + monto) * 100) / 100,
+        description: descripcion,
+        status: 'pending',
+        metadata: { ...ref.metadata, pendienteDeLiquidacion: true, relatedModel: ref.relatedModel, relatedId: ref.relatedId },
+      } as any,
+      { transaction: t },
+    );
+    return String((fila as any).id);
+  }));
+}
+
+export type ResultadoDeLiquidacion =
+  | { liquidado: true; monto: number; userId: string }
+  | { liquidado: false; motivo: 'no_pendiente' | 'todavia_no' | 'pago_en_problemas'; detalle?: string; userId?: string; monto?: number };
+
+/** Estados de un pago a cuya plata ya no se le puede dar por buena: se devolvió, se cayó o se contracargó. */
+const PAGO_SIN_PLATA = ['refunded', 'failed', 'cancelled', 'rejected', 'disputed'];
+
+/**
+ * Pasa a saldo un asiento pendiente cuya fecha llegó: el pago original ya está liberado, la plata aparece en la cuenta de la plataforma y recién ahora
+ * el cliente la tiene. Si el pago original se devolvió, se cayó o tiene un reembolso, NO se acredita (daría la misma plata dos veces): el asiento queda
+ * marcado como bloqueado para que lo resuelva una persona. Idempotente: un asiento ya liquidado no se toca.
+ */
+export async function liquidarSaldoPendiente(asientoId: string, ahora: Date = new Date()): Promise<ResultadoDeLiquidacion> {
+  const { sequelize } = await import('../config/database.js');
+  const { User } = await import('../models/sql/User.model.js');
+  const { Payment } = await import('../models/sql/Payment.model.js');
+  const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+  let descuadre = null as SaldoContraLibro | null;
+  const resultado = await conSistema(() => sequelize.transaction(async (t): Promise<ResultadoDeLiquidacion> => {
+    // Primero la fila del usuario y después la del asiento: es el orden en que bloquean acreditarSaldo y debitarSaldo.
+    const previo = await BalanceTransaction.findByPk(asientoId, { transaction: t });
+    if (!previo) return { liquidado: false, motivo: 'no_pendiente' };
+    const user = await User.findByPk(String((previo as any).userId), { lock: t.LOCK.UPDATE, transaction: t });
+    const fila: any = await BalanceTransaction.findByPk(asientoId, { lock: t.LOCK.UPDATE, transaction: t });
+    const meta = (fila?.metadata || {}) as Record<string, any>;
+    if (!user || !fila || fila.status !== 'pending' || meta.pendienteDeLiquidacion !== true) return { liquidado: false, motivo: 'no_pendiente' };
+
+    const monto = Math.round((Number(fila.amount) || 0) * 100) / 100;
+    const userId = String(fila.userId);
+    const desde = meta.disponibleDesde ? new Date(meta.disponibleDesde).getTime() : 0;
+    if (desde > ahora.getTime()) return { liquidado: false, motivo: 'todavia_no', userId, monto };
+    if (meta.bloqueada) return { liquidado: false, motivo: 'pago_en_problemas', detalle: String(meta.bloqueada.motivo || ''), userId, monto };
+
+    if (meta.pagoId) {
+      const pago: any = await Payment.findByPk(String(meta.pagoId), { attributes: ['id', 'status', 'refundedAmount'], transaction: t });
+      const motivo = !pago ? 'el pago original ya no existe' : PAGO_SIN_PLATA.includes(String(pago.status)) ? `el pago original está ${pago.status}` : Number(pago.refundedAmount) > 0 ? 'el pago original tiene un reembolso' : '';
+      if (motivo) {
+        await fila.update({ metadata: { ...meta, bloqueada: { motivo, el: ahora.toISOString() } } }, { transaction: t });
+        return { liquidado: false, motivo: 'pago_en_problemas', detalle: motivo, userId, monto };
+      }
+    }
+
+    const antes = parseFloat(String((user as any).balanceArs)) || 0;
+    const despues = Math.round((antes + monto) * 100) / 100;
+    descuadre = await avisarSiNoCierra(userId, antes, t);
+    await fila.update(
+      { status: 'completed', balanceBefore: antes, balanceAfter: despues, metadata: { ...meta, pendienteDeLiquidacion: false, liquidadoEl: ahora.toISOString() } },
+      { transaction: t },
+    );
+    (user as any).balanceArs = despues;
+    await user.save({ transaction: t });
+    return { liquidado: true, monto, userId };
+  }));
+  if (descuadre) await avisarDescuadre((resultado as any).userId, descuadre, 'acreditar');
+  return resultado;
+}
+
+/**
  * Compara el saldo con la suma de los asientos del usuario. Devuelve el descuadre si lo hay, o null si cierra.
  * Se llama dentro de la transacción que ya bloqueó la fila del usuario.
  */

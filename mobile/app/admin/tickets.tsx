@@ -204,7 +204,7 @@ export default function AdminTickets() {
               </View>
             </View>
 
-            <Text style={[styles.ticketSubject, { color: colors.text }]} numberOfLines={2}>
+            <Text style={[styles.ticketSubject, { color: colors.text.primary }]} numberOfLines={2}>
               {ticket.subject}
             </Text>
 
@@ -237,8 +237,8 @@ export default function AdminTickets() {
             </View>
 
             {ticket.assignedTo && (
-              <View style={[styles.assignedBadge, { backgroundColor: colors.primary + '20' }]}>
-                <Text style={[styles.assignedText, { color: colors.primary }]}>
+              <View style={[styles.assignedBadge, { backgroundColor: colors.primary[600] + '20' }]}>
+                <Text style={[styles.assignedText, { color: colors.primary[600] }]}>
                   Asignado a: {ticket.assignedTo.name}
                 </Text>
               </View>

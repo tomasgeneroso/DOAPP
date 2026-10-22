@@ -186,7 +186,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={[styles.title, { color: colors.text }]}>Panel Admin</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Panel Admin</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {user?.adminRole?.replace('_', ' ').toUpperCase()}
           </Text>
@@ -212,22 +212,22 @@ export default function AdminDashboard() {
       {/* Stats Cards */}
       <View style={styles.statsGrid}>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <Users size={24} color={colors.primary} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>
+          <Users size={24} color={colors.primary[600]} />
+          <Text style={[styles.statNumber, { color: colors.text.primary }]}>
             {stats?.totalUsers || 0}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Usuarios</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <FileText size={24} color={colors.primary} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>
+          <FileText size={24} color={colors.primary[600]} />
+          <Text style={[styles.statNumber, { color: colors.text.primary }]}>
             {stats?.totalJobs || 0}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Trabajos</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <TrendingUp size={24} color={colors.primary} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>
+          <TrendingUp size={24} color={colors.primary[600]} />
+          <Text style={[styles.statNumber, { color: colors.text.primary }]}>
             {stats?.totalContracts || 0}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Contratos</Text>
@@ -236,7 +236,7 @@ export default function AdminDashboard() {
 
       {/* Menu Items */}
       <View style={styles.menuSection}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Gestión</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Gestión</Text>
         {filteredMenuItems.map((item, index) => (
           <TouchableOpacity
             key={index}
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
               <item.icon size={20} color={item.color} />
             </View>
             <View style={styles.menuContent}>
-              <Text style={[styles.menuTitle, { color: colors.text }]}>{item.title}</Text>
+              <Text style={[styles.menuTitle, { color: colors.text.primary }]}>{item.title}</Text>
             </View>
             {item.count !== undefined && item.count > 0 && (
               <View style={[styles.badge, { backgroundColor: colors.error }]}>

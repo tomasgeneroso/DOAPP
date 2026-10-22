@@ -39,7 +39,7 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user, token } = useAuth();
   /** Lo que de verdad se puede retirar ya: el saldo se suma al instante, pero se retira recién cuando Mercado Pago libera ese pago. */
-  const [retiro, setRetiro] = useState<{ disponible: number; enLiberacion: number; proxima: string | null; reservado: number } | null>(null);
+  const [retiro, setRetiro] = useState<{ disponible: number; enLiberacion: number; proxima: string | null; reservado: number; pendiente: number; pendienteDesde: string | null } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -48,7 +48,7 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         if (cancelado || !d?.success) return;
-        setRetiro({ disponible: Number(d.disponibleParaRetirar ?? d.balance) || 0, enLiberacion: Number(d.enLiberacion) || 0, proxima: d.proximaLiberacion || null, reservado: Number(d.saldoReservadoEnRetiro) || 0 });
+        setRetiro({ disponible: Number(d.disponibleParaRetirar ?? d.balance) || 0, enLiberacion: Number(d.enLiberacion) || 0, proxima: d.proximaLiberacion || null, reservado: Number(d.saldoReservadoEnRetiro) || 0, pendiente: Number(d.aFavorPendiente) || 0, pendienteDesde: d.proximaLiquidacion || null });
       })
       .catch(() => {
         /* sin ese dato se muestra solo el saldo */
@@ -449,6 +449,11 @@ export default function Dashboard() {
               {retiro && retiro.reservado > 0 && (
                 <p className="mt-2 text-sm opacity-95">
                   ${retiro.reservado.toLocaleString('es-AR')} están reservados para un retiro ya aprobado: no se pueden usar en otra cosa.
+                </p>
+              )}
+              {retiro && retiro.pendiente > 0 && (
+                <p className="mt-2 text-sm opacity-95">
+                  A favor pendiente de liquidar: <strong>${retiro.pendiente.toLocaleString('es-AR')}</strong> · todavía no es tuyo, pasa a tu saldo{retiro.pendienteDesde ? ` el ${fechaCorta(retiro.pendienteDesde)}` : ''} (cuando Mercado Pago libera el pago).
                 </p>
               )}
               {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (

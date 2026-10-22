@@ -23,6 +23,9 @@ const INVARIANTES: Record<number, string> = {
   3: "Ninguna publicación cancelada deja la plata trabada",
   4: "Ningún contrato se paga dos veces ni se paga y devuelve a la vez",
   5: "Ningún retiro pendiente supera el saldo",
+  6: "Ninguna plata se acredita sin un cobro detrás",
+  7: "Ningún pago por transferencia lo aprobó quien lo hizo",
+  8: "No se devolvió más presupuesto del que sobraba",
 };
 
 /**
@@ -59,7 +62,7 @@ export default function AuditoriaSaldos() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Auditoría de saldos</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-            Cinco cosas que tienen que ser verdad siempre. Si alguna no lo es, acá aparece con el número y quién. No arregla nada solo.
+            Ocho cosas que tienen que ser verdad siempre. Si alguna no lo es, acá aparece con el número y quién. No arregla nada solo.
           </p>
         </div>
         <button onClick={correr} disabled={cargando} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60">
@@ -67,8 +70,8 @@ export default function AuditoriaSaldos() {
         </button>
       </header>
 
-      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {[1, 2, 3, 4, 5].map((n) => {
+      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
           const cant = r?.resumen?.[`inv${n}`] || 0;
           return (
             <li key={n} className={`rounded-lg border p-3 text-xs ${cant ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/20" : "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20"}`}>

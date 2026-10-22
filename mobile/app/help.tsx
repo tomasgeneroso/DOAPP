@@ -108,7 +108,7 @@ export default function HelpScreen() {
   const loadData = useCallback(async () => {
     try {
       const [disputesRes, ticketsRes] = await Promise.all([
-        get<{ data: Dispute[] }>('/disputes/my-disputes'),
+        get<Dispute[]>('/disputes/my-disputes'),
         get<{ tickets: Ticket[] }>('/tickets'),
       ]);
 

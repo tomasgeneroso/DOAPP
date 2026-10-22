@@ -2633,12 +2633,13 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
 
         // Notify job owner
         await Notification.create({
-          userId: job.clientId,
+          recipientId: job.clientId,
           title: 'Pago aprobado',
           message: `Tu pago para publicar "${job.title}" fue aprobado. ¡El trabajo está ahora publicado!`,
-          type: 'payment',
+          type: 'success',
+          category: 'payment',
           relatedId: job.id,
-          relatedType: 'Job',
+          relatedModel: 'Job',
         });
 
         // Real-time notification
@@ -2681,12 +2682,13 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
 
         // Notify job owner
         await Notification.create({
-          userId: job.clientId,
+          recipientId: job.clientId,
           title: 'Presupuesto actualizado',
           message: `Tu pago fue aprobado. El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
-          type: 'payment',
+          type: 'success',
+          category: 'payment',
           relatedId: job.id,
-          relatedType: 'Job',
+          relatedModel: 'Job',
         });
 
         // Real-time notification
@@ -2696,12 +2698,13 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
 
     // Notify user
     await Notification.create({
-      userId: payment.payerId,
+      recipientId: payment.payerId,
       title: 'Comprobante aprobado',
       message: 'Tu comprobante de pago fue verificado y aprobado.',
-      type: 'payment',
+      type: 'success',
+      category: 'payment',
       relatedId: paymentId,
-      relatedType: 'Payment',
+      relatedModel: 'Payment',
     });
 
     res.json({
@@ -2780,12 +2783,13 @@ router.post("/:paymentId/proof/:proofId/reject", protect, requireRole('admin', '
 
         // Notify job owner
         await Notification.create({
-          userId: job.clientId,
+          recipientId: job.clientId,
           title: 'Comprobante rechazado',
           message: `Tu comprobante de pago para "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
-          type: 'payment',
+          type: 'warning',
+          category: 'payment',
           relatedId: job.id,
-          relatedType: 'Job',
+          relatedModel: 'Job',
         });
       }
     }
@@ -2802,24 +2806,26 @@ router.post("/:paymentId/proof/:proofId/reject", protect, requireRole('admin', '
 
         // Notify job owner
         await Notification.create({
-          userId: job.clientId,
+          recipientId: job.clientId,
           title: 'Comprobante rechazado',
           message: `Tu comprobante de pago para el aumento de presupuesto de "${job.title}" fue rechazado. Motivo: ${reason}. El trabajo permanece pausado. Por favor, sube un nuevo comprobante o cancela el cambio de presupuesto.`,
-          type: 'payment',
+          type: 'warning',
+          category: 'payment',
           relatedId: job.id,
-          relatedType: 'Job',
+          relatedModel: 'Job',
         });
       }
     }
 
     // Notify user
     await Notification.create({
-      userId: payment.payerId,
+      recipientId: payment.payerId,
       title: 'Comprobante rechazado',
       message: `Tu comprobante de pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
-      type: 'payment',
+      type: 'warning',
+      category: 'payment',
       relatedId: paymentId,
-      relatedType: 'Payment',
+      relatedModel: 'Payment',
     });
 
     res.json({

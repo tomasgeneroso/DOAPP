@@ -2658,8 +2658,10 @@ router.post("/:id/start-with-current", protect, async (req: AuthRequest, res: Re
 
     res.json({
       success: true,
-      message: `El trabajo empieza con ${elegidos.length} trabajador${elegidos.length > 1 ? "es" : ""}. Se cerraron las vacantes que faltaban.${devolucion.devuelto > 0 ? ` $${devolucion.devuelto.toLocaleString("es-AR")} del presupuesto que no se usó quedaron a favor en tu saldo (no se retiran solos: el retiro lo pedís vos).` : ""}`,
+      message: `El trabajo empieza con ${elegidos.length} trabajador${elegidos.length > 1 ? "es" : ""}. Se cerraron las vacantes que faltaban.${devolucion.aviso ? ` ${devolucion.aviso} No se retira solo: el retiro lo pedís vos.` : ""}`,
       saldoAFavor: devolucion.devuelto,
+      saldoAFavorPendiente: devolucion.pendiente === true,
+      saldoAFavorDesde: devolucion.disponibleDesde ?? null,
       job,
     });
   } catch (error: any) {

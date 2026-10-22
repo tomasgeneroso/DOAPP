@@ -290,7 +290,7 @@ function Pagina({ jobId }: { jobId: string }) {
                     </span>,
                     <PersonaEnlace key="u" p={m.usuario} />,
                     <span key="m" className={`tabular-nums ${m.monto < 0 ? "text-red-700 dark:text-red-400" : ""}`}>{$(m.monto)}</span>,
-                    <span key="s" className="whitespace-nowrap text-xs tabular-nums text-slate-500 dark:text-slate-400">{$(m.saldoAntes)} → {$(m.saldoDespues)}</span>,
+                    <span key="s" className="whitespace-nowrap text-xs tabular-nums text-slate-500 dark:text-slate-400">{m.estado === "pending" ? "a liquidar (no movió el saldo)" : `${$(m.saldoAntes)} → ${$(m.saldoDespues)}`}</span>,
                     estado(m.estado),
                   ])}
                 />

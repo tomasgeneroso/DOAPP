@@ -55,7 +55,7 @@ export default function ChatScreen() {
   };
 
   const handleCopyJobCode = async () => {
-    const jobId = conversation?.jobId || conversation?.job?.id;
+    const jobId = conversation?.jobId || (typeof conversation?.job === 'object' ? conversation.job?.id : undefined);
     if (jobId) {
       const code = getJobCode(jobId);
       await Clipboard.setStringAsync(code);
@@ -515,7 +515,7 @@ export default function ChatScreen() {
             >
               <Key size={12} color={themeColors.primary[600]} />
               <Text style={[styles.jobCodeText, { color: themeColors.primary[700] }]}>
-                #{getJobCode(conversation?.jobId || conversation?.job?.id)}
+                #{getJobCode(conversation?.jobId || (typeof conversation?.job === 'object' ? conversation.job?.id : undefined))}
               </Text>
               {copiedJobCode ? (
                 <Check size={12} color={colors.success[500]} />
@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   systemMessageTitle: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
     marginBottom: 2,
   },

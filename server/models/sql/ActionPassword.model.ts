@@ -13,7 +13,15 @@ import * as bcrypt from 'bcryptjs';
  * Keyed by action so the same mechanism serves the next gated feature without
  * new tables — `platform:phase` is simply the first.
  */
-@Table({ tableName: 'action_passwords', timestamps: true, underscored: true })
+@Table({
+  tableName: 'action_passwords',
+  timestamps: true,
+  underscored: true,
+  // SEC-01: un secreto nunca sale de una consulta por defecto (ni el hash de la contraseña ni el del token de recuperación). Quien los necesita para
+  // verificar o restablecer pide `ActionPassword.scope('withSecrets')`.
+  defaultScope: { attributes: { exclude: ['passwordHash', 'resetTokenHash'] } },
+  scopes: { withSecrets: {} },
+})
 export class ActionPassword extends Model {
   /** e.g. 'platform:phase'. */
   @Column({ type: DataType.STRING(64), primaryKey: true })
@@ -39,7 +47,16 @@ export class ActionPassword extends Model {
   declare updatedAt: Date;
 
   async compare(plain: string): Promise<boolean> {
+    if (!this.passwordHash) throw new Error("ActionPassword cargada sin el hash: usá ActionPassword.scope('withSecrets')");
     return bcrypt.compare(plain, this.passwordHash);
+  }
+
+  /** Segunda capa: aunque alguien cargue la fila con los secretos, al serializarla no salen. */
+  toJSON(): object {
+    const datos = super.toJSON() as Record<string, unknown>;
+    delete datos.passwordHash;
+    delete datos.resetTokenHash;
+    return datos;
   }
 
   static async hash(plain: string): Promise<string> {

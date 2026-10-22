@@ -806,6 +806,19 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       return;
     }
 
+    // Solo se elige trabajador en un trabajo ABIERTO. Uno que ya empezó, terminó, se pausó o se canceló no suma gente: el dueño decide si hace falta
+    // completar el equipo para empezar (o empieza con los elegidos), y a partir de ahí ya no se elige a nadie más.
+    if (job.status !== 'open') {
+      const motivo: Record<string, string> = {
+        in_progress: 'Este trabajo ya empezó: no se pueden sumar más trabajadores.',
+        completed: 'Este trabajo ya terminó: no se puede elegir a nadie más.',
+        cancelled: 'Este trabajo fue cancelado.',
+        paused: 'Este trabajo está pausado: volvé a publicarlo para elegir trabajadores.',
+      };
+      res.status(409).json({ success: false, code: 'TRABAJO_NO_ABIERTO', message: motivo[String(job.status)] || 'Este trabajo no está abierto: no se puede elegir trabajadores.' });
+      return;
+    }
+
     const maxWorkers = job.maxWorkers || 1;
     const currentWorkers = job.selectedWorkers || [];
     const currentWorkerCount = currentWorkers.length;
@@ -1149,6 +1162,9 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       proposal,
       contractId: contract.id,
       saldoAFavor,
+      // Si el sobrante todavía no es del cliente (Mercado Pago no liberó el pago original), queda a favor PENDIENTE hasta esa fecha.
+      saldoAFavorPendiente: devolucion.pendiente === true,
+      saldoAFavorDesde: devolucion.disponibleDesde ?? null,
       message: avisoDelSaldo ? `Propuesta aprobada y contrato creado. ${avisoDelSaldo}` : "Propuesta aprobada y contrato creado",
     });
   } catch (error: any) {
