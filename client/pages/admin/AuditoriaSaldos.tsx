@@ -6,7 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6;
   gravedad: "alta" | "media";
   titulo: string;
   detalle: string;
@@ -109,7 +109,7 @@ export default function AuditoriaSaldos() {
                     <div className="text-xs text-slate-600 dark:text-slate-300">{h.detalle}</div>
                     <div className="mt-1 flex flex-wrap gap-3 text-xs">
                       {h.userId && <Link to={`/admin/users/${h.userId}?tab=historial`} className="text-sky-600 hover:underline dark:text-sky-400">historial del usuario</Link>}
-                      {h.jobId && <Link to={`/admin/jobs?id=${h.jobId}`} className="text-sky-600 hover:underline dark:text-sky-400">publicación</Link>}
+                      {h.jobId && <Link to={`/admin/jobs/${h.jobId}/expediente`} className="text-sky-600 hover:underline dark:text-sky-400">expediente de la publicación</Link>}
                       {h.contractId && <Link to={`/admin/contracts/${h.contractId}`} className="text-sky-600 hover:underline dark:text-sky-400">contrato</Link>}
                     </div>
                   </div>

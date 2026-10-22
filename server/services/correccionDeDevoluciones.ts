@@ -41,6 +41,7 @@ export async function corregirDobleDevolucion(aplicar: boolean, escribir: (t: st
        FROM balance_transactions
       WHERE type = 'refund' AND status = 'completed'
         AND metadata->>'origen' = 'cancelacion' AND metadata->>'jobId' IS NOT NULL
+        AND starts_with(COALESCE(metadata->>'reason', ''), 'job_cancelled_')
       ORDER BY created_at ASC`,
     { type: QueryTypes.SELECT },
   )) as Devolucion[];

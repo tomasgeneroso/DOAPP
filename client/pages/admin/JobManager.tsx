@@ -878,6 +878,15 @@ export default function AdminJobManager() {
                         >
                           <Eye className="w-4 h-4" />
                         </Link>
+                        {/* El expediente: quién la creó, revisó o canceló, el pago que la respalda y la plata que movió, en un solo lugar */}
+                        <Link
+                          to={`/admin/jobs/${job.id}/expediente`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+                          title="Expediente: quién hizo qué, el pago y la plata de esta publicación"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Expediente
+                        </Link>
 
                         {/* Aprobar/Rechazar para pendientes */}
                         {(job.status === 'pending' || job.status === 'pending_approval') && (

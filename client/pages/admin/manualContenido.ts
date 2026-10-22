@@ -100,6 +100,7 @@ export const MANUAL: EntradaManual[] = [
       "<b>Rechazar exige motivo</b> (10 caracteres o más). El cliente lo lee tal cual, así que escribilo como para que pueda corregir y volver a publicar.",
       "Rechazar y aprobar una cancelación liquidan igual: sin trabajador seleccionado, precio y comisión vuelven a su saldo a favor. Solo si retira ese saldo al banco se le descuenta media comisión. El costo de procesamiento del pago no vuelve: ya se lo llevó la pasarela, y el mensaje al cliente lo dice.",
       "No se puede aprobar una publicación cuyo dueño ya pidió cancelar: el panel rebota. Si querés publicarla igual, hablá con el cliente primero.",
+      "<b>Expediente de la publicación</b> (botón «Expediente» en cada fila): quién la creó, la revisó, la pausó o la canceló; el pago que la respalda y quién lo confirmó; los movimientos de saldo que generó, con quién los hizo; contratos, postulaciones y auditoría, en una cronología. Arriba aparecen las <b>alertas</b>: lo grave (por ejemplo, plata devuelta de una publicación que nunca se cobró) sale en rojo con qué hacer.",
     ],
   },
   {

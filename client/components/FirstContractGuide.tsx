@@ -78,6 +78,9 @@ export default function FirstContractGuide() {
 
   if (!isAuthenticated || !user) return null;
 
+  // En el panel de administración la guía del primer contrato no corresponde (y tapaba la esquina de las pantallas de trabajo).
+  if (location.pathname.startsWith("/admin")) return null;
+
   // Don't show if user has completed first contract
   if ((user.completedJobs ?? 0) > 0) return null;
 

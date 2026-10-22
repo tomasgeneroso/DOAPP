@@ -7,6 +7,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { BarraDePestanas, PanelDePestana, usePestana, type Pestana } from "../../components/admin/Pestanas";
 import KycMediaViewer from "../../components/admin/KycMediaViewer";
 import HistorialUsuario from "./HistorialUsuario";
+import { Etiqueta, Tarjeta, Vacio, Tabla } from "../../components/admin/PiezasDeFicha";
+import { $, dia, diaYHora, estado, enlace } from "../../components/admin/formatosDeFicha";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -42,78 +44,24 @@ interface Expediente {
   avisos: string[];
 }
 
-const $ = (n: number) => (n < 0 ? "-" : "") + "$" + Math.abs(Math.round(n * 100) / 100).toLocaleString("es-AR");
-const dia = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }) : "—");
-const diaYHora = (v: string) => new Date(v).toLocaleString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ESTADOS: Record<string, string> = {
-  pending: "Pendiente", ready: "Listo", accepted: "Aceptado", in_progress: "En curso", awaiting_confirmation: "Esperando confirmación",
-  completed: "Completado", cancelled: "Cancelado", disputed: "En disputa", rejected: "Rechazado", in_review: "En revisión",
-  draft: "Borrador", pending_payment: "Falta pagar", pending_approval: "A aprobar", open: "Abierto", paused: "Pausado",
-  approved: "Aprobado", processing: "Procesando", held_escrow: "Retenido", refunded: "Devuelto", failed: "Fallido",
-  confirmed_for_payout: "A pagar al trabajador", verified: "Verificado", pending_verification: "A verificar",
-};
-const estado = (s: string) => ESTADOS[s] || s;
-
-function Etiqueta({ ok, si, no, pendiente }: { ok: boolean; si: string; no: string; pendiente?: boolean }) {
-  if (ok) return <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" aria-hidden />{si}</span>;
-  if (pendiente) return <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"><CircleDashed className="h-4 w-4" aria-hidden />{no}</span>;
-  return <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400"><XCircle className="h-4 w-4" aria-hidden />{no}</span>;
-}
-
-function Tarjeta({ titulo, children, derecha }: { titulo: string; children: ReactNode; derecha?: ReactNode }) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{titulo}</h2>
-        {derecha}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Vacio({ texto }: { texto: string }) {
-  return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">{texto}</p>;
-}
-
-function Tabla({ columnas, filas }: { columnas: string[]; filas: ReactNode[][] }) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-      <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
-        <thead className="bg-slate-50 dark:bg-slate-800/60">
-          <tr>{columnas.map((c) => <th key={c} scope="col" className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{c}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 bg-white dark:divide-slate-700/60 dark:bg-slate-800">
-          {filas.map((f, i) => (
-            <tr key={i} className="align-top">
-              {f.map((celda, j) => <td key={j} className="px-3 py-2 text-slate-700 dark:text-slate-200">{celda}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const enlace = "text-sky-600 hover:underline dark:text-sky-400";
-
-/**
- * La ficha de un usuario: todo lo que administración necesita saber de una persona en un solo lugar, en vez de saltar entre la lista de
- * usuarios, el historial, los padrones y el registro de acciones. Datos, historial, contratos, trabajos, documentos, dinero y actividad.
- */
 /** De dónde salió un movimiento de saldo y quién lo hizo (cancelación, retiro, pago con saldo...), y una alerta si una devolución no tiene pago detrás. */
 function procedencia(m: { origen?: string | null; hechoPor?: { tipo: string | null; id: string | null } | null; trabajoId?: string | null; pagoId?: string | null; sinPago?: boolean }) {
   if (!m.origen && !m.hechoPor && !m.trabajoId) return null;
-  const partes = [m.origen ? `origen: ${m.origen}` : null, m.hechoPor?.tipo ? `lo hizo: ${m.hechoPor.tipo}${m.hechoPor.id ? ` (${m.hechoPor.id.slice(0, 8)}…)` : ""}` : null, m.trabajoId ? `publicación ${m.trabajoId.slice(0, 8)}…` : null, m.pagoId ? `pago ${m.pagoId.slice(0, 8)}…` : null].filter(Boolean);
+  const partes = [m.origen ? `origen: ${m.origen}` : null, m.hechoPor?.tipo ? `lo hizo: ${m.hechoPor.tipo}${m.hechoPor.id ? ` (${m.hechoPor.id.slice(0, 8)}…)` : ""}` : null, m.pagoId ? `pago ${m.pagoId.slice(0, 8)}…` : null].filter(Boolean);
   return (
     <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
       {partes.join(" · ")}
+      {m.trabajoId && <>{partes.length > 0 ? " · " : ""}<Link to={`/admin/jobs/${m.trabajoId}/expediente`} className={enlace}>ver el expediente de la publicación</Link></>}
       {m.sinPago && <strong className="ml-1 text-red-700 dark:text-red-400">⚠ sin pago registrado detrás</strong>}
     </span>
   );
 }
 
+/**
+ * La ficha de un usuario: todo lo que administración necesita saber de una persona en un solo lugar, en vez de saltar entre la lista de
+ * usuarios, el historial, los padrones y el registro de acciones. Datos, historial, contratos, trabajos, documentos, dinero y actividad.
+ */
 export default function FichaUsuario() {
   const { userId } = useParams<{ userId: string }>();
   // Con otra persona se vuelve a montar entera: la ficha anterior no queda a la vista mientras carga la nueva.
@@ -256,7 +204,7 @@ function Ficha({ userId }: { userId: string }) {
               columnas={["Fecha", "Trabajo", "Estado", "Precio"]}
               filas={e.trabajos.map((j) => [
                 dia(j.creadoEl),
-                <Link key="t" to={`/jobs/${j.id}`} className={enlace}>{j.title}</Link>,
+                <span key="t"><Link to={`/jobs/${j.id}`} className={enlace}>{j.title}</Link><Link to={`/admin/jobs/${j.id}/expediente`} className={`ml-3 text-xs ${enlace}`}>Expediente</Link></span>,
                 estado(j.estado),
                 <span key="p" className="tabular-nums">{$(j.precio)}</span>,
               ])}

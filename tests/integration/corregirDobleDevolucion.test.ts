@@ -17,7 +17,7 @@ describe('corregir la devolución duplicada de una publicación', () => {
     cliente = await crearUsuario({ role: 'client' });
     trabajo = await crearTrabajo(cliente.id, { status: 'cancelled', title: 'try' });
     const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
-    const meta = { origen: 'cancelacion', jobId: String(trabajo.id), pagoId: PAGO };
+    const meta = { origen: 'cancelacion', reason: 'job_cancelled_sin_trabajador', jobId: String(trabajo.id), pagoId: PAGO };
     await acreditarSaldo(String(cliente.id), 5000, 'Saldo a favor por cancelación de "try"', { relatedModel: 'Job', relatedId: trabajo.id, tipo: 'refund', metadata: meta });
     await acreditarSaldo(String(cliente.id), 5000, 'Saldo a favor por cancelación de "try"', { relatedModel: 'Job', relatedId: trabajo.id, tipo: 'refund', metadata: meta });
   });
@@ -54,5 +54,19 @@ describe('corregir la devolución duplicada de una publicación', () => {
     const otra = await corregirDobleDevolucion(true, () => {});
     expect(otra.find((x) => x.jobId === String(trabajo.id))?.estado).toBe('ya_corregida');
     expect(await saldo()).toBe(5000);
+  });
+
+  it('dos devoluciones de contrato (trabajador no disponible) del mismo trabajo NO son «doble devolución»: no se descuenta nada', async () => {
+    const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
+    const { corregirDobleDevolucion } = await import('../../server/services/correccionDeDevoluciones.js');
+    const otro = await crearTrabajo(cliente.id, { status: 'open', title: 'dos trabajadores', price: 9000 });
+    const meta = { origen: 'cancelacion', jobId: String(otro.id), motivo: 'trabajador_no_disponible', disponibleDesde: new Date().toISOString() };
+    await acreditarSaldo(String(cliente.id), 3000, 'Devolución por trabajador no disponible', { metadata: meta });
+    await acreditarSaldo(String(cliente.id), 3000, 'Devolución por trabajador no disponible', { metadata: meta });
+    const antes = await saldo();
+    const r = await corregirDobleDevolucion(true, () => {});
+    expect(r.find((x) => x.jobId === String(otro.id))).toBeUndefined();
+    expect(await saldo()).toBe(antes);
+    await Job.destroy({ where: { id: otro.id }, force: true });
   });
 });

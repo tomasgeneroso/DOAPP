@@ -16,6 +16,14 @@ import { Notification } from '../models/sql/Notification.model.js';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * ¿Este asiento es la devolución de una PUBLICACIÓN cancelada (la que arma `liquidarCancelacionDePublicacion`)? Otras devoluciones también llevan
+ * `origen: 'cancelacion'` —la de un trabajador que no está disponible, la de un contrato cancelado— pero su respaldo es el pago del contrato, no el
+ * de la publicación: no se las juzga con las reglas de la publicación (pago registrado, una sola devolución por pago).
+ */
+export const esDevolucionDeLaPublicacion = (meta: any): boolean =>
+  meta?.origen === 'cancelacion' && typeof meta?.reason === 'string' && meta.reason.startsWith('job_cancelled_');
+
 /** Marca el saldo que volvió de esta publicación como suyo. */
 export async function vincularCredito(jobId: string, monto: number): Promise<void> {
   await Job.update({ publicationCredit: r2(Math.max(0, monto)) } as any, { where: { id: jobId } });

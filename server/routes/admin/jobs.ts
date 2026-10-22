@@ -356,6 +356,36 @@ router.get(
 );
 
 /**
+ * GET /api/admin/jobs/:id/expediente
+ * Todo lo de una publicación y su plata en un solo lugar: quién la creó, revisó, pausó o canceló; el pago que la respalda y quién lo confirmó;
+ * los movimientos de saldo que generó y quién los hizo; contratos, postulaciones y auditoría, en una cronología y con alertas de lo que no cierra.
+ */
+router.get(
+  '/:id/expediente',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      if (!isValidUUID(id)) {
+        res.status(400).json({ success: false, message: 'ID de publicación inválido' });
+        return;
+      }
+      const { expedienteDePublicacion } = await import('../../services/expedienteDePublicacion.js');
+      const expediente = await expedienteDePublicacion(id);
+      if (!expediente) {
+        res.status(404).json({ success: false, message: 'Publicación no encontrada' });
+        return;
+      }
+      res.json({ success: true, data: expediente });
+    } catch (error: any) {
+      console.error('Error armando el expediente de la publicación:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+/**
  * PUT /api/admin/jobs/:id/status
  * Actualizar estado de una publicación (aprobar/rechazar)
  */

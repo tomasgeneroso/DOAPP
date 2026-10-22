@@ -696,6 +696,9 @@ export default function AdminContracts() {
                         {new Date(contract.createdAt).toLocaleDateString("es-AR")} {new Date(contract.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
                       <IdBadge id={contract.id} />
+                      {contract.job?.id && (
+                        <a href={`/admin/jobs/${contract.job.id}/expediente`} className="mt-1 inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline" title="Quién hizo qué, el pago y la plata de la publicación">Expediente de la publicación</a>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <a href={`/admin/users?search=${encodeURIComponent(contract.client?.name || '')}`} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">{contract.client?.name || 'N/A'}</a>

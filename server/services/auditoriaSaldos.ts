@@ -5,6 +5,7 @@ import { Job } from '../models/sql/Job.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
+import { esDevolucionDeLaPublicacion } from './creditoDePublicacion.js';
 
 /**
  * Auditoría de saldos: las cosas que tienen que ser verdad siempre, y que
@@ -33,10 +34,15 @@ import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
  *
  *   5. RETIROS QUE VACÍAN MÁS DE LO QUE HAY. Un retiro pendiente mayor que el
  *      saldo actual.
+ *
+ *   6. PLATA ACREDITADA SIN COBRO. Una devolución por cancelación sin pago
+ *      registrado ni descuento de saldo detrás (se acreditó plata que nunca
+ *      entró: caso «try» de $400.000), o una publicación que figura pagada
+ *      sin pago ni descuento de saldo (se devolvería al cancelarla).
  */
 
 export interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6;
   gravedad: 'alta' | 'media';
   titulo: string;
   detalle: string;
@@ -69,6 +75,11 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
   const pagosPorContrato = new Map<string, number>();
   const devolucionesPorContrato = new Map<string, number>();
   const conAsientoDeDevolucion = new Set<string>();
+  // Invariante 6: publicaciones pagadas con saldo (hay un descuento por ellas) y devoluciones por cancelación sin pago anotado
+  const pagadasConSaldo = new Set<string>();
+  const devolucionesSinPago: any[] = [];
+  // Publicaciones cuya devolución sin cobro ya se corrigió con un ajuste manual (scripts/ajustarSaldo --publicacion=...)
+  const corregidasAMano = new Set<string>();
 
   for (const a of asientos as any[]) {
     const uid = String(a.userId);
@@ -83,6 +94,9 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
       if (a.type === 'payment') pagosPorContrato.set(cid, (pagosPorContrato.get(cid) || 0) + 1);
       if (a.type === 'refund') devolucionesPorContrato.set(cid, (devolucionesPorContrato.get(cid) || 0) + 1);
     }
+    if (a.status === 'completed' && meta.origen === 'ajuste_manual' && meta.corrigeLaPublicacion) corregidasAMano.add(String(meta.corrigeLaPublicacion));
+    if (a.type === 'adjustment' && meta.relatedModel === 'Job' && meta.relatedId && a.status === 'completed') pagadasConSaldo.add(String(meta.relatedId));
+    if (a.type === 'refund' && a.status === 'completed' && esDevolucionDeLaPublicacion(meta) && !meta.pagoId) devolucionesSinPago.push(a);
     if (a.type === 'refund') {
       if (meta.relatedModel === 'Job' && meta.relatedId) conAsientoDeDevolucion.add(String(meta.relatedId));
       if (meta.jobId) conAsientoDeDevolucion.add(String(meta.jobId));
@@ -144,6 +158,39 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
         jobId: String(j.id),
       });
     }
+  }
+
+  // 6. Plata acreditada sin cobro.
+  for (const a of devolucionesSinPago) {
+    const jobId = String((a.metadata || {}).jobId || '');
+    if (jobId && pagadasConSaldo.has(jobId)) continue; // pagada con saldo: es legítima
+    if (jobId && corregidasAMano.has(jobId)) continue; // ya se descontó con un ajuste manual
+    hallazgos.push({
+      invariante: 6,
+      gravedad: 'alta',
+      titulo: 'Devolución sin pago registrado detrás',
+      detalle: `Se acreditaron $${Number(a.amount).toLocaleString('es-AR')} por cancelar una publicación que no tiene pago registrado ni descuento de saldo: esa plata no entró. Revisá el asiento ${a.id || ''} y, si corresponde, descontalo con scripts/ajustarSaldo.`,
+      monto: Number(a.amount),
+      userId: String(a.userId),
+      jobId: jobId || undefined,
+    });
+  }
+  const pagadasSinRespaldo = await Job.findAll({
+    where: { publicationPaid: true, publicationPaymentId: null, status: { [Op.notIn]: ['draft', 'pending_payment'] } } as any,
+    attributes: ['id', 'title', 'clientId', 'price', 'status', 'pricingMode'],
+    limit: 5000,
+  });
+  for (const j of pagadasSinRespaldo as any[]) {
+    if (pagadasConSaldo.has(String(j.id)) || corregidasAMano.has(String(j.id))) continue;
+    hallazgos.push({
+      invariante: 6,
+      gravedad: 'media',
+      titulo: 'Publicación que figura pagada sin pago registrado',
+      detalle: `"${j.title}" (${j.status}, $${Number(j.price).toLocaleString('es-AR')}) figura pagada pero no tiene pago ni descuento de saldo. Si se cancela no se devuelve nada (no hay plata que devolver). Puede ser una cotización pagada: revisá el pago.`,
+      monto: Number(j.price) || 0,
+      userId: String(j.clientId),
+      jobId: String(j.id),
+    });
   }
 
   // 4. Contratos pagados dos veces, o pagados y devueltos.

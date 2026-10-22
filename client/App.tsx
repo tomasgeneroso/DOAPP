@@ -123,6 +123,7 @@ function RedirigirHistorial() {
 const AdminAyuda = lazy(() => import("./pages/admin/Ayuda"));
 const AdminIdentidades = lazy(() => import("./pages/admin/Identidades"));
 const AdminFichaUsuario = lazy(() => import("./pages/admin/FichaUsuario"));
+const AdminExpedienteDePublicacion = lazy(() => import("./pages/admin/ExpedienteDePublicacion"));
 const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
@@ -745,6 +746,7 @@ export default function App() {
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="jobs/board" element={<AdminJobBoard />} />
+              <Route path="jobs/:jobId/expediente" element={<AdminExpedienteDePublicacion />} />
               <Route path="chargebacks" element={<AdminChargebacks />} />
               <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />
               <Route path="identidad-a-revisar" element={<AdminIdentidades inicial="revisar" />} />

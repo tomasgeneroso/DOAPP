@@ -5,8 +5,11 @@
  * queda en el historial como `adjustment` con `origen: ajuste_manual`, el motivo y quién lo hizo. Por defecto solo muestra qué haría.
  *
  * Uso (en el servidor, desde la carpeta de la app):
- *   npx tsx server/scripts/ajustarSaldo.ts --email=alguien@correo.com --monto=-431956.80 --motivo="Devolución cargada por error" [--aplicar]
+ *   npx tsx server/scripts/ajustarSaldo.ts --email=alguien@correo.com --monto=-431956.80 --motivo="Devolución cargada por error" --publicacion=<id> [--aplicar]
  *   (monto negativo = descontar; positivo = acreditar)
+ *
+ * Con `--publicacion` el ajuste queda atado a esa publicación: la auditoría y su expediente en el panel la dan por corregida (sin eso, la
+ * devolución original seguiría marcada como alerta aunque ya se haya descontado).
  */
 import dotenv from 'dotenv';
 import path from 'path';
@@ -25,6 +28,7 @@ async function main() {
   const email = arg('email');
   const monto = Number(arg('monto'));
   const motivo = arg('motivo');
+  const publicacion = arg('publicacion');
   const aplicar = process.argv.includes('--aplicar');
   if (!email || !Number.isFinite(monto) || monto === 0 || !motivo || motivo.trim().length < 8) {
     throw new Error('Faltan datos: --email=..., --monto=(distinto de 0), --motivo="al menos 8 caracteres"');
@@ -39,13 +43,15 @@ async function main() {
   console.log(`Usuario: ${user.name} <${user.email}>`);
   console.log(`Saldo actual: ${pesos(antes)}  →  ${monto > 0 ? 'se acredita' : 'se descuenta'} ${pesos(Math.abs(monto))}  →  quedaría ${pesos(despues)}`);
   console.log(`Motivo: ${motivo}`);
+  if (publicacion) console.log(`Corrige la publicación: ${publicacion}`);
   if (despues < 0) throw new Error('El ajuste dejaría el saldo en negativo: no se hace.');
   if (!aplicar) {
     console.log('\n(solo vista previa: falta --aplicar)');
     return;
   }
 
-  const metadata = { origen: 'ajuste_manual', motivo, autor: 'script ajustarSaldo' };
+  // `corrigeLaPublicacion` (y no jobId/relatedId): no es un pago de la publicación con saldo, es la corrección de un movimiento.
+  const metadata = { origen: 'ajuste_manual', motivo, autor: 'script ajustarSaldo', ...(publicacion ? { corrigeLaPublicacion: publicacion } : {}) };
   if (monto < 0) await debitarSaldo(String(user.id), Math.abs(monto), `Ajuste manual: ${motivo}`, { tipo: 'adjustment', metadata });
   // sin-espera: ajuste manual decidido por el dueño; no es plata de un pago de Mercado Pago que haya que esperar
   else await acreditarSaldo(String(user.id), monto, `Ajuste manual: ${motivo}`, { tipo: 'bonus', metadata });
