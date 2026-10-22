@@ -341,6 +341,7 @@ export default function Header() {
                 {user.avatar ? (
                   <img
                     src={getImageUrl(user.avatar)}
+                    referrerPolicy="no-referrer"
                     alt={user.name}
                     className="h-8 w-8 rounded-full object-cover"
                     onError={(e) => {

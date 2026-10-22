@@ -14,7 +14,8 @@ function Interno({ src, nombre, className }: { src?: string | null; nombre?: str
       </div>
     );
   }
-  return <img src={src} alt={nombre ? `Foto de ${nombre}` : "Foto de perfil"} className={`${className} object-cover`} onError={() => setFallo(true)} />;
+  // Sin referrer: las fotos de Google (lh3.googleusercontent.com) a veces se niegan a cargar si el pedido dice de qué sitio viene.
+  return <img src={src} alt={nombre ? `Foto de ${nombre}` : "Foto de perfil"} referrerPolicy="no-referrer" className={`${className} object-cover`} onError={() => setFallo(true)} />;
 }
 
 export default function AvatarConInicial(props: { src?: string | null; nombre?: string | null; className: string }) {
