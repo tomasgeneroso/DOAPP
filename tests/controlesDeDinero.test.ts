@@ -131,7 +131,7 @@ describe('controlarPagoOriginal — acreditar saldo', () => {
     expect(medio.aprobado).toBe(false);
   });
 
-  it('sin registro de pago: solo se devuelve si el libro muestra que se pagó con saldo; «pagada» a secas no es plata recibida (el caso del trabajo de $400.000 sin cobro)', () => {
+  it('sin registro de pago: solo se devuelve si el libro muestra que se pagó con saldo; «pagada» a secas no es plata recibida', () => {
     // pagada con saldo (hay un descuento de saldo por esa publicación): se acepta
     expect(controlarPagoOriginal(datos({ pago: null, pagadaConSaldo: true, job: { ...JOB, publicationPaymentId: null } })).aprobado).toBe(true);
     // figura pagada pero no hay pago ni descuento de saldo (contrato libre de comisión, de prueba, cargada a mano): no se cobró, no se devuelve

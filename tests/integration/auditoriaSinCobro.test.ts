@@ -6,8 +6,8 @@ import { auditarSaldos } from '../../server/services/auditoriaSaldos.js';
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 
 /**
- * Invariante 6 de la auditoría: plata acreditada sin cobro. Caso real: la publicación «try» de $400.000, marcada como pagada sin ningún pago
- * registrado, se canceló y devolvió $431.956,80 al saldo del dueño.
+ * Invariante 6 de la auditoría: plata acreditada sin cobro = una devolución de una publicación que NO tiene ningún pago registrado ni descuento de
+ * saldo detrás. (El caso real «try» tenía un pago por transferencia aprobado por quien pagó: es el invariante 7, ver pagoAprobadoPorQuienPago.test.ts.)
  */
 describe('auditoría: plata acreditada sin cobro (invariante 6)', () => {
   let cliente: any;

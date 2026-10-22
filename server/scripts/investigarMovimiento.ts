@@ -17,6 +17,7 @@ import { Job } from '../models/sql/Job.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { AuditLog } from '../models/sql/AuditLog.model.js';
 import BalanceTransaction from '../models/sql/BalanceTransaction.model.js';
+import { quienConfirmoElPago } from '../services/controlesDeDinero.js';
 
 const carpeta = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(carpeta, '../../.env') });
@@ -34,19 +35,29 @@ async function mostrarPublicacion(jobId: string) {
   if (!j) return console.log(`\nPublicación ${jobId}: no existe`);
   console.log(`\n== Publicación "${j.title}" (${j.id}) ==`);
   console.log(`   estado: ${j.status} · precio: ${pesos(j.price)} · dueño: ${await quien(j.clientId)}`);
-  console.log(`   figura pagada: ${j.publicationPaid ? 'sí' : 'no'} · pago registrado: ${j.publicationPaymentId || 'NINGUNO'} · crédito vinculado: ${pesos(j.publicationCredit)}`);
+  // La «marca de pagada» (publication_paid) es solo un indicador de la publicación: puede estar en «no» aunque exista un pago registrado (por ejemplo, después de
+  // una cancelación o una reprogramación). Lo que importa es el pago registrado y quién lo confirmó.
+  console.log(`   marca «pagada» de la publicación (publication_paid): ${j.publicationPaid ? 'sí' : 'no'} · pago registrado: ${j.publicationPaymentId || 'NINGUNO'} · crédito vinculado: ${pesos(j.publicationCredit)}`);
   console.log(`   cancelada por: ${await quien(j.cancelledById)} (rol: ${j.cancelledByRole || '-'}) el ${j.cancelledAt ? new Date(j.cancelledAt).toLocaleString('es-AR') : '-'}`);
   console.log(`   motivo: ${j.cancellationReason || '-'}`);
   console.log(`   revisada/aprobada por: ${await quien(j.reviewedBy)} el ${j.reviewedAt ? new Date(j.reviewedAt).toLocaleString('es-AR') : '-'}`);
   if (j.publicationPaymentId) {
     const p: any = await Payment.findByPk(j.publicationPaymentId);
-    console.log(p ? `   pago: ${pesos(p.amount)} ${p.currency} · estado ${p.status} · medio ${p.paymentMethod} · MP: ${p.mercadopagoStatus || '-'} · aprobado por: ${await quien(p.approvedBy)}` : '   pago: el registro no existe');
+    console.log(p ? `   pago: ${pesos(p.amount)} ${p.currency} · estado ${p.status} · medio ${p.paymentMethod} · MP: ${p.mercadopagoStatus || '-'}` : '   pago: el registro no existe');
+    if (p) {
+      console.log(`   pagó: ${await quien(p.payerId)}`);
+      console.log(`   aprobado por: ${await quien(p.approvedBy)}${p.approvedBy && String(p.approvedBy) === String(p.payerId) ? '   ⚠ LA MISMA CUENTA QUE PAGÓ' : ''}`);
+      const conf = quienConfirmoElPago(p);
+      console.log(`   confirmación: ${conf ?? 'nadie'}${(conf ?? '').startsWith('por un administrador') ? ' (a mano: ninguna pasarela comprobó que el dinero entró)' : ''}`);
+    }
   } else {
     console.log('   ⚠ No hay pago registrado: nunca entró plata por esta publicación (contrato libre de comisión, de prueba o cargada a mano).');
   }
-  const logs: any[] = await AuditLog.findAll({ where: { targetId: jobId } as any, order: [['createdAt', 'ASC']], limit: 50 });
+  // El registro de acciones apunta a lo que se tocó: la publicación y SU PAGO (ahí queda quién lo aprobó).
+  const ids = [jobId, ...(j.publicationPaymentId ? [String(j.publicationPaymentId)] : [])];
+  const logs: any[] = await AuditLog.findAll({ where: { targetId: ids } as any, order: [['createdAt', 'ASC']], limit: 100 });
   console.log(`   auditoría (${logs.length}):`);
-  for (const l of logs) console.log(`     ${new Date(l.createdAt).toLocaleString('es-AR')} · ${l.action} · ${l.description}`);
+  for (const l of logs) console.log(`     ${new Date(l.createdAt).toLocaleString('es-AR')} · ${l.targetModel} · ${l.action} · ${await quien(l.performedBy)} · ${l.description}`);
 }
 
 async function mostrarMovimiento(m: any) {

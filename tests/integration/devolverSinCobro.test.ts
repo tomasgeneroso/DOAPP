@@ -6,8 +6,9 @@ import BalanceTransaction from '../../server/models/sql/BalanceTransaction.model
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 
 /**
- * Caso real (prod, 17/10): una publicación de prueba «try» de $400.000, marcada como pagada pero SIN pago registrado ni descuento de saldo (un
- * contrato libre de comisión), se canceló y devolvió $431.956,80 al saldo del dueño: plata que nunca entró. Sin cobro no hay devolución.
+ * Una publicación que figura pagada pero NO tiene ningún pago registrado ni descuento de saldo (un contrato libre de comisión, de prueba, cargada
+ * a mano) se cancela: no hay plata que devolver, porque nada la respalda. (El caso real «try» fue otro —tenía un pago por transferencia aprobado a
+ * mano por quien pagó—: ver pagoAprobadoPorQuienPago.test.ts.)
  */
 jest.mock('../../server/services/mercadopago.js', () => ({ __esModule: true, default: { getPayment: jest.fn(), refundPayment: jest.fn() } }));
 

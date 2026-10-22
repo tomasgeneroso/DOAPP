@@ -99,8 +99,13 @@ export interface ExpedienteDePublicacion {
     medio: string;
     mercadoPago: { id: string | null; estado: string | null };
     confirmadoPor: string | null;
+    pagador: Persona | null;
     aprobadoPor: Persona | null;
     aprobadoEl: string | null;
+    /** La misma cuenta que pagó fue la que lo aprobó. */
+    aprobadoPorElPagador: boolean;
+    /** Lo confirmó una persona (transferencia, comprobante), no una pasarela: nadie más comprobó que el dinero entró. */
+    esManual: boolean;
     comision: number;
     devuelto: number;
     creadoEl: string | null;
@@ -126,7 +131,7 @@ export interface ExpedienteDePublicacion {
     motivoDeCancelacion: string | null;
   }>;
   postulaciones: { total: number; porEstado: Record<string, number> };
-  auditoria: Array<{ fecha: string; accion: string; descripcion: string; gravedad: string; quien: string | null }>;
+  auditoria: Array<{ fecha: string; accion: string; descripcion: string; gravedad: string; quien: string | null; sobre: string }>;
   linea: EventoDeLaLinea[];
   alertas: Alerta[];
   /** Listas que no se pudieron leer (la página sigue con lo demás). */
@@ -147,14 +152,15 @@ export interface DatosParaLasAlertas {
   estado: string;
   precio: number;
   figuraPagada: boolean;
+  /** El pago registrado de la publicación (el que figura en la publicación, no el que anotó un asiento). */
   pagoId: string | null;
   pagadaConSaldo: boolean;
   creditoVinculado: number;
   pausadaPorAdmin: boolean;
   reprogramada: boolean;
   duenoNombre: string | null;
-  pago: { monto: number; moneda: string; estado: string } | null;
-  /** Devoluciones por cancelación de esta publicación. */
+  pago: { monto: number; moneda: string; estado: string; medio?: string; aprobadoPorElPagador?: boolean; esManual?: boolean } | null;
+  /** Devoluciones por cancelación de esta publicación. `pagoId` es el pago que anotó el asiento (los viejos no lo anotan). */
   devoluciones: Array<{ monto: number; pagoId: string | null }>;
   /** Lo que ya se descontó con ajustes manuales atados a esta publicación (scripts/ajustarSaldo --publicacion). */
   corregidoAMano?: number;
@@ -164,22 +170,25 @@ export interface DatosParaLasAlertas {
 export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
   const alertas: Alerta[] = [];
   const totalDevuelto = r2(d.devoluciones.reduce((s, x) => s + x.monto, 0));
-  const sinPago = d.devoluciones.filter((x) => !x.pagoId);
+  const corregido = d.corregidoAMano ?? 0;
+  const pagoVigente = d.pago && d.pago.estado !== 'cancelled' && d.pago.estado !== 'failed' && d.pago.estado !== 'rejected';
 
-  const sinPagoTotal = r2(sinPago.reduce((s, x) => s + x.monto, 0));
-  if (sinPago.length > 0 && !d.pagadaConSaldo && (d.corregidoAMano ?? 0) >= sinPagoTotal - 0.01) {
-    alertas.push({
-      nivel: 'info',
-      titulo: 'Se devolvió plata sin cobro, y ya se corrigió',
-      detalle: `Se habían acreditado ${pesos(sinPagoTotal)} sin pago detrás; se descontaron con un ajuste manual (queda en el historial del usuario).`,
-    });
-  } else if (sinPago.length > 0 && !d.pagadaConSaldo) {
-    alertas.push({
-      nivel: 'alta',
-      titulo: 'Se devolvió plata de una publicación que nunca se cobró',
-      detalle: `Se acreditaron ${pesos(sinPagoTotal)} al saldo de ${d.duenoNombre || 'el dueño'} por cancelar esta publicación, pero no tiene ningún pago registrado ni un descuento de saldo detrás: esa plata no entró.`,
-      queHacer: 'Confirmá en Pagos que no hubo un cobro real. Si no lo hubo, descontalo con el script ajustarSaldo (queda como asiento de ajuste en el historial del usuario).',
-    });
+  // La publicación NO tiene ningún pago detrás (ni registro de pago ni descuento de saldo) y aun así se devolvió plata.
+  if (d.devoluciones.length > 0 && !d.pagoId && !d.pagadaConSaldo) {
+    if (corregido >= totalDevuelto - 0.01) {
+      alertas.push({
+        nivel: 'info',
+        titulo: 'Se devolvió plata sin cobro, y ya se corrigió',
+        detalle: `Se habían acreditado ${pesos(totalDevuelto)} sin pago detrás; se descontaron con un ajuste manual (queda en el historial del usuario).`,
+      });
+    } else {
+      alertas.push({
+        nivel: 'alta',
+        titulo: 'Se devolvió plata de una publicación que nunca se cobró',
+        detalle: `Se acreditaron ${pesos(totalDevuelto)} al saldo de ${d.duenoNombre || 'el dueño'} por cancelar esta publicación, pero no tiene ningún pago registrado ni un descuento de saldo detrás: esa plata no entró.`,
+        queHacer: 'Confirmá en Pagos que no hubo un cobro real. Si no lo hubo, descontalo con el script ajustarSaldo (queda como asiento de ajuste en el historial del usuario).',
+      });
+    }
   } else if (d.figuraPagada && !d.pagoId && !d.pagadaConSaldo && !['draft', 'pending_payment'].includes(d.estado)) {
     alertas.push({
       nivel: 'media',
@@ -189,16 +198,28 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     });
   }
 
-  if (d.pago && d.figuraPagada && !ESTADOS_CON_DINERO.has(d.pago.estado)) {
-    alertas.push({
-      nivel: 'alta',
-      titulo: `La publicación figura pagada pero su pago está «${d.pago.estado}»`,
-      detalle: `El pago de ${pesos(d.pago.monto)} no está en un estado de dinero recibido, y aun así la publicación se dio por pagada.`,
-      queHacer: 'Revisá el pago (comprobante, Mercado Pago). Si el dinero no llegó, la publicación no debería estar publicada.',
-    });
-  }
+  if (d.pago && pagoVigente) {
+    if (d.figuraPagada && !ESTADOS_CON_DINERO.has(d.pago.estado)) {
+      alertas.push({
+        nivel: 'alta',
+        titulo: `La publicación figura pagada pero su pago está «${d.pago.estado}»`,
+        detalle: `El pago de ${pesos(d.pago.monto)} no está en un estado de dinero recibido, y aun así la publicación se dio por pagada.`,
+        queHacer: 'Revisá el pago (comprobante, Mercado Pago). Si el dinero no llegó, la publicación no debería estar publicada.',
+      });
+    }
 
-  if (d.pago) {
+    // Un pago que NADIE más verificó: lo confirmó a mano la misma cuenta que pagó. Es lo que dejó pasar el caso «try» ($431.956,80).
+    if (d.pago.esManual && d.pago.aprobadoPorElPagador && ESTADOS_CON_DINERO.has(d.pago.estado)) {
+      alertas.push({
+        nivel: 'media',
+        titulo: 'Pago aprobado a mano por la misma persona que pagó',
+        detalle: `El pago de ${pesos(d.pago.monto)}${d.pago.medio ? ` (${d.pago.medio})` : ''} lo confirmó a mano la misma cuenta que lo hizo, sin que una pasarela lo confirmara. Nadie más comprobó que el dinero haya entrado.`,
+        queHacer: 'Confirmá en el banco que el dinero entró. Si no entró, anulá el pago (script anularPago) y, si se devolvió algo al saldo, descontalo con ajustarSaldo --publicacion.',
+      });
+    } else if (d.pago.esManual && ESTADOS_CON_DINERO.has(d.pago.estado)) {
+      alertas.push({ nivel: 'info', titulo: 'Pago confirmado a mano (sin pasarela)', detalle: 'Lo confirmó una persona (transferencia o comprobante), no una pasarela de pago.' });
+    }
+
     if (totalDevuelto > d.pago.monto + 0.01) {
       alertas.push({
         nivel: 'alta',
@@ -207,9 +228,13 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
         queHacer: 'Corregí la diferencia con ajustarSaldo y revisá por qué se acreditó de más.',
       });
     }
-    const pagoPorPago = new Map<string, number>();
-    for (const x of d.devoluciones) if (x.pagoId) pagoPorPago.set(x.pagoId, (pagoPorPago.get(x.pagoId) || 0) + 1);
-    if ([...pagoPorPago.values()].some((n) => n > 1)) {
+    // El mismo pago devuelto más de una vez. Los asientos viejos no anotan el pago: se cuenta el de la publicación.
+    const porPago = new Map<string, number>();
+    for (const x of d.devoluciones) {
+      const clave = x.pagoId ?? d.pagoId;
+      if (clave) porPago.set(clave, (porPago.get(clave) || 0) + 1);
+    }
+    if ([...porPago.values()].some((n) => n > 1)) {
       alertas.push({
         nivel: 'alta',
         titulo: 'El mismo pago se devolvió más de una vez',
@@ -224,6 +249,17 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
         detalle: `Pagó ${pesos(d.pago.monto)} y el precio es ${pesos(d.precio)}. Puede ser un precio que cambió después, pero conviene mirarlo.`,
       });
     }
+  }
+
+  if (d.pago && !pagoVigente) {
+    alertas.push({ nivel: 'info', titulo: `El pago está ${d.pago.estado === 'cancelled' ? 'anulado' : d.pago.estado}`, detalle: 'Ya no cuenta como dinero recibido.' });
+  }
+  // Un asiento viejo que no anota el pago, de una publicación que sí lo tiene: no es «sin cobro», es un dato que falta en el asiento.
+  if (d.pagoId && d.devoluciones.some((x) => !x.pagoId)) {
+    alertas.push({ nivel: 'info', titulo: 'La devolución no anota de qué pago salió', detalle: 'Es un asiento anterior a que se anotara el pago; se respalda con el pago registrado de la publicación.' });
+  }
+  if (corregido > 0 && d.devoluciones.length > 0 && !(d.devoluciones.length > 0 && !d.pagoId && !d.pagadaConSaldo)) {
+    alertas.push({ nivel: 'info', titulo: 'Hay ajustes manuales por esta publicación', detalle: `Se descontaron ${pesos(corregido)} con ajustes manuales (queda en el historial del usuario).` });
   }
 
   if (d.pausadaPorAdmin) {
@@ -263,7 +299,7 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
   const contratos: any[] = await seguro('contratos', () => Contract.findAll({ where: { jobId }, order: [['createdAt', 'ASC']] }), [] as any[]);
   const idsDeContratos = contratos.map((c) => String(c.id));
 
-  const [movimientosCrudos, postulaciones, auditoriaCruda, pagosDeContratos]: [any[], any[], any[], any[]] = await Promise.all([
+  const [movimientosCrudos, postulaciones, pagosDeContratos]: [any[], any[], any[]] = await Promise.all([
     seguro(
       'movimientos de saldo',
       () =>
@@ -282,18 +318,21 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
       [] as any[],
     ),
     seguro('postulaciones', () => Proposal.findAll({ where: { jobId }, attributes: ['id', 'status', 'freelancerId', 'createdAt'] }), [] as any[]),
-    seguro('auditoría', () => AuditLog.findAll({ where: { targetId: jobId } as any, order: [['createdAt', 'ASC']], limit: 100 }), [] as any[]),
     idsDeContratos.length > 0
       ? seguro('pagos de los contratos', () => Payment.findAll({ where: { contractId: { [Op.in]: idsDeContratos } } as any, order: [['createdAt', 'ASC']], limit: 100 }), [] as any[])
       : Promise.resolve([] as any[]),
   ]);
+
+  // El registro de acciones apunta a lo que se tocó: la publicación, SU PAGO (quién lo aprobó) y sus contratos. Antes solo se miraba la publicación.
+  const idsAuditados = [String(jobId), ...(pagoRegistrado ? [String(pagoRegistrado.id)] : []), ...idsDeContratos, ...pagosDeContratos.map((p) => String(p.id))];
+  const auditoriaCruda: any[] = await seguro('auditoría', () => AuditLog.findAll({ where: { targetId: { [Op.in]: idsAuditados } } as any, order: [['createdAt', 'ASC']], limit: 150 }), [] as any[]);
 
   // Las personas que aparecen, en una sola consulta.
   const ids = new Set<string>();
   const sumar = (v: unknown) => {
     if (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v)) ids.add(v);
   };
-  [job.clientId, job.cancelledById, job.reviewedBy, pagoRegistrado?.approvedBy, pagoRegistrado?.escrowVerifiedBy].forEach(sumar);
+  [job.clientId, job.cancelledById, job.reviewedBy, pagoRegistrado?.payerId, pagoRegistrado?.approvedBy, pagoRegistrado?.escrowVerifiedBy].forEach(sumar);
   for (const c of contratos) [c.doerId, c.cancelledBy].forEach(sumar);
   for (const m of movimientosCrudos) {
     sumar(m.userId);
@@ -320,7 +359,8 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
       saldoAntes: Number(m.balanceBefore) || 0,
       saldoDespues: Number(m.balanceAfter) || 0,
       pagoId: meta.pagoId ?? null,
-      sinPago: m.type === 'refund' && esDevolucionDeLaPublicacion(meta) && !meta.pagoId,
+      // «Sin pago detrás» = la publicación no tiene ningún pago registrado (el asiento viejo puede no anotarlo aunque exista).
+      sinPago: m.type === 'refund' && esDevolucionDeLaPublicacion(meta) && !meta.pagoId && !job.publicationPaymentId,
       publicacionId: meta.jobId ?? (meta.relatedModel === 'Job' ? meta.relatedId ?? null : null) ?? meta.corrigeLaPublicacion ?? null,
     };
   });
@@ -345,7 +385,10 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
         medio: String(pagoRegistrado.paymentMethod || ''),
         mercadoPago: { id: pagoRegistrado.mercadopagoPaymentId ?? null, estado: pagoRegistrado.mercadopagoStatus ?? null },
         confirmadoPor: quienConfirmoElPago(pagoRegistrado),
+        pagador: persona(pagoRegistrado.payerId),
         aprobadoPor: persona(pagoRegistrado.approvedBy ?? pagoRegistrado.escrowVerifiedBy),
+        aprobadoPorElPagador: !!(pagoRegistrado.approvedBy ?? pagoRegistrado.escrowVerifiedBy) && String(pagoRegistrado.approvedBy ?? pagoRegistrado.escrowVerifiedBy) === String(pagoRegistrado.payerId),
+        esManual: (quienConfirmoElPago(pagoRegistrado) ?? '').startsWith('por un administrador'),
         aprobadoEl: iso(pagoRegistrado.approvedAt ?? pagoRegistrado.escrowVerifiedAt),
         comision: Number(pagoRegistrado.platformFee) || 0,
         devuelto: Number(pagoRegistrado.refundedAmount) || 0,
@@ -394,7 +437,7 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     pausadaPorAdmin: publicacion.pausadaPorAdmin,
     reprogramada: !!reprogramada,
     duenoNombre: dueno?.nombre ?? null,
-    pago: pago ? { monto: pago.monto, moneda: pago.moneda, estado: pago.estado } : null,
+    pago: pago ? { monto: pago.monto, moneda: pago.moneda, estado: pago.estado, medio: pago.medio, aprobadoPorElPagador: pago.aprobadoPorElPagador, esManual: pago.esManual } : null,
     devoluciones: devoluciones.map((d) => ({ monto: d.monto, pagoId: d.pagoId })),
     corregidoAMano,
   });
@@ -426,6 +469,7 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     descripcion: String(a.description || ''),
     gravedad: String(a.severity || 'low'),
     quien: a.performedBy ? persona(a.performedBy)?.nombre ?? null : a.actor ?? null,
+    sobre: a.targetModel === 'Payment' ? 'Pago' : a.targetModel === 'Contract' ? 'Contrato' : 'Publicación',
   }));
 
   // La cronología: todo en orden de fecha, con quién lo hizo.

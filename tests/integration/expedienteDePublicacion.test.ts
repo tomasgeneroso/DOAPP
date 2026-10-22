@@ -5,7 +5,8 @@ import jwt from 'jsonwebtoken';
 
 /**
  * El expediente de una publicación en el panel de administración: quién la creó/revisó/canceló, el pago que la respalda, los movimientos de
- * saldo que generó (con quién los hizo), una cronología y alertas de lo que no cierra (caso «try» de $400.000 devuelto sin cobro).
+ * saldo que generó (con quién los hizo), una cronología y alertas de lo que no cierra (por ejemplo, plata devuelta de una publicación sin ningún pago
+ * detrás; el caso de un pago aprobado por quien pagó está en pagoAprobadoPorQuienPago.test.ts).
  */
 jest.mock('../../server/index.js', () => {
   const nada: any = new Proxy(function () {}, { get: () => nada, apply: () => nada });

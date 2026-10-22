@@ -803,6 +803,19 @@ router.get(
       ]);
 
       const nombre = (u: any) => (u ? { id: u.id, name: u.name } : null);
+
+      // «Sin pago detrás»: una devolución de una publicación cancelada cuya publicación NO tiene ningún pago registrado. Los asientos viejos no anotan
+      // el pago, así que no se juzga por el asiento sino por la publicación.
+      const { esDevolucionDeLaPublicacion } = await import("../../services/creditoDePublicacion.js");
+      const idsDePublicaciones = [...new Set((movimientos as any[]).filter((m) => esDevolucionDeLaPublicacion(m.metadata) && m.metadata?.jobId).map((m) => String(m.metadata.jobId)))];
+      const publicacionesConPago = new Set<string>(
+        idsDePublicaciones.length === 0
+          ? []
+          : ((await seguro("publicaciones de las devoluciones", () => Job.findAll({ where: { id: { [Op.in]: idsDePublicaciones } } as any, attributes: ["id", "publicationPaymentId"] }), [] as any[])) as any[])
+              .filter((j) => j.publicationPaymentId)
+              .map((j) => String(j.id)),
+      );
+
       res.json({
         success: true,
         data: {
@@ -852,7 +865,7 @@ router.get(
               hechoPor: m.metadata?.actor ? { tipo: m.metadata.actor.tipo ?? null, id: m.metadata.actor.id ?? null } : null,
               trabajoId: m.metadata?.jobId ?? null,
               pagoId: m.metadata?.pagoId ?? null,
-              sinPago: m.metadata?.origen === 'cancelacion' && !m.metadata?.pagoId,
+              sinPago: esDevolucionDeLaPublicacion(m.metadata) && !m.metadata?.pagoId && !publicacionesConPago.has(String(m.metadata?.jobId)),
             })),
             retiros: retiros.map((r: any) => ({ id: r.id, monto: Number(r.amount) || 0, estado: r.status, pedidoEl: r.requestedAt, completadoEl: r.completedAt, motivoRechazo: r.rejectionReason ?? null })),
             pagos: pagos.map((p: any) => ({

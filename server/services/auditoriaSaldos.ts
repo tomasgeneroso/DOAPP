@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { User } from '../models/sql/User.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { Job } from '../models/sql/Job.model.js';
@@ -6,6 +6,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
 import { esDevolucionDeLaPublicacion } from './creditoDePublicacion.js';
+import { quienConfirmoElPago } from './controlesDeDinero.js';
 
 /**
  * Auditoría de saldos: las cosas que tienen que ser verdad siempre, y que
@@ -35,14 +36,20 @@ import { esDevolucionDeLaPublicacion } from './creditoDePublicacion.js';
  *   5. RETIROS QUE VACÍAN MÁS DE LO QUE HAY. Un retiro pendiente mayor que el
  *      saldo actual.
  *
- *   6. PLATA ACREDITADA SIN COBRO. Una devolución por cancelación sin pago
- *      registrado ni descuento de saldo detrás (se acreditó plata que nunca
- *      entró: caso «try» de $400.000), o una publicación que figura pagada
- *      sin pago ni descuento de saldo (se devolvería al cancelarla).
+ *   6. PLATA ACREDITADA SIN COBRO. Una devolución de una publicación que NO
+ *      tiene ningún pago registrado ni descuento de saldo detrás (plata que
+ *      nunca entró), o una publicación que figura pagada sin pago ni
+ *      descuento de saldo (se devolvería al cancelarla).
+ *
+ *   7. PAGOS CONFIRMADOS A MANO POR QUIEN PAGÓ. Una transferencia que aprobó
+ *      la misma cuenta que la hizo, sin pasarela: nadie más comprobó que el
+ *      dinero entró. Es como un pago de prueba (caso «try», $431.956,80:
+ *      transferencia aprobada por la propia cuenta, sin dinero real) llegó a
+ *      devolverse al saldo.
  */
 
 export interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5 | 6;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   gravedad: 'alta' | 'media';
   titulo: string;
   detalle: string;
@@ -160,9 +167,17 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
     }
   }
 
-  // 6. Plata acreditada sin cobro.
+  // 6. Plata acreditada sin cobro. Se juzga contra el pago REGISTRADO DE LA PUBLICACIÓN: los asientos viejos no anotan el pago aunque exista.
+  const idsDeLasDevueltas = [...new Set(devolucionesSinPago.map((a) => String((a.metadata || {}).jobId || '')).filter(Boolean))];
+  const conPagoRegistrado = new Set<string>(
+    (idsDeLasDevueltas.length === 0
+      ? []
+      : ((await Job.findAll({ where: { id: { [Op.in]: idsDeLasDevueltas }, publicationPaymentId: { [Op.ne]: null } } as any, attributes: ['id'] })) as any[])
+    ).map((j) => String(j.id)),
+  );
   for (const a of devolucionesSinPago) {
     const jobId = String((a.metadata || {}).jobId || '');
+    if (jobId && conPagoRegistrado.has(jobId)) continue; // la publicación sí tiene un pago registrado (se mira en el invariante 7)
     if (jobId && pagadasConSaldo.has(jobId)) continue; // pagada con saldo: es legítima
     if (jobId && corregidasAMano.has(jobId)) continue; // ya se descontó con un ajuste manual
     hallazgos.push({
@@ -190,6 +205,30 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
       monto: Number(j.price) || 0,
       userId: String(j.clientId),
       jobId: String(j.id),
+    });
+  }
+
+  // 7. Pagos confirmados a mano por la misma cuenta que pagó (sin pasarela que los verifique).
+  const ESTADOS_CON_DINERO = ['completed', 'held_escrow', 'awaiting_confirmation', 'confirmed_for_payout', 'verified', 'approved'];
+  const autoaprobados: any[] = await Payment.findAll({
+    where: { [Op.and]: [{ approvedBy: { [Op.ne]: null } }, { status: { [Op.in]: ESTADOS_CON_DINERO } }, literal('"approved_by" = "payer_id"')] } as any,
+    attributes: ['id', 'payerId', 'amount', 'currency', 'paymentType', 'paymentMethod', 'status', 'approvedBy', 'approvedAt', 'mercadopagoStatus', 'astropayStatus', 'paypalCaptureId', 'escrowVerifiedBy', 'escrowVerifiedAt'],
+    order: [['approvedAt', 'DESC']],
+    limit: 500,
+  });
+  const manuales = autoaprobados.filter((p) => (quienConfirmoElPago(p) ?? '').startsWith('por un administrador'));
+  const publicacionesDeEsosPagos: any[] = manuales.length === 0 ? [] : await Job.findAll({ where: { publicationPaymentId: { [Op.in]: manuales.map((p) => String(p.id)) } } as any, attributes: ['id', 'title', 'publicationPaymentId'] });
+  const trabajoDelPago = new Map<string, any>(publicacionesDeEsosPagos.map((j) => [String(j.publicationPaymentId), j]));
+  for (const p of manuales) {
+    const j = trabajoDelPago.get(String(p.id));
+    hallazgos.push({
+      invariante: 7,
+      gravedad: 'media',
+      titulo: 'Pago confirmado a mano por la misma persona que pagó',
+      detalle: `${p.paymentType} de $${Number(p.amount).toLocaleString('es-AR')} ${p.currency} (${p.paymentMethod})${j ? ` de la publicación "${j.title}"` : ''}, aprobado el ${p.approvedAt ? new Date(p.approvedAt).toLocaleDateString('es-AR') : 'sin fecha'} por la misma cuenta que lo hizo, sin pasarela. Confirmá en el banco que el dinero entró; si no, anulá el pago (scripts/anularPago).`,
+      monto: Number(p.amount),
+      userId: String(p.payerId),
+      jobId: j ? String(j.id) : undefined,
     });
   }
 

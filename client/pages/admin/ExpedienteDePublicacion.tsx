@@ -27,7 +27,8 @@ interface Expediente {
   };
   pago: {
     id: string; monto: number; moneda: string; estado: string; medio: string; mercadoPago: { id: string | null; estado: string | null }; confirmadoPor: string | null;
-    aprobadoPor: Persona | null; aprobadoEl: string | null; comision: number; devuelto: number; creadoEl: string | null; pagadoEl: string | null;
+    pagador: Persona | null; aprobadoPor: Persona | null; aprobadoEl: string | null; aprobadoPorElPagador: boolean; esManual: boolean;
+    comision: number; devuelto: number; creadoEl: string | null; pagadoEl: string | null;
   } | null;
   pagosDeContratos: Array<{ id: string; contratoId: string | null; monto: number; moneda: string; estado: string; tipo: string; creadoEl: string | null }>;
   movimientos: Movimiento[];
@@ -37,7 +38,7 @@ interface Expediente {
     canceladoPor: Persona | null; motivoDeCancelacion: string | null;
   }>;
   postulaciones: { total: number; porEstado: Record<string, number> };
-  auditoria: Array<{ fecha: string; accion: string; descripcion: string; gravedad: string; quien: string | null }>;
+  auditoria: Array<{ fecha: string; accion: string; descripcion: string; gravedad: string; quien: string | null; sobre: string }>;
   linea: Evento[];
   alertas: Alerta[];
   avisos: string[];
@@ -202,7 +203,13 @@ function Pagina({ jobId }: { jobId: string }) {
                   <Dato rotulo="Estado">{estado(e.pago.estado)}</Dato>
                   <Dato rotulo="Medio">{e.pago.medio}{e.pago.mercadoPago.id ? ` · MP ${e.pago.mercadoPago.id}` : ""}{e.pago.mercadoPago.estado ? ` (${e.pago.mercadoPago.estado})` : ""}</Dato>
                   <Dato rotulo="Confirmado">{e.pago.confirmadoPor || <span className="text-red-700 dark:text-red-400">nadie lo confirmó</span>}</Dato>
-                  {e.pago.aprobadoPor && <Dato rotulo="Aprobó"><PersonaEnlace p={e.pago.aprobadoPor} /></Dato>}
+                  <Dato rotulo="Pagó"><PersonaEnlace p={e.pago.pagador} /></Dato>
+                  {e.pago.aprobadoPor && (
+                    <Dato rotulo="Aprobó">
+                      <PersonaEnlace p={e.pago.aprobadoPor} />
+                      {e.pago.aprobadoPorElPagador && <strong className="block text-xs text-amber-700 dark:text-amber-300">⚠ la misma cuenta que pagó</strong>}
+                    </Dato>
+                  )}
                   {e.pago.comision > 0 && <Dato rotulo="Comisión">{$(e.pago.comision)}</Dato>}
                   {e.pago.devuelto > 0 && <Dato rotulo="Devuelto por MP">{$(e.pago.devuelto)}</Dato>}
                   <Dato rotulo="Fecha">{e.pago.creadoEl ? diaYHora(e.pago.creadoEl) : "—"}</Dato>
@@ -341,8 +348,8 @@ function Pagina({ jobId }: { jobId: string }) {
               <Vacio texto={hayGraves ? "No hay registro de acciones sobre esta publicación (las anteriores a la auditoría no quedaron anotadas)." : "Sin registros."} />
             ) : (
               <Tabla
-                columnas={["Fecha", "Acción", "Quién", "Detalle"]}
-                filas={e.auditoria.map((a) => [diaYHora(a.fecha), <span key="a" className="font-mono text-xs">{a.accion}</span>, a.quien || "—", a.descripcion])}
+                columnas={["Fecha", "Sobre", "Acción", "Quién", "Detalle"]}
+                filas={e.auditoria.map((a) => [diaYHora(a.fecha), a.sobre, <span key="a" className="font-mono text-xs">{a.accion}</span>, a.quien || "—", a.descripcion])}
               />
             )}
           </Tarjeta>
