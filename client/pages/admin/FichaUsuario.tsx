@@ -34,7 +34,7 @@ interface Expediente {
   }>;
   trabajos: Array<{ id: string; title: string; estado: string; precio: number; creadoEl: string }>;
   dinero: {
-    movimientos: Array<{ id: string; tipo: string; monto: number; estado: string; descripcion: string; saldoDespues: number; fecha: string; disponibleDesde: string | null; fueraDelSaldo: boolean }>;
+    movimientos: Array<{ id: string; tipo: string; monto: number; estado: string; descripcion: string; saldoDespues: number; fecha: string; disponibleDesde: string | null; fueraDelSaldo: boolean; origen?: string | null; hechoPor?: { tipo: string | null; id: string | null } | null; trabajoId?: string | null; pagoId?: string | null; sinPago?: boolean }>;
     retiros: Array<{ id: string; monto: number; estado: string; pedidoEl: string; completadoEl: string | null; motivoRechazo: string | null }>;
     pagos: Array<{ id: string; monto: number; moneda: string; estado: string; tipo: string; rol: string; contractId: string | null; fecha: string }>;
   };
@@ -102,6 +102,18 @@ const enlace = "text-sky-600 hover:underline dark:text-sky-400";
  * La ficha de un usuario: todo lo que administración necesita saber de una persona en un solo lugar, en vez de saltar entre la lista de
  * usuarios, el historial, los padrones y el registro de acciones. Datos, historial, contratos, trabajos, documentos, dinero y actividad.
  */
+/** De dónde salió un movimiento de saldo y quién lo hizo (cancelación, retiro, pago con saldo...), y una alerta si una devolución no tiene pago detrás. */
+function procedencia(m: { origen?: string | null; hechoPor?: { tipo: string | null; id: string | null } | null; trabajoId?: string | null; pagoId?: string | null; sinPago?: boolean }) {
+  if (!m.origen && !m.hechoPor && !m.trabajoId) return null;
+  const partes = [m.origen ? `origen: ${m.origen}` : null, m.hechoPor?.tipo ? `lo hizo: ${m.hechoPor.tipo}${m.hechoPor.id ? ` (${m.hechoPor.id.slice(0, 8)}…)` : ""}` : null, m.trabajoId ? `publicación ${m.trabajoId.slice(0, 8)}…` : null, m.pagoId ? `pago ${m.pagoId.slice(0, 8)}…` : null].filter(Boolean);
+  return (
+    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+      {partes.join(" · ")}
+      {m.sinPago && <strong className="ml-1 text-red-700 dark:text-red-400">⚠ sin pago registrado detrás</strong>}
+    </span>
+  );
+}
+
 export default function FichaUsuario() {
   const { userId } = useParams<{ userId: string }>();
   // Con otra persona se vuelve a montar entera: la ficha anterior no queda a la vista mientras carga la nueva.
@@ -293,7 +305,7 @@ function Ficha({ userId }: { userId: string }) {
                   columnas={["Fecha", "Detalle", "Monto", "Saldo después", "Estado"]}
                   filas={e.dinero.movimientos.map((m) => [
                     dia(m.fecha),
-                    <span key="d">{m.descripcion}{m.fueraDelSaldo && <em className="ml-1 text-xs text-slate-500">(pagado por fuera, no mueve el saldo)</em>}{m.disponibleDesde && new Date(m.disponibleDesde) > new Date() && <em className="ml-1 text-xs text-amber-700 dark:text-amber-400">(retirable desde {dia(m.disponibleDesde)})</em>}</span>,
+                    <span key="d">{m.descripcion}{procedencia(m)}{m.fueraDelSaldo && <em className="ml-1 text-xs text-slate-500">(pagado por fuera, no mueve el saldo)</em>}{m.disponibleDesde && new Date(m.disponibleDesde) > new Date() && <em className="ml-1 text-xs text-amber-700 dark:text-amber-400">(retirable desde {dia(m.disponibleDesde)})</em>}</span>,
                     <span key="m" className={`tabular-nums ${m.monto < 0 ? "text-red-700 dark:text-red-400" : ""}`}>{$(m.monto)}</span>,
                     <span key="s" className="tabular-nums">{$(m.saldoDespues)}</span>,
                     estado(m.estado),

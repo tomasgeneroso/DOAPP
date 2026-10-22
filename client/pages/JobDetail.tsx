@@ -165,6 +165,8 @@ export default function JobDetail() {
       clientConfirmed: boolean;
       doerConfirmed: boolean;
       status: string;
+      /** Lo que cobra este trabajador (su parte del presupuesto). */
+      price?: number;
     }>;
     totalContracts: number;
     allClientConfirmed: boolean;
@@ -1673,7 +1675,12 @@ export default function JobDetail() {
                     </div>
 
                     {/* {t('jobs.detail.parties')} + {t('jobs.detail.paymentDetails')} + Fechas */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <details open className="group mb-4">
+                      <summary className="mb-3 flex cursor-pointer list-none items-center justify-between rounded-lg bg-white/60 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-white dark:bg-slate-800/60 dark:text-sky-200 dark:hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                        <span>Detalles del contrato</span>
+                        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />
+                      </summary>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Partes */}
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-3">
@@ -1750,6 +1757,24 @@ export default function JobDetail() {
                               })}
                             </span>
                           </div>
+                          {/* Trabajo para varios: lo que cobra cada uno y los lugares sin cubrir (por ejemplo 2.500 + 2.500, o 5.000 + 0) */}
+                          {(job.maxWorkers || 1) > 1 && (
+                            <div className="rounded-lg bg-slate-50 dark:bg-slate-700/40 p-2 text-sm">
+                              {Array.from({ length: job.maxWorkers || 1 }, (_, i) => {
+                                const c = allContractsData?.contracts?.[i];
+                                return (
+                                  <div key={i} className="flex justify-between gap-3 py-0.5">
+                                    <span className="text-gray-600 dark:text-gray-400">
+                                      Trabajador {i + 1}{c ? ` · ${c.doerName}` : " · sin asignar"}
+                                    </span>
+                                    <span className={`font-semibold ${c ? "text-gray-900 dark:text-white" : "text-slate-400"}`}>
+                                      ${Number(c?.price || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                           {contractData?.commission && (
                             <div className="flex justify-between">
                               <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -1848,6 +1873,7 @@ export default function JobDetail() {
                         </div>
                       </div>
                     </div>
+                    </details>
 
                     {/* Estado del Contrato/Trabajo */}
                     <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mb-4">

@@ -772,12 +772,13 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
           attributes: ['id', 'name', 'avatar']
         }
       ],
-      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status']
+      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price']
     });
 
     res.json({
       success: true,
       contracts: contracts.map(c => ({
+        price: Number((c as any).price) || 0,
         id: c.id,
         doerId: c.doerId,
         doerName: (c.doer as any)?.name || 'Trabajador',

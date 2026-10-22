@@ -107,14 +107,18 @@ export default function MembershipStatus() {
             </p>
           )}
 
-          {typeof usage?.freeContractsRemaining === "number" && usage.freeContractsRemaining > 0 && (
+          {(user as any)?.platform?.isBeta && (
+            <p>Durante la beta todos tus contratos son <strong>sin comisión y sin límite</strong>.</p>
+          )}
+
+          {!(user as any)?.platform?.isBeta && typeof usage?.freeContractsRemaining === "number" && usage.freeContractsRemaining > 0 && (
             <p>
               Te quedan <strong>{usage.freeContractsRemaining}</strong>{" "}
               {usage.freeContractsRemaining === 1 ? "publicación inicial" : "publicaciones iniciales"} sin comisión.
             </p>
           )}
 
-          {typeof usage?.proContractsUsedThisMonth === "number" && (usage.monthlyFreeLimit ?? 0) > 0 && (
+          {!(user as any)?.platform?.isBeta && typeof usage?.proContractsUsedThisMonth === "number" && (usage.monthlyFreeLimit ?? 0) > 0 && (
             <p>
               Contratos mensuales sin comisión usados: <strong>{usage.proContractsUsedThisMonth}</strong> de{" "}
               {usage.monthlyFreeLimit}.

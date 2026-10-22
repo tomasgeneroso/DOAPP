@@ -526,7 +526,13 @@ export default function CreateContractScreen() {
               {t('contracts.publishDescription', 'Describe el servicio que necesitás para que los profesionales puedan aplicar.')}
             </p>
           </div>
-          {/* Publicaciones sin comisión disponibles */}
+          {/* Publicaciones sin comisión disponibles (en la beta: ilimitadas) */}
+          {(user as any)?.platform?.isBeta ? (
+            <div className="flex-shrink-0 rounded-xl px-4 py-3 text-center border-2 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+              <p className="text-2xl font-extrabold leading-none text-green-600 dark:text-green-400">∞</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">sin comisión<br />ilimitadas en la beta</p>
+            </div>
+          ) : (
           <div className={`flex-shrink-0 rounded-xl px-4 py-3 text-center border-2 ${
             (user?.freeContractsRemaining ?? 0) > 0
               ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
@@ -537,6 +543,7 @@ export default function CreateContractScreen() {
             }`}>{user?.freeContractsRemaining ?? 0}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight"><Trans i18nKey="contracts.freePostingsLabel" components={{ br: <br /> }} defaults="publicaciones<br/>sin comisión" /></p>
           </div>
+          )}
         </div>
 
         {borrador && (

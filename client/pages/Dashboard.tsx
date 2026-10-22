@@ -244,6 +244,8 @@ export default function Dashboard() {
 
   // Calculate free contracts info
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
+  // En la beta todos los contratos son sin comisión y sin límite: no hay un contador que mostrar.
+  const enBeta = !!(user as any)?.platform?.isBeta;
   const proContractsUsed = user?.monthlyContractsUsed || 0;
   let monthlyFreeLimit = 0;
   if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
@@ -481,9 +483,9 @@ export default function Dashboard() {
               <DollarSign className="h-12 w-12 opacity-20 mb-4 ml-auto" />
               {/* Publicaciones libres de comisión */}
               <div className="bg-white/15 rounded-xl px-4 py-3 text-center min-w-[120px]">
-                <p className="text-2xl font-extrabold leading-none">{freeContractsRemaining}</p>
-                <p className="text-xs opacity-80 mt-1 leading-tight">publicaciones{'\n'}sin comisión</p>
-                {freeContractsRemaining === 0 && (
+                <p className="text-2xl font-extrabold leading-none">{enBeta ? '∞' : freeContractsRemaining}</p>
+                <p className="text-xs opacity-80 mt-1 leading-tight">{enBeta ? <>publicaciones sin comisión<br />ilimitadas en la beta</> : <>publicaciones{'\n'}sin comisión</>}</p>
+                {!enBeta && freeContractsRemaining === 0 && (
                   <Link to="/membership" className="mt-2 block text-[10px] font-semibold underline opacity-80 hover:opacity-100">
                     Obtener más
                   </Link>
@@ -754,7 +756,7 @@ export default function Dashboard() {
                       <Gift className="h-5 w-5" />
                       <div>
                         <p className="text-xs opacity-70">{t('dashboard.freeContracts', 'Free contracts')}</p>
-                        <p className="text-lg font-bold">{user?.freeContractsRemaining || 0}</p>
+                        <p className="text-lg font-bold">{enBeta ? 'Ilimitados (beta)' : user?.freeContractsRemaining || 0}</p>
                       </div>
                     </div>
                   </div>

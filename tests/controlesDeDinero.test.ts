@@ -131,9 +131,13 @@ describe('controlarPagoOriginal — acreditar saldo', () => {
     expect(medio.aprobado).toBe(false);
   });
 
-  it('sin registro de pago: una publicación pagada con saldo se acepta; una que no figura como pagada, no; y si había pago pero no se lee, no', () => {
-    expect(controlarPagoOriginal(datos({ pago: null, job: { ...JOB, publicationPaymentId: null } })).aprobado).toBe(true);
-    expect(controlarPagoOriginal(datos({ pago: null, job: { ...JOB, publicationPaymentId: null, publicationPaid: false } })).aprobado).toBe(false);
+  it('sin registro de pago: solo se devuelve si el libro muestra que se pagó con saldo; «pagada» a secas no es plata recibida (el caso del trabajo de $400.000 sin cobro)', () => {
+    // pagada con saldo (hay un descuento de saldo por esa publicación): se acepta
+    expect(controlarPagoOriginal(datos({ pago: null, pagadaConSaldo: true, job: { ...JOB, publicationPaymentId: null } })).aprobado).toBe(true);
+    // figura pagada pero no hay pago ni descuento de saldo (contrato libre de comisión, de prueba, cargada a mano): no se cobró, no se devuelve
+    expect(controlarPagoOriginal(datos({ pago: null, pagadaConSaldo: false, job: { ...JOB, publicationPaymentId: null } })).aprobado).toBe(false);
+    expect(controlarPagoOriginal(datos({ pago: null, job: { ...JOB, publicationPaymentId: null } })).aprobado).toBe(false);
+    expect(controlarPagoOriginal(datos({ pago: null, pagadaConSaldo: true, job: { ...JOB, publicationPaymentId: null, publicationPaid: false } })).aprobado).toBe(false);
     expect(controlarPagoOriginal(datos({ pago: null })).aprobado).toBe(false); // el trabajo apunta a un pago que no aparece
   });
 });

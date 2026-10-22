@@ -35,6 +35,15 @@ export async function publicacionDevuelta(job: { id: string; publicationPaymentI
   return !!fila;
 }
 
+/** ¿El libro muestra que el cliente pagó esta publicación con su saldo? (un descuento por la publicación; las pagadas con saldo antes de que existiera el registro de pago) */
+export async function pagadaConSaldoSegunElLibro(jobId: string): Promise<boolean> {
+  const fila = await BalanceTransaction.findOne({
+    where: { type: 'adjustment', metadata: { relatedModel: 'Job', relatedId: String(jobId) } } as any,
+    attributes: ['id'],
+  }).catch(() => null);
+  return !!fila;
+}
+
 export interface CreditoVinculado {
   jobId: string;
   titulo: string;

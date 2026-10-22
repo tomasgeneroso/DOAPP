@@ -95,6 +95,11 @@ export interface DatosParaControlar {
   /** Lo que respondió Mercado Pago al consultarlo ahora. undefined = no se consultó; null = se consultó y falló. */
   mpEnVivo?: MercadoPagoEnVivo | null;
   devolucionesRecientesDelCliente?: number;
+  /**
+   * Hay un descuento de saldo del cliente por ESTA publicación (se pagó con saldo). Una publicación «pagada» sin registro de pago NI descuento
+   * de saldo no se cobró (contrato libre de comisión, de prueba, cargada a mano): no hay plata que devolver.
+   */
+  pagadaConSaldo?: boolean;
 }
 
 export interface ResultadoDeControles {
@@ -139,10 +144,11 @@ export function controlarPagoOriginal(d: DatosParaControlar): ResultadoDeControl
       id: 'pago_registrado',
       titulo: 'La publicación tiene un pago registrado',
       grupo: 'recepcion',
-      ok: !job.publicationPaymentId && job.publicationPaid === true,
+      // Sin registro de pago solo se devuelve si el libro muestra que el cliente la pagó con su saldo: «pagada» a secas no es plata recibida.
+      ok: !job.publicationPaymentId && job.publicationPaid === true && d.pagadaConSaldo === true,
       bloqueante: true,
-      esperado: job.publicationPaymentId ? 'el pago de la publicación' : 'una publicación pagada con saldo',
-      encontrado: job.publicationPaymentId ? 'no se encontró el pago' : job.publicationPaid ? 'pagada sin registro de pago (saldo o sin cobro)' : 'la publicación no figura como pagada',
+      esperado: job.publicationPaymentId ? 'el pago de la publicación' : 'un descuento de saldo del cliente por esta publicación',
+      encontrado: job.publicationPaymentId ? 'no se encontró el pago' : job.publicationPaid ? (d.pagadaConSaldo ? 'pagada con saldo' : 'figura pagada pero no hay pago ni descuento de saldo: no se cobró') : 'la publicación no figura como pagada',
     });
     return resumir(controles);
   }

@@ -8,7 +8,7 @@ import { liquidarCancelacion, type LiquidacionCancelacion } from '../../shared/p
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { acreditarSaldo } from './quotePayment.js';
-import { vincularCredito } from './creditoDePublicacion.js';
+import { vincularCredito, pagadaConSaldoSegunElLibro } from './creditoDePublicacion.js';
 import { componentesDelPago } from './payoutAmount.js';
 import { disponibleDesdeDeUnaDevolucion } from './liberacionDeSaldo.js';
 import { problemaDelCatalogo, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
@@ -195,6 +195,7 @@ export async function liquidarCancelacionDePublicacion(
     canceladoEl,
     mpEnVivo,
     devolucionesRecientesDelCliente: devolucionesRecientes,
+    pagadaConSaldo: pagoReal ? undefined : await pagadaConSaldoSegunElLibro(String(job.id)),
   });
   controles = control.controles;
 

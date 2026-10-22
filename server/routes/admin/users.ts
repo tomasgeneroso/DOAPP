@@ -847,6 +847,12 @@ router.get(
               id: m.id, tipo: m.type, monto: Number(m.amount) || 0, estado: m.status, descripcion: m.description,
               saldoDespues: Number(m.balanceAfter) || 0, fecha: m.createdAt,
               disponibleDesde: m.metadata?.disponibleDesde ?? null, fueraDelSaldo: m.metadata?.fueraDelSaldo === true,
+              // De dónde salió el movimiento y quién lo hizo: para investigar un saldo que no cierra sin buscar en la base.
+              origen: m.metadata?.origen ?? null,
+              hechoPor: m.metadata?.actor ? { tipo: m.metadata.actor.tipo ?? null, id: m.metadata.actor.id ?? null } : null,
+              trabajoId: m.metadata?.jobId ?? null,
+              pagoId: m.metadata?.pagoId ?? null,
+              sinPago: m.metadata?.origen === 'cancelacion' && !m.metadata?.pagoId,
             })),
             retiros: retiros.map((r: any) => ({ id: r.id, monto: Number(r.amount) || 0, estado: r.status, pedidoEl: r.requestedAt, completadoEl: r.completedAt, motivoRechazo: r.rejectionReason ?? null })),
             pagos: pagos.map((p: any) => ({
