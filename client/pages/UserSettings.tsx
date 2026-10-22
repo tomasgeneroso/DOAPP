@@ -45,6 +45,7 @@ import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, format
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import Transicion from "../components/ui/Transicion";
+import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 
 type TabType = "basic" | "verification" | "security" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
@@ -411,8 +412,14 @@ export default function UserSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user?.dniVerified]);
 
+  const { editarUna: editarFoto, editor: editorDeFotos } = useEditorDeFotos();
+
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const elegido = e.target.files?.[0];
+    e.target.value = '';
+    if (!elegido) return;
+    // Rotar, centrar y recortar antes de subirla (cancelar = no cambia la foto)
+    const file = await editarFoto(elegido, { aspect: 1, cropShape: 'round', titulo: 'Editar foto de perfil' });
     if (!file) return;
     setAvatarPreview(URL.createObjectURL(file));
     setAvatarUploading(true);
@@ -1470,6 +1477,7 @@ export default function UserSettings() {
           </div>
         </div>
       </div>
+      {editorDeFotos}
     </>
   );
 }

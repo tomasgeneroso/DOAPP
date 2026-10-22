@@ -6,6 +6,7 @@ import 'react-quill/dist/quill.snow.css';
 import '../../styles/quill-dark.css';
 import Button from "../ui/Button";
 import Transicion from "../ui/Transicion";
+import { useEditorDeFotos } from "../../hooks/useEditorDeFotos";
 
 interface CreatePostProps {
   initialType?: 'post' | 'article';
@@ -55,8 +56,11 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
     'link', 'align'
   ];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { editar, editor } = useEditorDeFotos();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
+    e.target.value = '';
 
     if (selectedFiles.length + galleryFiles.length > 10) {
       setError(t('posts.maxFilesAllowed', 'Maximum 10 files allowed'));
@@ -74,7 +78,11 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
       return;
     }
 
-    const newGalleryFiles: GalleryFile[] = validFiles.map((file) => {
+    // Las fotos pasan por el editor (rotar, centrar, recortar); los videos siguen de largo
+    const editadas = await editar(validFiles, { titulo: 'Editar foto' });
+    if (editadas.length === 0) return;
+
+    const newGalleryFiles: GalleryFile[] = editadas.map((file) => {
       const reader = new FileReader();
       const preview = URL.createObjectURL(file);
 
@@ -418,6 +426,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
             </Button>
           </div>
         </form>
+      {editor}
     </>
   );
 

@@ -1,6 +1,7 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, X, FileIcon, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, FileIcon, Pencil } from 'lucide-react';
+import { useEditorDeFotos } from '../../hooks/useEditorDeFotos';
 
 interface FileWithPreview extends File {
   preview?: string;
@@ -27,6 +28,8 @@ interface FileUploadWithPreviewProps {
   initialFiles?: string[];
   /** Clase CSS adicional */
   className?: string;
+  /** Al elegir una foto se abre el editor (rotar, centrar, recortar). Por defecto sí. */
+  editable?: boolean;
 }
 
 export default function FileUploadWithPreview({
@@ -39,23 +42,46 @@ export default function FileUploadWithPreview({
   maxFiles = 10,
   onChange,
   initialFiles = [],
-  className = ""
+  className = "",
+  editable = true,
 }: FileUploadWithPreviewProps) {
   const { t } = useTranslation();
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>(initialFiles);
   const [error, setError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { editar, editarUna, editor } = useEditorDeFotos();
+
+  /** Las fotos pasan por el editor antes de validarse (ya recortadas pesan menos). */
+  const prepararYProcesar = async (files: File[]) => {
+    const listas = editable ? await editar(files, { titulo: 'Editar foto' }) : files;
+    if (listas.length > 0) processFiles(listas);
+  };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      processFiles(files);
-    }
     // Reset input to allow selecting the same file again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    if (files.length > 0) {
+      void prepararYProcesar(files);
+    }
+  };
+
+  /** Volver a editar una foto ya elegida. */
+  const reeditar = async (index: number) => {
+    const actual = selectedFiles[index];
+    if (!actual) return;
+    const nueva = await editarUna(actual, {}, 'Editar foto');
+    if (!nueva || nueva === actual) return;
+    const conPreview = nueva as FileWithPreview;
+    conPreview.preview = URL.createObjectURL(nueva);
+    if (actual.preview) URL.revokeObjectURL(actual.preview);
+    const nuevos = selectedFiles.map((f, i) => (i === index ? conPreview : f));
+    setSelectedFiles(nuevos);
+    setPreviewUrls(previewUrls.map((u) => (u === actual.preview ? conPreview.preview! : u)));
+    if (onChange) onChange(nuevos);
   };
 
   const removeFile = (index: number) => {
@@ -115,8 +141,7 @@ export default function FileUploadWithPreview({
       return;
     }
 
-    // Procesar archivos directamente
-    processFiles(validFiles);
+    void prepararYProcesar(validFiles);
   };
 
   const processFiles = (files: File[]) => {
@@ -251,6 +276,22 @@ export default function FileUploadWithPreview({
                   </div>
                 )}
 
+                {/* Editar: siempre visible (en el celular no hay hover) */}
+                {file.type.startsWith('image/') && editable && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void reeditar(index);
+                    }}
+                    className="absolute bottom-2 right-2 bg-white/90 text-slate-700 rounded-full p-1.5 shadow hover:bg-white"
+                    aria-label="Editar foto"
+                    title="Rotar, centrar o recortar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Botón de eliminar */}
                 <button
                   type="button"
@@ -278,6 +319,7 @@ export default function FileUploadWithPreview({
           </div>
         </div>
       )}
+      {editor}
     </div>
   );
 }

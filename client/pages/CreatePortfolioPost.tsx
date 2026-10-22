@@ -14,6 +14,7 @@ import {
   ToggleRight,
 } from 'lucide-react';
 import Transicion from "../components/ui/Transicion";
+import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 
 interface JobData {
   id: string;
@@ -51,6 +52,7 @@ export default function CreatePortfolioPost() {
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState('');
   const [images, setImages] = useState<File[]>([]);
+  const { editar, editor } = useEditorDeFotos();
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
@@ -96,11 +98,15 @@ export default function CreatePortfolioPost() {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newFiles = Array.from(files);
+    const elegidas = Array.from(files);
+    e.target.value = '';
+    // Rotar, centrar y recortar cada foto antes de agregarla
+    const newFiles = await editar(elegidas, { titulo: 'Editar foto' });
+    if (newFiles.length === 0) return;
     const maxImages = 10;
 
     if (images.length + newFiles.length > maxImages) {
@@ -635,6 +641,7 @@ export default function CreatePortfolioPost() {
           </div>
         </form>
       </div>
+      {editor}
     </div>
   );
 }
