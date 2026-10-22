@@ -521,6 +521,15 @@ export class Job extends Model {
   pausedByAdmin!: boolean;
 
   /**
+   * Un trabajo para varios trabajadores: ¿puede empezar igual con menos de los que pidió (1 de 2)? El dueño lo decide al crear. Si es false, el
+   * trabajo necesita el equipo completo y el trabajador lo ve antes de postularse. Por defecto sí (el comportamiento de siempre).
+   */
+  @Default(true)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  partialStartAllowed!: boolean;
+
+  /**
    * Las fechas que tenía antes de la última reprogramación ({ startDate, endDate, at }). El panel de administración muestra la fecha nueva y
    * de qué fecha viene, para revisar una publicación reprogramada sin adivinar qué cambió.
    */

@@ -85,6 +85,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'jobs.paused_by_admin', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_by_admin BOOLEAN NOT NULL DEFAULT false` },
   // Las fechas de antes de la ultima reprogramacion (el panel de admin muestra de donde viene la fecha nueva).
   { label: 'jobs.rescheduled_from', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS rescheduled_from JSONB` },
+  // Un trabajo para varios trabajadores: ¿puede empezar con menos de los pedidos? Lo decide el dueño al crear.
+  { label: 'jobs.partial_start_allowed', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS partial_start_allowed BOOLEAN NOT NULL DEFAULT true` },
   // Por donde eligio el cliente que vuelva su plata si se cancela.
   { label: 'jobs.cancellation_refund_preference', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_refund_preference VARCHAR(20)` },
   // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.

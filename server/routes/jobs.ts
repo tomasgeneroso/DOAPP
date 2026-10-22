@@ -1140,6 +1140,8 @@ router.post(
         publicationPaid: willPublish && pricingMode === 'fixed',
         publicationAmount: 0, // Will be calculated if payment needed
         maxWorkers, // New: support for multiple workers (1-5)
+        // ¿Puede empezar con menos trabajadores de los pedidos? Por defecto sí.
+        partialStartAllowed: req.body.partialStartAllowed === undefined ? true : (req.body.partialStartAllowed === 'true' || req.body.partialStartAllowed === true),
         selectedWorkers: [], // Initialize empty array
         singleDelivery, // If true, single final delivery; if false, per-task due dates
         completionRequirements: (() => {
@@ -1332,11 +1334,15 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
       'location', 'neighborhood', 'postalCode', 'addressStreet', 'addressNumber', 'addressDetails', 'latitude', 'longitude',
       'startDate', 'endDate', 'endDateFlexible',
       'remoteOk', 'singleDelivery', 'urgency', 'experienceLevel',
-      'completionRequirements', 'vacancyTaskAssignments',
+      'completionRequirements', 'vacancyTaskAssignments', 'partialStartAllowed',
     ] as const;
     const updateData: any = {};
     for (const campo of CAMPOS_EDITABLES_DEL_TRABAJO) {
       if (req.body[campo] !== undefined) updateData[campo] = req.body[campo];
+    }
+
+    if (updateData.partialStartAllowed !== undefined) {
+      updateData.partialStartAllowed = !(updateData.partialStartAllowed === 'false' || updateData.partialStartAllowed === false);
     }
 
     // Coerce the counter-offer flag from a FormData string to a boolean
@@ -2606,6 +2612,10 @@ router.post("/:id/start-with-current", protect, async (req: AuthRequest, res: Re
     const maxWorkers = Number(job.maxWorkers) || 1;
     if (elegidos.length < 1) { res.status(400).json({ success: false, message: "Todavía no elegiste a ningún trabajador." }); return; }
     if (elegidos.length >= maxWorkers) { res.status(400).json({ success: false, message: "El equipo ya está completo." }); return; }
+    if ((job as any).partialStartAllowed === false) {
+      res.status(409).json({ success: false, code: "EQUIPO_COMPLETO_REQUERIDO", message: "Esta publicación necesita el equipo completo: así la publicaste. No puede empezar con menos trabajadores." });
+      return;
+    }
 
     // Alcanza con que algún trabajador elegido haya aceptado su contrato: es el que va a trabajar.
     const aceptados = await Contract.count({ where: { jobId: job.id, status: { [Op.in]: ["accepted", "in_progress"] } } as any });

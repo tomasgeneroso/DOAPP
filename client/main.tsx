@@ -1,3 +1,4 @@
+import { instalarFotosRotas } from './utils/imagenesRotas';
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./i18n";
@@ -18,4 +19,5 @@ window.addEventListener("vite:preloadError", () => {
   }
 });
 
+instalarFotosRotas();
 createRoot(document.getElementById("root")!).render(<App />);

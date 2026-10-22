@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Loader2,
   ClipboardList,
+  Users,
 } from "lucide-react";
 
 interface Conversation {
@@ -599,6 +600,8 @@ export default function MessagesScreen() {
                 const unreadCount = conversation.unreadCount?.[userId] || 0;
                 const isActive = getId(activeConversation) === getId(conversation);
                 const jobTitle = conversation.job?.title || conversation.jobId?.title || conversation.contract?.job?.title;
+                // Un chat de equipo (más de dos personas): se llama como el trabajo y se distingue con un tono violeta suave
+                const esGrupo = (conversation.participants?.length || 0) > 2;
 
                 return (
                   <button
@@ -606,7 +609,11 @@ export default function MessagesScreen() {
                     onClick={() => handleSelectConversation(conversation)}
                     className={`w-full p-3 flex items-center gap-3 transition-colors border-l-2 ${
                       isActive
-                        ? "bg-sky-50 dark:bg-sky-900/20 border-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                        ? esGrupo
+                          ? "bg-violet-100/70 dark:bg-violet-900/25 border-violet-500 hover:bg-violet-100 dark:hover:bg-violet-900/35"
+                          : "bg-sky-50 dark:bg-sky-900/20 border-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                        : esGrupo
+                          ? "bg-violet-50/60 dark:bg-violet-900/10 border-violet-300 dark:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/20"
                         : unreadCount > 0
                           ? "bg-sky-50/40 dark:bg-sky-900/10 border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
                           : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -614,7 +621,11 @@ export default function MessagesScreen() {
                   >
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
-                      {other?.avatar ? (
+                      {esGrupo ? (
+                        <div className="h-12 w-12 rounded-full bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center" title="Chat del equipo">
+                          <Users className="h-6 w-6 text-violet-600 dark:text-violet-300" />
+                        </div>
+                      ) : other?.avatar ? (
                         <img
                           src={getImageUrl(other.avatar)}
                           alt={other.name}
@@ -634,7 +645,7 @@ export default function MessagesScreen() {
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className={`${unreadCount > 0 ? 'font-bold' : 'font-semibold'} text-slate-900 dark:text-white truncate`}>
-                          {other?.name || "Usuario desconocido"}
+                          {esGrupo ? (jobTitle ? `Equipo · ${jobTitle}` : "Chat del equipo") : other?.name || "Usuario desconocido"}
                         </h3>
                         {conversation.lastMessageAt && (
                           <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 ml-2">
@@ -643,11 +654,18 @@ export default function MessagesScreen() {
                         )}
                       </div>
 
-                      {jobTitle && (
-                        <p className="text-xs text-sky-600 dark:text-sky-400 mb-1 truncate flex items-center gap-1">
-                          <Briefcase className="h-3 w-3" />
-                          {jobTitle}
+                      {esGrupo ? (
+                        <p className="text-xs text-violet-600 dark:text-violet-300 mb-1 truncate flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {conversation.participants.length} participantes
                         </p>
+                      ) : (
+                        jobTitle && (
+                          <p className="text-xs text-sky-600 dark:text-sky-400 mb-1 truncate flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" />
+                            {jobTitle}
+                          </p>
+                        )
                       )}
 
                       <div className="flex items-center justify-between">
@@ -682,7 +700,11 @@ export default function MessagesScreen() {
                     <ArrowLeft className="h-5 w-5" />
                   </button>
 
-                  {otherParticipant?.avatar ? (
+                  {(activeConversation.participants?.length || 0) > 2 ? (
+                    <div className="h-10 w-10 rounded-full bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                    </div>
+                  ) : otherParticipant?.avatar ? (
                     <img
                       src={getImageUrl(otherParticipant.avatar)}
                       alt={otherParticipant.name}
@@ -695,12 +717,25 @@ export default function MessagesScreen() {
                   )}
 
                   <div>
-                    <h2 className="font-semibold text-slate-900 dark:text-white">
-                      {otherParticipant.name}
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {isUserOnline(getId(otherParticipant)) ? "En línea" : "Desconectado"}
-                    </p>
+                    {(activeConversation.participants?.length || 0) > 2 ? (
+                      <>
+                        <h2 className="font-semibold text-slate-900 dark:text-white">
+                          Equipo · {activeConversation.job?.title || activeConversation.jobId?.title || activeConversation.contract?.job?.title || "Chat del equipo"}
+                        </h2>
+                        <p className="text-xs text-violet-600 dark:text-violet-300">
+                          {activeConversation.participants.map((p) => p.name).join(", ")}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="font-semibold text-slate-900 dark:text-white">
+                          {otherParticipant.name}
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {isUserOnline(getId(otherParticipant)) ? "En línea" : "Desconectado"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
 

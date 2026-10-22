@@ -40,6 +40,7 @@ describe('ciclo de la publicación, postulaciones y equipo', () => {
     app.use('/api/jobs', (await import('../../server/routes/jobs.js')).default);
     app.use('/api/proposals', (await import('../../server/routes/proposals.js')).default);
     app.use('/api/quotes', (await import('../../server/routes/quotes.js')).default);
+    app.use('/api/contracts', (await import('../../server/routes/contracts.js')).default);
     cliente = await crearUsuario({ role: 'client', dniVerified: true });
     a = await crearUsuario({ role: 'doer', dniVerified: true });
     b = await crearUsuario({ role: 'doer', dniVerified: true });
@@ -149,5 +150,25 @@ describe('ciclo de la publicación, postulaciones y equipo', () => {
     // otra persona no puede
     const ajeno = await request(app).post(`/api/jobs/${t.id}/start-with-current`).set(con(a));
     expect(ajeno.status).toBe(403);
+  });
+
+  it('si la publicación necesita el equipo completo, no se puede empezar con menos (y se le dice al trabajador)', async () => {
+    const t = await trabajo({ publicationPaid: true, maxWorkers: 2, selectedWorkers: [a.id], partialStartAllowed: false });
+    await crearContrato({ jobId: t.id, clientId: cliente.id, doerId: a.id }, { status: 'accepted' });
+    const r = await request(app).post(`/api/jobs/${t.id}/start-with-current`).set(con(cliente));
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('EQUIPO_COMPLETO_REQUERIDO');
+    expect(((await leer(t.id)).partialStartAllowed)).toBe(false);
+    expect(((await leer(t.id)).status)).toBe('open');
+  });
+
+  it('confirmar un contrato que todavía no empezó explica en español qué falta (no dice «pending»)', async () => {
+    const t = await trabajo({ publicationPaid: true, selectedWorkers: [a.id], doerId: a.id });
+    const c: any = await crearContrato({ jobId: t.id, clientId: cliente.id, doerId: a.id }, { status: 'pending' });
+    const r = await request(app).post(`/api/contracts/${c.id}/confirm`).set(con(cliente));
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('CONTRACT_NOT_CONFIRMABLE');
+    expect(r.body.message).toMatch(/pendiente/);
+    expect(r.body.message).not.toMatch(/"pending"/);
   });
 });

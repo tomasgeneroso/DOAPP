@@ -1629,8 +1629,14 @@ export default function JobDetail() {
                       )}
                     </p>
                   )}
+                  <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
+                    {(job as any).partialStartAllowed === false
+                      ? `Necesita el equipo completo: no empieza hasta cubrir los ${job.maxWorkers} lugares.`
+                      : `Puede empezar igual con menos de ${job.maxWorkers} trabajadores si el dueño lo confirma.`}
+                  </p>
                   {isOwnJob &&
                     job.status === "open" &&
+                    (job as any).partialStartAllowed !== false &&
                     (job.selectedWorkers?.length || 0) >= 1 &&
                     (job.selectedWorkers?.length || 0) < (job.maxWorkers || 1) &&
                     !!allContractsData?.contracts?.some((c) => ["accepted", "in_progress"].includes(String((c as any).status))) && (
@@ -4133,10 +4139,21 @@ export default function JobDetail() {
                     </div>
                   </div>
 
+                  {!["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && (
+                    <div role="note" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
+                      {({
+                        pending: "El contrato todavía está pendiente: un administrador tiene que aprobarlo y las dos partes aceptarlo antes de que el trabajo empiece.",
+                        ready: "El contrato está aprobado pero falta que las dos partes lo acepten.",
+                        accepted: "El contrato está aceptado pero el trabajo todavía no empezó: falta confirmar el inicio con el código de emparejamiento.",
+                      } as Record<string, string>)[String(contractData.status)] || `El contrato está en estado «${contractData.status}».`}{" "}
+                      Por eso todavía no se puede confirmar.{" "}
+                      <Link to={`/contracts/${contractData.id}/summary`} className="font-semibold underline">Ver contrato →</Link>
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       onClick={handleConfirmWork}
-                      disabled={confirmingWork}
+                      disabled={confirmingWork || !["in_progress", "awaiting_confirmation"].includes(String(contractData.status))}
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {confirmingWork ? (
@@ -4629,7 +4646,7 @@ export default function JobDetail() {
                     {/* Contract status */}
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm text-slate-400">
-                        {t("common.status", "Status")}:
+                        {t("jobs.contractStatusLabel", "Estado")}:
                       </span>
                       <span
                         className={`text-sm px-3 py-1 rounded-full font-medium ${

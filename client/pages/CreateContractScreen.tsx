@@ -92,6 +92,8 @@ export default function CreateContractScreen() {
   const [location, setLocation] = useState(borrador?.location ?? "");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [maxWorkers, setMaxWorkers] = useState(borrador?.maxWorkers ?? 1);
+  // Con varios trabajadores: ¿puede empezar igual con menos de los pedidos (1 de 2)? Por defecto sí.
+  const [partialStartAllowed, setPartialStartAllowed] = useState(true);
   const [requirements, setRequirements] = useState(borrador?.requirements?.length ? borrador.requirements : ['', '', '']);
   // Tareas (pasos para terminar, cada una con su día) con «entrega por tareas». Distintas de los requisitos de finalización.
   const [tareas, setTareas] = useState<TareaDeCreacion[]>(
@@ -364,6 +366,7 @@ export default function CreateContractScreen() {
     }
     submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
     submitData.append("maxWorkers", maxWorkers.toString());
+    submitData.append("partialStartAllowed", String(maxWorkers > 1 ? partialStartAllowed : true));
     submitData.append("singleDelivery", singleDelivery.toString());
     const filledReqs = requirements.filter(r => r.trim());
     submitData.append("completionRequirements", JSON.stringify(filledReqs));
@@ -1108,6 +1111,20 @@ export default function CreateContractScreen() {
                     {t('contracts.groupChatInfo', 'A group chat will be created with all selected workers')}
                   </p>
                 </div>
+              )}
+              {maxWorkers > 1 && (
+                <fieldset className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                  <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-300">¿La cantidad de trabajadores es imprescindible?</legend>
+                  <label className="flex items-start gap-2 py-1 text-sm text-gray-700 dark:text-slate-300">
+                    <input type="radio" name="partialStartAllowed" checked={partialStartAllowed} onChange={() => setPartialStartAllowed(true)} className="mt-0.5" />
+                    <span><strong>No</strong>: puede empezar igual con menos (por ejemplo 1 de {maxWorkers}) si se lo confirmo a quien ya aceptó.</span>
+                  </label>
+                  <label className="flex items-start gap-2 py-1 text-sm text-gray-700 dark:text-slate-300">
+                    <input type="radio" name="partialStartAllowed" checked={!partialStartAllowed} onChange={() => setPartialStartAllowed(false)} className="mt-0.5" />
+                    <span><strong>Sí</strong>: necesito los {maxWorkers} trabajadores; no empieza hasta cubrir todos los lugares.</span>
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Los trabajadores lo ven antes de postularse.</p>
+                </fieldset>
               )}
 
               {/* Asignación vacante → tarea (solo si hay tareas y hay tareas definidas) */}

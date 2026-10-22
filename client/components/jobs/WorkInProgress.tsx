@@ -52,6 +52,8 @@ export default function WorkInProgress() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [terminando, setTerminando] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ jobId: string; ok: boolean; texto: string } | null>(null);
 
   // Fetch active tasks
   const fetchActiveTasks = useCallback(async () => {
@@ -123,6 +125,27 @@ export default function WorkInProgress() {
       setError(err.message || t('jobs.errorUpdatingStatus', 'Error updating status'));
     } finally {
       setUpdatingTaskId(null);
+    }
+  };
+
+  /** «Completé el trabajo»: confirma el contrato como trabajador (la otra parte confirma después y se libera el pago). */
+  const completarTrabajo = async (jobId: string) => {
+    if (!token) return;
+    setTerminando(jobId);
+    setAviso(null);
+    try {
+      const cr = await fetch(`/api/contracts/by-job/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const cd = await cr.json();
+      if (!cd.success || !cd.contract?.id) throw new Error(cd.message || 'No encontramos el contrato de este trabajo.');
+      const r = await fetch(`/api/contracts/${cd.contract.id}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message || 'No se pudo confirmar el trabajo.');
+      setAviso({ jobId, ok: true, texto: d.message || 'Listo: avisamos que completaste el trabajo. Cuando el cliente lo confirme, se libera el pago.' });
+      fetchActiveTasks();
+    } catch (e) {
+      setAviso({ jobId, ok: false, texto: e instanceof Error ? e.message : 'No se pudo confirmar el trabajo.' });
+    } finally {
+      setTerminando(null);
     }
   };
 
@@ -317,6 +340,24 @@ export default function WorkInProgress() {
                   +{tasks.filter(t => t.status !== "completed").length - 3} {t('jobs.moreTasks', 'more tasks')}
                 </Link>
               )}
+
+              {/* Decir que se completó el trabajo, sin tener que abrirlo */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => completarTrabajo(job.id)}
+                  disabled={terminando === job.id}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {terminando === job.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Completé el trabajo
+                </button>
+                {aviso && aviso.jobId === job.id && (
+                  <p role={aviso.ok ? 'status' : 'alert'} className={`mt-2 text-sm ${aviso.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                    {aviso.texto}
+                  </p>
+                )}
+              </div>
 
               {/* All tasks completed */}
               {tasks.every(t => t.status === "completed") && (

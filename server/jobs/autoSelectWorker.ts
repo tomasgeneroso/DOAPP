@@ -367,6 +367,8 @@ export function startAutoSelectWorkerJob() {
 
       for (const job of jobsToActivate) {
         try {
+          // Una publicación que necesita el equipo completo no arranca con la mitad: sigue abierta hasta cubrir todos los lugares.
+          if ((Number(job.maxWorkers) || 1) > 1 && (job as any).partialStartAllowed === false && (Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 0) < Number(job.maxWorkers)) continue;
           job.status = 'in_progress';
           await job.save();
           console.log(`✅ [CRON] Trabajo "${job.title}" (${job.id}) activado a in_progress`);
