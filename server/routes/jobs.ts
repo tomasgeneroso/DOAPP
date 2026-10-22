@@ -1314,6 +1314,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
 
     // Una publicación cuyo pago ya volvió al saldo (se canceló sin trabajador) NO sale gratis al reprogramarla: queda pendiente de pago y se
     // paga entera, con el saldo vinculado a ella si alcanza o por la pasarela. Ahí el precio se puede cambiar libremente: todavía no está pagado.
+    // Editar una publicación pausada la marca como editada: al volver a publicarla pasa por revisión.
+    const editadaMientrasPausada = job.status === 'paused';
     const hayQuePagarDeNuevo = job.status === 'cancelled' && !job.permanentlyCancelled && (await publicacionDevuelta(job as any));
 
     // Prepare update data.
@@ -1533,6 +1535,18 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
           }
         }
       }
+    }
+
+    // Si cambian las fechas, se guardan las anteriores: el panel de administración muestra de dónde viene la fecha nueva.
+    const cambioDeFecha = (campo: 'startDate' | 'endDate') =>
+      updateData[campo] !== undefined && new Date(updateData[campo]).getTime() !== new Date((job as any)[campo] ?? 0).getTime();
+    if (cambioDeFecha('startDate') || cambioDeFecha('endDate')) {
+      updateData.rescheduledFrom = { startDate: job.startDate, endDate: job.endDate ?? null, at: new Date().toISOString() };
+    }
+
+    if (editadaMientrasPausada) {
+      updateData.reviewedAt = null;
+      updateData.reviewedBy = null;
     }
 
     if (requiresReapproval && hayQuePagarDeNuevo) {
@@ -2522,11 +2536,11 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Verificar que el job esté publicado (open)
-    if (job.status !== "open") {
+    // Se pausa lo publicado o lo que espera revisión: pausar es la alternativa a cancelar (pausás, editás y volvés a publicar).
+    if (job.status !== "open" && job.status !== "pending_approval") {
       res.status(400).json({
         success: false,
-        message: "Solo puedes pausar trabajos publicados",
+        message: "Solo puedes pausar trabajos publicados o en revisión",
       });
       return;
     }
@@ -2556,7 +2570,9 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
     }
 
     // Pausar el trabajo
+    job.previousStatus = job.status;
     job.status = "paused";
+    (job as any).pausedByAdmin = false;
     (job as any).pausedAt = new Date();
     await job.save();
 
@@ -2565,7 +2581,7 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
 
     res.json({
       success: true,
-      message: "Publicación pausada exitosamente. Se reanudará automáticamente si no se cancela.",
+      message: "Publicación pausada. Podés editarla y volver a publicarla, o cancelarla.",
       job,
     });
   } catch (error: any) {
@@ -2573,6 +2589,59 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// @route   POST /api/jobs/:id/start-with-current
+// @desc    Empezar el trabajo con los trabajadores ya confirmados (p. ej. 1 de 2): se cierran las vacantes que faltan
+// @access  Private (job owner only)
+router.post("/:id/start-with-current", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+    if (!job) { res.status(404).json({ success: false, message: "Trabajo no encontrado" }); return; }
+    if (job.clientId !== req.user.id) { res.status(403).json({ success: false, message: "Sin permiso" }); return; }
+    if (job.status !== "open") { res.status(409).json({ success: false, message: "Solo se puede empezar un trabajo publicado." }); return; }
+
+    const elegidos: string[] = Array.isArray(job.selectedWorkers) ? (job.selectedWorkers as any) : [];
+    const maxWorkers = Number(job.maxWorkers) || 1;
+    if (elegidos.length < 1) { res.status(400).json({ success: false, message: "Todavía no elegiste a ningún trabajador." }); return; }
+    if (elegidos.length >= maxWorkers) { res.status(400).json({ success: false, message: "El equipo ya está completo." }); return; }
+
+    // Alcanza con que algún trabajador elegido haya aceptado su contrato: es el que va a trabajar.
+    const aceptados = await Contract.count({ where: { jobId: job.id, status: { [Op.in]: ["accepted", "in_progress"] } } as any });
+    if (aceptados < 1) {
+      res.status(409).json({ success: false, message: "Esperá a que al menos uno de los trabajadores elegidos acepte el contrato." });
+      return;
+    }
+
+    // Se cierran las vacantes que faltan y se rechazan las postulaciones pendientes (ya no hay lugar).
+    const pendientes = await Proposal.findAll({ where: { jobId: job.id, status: "pending" } as any });
+    await Proposal.update({ status: "rejected" } as any, { where: { jobId: job.id, status: "pending" } as any });
+    for (const p of pendientes as any[]) {
+      await Notification.create({
+        recipientId: p.freelancerId,
+        type: "info",
+        category: "proposal",
+        title: "El trabajo ya tiene su equipo",
+        message: `El dueño de "${job.title}" empezó con los trabajadores que ya había confirmado. Tu postulación quedó cerrada.`,
+        relatedModel: "Job",
+        relatedId: job.id,
+        read: false,
+      } as any).catch(() => {});
+    }
+
+    job.maxWorkers = elegidos.length as any;
+    if (!(job as any).doerId) (job as any).doerId = elegidos[0] as any;
+    job.status = "in_progress";
+    await job.save();
+
+    cacheService.delPattern("jobs:*");
+    socketService.notifyJobStatusChanged(job.toJSON(), "open");
+    socketService.notifyJobUpdate(job.id, req.user.id, { action: "updated", job: job.toJSON() });
+
+    res.json({ success: true, message: `El trabajo empieza con ${elegidos.length} trabajador${elegidos.length > 1 ? "es" : ""}. Se cerraron las vacantes que faltaban.`, job });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 
@@ -2645,8 +2714,17 @@ router.patch("/:id/resume", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Reanudar el trabajo
-    job.status = "open";
+    // «Publicar» de nuevo. Si la pausó un administrador, o se editó mientras estaba pausada (se limpia `reviewedAt` al editar), o estaba en
+    // revisión cuando se pausó, vuelve a pasar por la revisión de un administrador (cuando ese módulo está encendido): no se salta la
+    // revisión editando una publicación pausada.
+    const { moduloActivo } = await import("../services/moduleFlags.js");
+    const { MODULO_APROBACION_DE_PUBLICACIONES } = await import("../../shared/constants/modulos.js");
+    const requiereRevision =
+      (await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true)) &&
+      (!!(job as any).pausedByAdmin || !(job as any).reviewedAt || job.previousStatus === "pending_approval");
+    job.status = requiereRevision ? "pending_approval" : "open";
+    (job as any).pausedByAdmin = false;
+    job.previousStatus = null as any;
     (job as any).pausedAt = null;
     // Se limpia la marca de pausa por inactividad y arranca de nuevo el
     // contador: si no, el cron la volveria a pausar en la proxima corrida.
@@ -2656,10 +2734,14 @@ router.patch("/:id/resume", protect, async (req: AuthRequest, res: Response): Pr
 
     // Notificar actualizacion en tiempo real
     socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
+    if (requiereRevision) socketService.notifyNewJob(job.toJSON());
 
     res.json({
       success: true,
-      message: "Publicación reanudada exitosamente",
+      message: requiereRevision
+        ? "Publicación enviada: un administrador la revisa y, apenas la apruebe, queda visible."
+        : "Publicación publicada nuevamente",
+      requiresApproval: requiereRevision,
       job,
     });
   } catch (error: any) {

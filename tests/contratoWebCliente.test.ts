@@ -64,7 +64,8 @@ describe('abrir el chat del contrato usa una ruta que existe', () => {
     expect(contrato).toMatch(/api\.get\(`\/chat\/contract\/\$\{id\}`\)/);
     expect(contrato).toMatch(/navigate\(`\/chat\/\$\{response\.data\.id\}`\)/);
     expect(detalleDeTrabajo).toMatch(/`\/api\/chat\/contract\/\$\{contractData\.id\}`/);
-    expect(detalleDeTrabajo).toMatch(/navigate\(`\/chat\/\$\{data\.data\.id\}`\)/);
+    // con «?jobId=» el chat sabe de qué trabajo viene
+    expect(detalleDeTrabajo).toMatch(/navigate\(`\/chat\/\$\{data\.data\.id\}(\?jobId=\$\{job\?\.id\})?`\)/);
   });
 });
 

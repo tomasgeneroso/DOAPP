@@ -205,7 +205,8 @@ router.get("/check/:jobId",
 
     res.json({
       success: true,
-      hasApplied: !!proposal,
+      // Una postulación rechazada o retirada no cuenta: el trabajador puede volver a postularse.
+      hasApplied: !!proposal && ['pending', 'approved'].includes(String(proposal.status)),
       proposalId: proposal?.id || null,
       proposalStatus: proposal?.status || null,
     });
@@ -455,7 +456,7 @@ router.post(
         }
       });
 
-      if (existingProposal) {
+      if (existingProposal && !['rejected', 'withdrawn'].includes(String(existingProposal.status))) {
         res.status(400).json({
           success: false,
           message: "Ya has enviado una propuesta para este trabajo",
@@ -476,17 +477,22 @@ router.post(
         return;
       }
 
-      // Crear propuesta
-      const proposal = await Proposal.create({
-        jobId: jobId,
-        freelancerId: req.user.id,
-        clientId: job.clientId,
+      // Crear propuesta (si la anterior fue rechazada o retirada, se reabre con los datos nuevos: hay una sola por trabajo y trabajador)
+      const datosDeLaPropuesta = {
         coverLetter,
         proposedPrice,
         estimatedDuration,
         isCounterOffer,
         originalJobPrice: job.price,
-      });
+      };
+      const proposal = existingProposal
+        ? await existingProposal.update({ ...datosDeLaPropuesta, status: 'pending' } as any)
+        : await Proposal.create({
+            jobId: jobId,
+            freelancerId: req.user.id,
+            clientId: job.clientId,
+            ...datosDeLaPropuesta,
+          });
 
       const populatedProposal = await Proposal.findByPk(proposal.id, {
         include: [

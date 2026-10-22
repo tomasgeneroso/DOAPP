@@ -512,6 +512,22 @@ export class Job extends Model {
   pausedForInactivityAt?: Date;
 
   /**
+   * La pausó un administrador (no el dueño). Antes usaba el estado `suspended`, que es el de «falta la fecha de fin» y que el cron de fechas
+   * flexibles REACTIVA solo: una publicación pausada por moderación volvía a abrirse sin que nadie la mirara.
+   */
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  pausedByAdmin!: boolean;
+
+  /**
+   * Las fechas que tenía antes de la última reprogramación ({ startDate, endDate, at }). El panel de administración muestra la fecha nueva y
+   * de qué fecha viene, para revisar una publicación reprogramada sin adivinar qué cambió.
+   */
+  @Column(DataType.JSONB)
+  rescheduledFrom?: { startDate?: string | Date | null; endDate?: string | Date | null; at?: string } | null;
+
+  /**
    * Cuando el cliente reanudo la publicacion.
    *
    * El contador de dias habiles se mide desde acá y no desde la publicacion:

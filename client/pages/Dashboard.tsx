@@ -37,7 +37,27 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  /** Lo que de verdad se puede retirar ya: el saldo se suma al instante, pero se retira recién cuando Mercado Pago libera ese pago. */
+  const [retiro, setRetiro] = useState<{ disponible: number; enLiberacion: number; proxima: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelado = false;
+    fetch("/api/balance", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelado || !d?.success) return;
+        setRetiro({ disponible: Number(d.disponibleParaRetirar ?? d.balance) || 0, enLiberacion: Number(d.enLiberacion) || 0, proxima: d.proximaLiberacion || null });
+      })
+      .catch(() => {
+        /* sin ese dato se muestra solo el saldo */
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [token]);
+  const fechaCorta = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-AR") : null);
   const { modalTasks } = usePendingTasks();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -424,6 +444,11 @@ export default function Dashboard() {
                   : t('dashboard.debtBalanceDesc', 'You have pending payments to complete')
                 }
               </p>
+              {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (
+                <p className="mt-2 text-sm opacity-95">
+                  Retirable ahora: <strong>${retiro.disponible.toLocaleString('es-AR')}</strong> · ${retiro.enLiberacion.toLocaleString('es-AR')} se liberan{retiro.proxima ? ` el ${fechaCorta(retiro.proxima)}` : ''} (plazo de Mercado Pago). Dentro de la app podés usar todo el saldo ya.
+                </p>
+              )}
               <p className="mt-2 text-sm opacity-80">
                 {(user?.balance || 0) >= 0 ? (
                   <span className="flex items-center gap-1">
@@ -473,7 +498,7 @@ export default function Dashboard() {
               <div>
                 <p className="font-semibold text-slate-900 dark:text-white">{t('dashboard.withdrawalTitle')}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {t('dashboard.withdrawalAvailable')}: <span className="font-medium text-emerald-600 dark:text-emerald-400">${(user?.balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS</span>
+                  {t('dashboard.withdrawalAvailable')}: <span className="font-medium text-emerald-600 dark:text-emerald-400">${(retiro ? retiro.disponible : (user?.balance || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS</span>
                 </p>
               </div>
             </div>

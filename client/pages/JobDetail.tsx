@@ -64,6 +64,7 @@ import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
 import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
 import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import PagarConSaldoDelTrabajo from "../components/pagos/PagarConSaldoDelTrabajo";
 import useDialog from "../hooks/useDialog";
 import useImageViewer from "../hooks/useImageViewer";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
@@ -84,6 +85,8 @@ export default function JobDetail() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [confirmarEmpezar, setConfirmarEmpezar] = useState(false);
+  const [empezando, setEmpezando] = useState(false);
   const isAdmin = !!(user as any)?.adminRole;
   const [adminPayment, setAdminPayment] = useState<any>(null);
   const lastPathRef = useRef(location.pathname);
@@ -195,9 +198,14 @@ export default function JobDetail() {
     registerContractUpdateHandler,
   } = useSocket();
 
+  // Refresca solo los contratos (sin recargar toda la página): confirmaciones de finalización, estado, código.
+  const [pollKey, setPollKey] = useState(0);
+
   // Handle contract updates (for real-time confirmation updates)
   const handleContractUpdate = useCallback(
     (data: any) => {
+      // Cualquier novedad de un contrato de ESTE trabajo vuelve a pedir los contratos (el panel de equipo no se actualizaba).
+      if (data?.contract?.jobId === id || data?.jobId === id) setPollKey((k) => k + 1);
       if (
         contractData &&
         (data.contractId === contractData.id ||
@@ -572,7 +580,17 @@ export default function JobDetail() {
 
     fetchContractData();
     fetchAllContracts();
-  }, [job, user, token, fetchAllContracts]);
+  }, [job, user, token, fetchAllContracts, pollKey]);
+
+  // Mientras el trabajo está en marcha y la pestaña está a la vista, se vuelven a pedir los contratos cada 20 s: así la confirmación del otro
+  // aparece sin recargar aunque no llegue el aviso en vivo.
+  useEffect(() => {
+    if (!job || !["open", "in_progress"].includes(job.status)) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") setPollKey((k) => k + 1);
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [job?.status]);
 
   const handleCopyPairingCode = () => {
     if (contractData?.pairingCode) {
@@ -675,7 +693,7 @@ export default function JobDetail() {
       );
       const data = await response.json();
       if (data.success && data.data?.id) {
-        navigate(`/chat/${data.data.id}`);
+        navigate(`/chat/${data.data.id}?jobId=${job?.id}`);
       } else {
         setErrorMessage(t("chat.couldNotOpen", "Could not open chat"));
         setShowErrorModal(true);
@@ -826,6 +844,27 @@ export default function JobDetail() {
     }
   };
 
+  /** Empezar con los trabajadores ya confirmados: se cierran las vacantes que faltan. */
+  const handleEmpezarConLosElegidos = async () => {
+    if (!job || !token) return;
+    setEmpezando(true);
+    try {
+      const r = await fetch(`/api/jobs/${job.id}/start-with-current`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      setConfirmarEmpezar(false);
+      if (d.success) {
+        notify(d.message, "success");
+        setRefreshKey((k) => k + 1);
+      } else {
+        setError(d.message || "No se pudo empezar el trabajo");
+      }
+    } catch {
+      setError("No se pudo empezar el trabajo");
+    } finally {
+      setEmpezando(false);
+    }
+  };
+
   const handlePauseJob = async () => {
     if (!job || !token) return;
 
@@ -909,6 +948,7 @@ export default function JobDetail() {
       const data = await response.json();
 
       if (data.success) {
+        if (data.requiresApproval) notify(data.message, "success");
         // Refresh job data
         const jobResponse = await fetch(`/api/jobs/${id}`);
         const jobData = await jobResponse.json();
@@ -1561,7 +1601,8 @@ export default function JobDetail() {
                     </div>
                     <span className="text-sm text-purple-600 dark:text-purple-400">
                       {job.selectedWorkers?.length || 0} / {job.maxWorkers}{" "}
-                      {t("jobs.workers", "workers")}
+                      {t("jobs.workers", "workers")} seleccionados
+                      {isOwnJob && proposals.length > 0 ? ` · ${proposals.length} postulación${proposals.length === 1 ? "" : "es"}` : ""}
                     </span>
                   </div>
                   <div className="mt-2">
@@ -1588,6 +1629,20 @@ export default function JobDetail() {
                       )}
                     </p>
                   )}
+                  {isOwnJob &&
+                    job.status === "open" &&
+                    (job.selectedWorkers?.length || 0) >= 1 &&
+                    (job.selectedWorkers?.length || 0) < (job.maxWorkers || 1) &&
+                    !!allContractsData?.contracts?.some((c) => ["accepted", "in_progress"].includes(String((c as any).status))) && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmarEmpezar(true)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+                      >
+                        <Play className="h-4 w-4" />
+                        Empezar con {job.selectedWorkers?.length} de {job.maxWorkers}
+                      </button>
+                    )}
                   {(job.selectedWorkers?.length || 0) >=
                     (job.maxWorkers || 1) && (
                     <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -2075,7 +2130,16 @@ export default function JobDetail() {
                             <MessageCircle className="h-4 w-4" />
                             {loadingChat
                               ? t("common.loading", "Loading...")
-                              : t("common.chat", "Chat")}
+                              : (() => {
+                                  // «Chat con Ana»: se ve con quién se habla antes de tocar el botón
+                                  const otra = isOwnJob
+                                    ? allContractsData?.contracts?.find((c) => c.id === contractData.id)?.doerName ||
+                                      (typeof job.doer === "object" ? (job.doer as any)?.name : "")
+                                    : typeof job.client === "object"
+                                      ? (job.client as any)?.name
+                                      : "";
+                                  return otra ? `Chat con ${otra}` : t("common.chat", "Chat");
+                                })()}
                           </button>
                           {[
                             "in_progress",
@@ -2779,23 +2843,25 @@ export default function JobDetail() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setShowCancelModal(true)}
-                  disabled={actionLoading}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <XCircle className="h-4 w-4" />
-                      {t(
-                        "jobs.actions.cancelAndRefund",
-                        "Cancel and get refund",
-                      )}
-                    </>
-                  )}
-                </button>
+                {/* Antes de cancelar: pausar y editar. Al pausar aparecen «Publicar» y «Cancelar». */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePauseJob}
+                    disabled={actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                  >
+                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                    Pausar
+                  </button>
+                  <button
+                    onClick={handleEditJob}
+                    disabled={actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Editar
+                  </button>
+                </div>
 
                 <Transicion mostrar={!!error}>
                 {error && (
@@ -3491,6 +3557,18 @@ export default function JobDetail() {
 
             {isOwnJob && isDraft && (
               <div className="space-y-3">
+                {/* Una reprogramación se puede pagar con el saldo vinculado a esta publicación, sin salir de acá */}
+                {job.status === "pending_payment" && (
+                  <PagarConSaldoDelTrabajo
+                    token={token}
+                    jobId={String(job.id)}
+                    precio={Number(job.price) || 0}
+                    alPagar={(mensaje) => {
+                      notify(mensaje, "success");
+                      setRefreshKey((k) => k + 1);
+                    }}
+                  />
+                )}
                 <button
                   onClick={() => navigate(`/jobs/${job.id}/payment`)}
                   className="w-full gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-orange-500/30 transition-all hover:from-orange-600 hover:to-orange-700"
@@ -3928,10 +4006,9 @@ export default function JobDetail() {
                         {t("jobs.listingPaused", "This listing is paused")}
                       </p>
                       <p className="text-xs text-amber-600 dark:text-amber-400">
-                        {t(
-                          "jobs.willResumeAutomatically",
-                          "If you don't resume or cancel it, it will resume automatically.",
-                        )}
+                        {(job as any).pausedByAdmin
+                          ? `La pausó un administrador${(job as any).rejectedReason ? `. Motivo: ${(job as any).rejectedReason}` : ""}. Editala si hace falta y volvé a publicarla: un administrador la revisa antes de que se vea.`
+                          : "Editala si hace falta y volvé a publicarla, o cancelala. Si la editás, un administrador la revisa antes de que se vea."}
                       </p>
                     </div>
 
@@ -3947,9 +4024,17 @@ export default function JobDetail() {
                         ) : (
                           <>
                             <Play className="h-4 w-4" />
-                            {t("common.resume", "Resume")}
+                            Publicar
                           </>
                         )}
+                      </button>
+                      <button
+                        onClick={handleEditJob}
+                        disabled={actionLoading}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Editar
                       </button>
                       <button
                         onClick={() => setShowCancelModal(true)}
@@ -4731,6 +4816,16 @@ export default function JobDetail() {
           onClose={() => setShowDeleteModal(false)}
         />
 
+        <ConfirmModal
+          open={confirmarEmpezar}
+          tone="success"
+          title="Empezar con los trabajadores confirmados"
+          message={`Vas a empezar con ${job?.selectedWorkers?.length || 0} de ${job?.maxWorkers || 0} trabajadores. Se cierran las vacantes que faltan y las postulaciones pendientes quedan rechazadas. ¿Seguimos?`}
+          confirmLabel="Empezar"
+          loading={empezando}
+          onConfirm={() => void handleEmpezarConLosElegidos()}
+          onClose={() => setConfirmarEmpezar(false)}
+        />
         <ConfirmModal
           open={confirmWithdrawOpen}
           tone="danger"

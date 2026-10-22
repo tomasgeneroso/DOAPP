@@ -621,11 +621,11 @@ router.put(
 
       switch (action) {
         case 'pause':
-          if (job.status === 'suspended') {
+          if (job.status === 'paused' || job.status === 'suspended') {
             res.status(400).json({ success: false, message: 'La publicación ya está pausada' });
             return;
           }
-          newStatus = 'suspended';
+          newStatus = 'paused';
           message = 'Publicación pausada exitosamente';
           notificationMessage = reason
             ? `Tu publicación "${job.title}" ha sido pausada por el administrador. Razón: ${reason}`
@@ -633,6 +633,7 @@ router.put(
           // Guardar estado anterior para poder reanudar
           await job.update({
             status: newStatus,
+            pausedByAdmin: true,
             previousStatus: job.status,
             rejectedReason: reason || null,
             reviewedBy: req.user.id,
@@ -641,8 +642,9 @@ router.put(
           break;
 
         case 'resume':
-          if (job.status !== 'suspended') {
-            res.status(400).json({ success: false, message: 'Solo se pueden reanudar publicaciones pausadas' });
+          // Las pausadas por un administrador (y las que antes quedaban como `suspended` con estado anterior).
+          if (!(job.status === 'paused' && job.pausedByAdmin) && !(job.status === 'suspended' && job.previousStatus)) {
+            res.status(400).json({ success: false, message: 'Solo se pueden reanudar publicaciones pausadas por un administrador' });
             return;
           }
           newStatus = job.previousStatus || 'open';
@@ -650,6 +652,7 @@ router.put(
           notificationMessage = `Tu publicación "${job.title}" ha sido reanudada por el administrador.`;
           await job.update({
             status: newStatus,
+            pausedByAdmin: false,
             previousStatus: null,
             rejectedReason: null,
             reviewedBy: req.user.id,

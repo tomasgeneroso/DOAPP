@@ -81,6 +81,10 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'jobs.pending_balance_deduction', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pending_balance_deduction NUMERIC(12,2) NOT NULL DEFAULT 0` },
   // Saldo a favor que volvio de ESTA publicacion cancelada (sirve para reprogramarla pagando con el). Si se retira, baja.
   { label: 'jobs.publication_credit', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS publication_credit NUMERIC(12,2) NOT NULL DEFAULT 0` },
+  // La pauso un administrador (estado `paused`): el cron de fechas flexibles no la toca y el dueño la edita y la vuelve a publicar.
+  { label: 'jobs.paused_by_admin', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_by_admin BOOLEAN NOT NULL DEFAULT false` },
+  // Las fechas de antes de la ultima reprogramacion (el panel de admin muestra de donde viene la fecha nueva).
+  { label: 'jobs.rescheduled_from', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS rescheduled_from JSONB` },
   // Por donde eligio el cliente que vuelva su plata si se cancela.
   { label: 'jobs.cancellation_refund_preference', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_refund_preference VARCHAR(20)` },
   // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.

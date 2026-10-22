@@ -52,6 +52,11 @@ interface Job {
   publicationPaid?: boolean;
   publicationPaymentId?: string;
   createdAt: string;
+  startDate?: string;
+  endDate?: string;
+  /** Fechas de antes de la última reprogramación. */
+  rescheduledFrom?: { startDate?: string; endDate?: string; at?: string } | null;
+  pausedByAdmin?: boolean;
   rejectedReason?: string;
   cancellationReason?: string;
   cancelledAt?: string;
@@ -850,6 +855,18 @@ export default function AdminJobManager() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div>{safeDate(job.createdAt)}</div>
                       <div className="text-xs">{safeDateTime(job.createdAt).split(' ').slice(1).join(' ')}</div>
+                      {job.startDate && (
+                        <div className="mt-1 text-xs text-gray-700 dark:text-gray-300" title="Fecha para la que está la publicación">
+                          Para: <strong>{safeDateTime(job.startDate)}</strong>
+                          {job.endDate ? <> → {safeDate(job.endDate)}</> : null}
+                        </div>
+                      )}
+                      {job.rescheduledFrom && (job.rescheduledFrom.startDate || job.rescheduledFrom.endDate) && (
+                        <div className="mt-0.5 text-xs text-amber-600 dark:text-amber-400" title="Reprogramada: así estaba antes">
+                          Reprogramada · antes: {job.rescheduledFrom.startDate ? safeDateTime(job.rescheduledFrom.startDate) : '—'}
+                          {job.rescheduledFrom.endDate ? <> → {safeDate(job.rescheduledFrom.endDate)}</> : null}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">

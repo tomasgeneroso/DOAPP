@@ -182,7 +182,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
         return;
       }
       const yaPostulo: any = await Proposal.findOne({ where: { jobId, freelancerId: req.user.id } });
-      if (yaPostulo && yaPostulo.status !== 'pending') {
+      if (yaPostulo && !['pending', 'rejected', 'withdrawn'].includes(String(yaPostulo.status))) {
         res.status(400).json({ success: false, message: 'Ya tenés una propuesta para este trabajo que no está pendiente.' });
         return;
       }
@@ -377,6 +377,10 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       rejectionReason: null,
       revisionCount: wasRejected ? quote.revisionCount + 1 : quote.revisionCount,
     });
+
+    if (wasRejected && (quote as any).proposalId) {
+      await Proposal.update({ status: 'pending' } as any, { where: { id: (quote as any).proposalId, status: 'rejected' } as any });
+    }
 
     // If had a conversationId and was rejected, post updated message
     if (quote.conversationId && wasRejected) {
@@ -680,6 +684,10 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response): Promise<void
     }
 
     await quote.update({ status: 'rejected', rejectionReason: reason || null });
+    // Si la cotización era la postulación del trabajador, esa postulación queda rechazada: ya no figura como «postulado» y puede volver a postularse.
+    if ((quote as any).proposalId) {
+      await Proposal.update({ status: 'rejected' } as any, { where: { id: (quote as any).proposalId, status: 'pending' } as any });
+    }
 
     // Update chat message metadata
     if (quote.conversationId) {
