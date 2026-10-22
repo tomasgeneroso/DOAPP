@@ -127,6 +127,7 @@ export const MANUAL: EntradaManual[] = [
       "Antes de esa fecha, «marcar pagado» devuelve 409. Se puede forzar con justificación de 15 caracteres o más, y queda en el libro con severidad alta. Forzar es para casos raros, no para apurar.",
       "<b>Transferí el monto que muestra el panel</b>, no lo recalcules: es el precio del trabajo (su parte, si hay varios trabajadores) menos lo que se haya devuelto en una disputa parcial. Ni la comisión ni la pasarela se le descuentan: las pagó el cliente. Subí el comprobante antes de marcar pagado.",
       "Es el único movimiento irreversible de todo el circuito. Si hay una disputa abierta, el ledger bloquea el pago solo.",
+      "<b>Un pago propio no lo aprobás vos.</b> Si pagaste ese pago o ese contrato (o lo vas a cobrar), aprobar, verificar la garantía, confirmar para el pago o marcar pagado rebota con el código APROBACION-DE-PAGO-PROPIO: lo hace otra persona del equipo, comprobando en el banco que el dinero entró. El dueño sí puede y queda anotado como aprobación propia.",
     ],
   },
   {

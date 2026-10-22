@@ -30,11 +30,13 @@ import { digitoVerificador } from '../../shared/identidad/documentos.js';
 // Cada test usa sus propios DNI: el DNI no se repite (índice único), así que los fijos chocarían entre tests.
 let n = 0;
 // Algunos números no admiten ningún CUIL válido (el dígito verificador da 10 con todos los prefijos): se descartan para que el test no sea intermitente.
-const dniNuevo = (): string => {
+// Si el test va a pedir CUIL con prefijos concretos, se pasan acá: un DNI que solo admite el prefijo 20 no sirve para uno que pide 27/23/24.
+const dniNuevo = (...conjuntosDePrefijos: string[][]): string => {
+  const exigidos: Array<string[] | undefined> = conjuntosDePrefijos.length > 0 ? conjuntosDePrefijos : [undefined];
   for (;;) {
     const d = String(40_000_000 + ++n * 7919 + Math.floor(Math.random() * 1000));
     try {
-      cuilDe(d);
+      for (const prefijos of exigidos) cuilDe(d, prefijos);
       return d;
     } catch {
       /* sin CUIL posible: se prueba otro */
@@ -227,7 +229,7 @@ describe('DNI y CUIL', () => {
     });
 
     it('un CUIL ya cargado y válido no se pisa', async () => {
-      const dni = dniNuevo();
+      const dni = dniNuevo(['27', '23', '24'], ['20']);
       const propio = cuilDe(dni, ['27', '23', '24']);
       const otro = cuilDe(dni, ['20']);
       const guardado = `${propio.slice(0, 2)}-${propio.slice(2, 10)}-${propio[10]}`;

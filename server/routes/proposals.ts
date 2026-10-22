@@ -20,7 +20,8 @@ import { Op, Sequelize } from 'sequelize';
 import cacheService from "../services/cacheService.js";
 import { sequelize } from "../config/database.js";
 import { logger } from "../services/logger.js";
-import { settleQuote, acreditarSaldo } from "../services/quotePayment.js";
+import { settleQuote } from "../services/quotePayment.js";
+import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { calculateCommission } from "../services/commissionService.js";
 
 
@@ -860,29 +861,10 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       return;
     }
 
-    // Cotizó por menos de lo pagado: la diferencia va al saldo del cliente.
-    //
-    // No se devuelve a la tarjeta porque un reembolso parcial cuesta una
-    // operación en la pasarela y puede fallar según el medio de pago. El saldo
-    // es inmediato y el cliente lo retira cuando quiera.
-    const saldoAFavor = liquidacion.aFavor > 0 ? liquidacion.aFavor : 0;
-    if (saldoAFavor > 0) {
-      await acreditarSaldo(
-        job.clientId,
-        liquidacion.aFavor,
-        `Diferencia a favor: publicaste por $${liquidacion.yaPagado.toLocaleString('es-AR')} y la cotización aceptada fue de $${liquidacion.acordado.toLocaleString('es-AR')}.`,
-        {
-          relatedModel: 'Job',
-          relatedId: job.id,
-          // Este saldo no se gano trabajando: es plata que el cliente ya pago y
-          // que vuelve. Si la quiere en el banco, la pasarela cobra por
-          // devolverla, y hay que poder distinguirla del saldo ganado para
-          // saber sobre que parte corre ese costo.
-          // Se retira recién cuando Mercado Pago libera el pago original (ver services/liberacionDeSaldo.ts).
-          metadata: { origen: 'cotizacion_menor', jobId: job.id, disponibleDesde: await (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeLaPublicacion(job as any) },
-        },
-      );
-    }
+    // Si cotizó por menos de lo pagado, la diferencia va al saldo del cliente (no a la tarjeta: un reembolso parcial cuesta una operación en la
+    // pasarela y puede fallar según el medio de pago; el saldo es inmediato y el cliente lo retira cuando quiera). Pero se acredita AL FINAL,
+    // con el contrato ya guardado y solo si el equipo quedó cerrado: ver services/presupuestoDelTrabajo.ts. Acreditar acá, antes de crear nada,
+    // dejaba el crédito hecho aunque la aprobación fallara después, y devolvía el presupuesto de los lugares que todavía se podían cubrir.
 
     // Set proposal status (will save later after contract creation to avoid inconsistency)
     proposal.status = "approved";
@@ -911,9 +893,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       workerAllocation = parseFloat(allocatedAmount);
 
       // Validate allocation doesn't exceed remaining budget
-      const currentAllocatedTotal = typeof job.allocatedTotal === 'string'
-        ? parseFloat(job.allocatedTotal)
-        : (job.allocatedTotal || 0);
+      const currentAllocatedTotal = (job.workerAllocations || []).reduce((sum, a) => sum + (Number(a.allocatedAmount) || 0), 0);
       const remainingBudget = jobPrice - currentAllocatedTotal;
 
       if (workerAllocation > remainingBudget) {
@@ -925,9 +905,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       }
     } else {
       // Default: use proposed price; fallback to job price if worker applied without specifying amount
-      workerAllocation = (proposal.proposedPrice && proposal.proposedPrice > 0)
-        ? proposal.proposedPrice
-        : jobPrice;
+      workerAllocation = Number(proposal.proposedPrice) > 0 ? Number(proposal.proposedPrice) : jobPrice;
     }
 
     // Validar monto mínimo ANTES de modificar el job
@@ -963,7 +941,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     job.changed('workerAllocations', true);
 
     // Update allocated total and remaining budget
-    const newAllocatedTotal = currentAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
+    const newAllocatedTotal = currentAllocations.reduce((sum, a) => sum + (Number(a.allocatedAmount) || 0), 0);
     job.allocatedTotal = newAllocatedTotal;
     job.remainingBudget = jobPrice - newAllocatedTotal;
 
@@ -1033,6 +1011,12 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       job.save()
     ]);
     console.log(`✅ Proposal ${proposal.id} and Job ${job.id} saved successfully`);
+
+    // Lo que sobra del presupuesto pagado vuelve al saldo del cliente, si el equipo quedó cerrado (completo). Es un asiento del libro: NUNCA un pedido
+    // de retiro; sacarlo al banco lo pide el cliente. Si falla, se avisa a administración y el barrido lo reintenta (el contrato ya está hecho).
+    const devolucion = await intentarDevolverPresupuesto(String(job.id));
+    const saldoAFavor = devolucion.devuelto;
+    const avisoDelSaldo = devolucion.aviso;
 
     // Reject other pending proposals if max workers reached (done after contract creation for consistency)
     if (shouldRejectOtherProposals) {
@@ -1119,29 +1103,8 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     // Send real-time notification
     socketService.notifyUser(proposal.freelancerId, "notification:new", notification.toJSON());
 
-    // Al cliente se le avisa que quedó plata a su favor: pagó la publicación por más de lo que se acordó y la diferencia es suya, en su saldo.
-    let avisoDelSaldo: string | undefined;
-    if (saldoAFavor > 0) {
-      const monto = `$${saldoAFavor.toLocaleString('es-AR')}`;
-      avisoDelSaldo = `La cotización aceptada ($${liquidacion.acordado.toLocaleString('es-AR')}) es menor a lo que pagaste por la publicación ($${liquidacion.yaPagado.toLocaleString('es-AR')}): te quedaron ${monto} a favor en tu saldo.`;
-      try {
-        const avisoAlCliente = await Notification.create({
-          recipientId: req.user.id,
-          type: 'info',
-          category: 'payment',
-          title: 'Te quedó saldo a favor',
-          message: `${avisoDelSaldo} Lo podés usar o retirar desde Balance (se habilita cuando Mercado Pago libera el pago original).`,
-          relatedModel: 'Job',
-          relatedId: job.id,
-          actionText: 'Ver balance',
-          data: { jobId: job.id, proposalId: proposal.id, saldoAFavor },
-          read: false,
-        });
-        socketService.notifyUser(req.user.id, 'notification:new', avisoAlCliente.toJSON());
-      } catch (e) {
-        logger.error('proposals', `No se pudo avisar al cliente del saldo a favor: ${(e as Error).message}`);
-      }
-    }
+    // Al cliente se le avisó que quedó plata a su favor (la notificación la crea services/presupuestoDelTrabajo.ts): acá solo llega en vivo.
+    if (devolucion.notificacion) socketService.notifyUser(req.user.id, 'notification:new', devolucion.notificacion.toJSON());
 
     // Notify admin panel of new contract
     const populatedContract = await Contract.findByPk(contract.id, {

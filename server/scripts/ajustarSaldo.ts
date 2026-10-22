@@ -15,6 +15,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from '../config/database.js';
+import { esPermisoDenegado, explicarPermisoDenegado } from '../services/permisosDeLaBase.js';
 import { ajustarSaldoDeUsuario } from '../services/ajusteDeSaldo.js';
 
 const carpeta = path.dirname(fileURLToPath(import.meta.url));
@@ -32,8 +33,8 @@ initDatabase()
       aplicar: process.argv.includes('--aplicar'),
     }),
   )
-  .catch((e) => {
-    console.error('Error:', e?.message || e);
+  .catch(async (e) => {
+    console.error('Error:', esPermisoDenegado(e) ? await explicarPermisoDenegado(e) : e?.message || e);
     process.exitCode = 1;
   })
   .finally(() => setTimeout(() => process.exit(), 500));

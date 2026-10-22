@@ -19,6 +19,7 @@ import { montoParaElTrabajador } from "../../services/payoutAmount.js";
 import { logMoneyEvent } from "../../utils/auditLog.js";
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 import { pagableDesde } from "../../services/liberacionDeSaldo.js";
+import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
 
 const router = express.Router();
 
@@ -855,6 +856,13 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
 
     const doer = contract.doer as any;
     const job = contract.job as any;
+
+    // Nadie se marca a sí mismo como pagado (ni paga un contrato propio) salvo el dueño: el pago al trabajador lo da por hecho otra persona.
+    const bloqueoPropio = bloqueoPorAprobacionPropia({ payerId: contract.clientId, recipientId: contract.doerId }, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+      return;
+    }
 
     // Un contrato ya pagado no se paga dos veces. El libro contesta "ok" a un reintento de la misma
     // acción (es idempotente a propósito), y esta ruta rehacía todo lo demás: notificación al trabajador,

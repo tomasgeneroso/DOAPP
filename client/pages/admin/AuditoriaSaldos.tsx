@@ -6,7 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   gravedad: "alta" | "media";
   titulo: string;
   detalle: string;

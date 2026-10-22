@@ -11,6 +11,7 @@ import {
   type SaldoContraLibro,
 } from './controlesDeDinero.js';
 import { conSistema } from '../db/contextoRls.js';
+import { presupuestoContratado, presupuestoDevuelto, presupuestoSinAsignar } from './presupuestoDelTrabajo.js';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -60,10 +61,10 @@ export async function settleQuote(job: Job, precioCotizado: number): Promise<Quo
 
   // Sólo cuenta como pagado lo que efectivamente se cobró. Un trabajo 'quote'
   // o uno publicado y no pagado todavía valen cero acá, no su precio publicado.
-  const yaPagado =
-    (job as any).publicationPaid && (job as any).pricingMode === 'fixed'
-      ? Number(job.price) || 0
-      : 0;
+  // Y de lo pagado, sólo lo que queda sin asignar: en un trabajo para varios, lo
+  // que ya respalda el contrato de otro trabajador no sirve para éste, y lo que
+  // ya se devolvió al saldo tampoco.
+  const yaPagado = await presupuestoSinAsignar(job as any);
 
   const diferencia = acordado - yaPagado;
 
@@ -460,8 +461,11 @@ export async function confirmarPagoDeCotizacion(
 
   // El precio acordado pasa a ser el precio del trabajo y queda pagado. Sin
   // esto, settleQuote volveria a pedir la misma diferencia que se acaba de
-  // cobrar y la aprobacion rebotaria con un 402 eterno.
-  job.price = montoAcordado;
+  // cobrar y la aprobacion rebotaria con un 402 eterno. Si el trabajo ya tiene
+  // contratos (otro trabajador de un trabajo para varios) o devolvió algo al
+  // saldo, el presupuesto pagado es eso MÁS lo acordado ahora: pisarlo con el
+  // acordado solo dejaría sin respaldo a los demás.
+  job.price = (await presupuestoContratado(String(job.id))) + (await presupuestoDevuelto(String(job.id))) + montoAcordado;
   (job as any).pricingMode = 'fixed';
   (job as any).publicationPaid = true;
   (job as any).publicationPaidAt = new Date();

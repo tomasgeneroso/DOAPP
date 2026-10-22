@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { sequelize } from '../config/database.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
@@ -96,15 +97,19 @@ export async function anularPagoSinDinero(
     return resultado;
   }
 
-  pago.status = 'cancelled';
-  pago.adminNotes = [pago.adminNotes, `Anulado (sin dinero real): ${motivo}`].filter(Boolean).join(' | ');
-  await pago.save();
-  for (const f of facturas) {
-    if (f.status !== 'void') {
-      f.status = 'void';
-      await f.save();
+  // Todo o nada: si una factura no se puede anular (por ejemplo, la base no deja escribir en `invoices`), el pago tampoco queda anulado. Sin
+  // esto un error a mitad de camino dejaba el pago «cancelled» y la factura vigente.
+  await sequelize.transaction(async (t) => {
+    pago.status = 'cancelled';
+    pago.adminNotes = [pago.adminNotes, `Anulado (sin dinero real): ${motivo}`].filter(Boolean).join(' | ');
+    await pago.save({ transaction: t });
+    for (const f of facturas) {
+      if (f.status !== 'void') {
+        f.status = 'void';
+        await f.save({ transaction: t });
+      }
     }
-  }
+  });
   await logMoneyEvent({
     action: 'PAYMENT_VOIDED',
     actor: 'script:anularPago',

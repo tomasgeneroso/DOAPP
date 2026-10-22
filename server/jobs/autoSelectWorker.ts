@@ -7,6 +7,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import emailService from '../services/email.js';
 import { calculateCommission } from '../services/commissionService.js';
+import { intentarDevolverPresupuesto } from '../services/presupuestoDelTrabajo.js';
 import { getIO } from '../services/socket.js';
 import { Op, fn, col } from 'sequelize';
 
@@ -372,6 +373,9 @@ export function startAutoSelectWorkerJob() {
           job.status = 'in_progress';
           await job.save();
           console.log(`✅ [CRON] Trabajo "${job.title}" (${job.id}) activado a in_progress`);
+          // Arrancó con los que había: los lugares que no se cubrieron ya no se van a contratar y su presupuesto vuelve al saldo del cliente (si falla, el
+          // barrido de devolución de presupuesto lo reintenta).
+          if ((Number(job.maxWorkers) || 1) > 1) await intentarDevolverPresupuesto(String(job.id));
         } catch (error) {
           console.error(`❌ [CRON] Error activando trabajo ${job.id}:`, error);
         }

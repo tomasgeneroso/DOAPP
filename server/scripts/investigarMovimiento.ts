@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from '../config/database.js';
+import { esPermisoDenegado, explicarPermisoDenegado } from '../services/permisosDeLaBase.js';
 import { User } from '../models/sql/User.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
@@ -98,8 +99,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error('Error:', e?.message || e);
+  .catch(async (e) => {
+    console.error('Error:', esPermisoDenegado(e) ? await explicarPermisoDenegado(e) : e?.message || e);
     process.exitCode = 1;
   })
   .finally(() => setTimeout(() => process.exit(), 500));

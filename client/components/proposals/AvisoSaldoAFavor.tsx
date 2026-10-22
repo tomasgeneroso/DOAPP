@@ -16,7 +16,7 @@ export default function AvisoSaldoAFavor({ monto, className = "" }: { monto?: nu
         <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-100">
           <Wallet className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
           <p>
-            <strong>Te quedaron {plata(valor)} a favor.</strong> La cotización que aceptaste es menor a lo que pagaste por la publicación: la diferencia se acreditó en tu saldo. La podés usar o retirar desde{" "}
+            <strong>Te quedaron {plata(valor)} a favor.</strong> La cotización que aceptaste es menor a lo que pagaste por la publicación: la diferencia se acreditó en tu saldo de DOAPP; no sale a tu banco sola. La podés usar en la app o pedir su retiro desde{" "}
             <Link to="/balance" className="font-semibold underline">Balance</Link> (se habilita cuando Mercado Pago libera el pago original).
           </p>
         </div>

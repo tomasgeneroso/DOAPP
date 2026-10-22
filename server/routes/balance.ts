@@ -272,7 +272,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         success: false,
         message:
           `El monto mínimo de retiro es $${MINIMUM_WITHDRAWAL_ARS.toLocaleString("es-AR")} ARS. Tu saldo disponible para retirar es $${amount.toLocaleString("es-AR")}.` +
-          (retirable.enLiberacion > 0 ? ` Otros $${retirable.enLiberacion.toLocaleString("es-AR")} ya están en tu cuenta pero Mercado Pago todavía no liberó ese pago.${cuando}` : ''),
+          (retirable.enLiberacion > 0 ? ` Otros $${retirable.enLiberacion.toLocaleString("es-AR")} ya están en tu saldo de DOAPP pero Mercado Pago todavía no liberó ese pago.${cuando}` : ''),
         disponibleParaRetirar: amount,
         enLiberacion: retirable.enLiberacion,
         proximaLiberacion: retirable.proximaLiberacion,

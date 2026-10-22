@@ -26,6 +26,7 @@ import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { avisarPagoRecibido } from "../services/avisoDePago.js";
+import { bloqueoPorAprobacionPropia } from "../services/aprobacionDePagos.js";
 import { aplicarAumentoDePrecio, dejarAumentoEnRevision, aumentoPagadoEnRevision } from "../services/aumentoDePrecio.js";
 import { urlsDeRetorno } from "../services/urlsDeRetorno.js";
 import { firmarDescargaDeFactura, verificarDescargaDeFactura } from "../services/descargaDeFactura.js";
@@ -2598,6 +2599,13 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
     const payment = await Payment.findByPk(paymentId);
     if (!payment) {
       res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Nadie aprueba el comprobante de un pago propio (salvo el dueño): nadie más comprobaría que el dinero entró.
+    const bloqueoPropio = bloqueoPorAprobacionPropia(payment, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
       return;
     }
 

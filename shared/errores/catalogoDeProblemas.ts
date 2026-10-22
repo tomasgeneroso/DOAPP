@@ -199,7 +199,7 @@ export const CATALOGO_DE_PROBLEMAS = {
     titulo: 'La auditoría nocturna de saldos encontró diferencias',
     paraElUsuario: 'Estamos revisando tu cuenta para confirmar que todo cierra. No hace falta que hagas nada.',
     queSignifica:
-      'Todas las noches se comprueba lo que tiene que ser verdad siempre: el saldo de cada usuario es la suma de sus movimientos, no hay publicaciones canceladas con la plata trabada, nadie cobra dos veces un contrato y ningún retiro pendiente supera el saldo. El aviso dice cuántas diferencias hay y las primeras.',
+      'Todas las noches se comprueba lo que tiene que ser verdad siempre: el saldo de cada usuario es la suma de sus movimientos, no hay publicaciones canceladas con la plata trabada, nadie cobra dos veces un contrato, ningún retiro pendiente supera el saldo, no se devolvió plata de una publicación que no se cobró y ningún pago por transferencia lo aprobó la misma cuenta que pagó y no se devolvió al saldo más presupuesto del que sobraba. El aviso dice cuántas diferencias hay y las primeras.',
     causas: [
       'Un saldo se tocó sin dejar un movimiento en el libro (o al revés).',
       'Un reembolso o una cancelación quedó a medias.',
@@ -210,6 +210,24 @@ export const CATALOGO_DE_PROBLEMAS = {
       { texto: 'Corregí cada una con un asiento de ajuste que diga quién, cuándo y por qué (nunca editando el saldo). Mientras un usuario tenga el saldo descuadrado, no puede retirar.' },
     ],
     gravedad: 'alta',
+  },
+
+  'APROBACION-DE-PAGO-PROPIO': {
+    codigo: 'APROBACION-DE-PAGO-PROPIO',
+    titulo: 'Un administrador no puede aprobar un pago propio',
+    paraElUsuario: 'Este pago lo tiene que revisar otra persona del equipo antes de confirmarse. Sigue en la cola de aprobación.',
+    queSignifica:
+      'Aprobar una transferencia es dar por buena una afirmación («el dinero entró al banco») que ninguna pasarela comprueba. Si quien la aprueba es quien la hizo, o quien la va a cobrar, no hay una segunda persona que la compruebe: así llegó a devolverse al saldo una transferencia de $431.956,80 que nunca tuvo dinero detrás. Por eso el sistema frena la aprobación (403). El dueño sí puede aprobar pagos propios, y queda anotado como aprobación propia.',
+    causas: [
+      'Un administrador pagó una publicación o un contrato por transferencia y quiso aprobar su propio comprobante.',
+      'Un administrador es el trabajador de un contrato y quiso confirmar su propio cobro (o la verificación del pago de su contrato).',
+    ],
+    queHacer: [
+      { texto: 'Pedile a otra persona del equipo (o al dueño) que apruebe el pago desde Pagos pendientes, comprobando en el banco que el dinero entró.', ruta: '/admin/pending-payments' },
+      { texto: 'Si es una prueba y no hay dinero real, no lo apruebes: dejalo pendiente o rechazalo.' },
+      { texto: 'Para ver los pagos que ya se aprobaron a mano por quien pagó, mirá el invariante 7 de la auditoría de saldos.', ruta: '/admin/auditoria-saldos' },
+    ],
+    gravedad: 'media',
   },
 
   'PAGO-NO-LEIDO': {
@@ -233,6 +251,20 @@ export const CATALOGO_DE_PROBLEMAS = {
       { texto: 'Avisale al usuario cuando esté hecho.' },
     ],
     gravedad: 'alta',
+  },
+
+  'DEVOLUCION-DE-PRESUPUESTO-FALLIDA': {
+    codigo: 'DEVOLUCION-DE-PRESUPUESTO-FALLIDA',
+    titulo: 'No se pudo devolver al saldo lo que sobró del presupuesto de una publicación',
+    paraElUsuario: 'Tu trabajo ya está contratado. Lo que sobró del presupuesto todavía no figura en tu saldo: administración ya fue avisada y se acredita a la brevedad. No perdiste ese dinero.',
+    queSignifica:
+      'El equipo de la publicación quedó cerrado (completo, o empezó con menos lugares) y lo que no se contrató tenía que pasar al saldo del cliente, pero la acreditación falló. El sistema lo reintenta solo cada 15 minutos; si el aviso se repite para la misma publicación, algo lo está frenando.',
+    causas: ['Error temporal de la base de datos.', 'Un control de saldo frenó el movimiento (mirá el detalle).'],
+    queHacer: [
+      { texto: 'Esperá unos minutos: se reintenta solo. Si el aviso vuelve a aparecer para la misma publicación, abrí su expediente y mirá el pago y los contratos.', ruta: '/admin/jobs' },
+      { texto: 'Si hay que acreditarlo a mano, hacelo con un asiento de ajuste que diga quién, cuándo y por qué (nunca editando el saldo).', ruta: '/admin/auditoria-saldos' },
+    ],
+    gravedad: 'media',
   },
 
   'TRABAJADOR-COMPENSACION-FALLIDA': {

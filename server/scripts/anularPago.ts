@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from '../config/database.js';
+import { esPermisoDenegado, explicarPermisoDenegado } from '../services/permisosDeLaBase.js';
 import { anularPagoSinDinero } from '../services/anulacionDePagos.js';
 
 const carpeta = path.dirname(fileURLToPath(import.meta.url));
@@ -26,8 +27,8 @@ initDatabase()
     if (!pago) throw new Error('Falta --pago=<id del pago>');
     return anularPagoSinDinero(pago, arg('motivo') ?? '', { aplicar: process.argv.includes('--aplicar'), forzar: process.argv.includes('--forzar') });
   })
-  .catch((e) => {
-    console.error('Error:', e?.message || e);
+  .catch(async (e) => {
+    console.error('Error:', esPermisoDenegado(e) ? await explicarPermisoDenegado(e) : e?.message || e);
     process.exitCode = 1;
   })
   .finally(() => setTimeout(() => process.exit(), 500));

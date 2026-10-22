@@ -1,4 +1,5 @@
-import { Op, literal } from 'sequelize';
+import { Op, QueryTypes, literal } from 'sequelize';
+import { sequelize } from '../config/database.js';
 import { User } from '../models/sql/User.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { Job } from '../models/sql/Job.model.js';
@@ -46,10 +47,16 @@ import { quienConfirmoElPago } from './controlesDeDinero.js';
  *      dinero entró. Es como un pago de prueba (caso «try», $431.956,80:
  *      transferencia aprobada por la propia cuenta, sin dinero real) llegó a
  *      devolverse al saldo.
+ *
+ *   8. PRESUPUESTO DEVUELTO DE MÁS. Se devolvió al saldo más de lo que sobraba
+ *      del presupuesto pagado de una publicación (precio menos lo contratado).
+ *      Lo producía la aprobación de propuestas en trabajos para varios
+ *      lugares: devolvía en cada elección, y elegir al segundo fallaba
+ *      DESPUÉS de acreditar, así que cada intento sumaba otro crédito.
  */
 
 export interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   gravedad: 'alta' | 'media';
   titulo: string;
   detalle: string;
@@ -230,6 +237,44 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
       userId: String(p.payerId),
       jobId: j ? String(j.id) : undefined,
     });
+  }
+
+  // 8. Presupuesto devuelto de más. Lo que se devolvió por no usarse (origen «cotizacion_menor» sin motivo, que es el de la aprobación de una propuesta, o
+  // «equipo_parcial») no puede superar lo pagado menos lo contratado. Las bajas de precio ya bajaron `job.price`: se suman para reconstruir lo que se pagó.
+  const devueltosPorTrabajo = (await sequelize.query(
+    `SELECT metadata->>'jobId' AS job_id,
+            COALESCE(SUM(amount) FILTER (WHERE metadata->>'origen' = 'equipo_parcial' OR (metadata->>'origen' = 'cotizacion_menor' AND NOT (metadata ? 'reason'))), 0) AS devuelto,
+            COALESCE(SUM(amount) FILTER (WHERE metadata->>'reason' = 'price_decrease' OR metadata->>'origen' = 'baja_aceptada_por_todos'), 0) AS bajas
+       FROM balance_transactions
+      WHERE type = 'refund' AND status = 'completed' AND metadata ? 'jobId'
+      GROUP BY 1
+     HAVING SUM(amount) FILTER (WHERE metadata->>'origen' = 'equipo_parcial' OR (metadata->>'origen' = 'cotizacion_menor' AND NOT (metadata ? 'reason'))) > 0`,
+    { type: QueryTypes.SELECT },
+  )) as Array<{ job_id: string; devuelto: string; bajas: string }>;
+  const idsConDevolucion = devueltosPorTrabajo.map((d) => String(d.job_id)).filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+  if (idsConDevolucion.length > 0) {
+    const trabajosConDevolucion: any[] = await Job.findAll({ where: { id: { [Op.in]: idsConDevolucion } } as any, attributes: ['id', 'title', 'price', 'clientId'] });
+    const contratosDeEsos: any[] = await Contract.findAll({ where: { jobId: { [Op.in]: idsConDevolucion }, status: { [Op.notIn]: ['cancelled', 'rejected'] } } as any, attributes: ['jobId', 'price'] });
+    const contratado = new Map<string, number>();
+    for (const c of contratosDeEsos) contratado.set(String(c.jobId), (contratado.get(String(c.jobId)) || 0) + (Number(c.price) || 0));
+    for (const j of trabajosConDevolucion) {
+      const fila = devueltosPorTrabajo.find((d) => String(d.job_id) === String(j.id));
+      const devuelto = Number(fila?.devuelto) || 0;
+      const pagado = (Number(j.price) || 0) + (Number(fila?.bajas) || 0);
+      const sobraba = Math.max(0, pagado - (contratado.get(String(j.id)) || 0));
+      const exceso = r2(devuelto - sobraba);
+      if (exceso > 0.01) {
+        hallazgos.push({
+          invariante: 8,
+          gravedad: 'alta',
+          titulo: 'Se devolvió más presupuesto del que sobraba',
+          detalle: `"${j.title}": pagado $${pagado.toLocaleString('es-AR')}, contratado $${(contratado.get(String(j.id)) || 0).toLocaleString('es-AR')}, devuelto al saldo $${devuelto.toLocaleString('es-AR')}: $${exceso.toLocaleString('es-AR')} de más. Mirá el expediente de la publicación y descontá el exceso con un ajuste (scripts/ajustarSaldo --publicacion=<id> --monto=-${exceso}).`,
+          monto: exceso,
+          userId: String(j.clientId),
+          jobId: String(j.id),
+        });
+      }
+    }
   }
 
   // 4. Contratos pagados dos veces, o pagados y devueltos.

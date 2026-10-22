@@ -9,7 +9,7 @@ interface BalanceData {
   balance: number;
   pendingBalance: number;
   availableBalance: number;
-  /** Lo que se puede retirar ahora (el resto ya está en la cuenta pero Mercado Pago todavía no liberó ese pago). */
+  /** Lo que se puede retirar ahora (el resto ya está en el saldo de DOAPP pero Mercado Pago todavía no liberó ese pago). */
   disponibleParaRetirar?: number;
   enLiberacion?: number;
   proximaLiberacion?: string | null;

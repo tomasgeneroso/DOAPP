@@ -11,6 +11,7 @@ import { Notification } from "../../models/sql/Notification.model.js";
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { logAudit } from "../../utils/auditLog.js";
+import { bloqueoPorAprobacionPropia, esAprobacionPropiaDelDueno } from "../../services/aprobacionDePagos.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import multer from "multer";
 import path from "path";
@@ -991,6 +992,13 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       return;
     }
 
+    // Nadie aprueba un pago propio (salvo el dueño): si no, nadie más comprueba que el dinero entró.
+    const bloqueoPropio = bloqueoPorAprobacionPropia(payment, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+      return;
+    }
+
     // If admin uploaded a proof directly, store it as the ADMIN VERIFICATION proof
     // (kind='admin_verification', isActive=false) so it never replaces the client's
     // receipt in active-proof queries — both are kept and shown separately.
@@ -1082,7 +1090,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       req, action: 'payment.approve', category: 'payment', severity: 'high',
       description: `Aprobó/verificó el pago ${paymentId} (nuevo estado: ${newStatus})`,
       targetModel: 'Payment', targetId: paymentId,
-      metadata: { newStatus, bankReference: bankReference || null, amount: Number(payment.amount) || null },
+      metadata: { newStatus, bankReference: bankReference || null, amount: Number(payment.amount) || null, aprobacionPropiaDelDueno: esAprobacionPropiaDelDueno(payment, req.user) },
     });
 
     console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} approved with status: ${newStatus}`);
@@ -1463,6 +1471,13 @@ router.post("/:paymentId/verify-escrow", protect, requireRole('admin', 'super_ad
       return;
     }
 
+    // Nadie verifica la garantía de un pago propio (salvo el dueño).
+    const bloqueoPropio = bloqueoPorAprobacionPropia(payment, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+      return;
+    }
+
     // Only allow verify-escrow from 'verified' status
     if (payment.status !== 'verified') {
       res.status(400).json({
@@ -1605,6 +1620,13 @@ router.post("/:paymentId/confirm-for-payout", protect, requireRole('admin', 'sup
     const payment = await Payment.findByPk(paymentId);
     if (!payment) {
       res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Nadie confirma para el pago un pago propio (lo pagó o lo va a cobrar), salvo el dueño.
+    const bloqueoPropio = bloqueoPorAprobacionPropia(payment, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
       return;
     }
 

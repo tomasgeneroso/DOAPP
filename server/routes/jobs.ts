@@ -30,6 +30,7 @@ import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { publicacionDevuelta } from "../services/creditoDePublicacion.js";
+import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 
@@ -2640,16 +2641,27 @@ router.post("/:id/start-with-current", protect, async (req: AuthRequest, res: Re
       } as any).catch(() => {});
     }
 
+    const lugaresPedidos = maxWorkers;
     job.maxWorkers = elegidos.length as any;
     if (!(job as any).doerId) (job as any).doerId = elegidos[0] as any;
     job.status = "in_progress";
     await job.save();
 
+    // Los lugares que no se cubrieron ya no se van a contratar: lo que quedaba de su presupuesto vuelve al SALDO del cliente (un asiento del libro,
+    // nunca un pedido de retiro). Si falla, se avisa a administración y el barrido lo reintenta.
+    const devolucion = await intentarDevolverPresupuesto(String(job.id), { lugaresPedidos });
+    if (devolucion.notificacion) socketService.notifyUser(req.user.id, "notification:new", devolucion.notificacion.toJSON());
+
     cacheService.delPattern("jobs:*");
     socketService.notifyJobStatusChanged(job.toJSON(), "open");
     socketService.notifyJobUpdate(job.id, req.user.id, { action: "updated", job: job.toJSON() });
 
-    res.json({ success: true, message: `El trabajo empieza con ${elegidos.length} trabajador${elegidos.length > 1 ? "es" : ""}. Se cerraron las vacantes que faltaban.`, job });
+    res.json({
+      success: true,
+      message: `El trabajo empieza con ${elegidos.length} trabajador${elegidos.length > 1 ? "es" : ""}. Se cerraron las vacantes que faltaban.${devolucion.devuelto > 0 ? ` $${devolucion.devuelto.toLocaleString("es-AR")} del presupuesto que no se usó quedaron a favor en tu saldo (no se retiran solos: el retiro lo pedís vos).` : ""}`,
+      saldoAFavor: devolucion.devuelto,
+      job,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
