@@ -41,7 +41,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       ...(await (async () => {
         const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
         const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);
-        return { saldoLibre: d.libre, saldoVinculado: d.vinculado, publicacionesVinculadas: d.publicaciones, saldoReservadoEnRetiro: d.reservadoEnRetiro, saldoUsable: Math.max(0, Math.round((d.total - d.reservadoEnRetiro) * 100) / 100) };
+        return { saldoLibre: d.libre, saldoVinculado: d.vinculado, publicacionesVinculadas: d.publicaciones, saldoReservadoEnRetiro: d.reservadoEnRetiro, saldoEnRetiroPendiente: await (await import('../services/saldoReservado.js')).pendienteEnRetiros(String(req.user.id)), saldoUsable: Math.max(0, Math.round((d.total - d.reservadoEnRetiro) * 100) / 100) };
       })()),
     });
   } catch (error: any) {

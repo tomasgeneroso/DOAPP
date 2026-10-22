@@ -6,6 +6,7 @@ const plata = (n: number) => `$${n.toLocaleString("es-AR", { maximumFractionDigi
 interface SaldoDelCliente {
   balance: number;
   saldoVinculado?: number;
+  saldoEnRetiroPendiente?: number;
   publicacionesVinculadas?: Array<{ jobId: string; titulo: string; monto: number }>;
 }
 
@@ -25,10 +26,12 @@ export default function PagarConSaldo({
   /** Precio + comisión + IVA de la comisión: lo que sale del saldo (sin procesamiento de la pasarela). */
   total: number;
   disabled?: boolean;
-  onPagar: () => Promise<void>;
+  /** `confirmaRetiroPendiente`: la persona ya vio el aviso de que su retiro pendiente se cancela. */
+  onPagar: (confirmaRetiroPendiente: boolean) => Promise<void>;
 }) {
   const [saldo, setSaldo] = useState<SaldoDelCliente | null>(null);
   const [pagando, setPagando] = useState(false);
+  const [avisando, setAvisando] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -36,7 +39,7 @@ export default function PagarConSaldo({
     fetch("/api/balance", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelado && d?.success) setSaldo({ balance: Number(d.balance) || 0, saldoVinculado: Number(d.saldoVinculado) || 0, publicacionesVinculadas: d.publicacionesVinculadas });
+        if (!cancelado && d?.success) setSaldo({ balance: Number(d.balance) || 0, saldoVinculado: Number(d.saldoVinculado) || 0, saldoEnRetiroPendiente: Number(d.saldoEnRetiroPendiente) || 0, publicacionesVinculadas: d.publicacionesVinculadas });
       })
       .catch(() => {
         /* sin saldo conocido no se ofrece */
@@ -58,13 +61,25 @@ export default function PagarConSaldo({
           <p className="mt-1">
             Cuando se canceló, {plata(propio)} volvieron a tu saldo vinculados a ella. Se descuentan {plata(total)} y no pagás costo de procesamiento.
           </p>
+          {avisando && (
+            <p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
+              Tenés un retiro pendiente por {plata(saldo.saldoEnRetiroPendiente ?? 0)}. Si pagás con este saldo, <strong>ese retiro se cancela</strong>. Podés volver a pedirlo con lo que te quede.
+            </p>
+          )}
           <button
             type="button"
             disabled={disabled || pagando}
             onClick={async () => {
+              // Con un retiro pendiente que este pago dejaría sin saldo, primero se avisa (la segunda vez se confirma)
+              const pendiente = saldo.saldoEnRetiroPendiente ?? 0;
+              const afecta = pendiente > 0 && saldo.balance - total < pendiente - 0.005;
+              if (afecta && !avisando) {
+                setAvisando(true);
+                return;
+              }
               setPagando(true);
               try {
-                await onPagar();
+                await onPagar(afecta);
               } finally {
                 setPagando(false);
               }
@@ -72,7 +87,7 @@ export default function PagarConSaldo({
             className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
           >
             {pagando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            Pagar {plata(total)} con mi saldo
+            {avisando ? `Entiendo: cancelar mi retiro y pagar ${plata(total)}` : `Pagar ${plata(total)} con mi saldo`}
           </button>
         </div>
       </div>

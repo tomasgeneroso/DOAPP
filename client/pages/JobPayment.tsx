@@ -224,13 +224,13 @@ export default function JobPayment() {
   const pagoEnCurso = useRef(false);
 
   /** Paga la publicación con el saldo a favor: no pasa por la pasarela. */
-  const pagarConSaldo = async () => {
+  const pagarConSaldo = async (confirmaRetiroPendiente: boolean) => {
     try {
       const response = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ jobId: id, paymentType: 'job_publication', paymentMethod: 'balance' }),
+        body: JSON.stringify({ jobId: id, paymentType: 'job_publication', paymentMethod: 'balance', confirmaRetiroPendiente }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.message || 'No se pudo pagar con tu saldo.');

@@ -242,7 +242,7 @@ export default function BalancePage() {
                 </p>
                 <p className="text-xs opacity-70 mt-1">ARS (Pesos Argentinos)</p>
                 {reservado > 0 && (
-                  <p className="mt-3 text-sm">${reservado.toLocaleString("es-AR")} reservados para un retiro pendiente: no se pueden usar en otra cosa hasta que se procese o lo canceles.</p>
+                  <p className="mt-3 text-sm">${reservado.toLocaleString("es-AR")} reservados para un retiro ya aprobado: no se pueden usar en otra cosa.</p>
                 )}
                 {vinculado.total > 0 && (
                   <div className="mt-3 space-y-1 text-sm">

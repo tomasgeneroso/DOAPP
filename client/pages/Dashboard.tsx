@@ -446,7 +446,7 @@ export default function Dashboard() {
               </p>
               {retiro && retiro.reservado > 0 && (
                 <p className="mt-2 text-sm opacity-95">
-                  ${retiro.reservado.toLocaleString('es-AR')} están reservados para un retiro pendiente: no se pueden usar en otra cosa hasta que se procese o lo canceles.
+                  ${retiro.reservado.toLocaleString('es-AR')} están reservados para un retiro ya aprobado: no se pueden usar en otra cosa.
                 </p>
               )}
               {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (

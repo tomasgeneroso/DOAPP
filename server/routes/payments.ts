@@ -171,6 +171,19 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
             });
             return;
           }
+          // Saldo que el usuario tiene pedido para retirar (todavía sin aprobar): se puede usar, pero antes se le avisa que ese retiro se cancela.
+          const { pendienteEnRetiros } = await import('../services/saldoReservado.js');
+          const pendiente = await pendienteEnRetiros(String(userId));
+          if (pendiente > 0 && saldoTotal - total < pendiente - 0.005 && req.body?.confirmaRetiroPendiente !== true) {
+            res.status(409).json({
+              success: false,
+              code: 'RETIRO_PENDIENTE_SE_CANCELA',
+              message: `Tenés un retiro pendiente por $${pendiente.toLocaleString('es-AR')}. Si pagás con este saldo, ese retiro se cancela. ¿Seguimos?`,
+              pendiente,
+              total,
+            });
+            return;
+          }
           const saldo = await saldoDe(String(userId));
           if (saldo + 0.005 < total) {
             res.status(402).json({ success: false, code: 'SALDO_INSUFICIENTE', message: `Tu saldo ($${saldo.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`, saldo, total });

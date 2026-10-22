@@ -37,14 +37,14 @@ export default function PagarConSaldoDelTrabajo({
     };
   }, [token, jobId, precio]);
 
-  const pagar = async () => {
+  const pagar = async (confirmaRetiroPendiente: boolean) => {
     setError(null);
     try {
       const r = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         credentials: "include",
-        body: JSON.stringify({ jobId, paymentType: "job_publication", paymentMethod: "balance" }),
+        body: JSON.stringify({ jobId, paymentType: "job_publication", paymentMethod: "balance", confirmaRetiroPendiente }),
       });
       const d = await r.json();
       if (!r.ok || !d.success) throw new Error(d.message || "No se pudo pagar con tu saldo.");

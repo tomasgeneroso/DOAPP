@@ -376,13 +376,13 @@ export async function debitarSaldo(
 
     const antes = parseFloat(String((user as any).balanceArs)) || 0;
     if (antes + 0.005 < monto) throw new Error(`Saldo insuficiente: tiene ${antes}, se necesitan ${monto}`);
-    // Lo que ya está pedido para un retiro (y todavía no se descontó) no se puede gastar en otra cosa: el retiro se paga al aprobarse.
-    // Un retiro, en cambio, sí descuenta de lo suyo.
+    // Lo que un administrador ya APROBÓ para retirar (y todavía no se descontó) no se puede gastar en otra cosa: el retiro se paga con eso.
+    // Un retiro, en cambio, sí descuenta de lo suyo. Lo pedido y sin aprobar sí se puede usar: ver cancelarRetirosSinSaldo (abajo).
     if (ref.tipo !== 'withdrawal') {
       const { reservadoEnRetiros } = await import('./saldoReservado.js');
       const reservado = await reservadoEnRetiros(userId, t);
       if (reservado > 0 && antes - reservado + 0.005 < monto) {
-        throw new Error(`Saldo insuficiente: de tus $${antes.toLocaleString('es-AR')}, $${reservado.toLocaleString('es-AR')} están reservados para un retiro pendiente. Podés usar $${Math.max(0, antes - reservado).toLocaleString('es-AR')}.`);
+        throw new Error(`Saldo insuficiente: de tus $${antes.toLocaleString('es-AR')}, $${reservado.toLocaleString('es-AR')} están reservados para un retiro ya aprobado. Podés usar $${Math.max(0, antes - reservado).toLocaleString('es-AR')}.`);
       }
     }
     const despues = Math.round((antes - monto) * 100) / 100;
@@ -418,6 +418,16 @@ export async function debitarSaldo(
     await user.save({ transaction: t });
   }));
   if (descuadre) await avisarDescuadre(userId, descuadre, 'debitar');
+
+  // Se usó saldo que estaba pedido para un retiro sin aprobar: ese retiro ya no tiene con qué pagarse, se cancela y se avisa.
+  if (ref.tipo !== 'withdrawal') {
+    try {
+      const { cancelarRetirosSinSaldo } = await import('./saldoReservado.js');
+      await cancelarRetirosSinSaldo(userId);
+    } catch (e: any) {
+      console.error('No se pudieron revisar los retiros pendientes después de usar saldo:', e?.message);
+    }
+  }
 }
 
 /**

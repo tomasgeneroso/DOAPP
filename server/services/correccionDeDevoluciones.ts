@@ -119,10 +119,10 @@ export interface ResultadoRetiroSinSaldo {
 }
 
 /**
- * Retiros pedidos que ya no tienen con qué pagarse: el saldo se gastó (en una publicación, por ejemplo) mientras el retiro esperaba y, al
- * aprobarlo, el descuento fallaría. Antes el saldo reservado para un retiro se podía gastar; ya no, pero los que quedaron así hay que
- * resolverlos: un retiro PENDIENTE se cancela (no movió plata) y se le avisa a la persona; uno ya aprobado o en proceso solo se informa,
- * porque lo está gestionando un administrador.
+ * Retiros pedidos que ya no tienen con qué pagarse: el saldo se gastó mientras el retiro esperaba y, al aprobarlo, el descuento fallaría.
+ * Un retiro PENDIENTE se cancela (no movió plata) y se le avisa a la persona; uno ya aprobado o en proceso solo se informa, porque lo está
+ * gestionando un administrador. (Desde ahora, usar saldo con un retiro pendiente avisa antes y cancela ese retiro en el momento; esto es para
+ * los que quedaron así antes del cambio.)
  */
 export async function revisarRetirosSinSaldo(aplicar: boolean, escribir: (t: string) => void = console.log): Promise<ResultadoRetiroSinSaldo[]> {
   const { WithdrawalRequest } = await import('../models/sql/WithdrawalRequest.model.js');
