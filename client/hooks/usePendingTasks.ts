@@ -110,9 +110,9 @@ export function usePendingTasks(): PendingTasksResult {
         desc: "Necesario para verificar tu identidad.",
         done: !!u.dni && !u.needsDni,
         priority: "high",
-        // El DNI se escribe en Información Legal (es la clave de la cuenta).
-        section: "legal",
-        to: "/settings?tab=legal",
+        // El DNI se escribe en Información Básica (es la clave de la cuenta).
+        section: "basic",
+        to: "/settings?tab=basic",
         inModal: true,
         dismissible: false,
       },

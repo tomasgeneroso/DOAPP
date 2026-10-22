@@ -23,7 +23,6 @@ import {
   User,
   MapPin,
   CreditCard,
-  FileText,
   Save,
   AlertCircle,
   CheckCircle2,
@@ -33,6 +32,8 @@ import {
   HelpCircle,
   PlayCircle,
   Briefcase,
+  Crown,
+  Megaphone,
   Upload,
   ShieldCheck,
   Lock,
@@ -46,20 +47,22 @@ import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import Transicion from "../components/ui/Transicion";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
+import AvatarConInicial from "../components/ui/AvatarConInicial";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 
-type TabType = "basic" | "verification" | "security" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
+type TabType = "basic" | "membership" | "promotion" | "verification" | "security" | "profession" | "address" | "banking" | "interests" | "notifications" | "help";
 
-const PESTANAS_VALIDAS: TabType[] = ["basic", "verification", "security", "profession", "address", "banking", "legal", "interests", "notifications", "help"];
+const PESTANAS_VALIDAS: TabType[] = ["basic", "membership", "promotion", "verification", "security", "profession", "address", "banking", "interests", "notifications", "help"];
 
 const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
   basic: "Información Básica",
+  membership: "Membresía",
+  promotion: "Promocionar perfil",
   verification: "Verificación",
   security: "Seguridad",
   profession: "Profesión",
   address: "Dirección",
   banking: "Banca",
-  legal: "Información Legal",
   interests: "Intereses",
   notifications: "Notificaciones",
   help: "Ayuda",
@@ -67,9 +70,11 @@ const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
 
 /** En qué pestaña está el dato que el servidor rechazó (por el código de error o, si no lo trae, por lo que dice el mensaje). */
 function pestanaDelError(codigo?: string | null, mensaje?: string | null): TabType | null {
-  if (codigo && /^(DNI|CUIL)_/.test(codigo)) return "legal";
+  if (codigo && /^DNI_/.test(codigo)) return "basic";
+  if (codigo && /^CUIL_/.test(codigo)) return "banking";
   const m = String(mensaje || "").toLowerCase();
-  if (/cuil|cuit|dni|documento/.test(m)) return "legal";
+  if (/cuil|cuit|fiscal/.test(m)) return "banking";
+  if (/dni|documento/.test(m)) return "basic";
   if (/cbu|alias|bancari|titular/.test(m)) return "banking";
   if (/dirección|direccion|calle|postal|ciudad|provincia/.test(m)) return "address";
   if (/matr[ií]cula|profesi[oó]n/.test(m)) return "profession";
@@ -227,7 +232,7 @@ function ProfessionTab({
             </div>
           </div>
 
-          {/* Archivos de la matrícula: frente y reverso, encriptados */}
+          {/* Archivos de la matrícula: hasta 2 (foto o PDF), encriptados */}
           <MatriculaArchivos
             token={token}
             frente={licenseDocumentUrl}
@@ -239,11 +244,22 @@ function ProfessionTab({
       )}
 
       {/* Preview para profesiones no reguladas */}
-      {profession && !isRegulated && (
-        <div className="bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-700 rounded-xl p-4">
+      {!isRegulated && (
+        <div className="bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-700 rounded-xl p-4 space-y-4">
           <p className="text-sm text-sky-700 dark:text-sky-300">
-            Tu profesión <strong>{profLabel}</strong> no requiere matrícula. Se mostrará en tu perfil público.
+            {profession ? (
+              <>Tu profesión <strong>{profLabel}</strong> no requiere matrícula. Se mostrará en tu perfil público. </>
+            ) : null}
+            Si querés, podés sumar hasta 2 fotos o PDF de tu matrícula, título o certificados.
           </p>
+          <MatriculaArchivos
+            token={token}
+            frente={licenseDocumentUrl}
+            dorso={licenseDocumentBackUrl}
+            setFrente={setLicenseDocumentUrl}
+            setDorso={setLicenseDocumentBackUrl}
+            opcional
+          />
         </div>
       )}
     </div>
@@ -271,7 +287,13 @@ export default function UserSettings() {
   // Handle tab from URL query parameter
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam === "basic" && window.location.hash === "#verificacion") {
+    if (window.location.hash === "#promocion") {
+      // /settings#promocion (el aviso de publicidad) abre la pestaña de promoción
+      setActiveTab("promotion");
+    } else if (tabParam === "legal") {
+      // Información Legal ya no existe: el DNI está en Información Básica
+      setActiveTab("basic");
+    } else if (tabParam === "basic" && window.location.hash === "#verificacion") {
       // Enlaces viejos (y avisos guardados): la verificación ya no está en Información Básica.
       setActiveTab("verification");
     } else if (tabParam && (PESTANAS_VALIDAS as string[]).includes(tabParam)) {
@@ -398,7 +420,7 @@ export default function UserSettings() {
 
   // Quien ya verificó con Didit y todavía no tiene el CUIL: al abrir la pestaña se le pide al servidor que lo complete con lo que Didit leyó.
   useEffect(() => {
-    if (activeTab !== "legal" || !user?.dniVerified || user?.legalInfo?.taxId) return;
+    if (activeTab !== "banking" || !user?.dniVerified || user?.legalInfo?.taxId) return;
     let cancelado = false;
     (async () => {
       try {
@@ -462,11 +484,11 @@ export default function UserSettings() {
 
     // Lo que ya se puede saber acá no hace falta mandarlo: se avisa en la pestaña donde está el dato.
     if (cuilConError) {
-      marcarError("legal", cuilConError);
+      marcarError("banking", cuilConError);
       return;
     }
     if (dni && !user?.dniVerified && !dniValido(dni)) {
-      marcarError("legal", "El DNI debe tener entre 7 y 9 dígitos, solo números.");
+      marcarError("basic", "El DNI debe tener entre 7 y 9 dígitos, solo números.");
       return;
     }
 
@@ -541,15 +563,19 @@ export default function UserSettings() {
   };
 
   const verificationTasks = pending.filter((task) => task.section === "verification");
+  /** Lo que falta en la pestaña abierta (la de verificación ya lo muestra por su cuenta). */
+  const pendientesDeLaPestana = activeTab === "verification" ? [] : pending.filter((task) => task.section === activeTab);
+  const falta = (id: string) => pending.some((task) => task.id === id);
 
   const tabs = [
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
+    { id: "membership", label: "Membresía", icon: Crown },
+    { id: "promotion", label: "Promocionar perfil", icon: Megaphone },
     { id: "verification", label: "Verificación", icon: ShieldCheck },
     { id: "security", label: "Seguridad", icon: Lock },
     { id: "profession", label: "Profesión", icon: Briefcase },
     { id: "address", label: t('settings.tabs.address'), icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
-    { id: "legal", label: t('settings.tabs.legal'), icon: FileText },
     { id: "interests", label: t('settings.tabs.interests'), icon: Tag },
     { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
     { id: "help", label: t('settings.tabs.help'), icon: HelpCircle },
@@ -625,6 +651,19 @@ export default function UserSettings() {
                   </div>
                 )}
               </Transicion>
+              {pendientesDeLaPestana.length > 0 && (
+                <div role="note" className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100">
+                  <p className="font-semibold">Te falta completar en esta pestaña:</p>
+                  <ul className="mt-2 space-y-1">
+                    {pendientesDeLaPestana.map((task) => (
+                      <li key={task.id}>
+                        <strong>{task.label}</strong>: {task.desc}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {activeTab === "basic" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -634,10 +673,10 @@ export default function UserSettings() {
                   {/* Avatar upload */}
                   <div className="flex items-center gap-5">
                     <div className="relative">
-                      <img
-                        src={avatarPreview || getImageUrl(user?.avatar)}
-                        alt="Avatar"
-                        className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                      <AvatarConInicial
+                        src={avatarPreview || (user?.avatar ? getImageUrl(user.avatar) : null)}
+                        nombre={user?.name}
+                        className="w-20 h-20 rounded-full border-2 border-slate-200 dark:border-slate-600 text-2xl"
                       />
                       {avatarUploading && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
@@ -689,6 +728,28 @@ export default function UserSettings() {
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                      {t('settings.legal.dni', 'DNI')}
+                    </label>
+                    <input
+                      id="settings-dni"
+                      aria-invalid={falta("dni_number") || undefined}
+                      type="text"
+                      inputMode="numeric"
+                      value={dni}
+                      readOnly={!!user?.dniVerified}
+                      onChange={(e) => setDni(e.target.value.replace(/[^\d.\s]/g, ""))}
+                      placeholder="12345678"
+                      maxLength={11}
+                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 read-only:bg-slate-100 dark:read-only:bg-slate-800 read-only:cursor-not-allowed"
+                    />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {user?.dniVerified
+                        ? t('settings.legal.dniVerified', 'Verificado con Didit: no se puede cambiar. Si hay un error, escribinos desde el Centro de ayuda.')
+                        : t('settings.legal.dniHelp', 'Es la clave de tu cuenta: no se puede repetir. Si verificás tu identidad con Didit, se completa solo con el de tu documento.')}
+                    </p>
+                  </div>
                   <FormField
                     id="settings-phone"
                     label={t('settings.basic.phone')}
@@ -730,26 +791,19 @@ export default function UserSettings() {
                       {bio.length}/500 {t('settings.basic.bioChars')}
                     </p>
                   </div>
+                </div>
+              )}
 
-                  {/* Membership. Sits above verification because "what plan do
-                      I have and until when" is the question people open
-                      settings to answer. */}
-                  <div className="pt-6 border-t border-slate-200 dark:border-slate-700 space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Mi membresía
-                    </h3>
-                    <SeccionSegura nombre="Mi membresía"><MembershipStatus /></SeccionSegura>
-                  </div>
+              {activeTab === "membership" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Mi membresía</h2>
+                  <SeccionSegura nombre="Mi membresía"><MembershipStatus /></SeccionSegura>
+                </div>
+              )}
 
-                  {/* Promoción del perfil. Va justo debajo de la membresía
-                      porque son la misma pregunta desde dos lados: cómo
-                      consigo más trabajo. */}
-                  <div
-                    id="promocion"
-                    className="scroll-mt-24 pt-6 border-t border-slate-200 dark:border-slate-700"
-                  >
-                    <SeccionSegura nombre="Promoción del perfil"><ProfilePromotion /></SeccionSegura>
-                  </div>
+              {activeTab === "promotion" && (
+                <div id="promocion" className="space-y-6 scroll-mt-24">
+                  <SeccionSegura nombre="Promoción del perfil"><ProfilePromotion /></SeccionSegura>
                 </div>
               )}
 
@@ -1102,34 +1156,10 @@ export default function UserSettings() {
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
-                </div>
-              )}
 
-              {activeTab === "legal" && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {t('settings.legal.title')}
-                  </h2>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.legal.dni', 'DNI')}
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={dni}
-                      readOnly={!!user?.dniVerified}
-                      onChange={(e) => setDni(e.target.value.replace(/[^\d.\s]/g, ""))}
-                      placeholder="12345678"
-                      maxLength={11}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 read-only:bg-slate-100 dark:read-only:bg-slate-800 read-only:cursor-not-allowed"
-                    />
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {user?.dniVerified
-                        ? t('settings.legal.dniVerified', 'Verificado con Didit: no se puede cambiar. Si hay un error, escribinos desde el Centro de ayuda.')
-                        : t('settings.legal.dniHelp', 'Es la clave de tu cuenta: no se puede repetir. Si verificás tu identidad con Didit, se completa solo con el de tu documento.')}
-                    </p>
-                  </div>
+                  {/* Datos fiscales: el estado fiscal y el CUIL/CUIT van con la banca (es lo que se factura y se cobra) */}
+                  <div className="pt-6 border-t border-slate-200 dark:border-slate-700 space-y-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Datos fiscales</h3>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       {t('settings.legal.taxStatus')}
@@ -1166,6 +1196,7 @@ export default function UserSettings() {
                         {t('settings.legal.cuilHelp', 'Son 11 dígitos y lleva adentro tu DNI. Si verificás con Didit, se completa solo.')}
                       </p>
                     )}
+                  </div>
                   </div>
                 </div>
               )}
@@ -1461,7 +1492,7 @@ export default function UserSettings() {
               )}
 
               {/* Save button - only show for tabs that need saving */}
-              {activeTab !== "help" && activeTab !== "verification" && activeTab !== "security" && (
+              {activeTab !== "help" && activeTab !== "verification" && activeTab !== "security" && activeTab !== "membership" && activeTab !== "promotion" && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={handleSave}

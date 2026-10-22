@@ -30,8 +30,8 @@ const router = express.Router();
  */
 const PRICE_PER_DAY_EUR = 1;
 
-/** Cuantos dias hacia adelante se pueden reservar. */
-const MAX_DAYS_AHEAD = 60;
+/** Cuantos dias hacia adelante se pueden reservar (unos 6 meses: el calendario del cliente se corre mes a mes). */
+const MAX_DAYS_AHEAD = 180;
 
 /**
  * Solo se promociona quien ya tiene con que.

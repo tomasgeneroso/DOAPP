@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { ShieldCheck, Upload, X } from "lucide-react";
+import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 
 /**
- * Archivos de la matrícula: frente (obligatorio para el panel) y reverso (opcional).
+ * Archivos de la matrícula: hasta DOS archivos, cada uno una foto o un PDF (frente y reverso, dos fotos, o un PDF y una foto). El primero es
+ * obligatorio para el panel; el segundo es opcional. Las fotos pasan por el editor (rotar, centrar, recortar) antes de subirse.
  *
  * Qué se le dice a la persona (es lo mismo que dicen los Términos 4.6 y la Política de Privacidad): se guardan encriptados,
  * DOAPP no verifica la matrícula (se basa en su buena fe) y el cliente que la contrata puede verla para verificarla por su
@@ -18,11 +20,14 @@ interface Props {
   dorso: string;
   setFrente: (v: string) => void;
   setDorso: (v: string) => void;
+  /** Para una profesión que no exige matrícula (título, certificados): no se marca como obligatorio. */
+  opcional?: boolean;
 }
 
 const CAMPO: Record<Lado, string> = { front: "licenseDocument", back: "licenseDocumentBack" };
 
-export default function MatriculaArchivos({ token, frente, dorso, setFrente, setDorso }: Props) {
+export default function MatriculaArchivos({ token, frente, dorso, setFrente, setDorso, opcional = false }: Props) {
+  const { editarUna, editor } = useEditorDeFotos();
   const [ocupado, setOcupado] = useState<Lado | null>(null);
   const [error, setError] = useState("");
 
@@ -31,9 +36,12 @@ export default function MatriculaArchivos({ token, frente, dorso, setFrente, set
     setDorso(data?.licenseDocumentBackUrl || "");
   };
 
-  const subir = async (lado: Lado, archivo: File | undefined) => {
-    if (!archivo) return;
+  const subir = async (lado: Lado, elegido: File | undefined) => {
+    if (!elegido) return;
     setError("");
+    // Una foto se puede rotar, centrar y recortar antes de subirla; un PDF va como está. Cancelar = no se sube.
+    const archivo = await editarUna(elegido, { titulo: "Editar la foto del documento" });
+    if (!archivo) return;
     setOcupado(lado);
     try {
       const fd = new FormData();
@@ -85,7 +93,7 @@ export default function MatriculaArchivos({ token, frente, dorso, setFrente, set
             type="button"
             onClick={() => quitar(lado)}
             disabled={ocupado !== null || (lado === "front" && !!dorso)}
-            title={lado === "front" && dorso ? "Quitá primero el reverso" : "Quitar"}
+            title={lado === "front" && dorso ? "Quitá primero el archivo 2" : "Quitar"}
             className="text-red-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <X className="w-4 h-4" />
@@ -99,7 +107,7 @@ export default function MatriculaArchivos({ token, frente, dorso, setFrente, set
         >
           <Upload className="w-5 h-5 text-slate-400" />
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {ocupado === lado ? "Subiendo..." : deshabilitado ? "Subí primero el frente" : "Elegí una foto o un PDF"}
+            {ocupado === lado ? "Subiendo..." : deshabilitado ? "Subí primero el archivo 1" : "Elegí una foto o un PDF"}
           </span>
           <span className="text-xs text-slate-400">JPG, PNG, WEBP o PDF · hasta 10 MB</span>
           <input
@@ -119,9 +127,10 @@ export default function MatriculaArchivos({ token, frente, dorso, setFrente, set
 
   return (
     <div className="space-y-4">
-      {fila("front", "Frente de la matrícula *", frente, false)}
-      {fila("back", "Reverso (si tiene)", dorso, !frente)}
+      {fila("front", opcional ? "Archivo 1 (foto o PDF)" : "Archivo 1 de la matrícula (foto o PDF) *", frente, false)}
+      {fila("back", "Archivo 2 (opcional: el reverso, otra foto o un PDF)", dorso, !frente)}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {editor}
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Tus archivos se guardan <strong>encriptados</strong>. DOAPP <strong>no verifica</strong> la matrícula: se basa en tu buena fe,
         y quien te contrata puede verla para comprobarla por su cuenta una vez que hay un contrato entre los dos.

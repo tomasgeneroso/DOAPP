@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Megaphone, Star, MapPin, Loader2, Check, AlertCircle, TrendingUp } from 'lucide-react';
+import AvatarConInicial from '../ui/AvatarConInicial';
+import CalendarioDeDias from './CalendarioDeDias';
+import { getImageUrl } from '../../utils/imageUrl';
 
 /**
  * Promocioná tu perfil.
@@ -38,13 +41,7 @@ export function PromotedCard({ p }: { p: Options['preview'] }) {
         Promocionado
       </span>
       <div className="flex items-start gap-3">
-        {p.avatar ? (
-          <img src={p.avatar} alt="" className="h-14 w-14 rounded-full object-cover" />
-        ) : (
-          <div className="h-14 w-14 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-500">
-            {p.name?.[0]?.toUpperCase() || '?'}
-          </div>
-        )}
+        <AvatarConInicial src={p.avatar ? getImageUrl(p.avatar) : null} nombre={p.name} className="h-14 w-14 rounded-full text-lg" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-slate-900 dark:text-white truncate">{p.name}</p>
           <div className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400">
@@ -177,33 +174,15 @@ export default function ProfilePromotion() {
           </p>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-          {opts.dias.map((w) => {
-            const sel = elegidas.includes(w.start);
-            return (
-              <button
-                key={w.start}
-                type="button"
-                disabled={w.ocupada || !opts.elegible}
-                onClick={() => toggle(w.start)}
-                className={`px-3 py-2 rounded-lg text-sm border transition text-left ${
-                  w.ocupada
-                    ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-400 cursor-not-allowed'
-                    : sel
-                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
-                } disabled:opacity-60`}
-              >
-                <span className="block text-[10px] uppercase tracking-wide opacity-70">{w.weekday}</span>
-                <span className="flex items-center gap-1">
-                  {sel && <Check className="h-3 w-3" />}
-                  {w.label}
-                </span>
-                {w.ocupada && <span className="block text-[9px]">tomado</span>}
-              </button>
-            );
-          })}
-        </div>
+        <CalendarioDeDias
+          dias={opts.dias}
+          elegidas={elegidas}
+          deshabilitado={!opts.elegible}
+          onToggle={toggle}
+          onElegirVarios={(starts, elegir) =>
+            setElegidas((prev) => (elegir ? [...new Set([...prev, ...starts])] : prev.filter((s) => !starts.includes(s))))
+          }
+        />
       </div>
 
       {elegidas.length > 0 && (
