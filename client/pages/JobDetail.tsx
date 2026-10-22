@@ -2378,6 +2378,7 @@ export default function JobDetail() {
                 titulo={job.title}
                 encabezado={t("jobs.photos", "Fotos del trabajo")}
                 avisarSiNoCargan={!!isOwnJob}
+                editarHref={`/jobs/${job.id}/edit`}
                 alAbrir={(url, alt) => openImage(url, alt)}
               />
             )}

@@ -150,4 +150,27 @@ describe('saldo vinculado a una publicación', () => {
     expect(Number((await leer(job.id)).publicationCredit)).toBe(0);
     expect(await Notification.count({ where: { recipientId: cliente.id, title: 'Retiraste el saldo de una publicación' } })).toBeGreaterThan(0);
   });
+
+  it('una devolución VIEJA (sin pago anotado) también hace que reprogramar no salga gratis, y la migración le vincula el crédito', async () => {
+    const { publicacionDevuelta } = await import('../../server/services/creditoDePublicacion.js');
+    const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
+    const { job } = await publicacionPagada(7000);
+    await Job.update({ status: 'cancelled' } as any, { where: { id: job.id } });
+    expect(await publicacionDevuelta({ id: job.id, publicationPaymentId: job.publicationPaymentId })).toBe(false);
+
+    // devolución de antes de que existiera el vínculo: sin pagoId ni crédito en la publicación
+    await acreditarSaldo(String(cliente.id), 7000, 'Saldo a favor por cancelación de "try"', {
+      relatedModel: 'Job', relatedId: job.id, tipo: 'refund', metadata: { origen: 'cancelacion', jobId: String(job.id) },
+    });
+    expect(await publicacionDevuelta({ id: job.id, publicationPaymentId: job.publicationPaymentId })).toBe(true);
+    expect(Number((await leer(job.id)).publicationCredit)).toBe(0);
+
+    const { default: migracion } = await import('../../migrations/20261022100000-credito-heredado-de-devoluciones.cjs');
+    const { sequelize } = await import('../../server/config/database.js');
+    await (migracion as any).up({ sequelize });
+    // el crédito es lo devuelto, sin pasar de lo que el usuario tiene hoy
+    const hoy = await saldo();
+    expect(Number((await leer(job.id)).publicationCredit)).toBeCloseTo(Math.min(7000, hoy), 2);
+    expect(Number((await leer(job.id)).publicationCredit)).toBeGreaterThan(0);
+  });
 });

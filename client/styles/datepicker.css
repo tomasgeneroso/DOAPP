@@ -102,6 +102,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .dark .react-datepicker__day {
@@ -396,9 +399,35 @@
   justify-content: center;
 }
 
+/* Los nombres de los días ocupan EXACTAMENTE la misma columna que los números (mismo ancho, sin margen), y todo va centrado. */
+.rango-calendario .react-datepicker__day-names {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.rango-calendario .react-datepicker__day-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2rem;
+  line-height: 1;
+  margin: 0;
+  text-align: center;
+}
+
 .rango-calendario .react-datepicker__day {
   position: relative;
   isolation: isolate;
+  /* Con 2 clases le gana a la regla de la librería: el número queda en el medio de la celda y del círculo, no arriba a un costado. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  text-align: center;
+  vertical-align: top;
   width: 2.75rem;
   height: 2.75rem;
   line-height: 1;

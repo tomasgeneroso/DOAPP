@@ -21,11 +21,15 @@ export async function vincularCredito(jobId: string, monto: number): Promise<voi
   await Job.update({ publicationCredit: r2(Math.max(0, monto)) } as any, { where: { id: jobId } });
 }
 
-/** ¿El pago actual de esta publicación ya se devolvió al saldo? (el libro lo dice: la devolución anota el pago del que salió) */
+/**
+ * ¿El pago actual de esta publicación ya se devolvió al saldo? El libro lo dice: la devolución anota el pago del que salió. Una devolución
+ * vieja sin pago anotado (`pagoId` vacío) también cuenta: sin esto, reprogramar esa publicación saldría gratis.
+ */
 export async function publicacionDevuelta(job: { id: string; publicationPaymentId?: string | null }): Promise<boolean> {
   if (!job.publicationPaymentId) return false;
+  const base = { origen: 'cancelacion', jobId: String(job.id) };
   const fila = await BalanceTransaction.findOne({
-    where: { type: 'refund', metadata: { origen: 'cancelacion', jobId: String(job.id), pagoId: String(job.publicationPaymentId) } } as any,
+    where: { type: 'refund', [Op.or]: [{ metadata: { ...base, pagoId: String(job.publicationPaymentId) } }, { metadata: { ...base, pagoId: null } }] } as any,
     attributes: ['id'],
   }).catch(() => null);
   return !!fila;

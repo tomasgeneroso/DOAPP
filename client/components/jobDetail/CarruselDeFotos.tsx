@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { getImageUrl } from "../../utils/imageUrl";
 
 /**
@@ -15,6 +16,7 @@ export default function CarruselDeFotos({
   alAbrir,
   encabezado,
   avisarSiNoCargan = false,
+  editarHref,
 }: {
   fotos: string[];
   titulo: string;
@@ -24,6 +26,8 @@ export default function CarruselDeFotos({
   encabezado?: string;
   /** Con `encabezado`: si NINGUNA foto carga, en vez de desaparecer avisa (para el dueño, que subió fotos y las tiene que ver). */
   avisarSiNoCargan?: boolean;
+  /** Adónde lleva «Editar» en el aviso de fotos que ya no están (la pantalla de edición del trabajo). */
+  editarHref?: string;
 }) {
   const [rotas, setRotas] = useState<Set<string>>(new Set());
   const [actual, setActual] = useState(0);
@@ -53,7 +57,15 @@ export default function CarruselDeFotos({
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <h2 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">{encabezado}</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Las fotos de este trabajo no se pueden mostrar porque los archivos ya no están en el servidor. Podés subirlas de nuevo desde «Editar».
+          Las fotos de este trabajo no se pueden mostrar porque los archivos ya no están en el servidor. Podés subirlas de nuevo desde{" "}
+          {editarHref ? (
+            <Link to={editarHref} className="font-semibold text-sky-600 underline hover:text-sky-700 dark:text-sky-400">
+              «Editar»
+            </Link>
+          ) : (
+            "«Editar»"
+          )}
+          .
         </p>
       </div>
     );
