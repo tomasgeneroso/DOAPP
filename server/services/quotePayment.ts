@@ -376,6 +376,15 @@ export async function debitarSaldo(
 
     const antes = parseFloat(String((user as any).balanceArs)) || 0;
     if (antes + 0.005 < monto) throw new Error(`Saldo insuficiente: tiene ${antes}, se necesitan ${monto}`);
+    // Lo que ya está pedido para un retiro (y todavía no se descontó) no se puede gastar en otra cosa: el retiro se paga al aprobarse.
+    // Un retiro, en cambio, sí descuenta de lo suyo.
+    if (ref.tipo !== 'withdrawal') {
+      const { reservadoEnRetiros } = await import('./saldoReservado.js');
+      const reservado = await reservadoEnRetiros(userId, t);
+      if (reservado > 0 && antes - reservado + 0.005 < monto) {
+        throw new Error(`Saldo insuficiente: de tus $${antes.toLocaleString('es-AR')}, $${reservado.toLocaleString('es-AR')} están reservados para un retiro pendiente. Podés usar $${Math.max(0, antes - reservado).toLocaleString('es-AR')}.`);
+      }
+    }
     const despues = Math.round((antes - monto) * 100) / 100;
 
     // Un retiro SACA plata de la plataforma: no se ejecuta sobre un saldo que no cierra con el libro. Pagar algo dentro de la app no se

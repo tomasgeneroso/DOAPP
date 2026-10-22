@@ -41,7 +41,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       ...(await (async () => {
         const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
         const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);
-        return { saldoLibre: d.libre, saldoVinculado: d.vinculado, publicacionesVinculadas: d.publicaciones };
+        return { saldoLibre: d.libre, saldoVinculado: d.vinculado, publicacionesVinculadas: d.publicaciones, saldoReservadoEnRetiro: d.reservadoEnRetiro, saldoUsable: Math.max(0, Math.round((d.total - d.reservadoEnRetiro) * 100) / 100) };
       })()),
     });
   } catch (error: any) {
@@ -344,7 +344,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // Se gasta primero lo libre; lo vinculado entra recién cuando lo libre no alcanza.
     const { desgloseDelSaldo: desglose } = await import('../services/creditoDePublicacion.js');
     const vinculadoQueSeRetira = await (async () => {
-      const d = await desglose(String(userId), saldoTotal);
+      const d = await desglose(String(userId), saldoTotal, { ignorarReservado: true });
       const sobre = Math.round((amount - d.libre) * 100) / 100;
       return sobre > 0 ? d.publicaciones : [];
     })();

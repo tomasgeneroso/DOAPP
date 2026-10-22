@@ -109,3 +109,70 @@ export async function corregirDobleDevolucion(aplicar: boolean, escribir: (t: st
   }
   return resultados;
 }
+
+export interface ResultadoRetiroSinSaldo {
+  retiroId: string;
+  userId: string;
+  monto: number;
+  saldo: number;
+  estado: 'cancelado' | 'vista_previa' | 'solo_aviso';
+}
+
+/**
+ * Retiros pedidos que ya no tienen con qué pagarse: el saldo se gastó (en una publicación, por ejemplo) mientras el retiro esperaba y, al
+ * aprobarlo, el descuento fallaría. Antes el saldo reservado para un retiro se podía gastar; ya no, pero los que quedaron así hay que
+ * resolverlos: un retiro PENDIENTE se cancela (no movió plata) y se le avisa a la persona; uno ya aprobado o en proceso solo se informa,
+ * porque lo está gestionando un administrador.
+ */
+export async function revisarRetirosSinSaldo(aplicar: boolean, escribir: (t: string) => void = console.log): Promise<ResultadoRetiroSinSaldo[]> {
+  const { WithdrawalRequest } = await import('../models/sql/WithdrawalRequest.model.js');
+  const { User } = await import('../models/sql/User.model.js');
+  const { Notification } = await import('../models/sql/Notification.model.js');
+  const { Op } = await import('sequelize');
+  const resultados: ResultadoRetiroSinSaldo[] = [];
+
+  const abiertos: any[] = await WithdrawalRequest.findAll({ where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } as any, order: [['createdAt', 'ASC']] });
+  const porUsuario = new Map<string, any[]>();
+  for (const w of abiertos) porUsuario.set(String(w.userId), [...(porUsuario.get(String(w.userId)) ?? []), w]);
+
+  for (const [userId, retiros] of porUsuario) {
+    const u: any = await User.findByPk(userId, { attributes: ['id', 'email', 'balanceArs'] });
+    let saldo = Number(u?.balanceArs) || 0;
+    for (const w of retiros) {
+      const monto = Number(w.metadata?.saldoDebitado) > 0 ? Number(w.metadata.saldoDebitado) : Number(w.amount) || 0;
+      if (saldo + 0.005 >= monto) {
+        saldo = Math.round((saldo - monto) * 100) / 100; // alcanza: queda reservado
+        continue;
+      }
+      escribir(`- Retiro ${w.id} de ${u?.email}: pide ${pesos(monto)} y el saldo es ${pesos(saldo)} (${w.status})`);
+      if (w.status !== 'pending') {
+        escribir('  Ya está aprobado/en proceso: lo gestiona un administrador. Solo aviso.\n');
+        resultados.push({ retiroId: String(w.id), userId, monto, saldo, estado: 'solo_aviso' });
+        continue;
+      }
+      if (!aplicar) {
+        escribir('  (solo vista previa: falta --aplicar para cancelarlo)\n');
+        resultados.push({ retiroId: String(w.id), userId, monto, saldo, estado: 'vista_previa' });
+        continue;
+      }
+      w.status = 'cancelled';
+      w.metadata = { ...(w.metadata || {}), canceladoPor: 'sistema', motivo: 'sin_saldo' };
+      if (typeof w.changed === 'function') w.changed('metadata', true);
+      await w.save();
+      await Notification.create({
+        recipientId: userId,
+        type: 'warning',
+        category: 'payment',
+        title: 'Cancelamos tu solicitud de retiro',
+        message: `Tu pedido de retiro por ${pesos(monto)} se canceló porque ese saldo se usó en otra cosa mientras esperaba. Si querés retirar lo que te queda, pedilo de nuevo desde Retiros.`,
+        relatedModel: 'WithdrawalRequest',
+        relatedId: String(w.id),
+        read: false,
+      } as any).catch(() => {});
+      escribir('  CANCELADO y avisado.\n');
+      resultados.push({ retiroId: String(w.id), userId, monto, saldo, estado: 'cancelado' });
+    }
+  }
+  if (resultados.length === 0) escribir('No hay retiros pedidos sin saldo para pagarlos.');
+  return resultados;
+}

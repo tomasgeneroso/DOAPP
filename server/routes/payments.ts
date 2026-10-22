@@ -155,7 +155,10 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           const { pagarPublicacionConSaldo, saldoDe } = await import('../services/creditoDePublicacion.js');
           // El saldo solo paga una REPROGRAMACIÓN: la publicación cuyo pago volvió al saldo. Para cualquier otra publicación se paga por la
           // pasarela o transferencia, así las cuentas quedan claras (el saldo ganado trabajando no se mezcla con publicar).
-          const credito = Number((job as any).publicationCredit) || 0;
+          const { creditosVinculados } = await import('../services/creditoDePublicacion.js');
+          const saldoTotal = Number((await User.findByPk(userId, { attributes: ['id', 'balanceArs'] }) as any)?.balanceArs) || 0;
+          // El crédito de la publicación, ya sin lo que está reservado para un retiro pendiente (esa plata no existe para gastarla).
+          const credito = (await creditosVinculados(String(userId), saldoTotal)).find((c) => c.jobId === String(job.id))?.monto ?? 0;
           if (credito + 0.005 < total) {
             res.status(409).json({
               success: false,

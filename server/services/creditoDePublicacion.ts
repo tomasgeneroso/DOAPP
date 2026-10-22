@@ -45,13 +45,16 @@ export interface CreditoVinculado {
  * Los créditos de publicaciones del usuario, acotados a su saldo: si gastó saldo en otra cosa, no puede haber más plata vinculada que
  * saldo. Se recorta primero lo más viejo (lo más nuevo se conserva).
  */
-export async function creditosVinculados(userId: string, saldo: number): Promise<CreditoVinculado[]> {
+export async function creditosVinculados(userId: string, saldo: number, opciones: { ignorarReservado?: boolean } = {}): Promise<CreditoVinculado[]> {
+  const { reservadoEnRetiros } = await import('./saldoReservado.js');
+  const reservado = opciones.ignorarReservado ? 0 : await reservadoEnRetiros(userId);
   const trabajos: any[] = await Job.findAll({
     where: { clientId: userId, publicationCredit: { [Op.gt]: 0 } } as any,
     attributes: ['id', 'title', 'publicationCredit', 'cancelledAt', 'updatedAt'],
     order: [['updatedAt', 'DESC']],
   });
-  let queda = Math.max(0, saldo);
+  // Lo reservado para un retiro pendiente no cuenta: no se puede usar para volver a publicar.
+  let queda = Math.max(0, saldo - reservado);
   const out: CreditoVinculado[] = [];
   for (const j of trabajos) {
     const monto = r2(Math.min(Number(j.publicationCredit) || 0, queda));
@@ -64,6 +67,8 @@ export async function creditosVinculados(userId: string, saldo: number): Promise
 
 export interface DesgloseDelSaldo {
   total: number;
+  /** Pedido para un retiro y todavía sin descontar: no se puede usar en otra cosa. */
+  reservadoEnRetiro: number;
   /** Lo que no está vinculado a ninguna publicación (ganado trabajando, devoluciones de otro tipo, etc.). */
   libre: number;
   /** Lo vinculado a publicaciones canceladas. */
@@ -71,10 +76,12 @@ export interface DesgloseDelSaldo {
   publicaciones: CreditoVinculado[];
 }
 
-export async function desgloseDelSaldo(userId: string, saldo: number): Promise<DesgloseDelSaldo> {
-  const publicaciones = await creditosVinculados(userId, saldo);
+export async function desgloseDelSaldo(userId: string, saldo: number, opciones: { ignorarReservado?: boolean } = {}): Promise<DesgloseDelSaldo> {
+  const { reservadoEnRetiros } = await import('./saldoReservado.js');
+  const reservadoEnRetiro = opciones.ignorarReservado ? 0 : await reservadoEnRetiros(userId);
+  const publicaciones = await creditosVinculados(userId, saldo, opciones);
   const vinculado = r2(publicaciones.reduce((s, c) => s + c.monto, 0));
-  return { total: r2(saldo), libre: r2(Math.max(0, saldo - vinculado)), vinculado, publicaciones };
+  return { total: r2(saldo), reservadoEnRetiro, libre: r2(Math.max(0, saldo - reservadoEnRetiro - vinculado)), vinculado, publicaciones };
 }
 
 /**
@@ -83,7 +90,7 @@ export async function desgloseDelSaldo(userId: string, saldo: number): Promise<D
  * Devuelve las publicaciones afectadas.
  */
 export async function consumirCreditosAlRetirar(userId: string, monto: number, saldoAntes: number): Promise<CreditoVinculado[]> {
-  const { libre, publicaciones } = await desgloseDelSaldo(userId, saldoAntes);
+  const { libre, publicaciones } = await desgloseDelSaldo(userId, saldoAntes, { ignorarReservado: true });
   let sobre = r2(monto - libre);
   if (sobre <= 0) return [];
   const afectadas: CreditoVinculado[] = [];
@@ -113,10 +120,11 @@ export async function consumirCreditosAlRetirar(userId: string, monto: number, s
   return afectadas;
 }
 
-/** Cuánto saldo total tiene el usuario (para decidir si alcanza). */
+/** Cuánto saldo puede USAR el usuario ya: el total menos lo reservado para un retiro pendiente. */
 export async function saldoDe(userId: string): Promise<number> {
   const u: any = await User.findByPk(userId, { attributes: ['id', 'balanceArs'] });
-  return Number(u?.balanceArs) || 0;
+  const { reservadoEnRetiros } = await import('./saldoReservado.js');
+  return Math.max(0, r2((Number(u?.balanceArs) || 0) - (await reservadoEnRetiros(userId))));
 }
 
 export interface ResultadoPagoConSaldo {

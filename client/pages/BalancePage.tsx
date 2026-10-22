@@ -26,6 +26,7 @@ export default function BalancePage() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [vinculado, setVinculado] = useState<{ libre: number; total: number; publicaciones: Array<{ jobId: string; titulo: string; monto: number }> }>({ libre: 0, total: 0, publicaciones: [] });
+  const [reservado, setReservado] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ export default function BalancePage() {
       const balanceData = await balanceRes.json();
       if (balanceData.success) {
         setBalance(balanceData.balance);
+        setReservado(Number(balanceData.saldoReservadoEnRetiro) || 0);
         setVinculado({ libre: Number(balanceData.saldoLibre) || 0, total: Number(balanceData.saldoVinculado) || 0, publicaciones: balanceData.publicacionesVinculadas || [] });
       }
 
@@ -239,6 +241,9 @@ export default function BalancePage() {
                   ${(balance || 0).toLocaleString("es-AR")}
                 </p>
                 <p className="text-xs opacity-70 mt-1">ARS (Pesos Argentinos)</p>
+                {reservado > 0 && (
+                  <p className="mt-3 text-sm">${reservado.toLocaleString("es-AR")} reservados para un retiro pendiente: no se pueden usar en otra cosa hasta que se procese o lo canceles.</p>
+                )}
                 {vinculado.total > 0 && (
                   <div className="mt-3 space-y-1 text-sm">
                     <p>Libre (ganado y otras devoluciones): <strong>${vinculado.libre.toLocaleString("es-AR")}</strong></p>

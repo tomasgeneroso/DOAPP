@@ -39,7 +39,7 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user, token } = useAuth();
   /** Lo que de verdad se puede retirar ya: el saldo se suma al instante, pero se retira recién cuando Mercado Pago libera ese pago. */
-  const [retiro, setRetiro] = useState<{ disponible: number; enLiberacion: number; proxima: string | null } | null>(null);
+  const [retiro, setRetiro] = useState<{ disponible: number; enLiberacion: number; proxima: string | null; reservado: number } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -48,7 +48,7 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         if (cancelado || !d?.success) return;
-        setRetiro({ disponible: Number(d.disponibleParaRetirar ?? d.balance) || 0, enLiberacion: Number(d.enLiberacion) || 0, proxima: d.proximaLiberacion || null });
+        setRetiro({ disponible: Number(d.disponibleParaRetirar ?? d.balance) || 0, enLiberacion: Number(d.enLiberacion) || 0, proxima: d.proximaLiberacion || null, reservado: Number(d.saldoReservadoEnRetiro) || 0 });
       })
       .catch(() => {
         /* sin ese dato se muestra solo el saldo */
@@ -444,6 +444,11 @@ export default function Dashboard() {
                   : t('dashboard.debtBalanceDesc', 'You have pending payments to complete')
                 }
               </p>
+              {retiro && retiro.reservado > 0 && (
+                <p className="mt-2 text-sm opacity-95">
+                  ${retiro.reservado.toLocaleString('es-AR')} están reservados para un retiro pendiente: no se pueden usar en otra cosa hasta que se procese o lo canceles.
+                </p>
+              )}
               {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (
                 <p className="mt-2 text-sm opacity-95">
                   Retirable ahora: <strong>${retiro.disponible.toLocaleString('es-AR')}</strong> · ${retiro.enLiberacion.toLocaleString('es-AR')} se liberan{retiro.proxima ? ` el ${fechaCorta(retiro.proxima)}` : ''} (plazo de Mercado Pago). Dentro de la app podés usar todo el saldo ya.

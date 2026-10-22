@@ -17,13 +17,19 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from '../config/database.js';
-import { corregirDobleDevolucion } from '../services/correccionDeDevoluciones.js';
+import { corregirDobleDevolucion, revisarRetirosSinSaldo } from '../services/correccionDeDevoluciones.js';
 
 const carpeta = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(carpeta, '../../.env') });
 
 initDatabase()
-  .then(() => corregirDobleDevolucion(process.argv.includes('--aplicar')))
+  .then(async () => {
+    const aplicar = process.argv.includes('--aplicar');
+    console.log('== Devoluciones duplicadas ==');
+    await corregirDobleDevolucion(aplicar);
+    console.log('\n== Retiros pedidos sin saldo ==');
+    await revisarRetirosSinSaldo(aplicar);
+  })
   .catch((e) => {
     console.error('Error:', e?.message || e);
     process.exitCode = 1;
