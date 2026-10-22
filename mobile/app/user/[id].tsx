@@ -14,6 +14,8 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock, Image as ImageIcon, Heart } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import EscribirASoporte from '../../components/EscribirASoporte';
 import { get, getImageUrl } from '../../services/api';
 import { CancellationMark } from '../../components/CancellationLadder';
 import { mostrarRating } from '../../../shared/rating/display';
@@ -53,6 +55,7 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { isDarkMode, colors: themeColors } = useTheme();
+  const { user: yo } = useAuth();
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -290,6 +293,9 @@ export default function UserProfileScreen() {
             <MessageCircle size={20} color="#fff" />
             <Text style={styles.contactButtonText}>Contactar</Text>
           </TouchableOpacity>
+
+          {/* Reportar a esta persona (o dejar una sugerencia): siempre se puede, sea cual sea su estado */}
+          {String(yo?.id || '') !== String(user.id) ? <EscribirASoporte usuario={{ id: user.id, name: user.name }} /> : null}
         </View>
 
         {/* Stats */}

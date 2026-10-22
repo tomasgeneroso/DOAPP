@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle } from "lucide-react";
 import Button from "../ui/Button";
 import Transicion from "../ui/Transicion";
+import { Link } from "react-router-dom";
+import { armarReporte, rutaParaReportar } from "../../../shared/tickets/reportes";
 
 interface ReportProfileModalProps {
   userId: string;
@@ -55,18 +57,24 @@ export default function ReportProfileModal({
     setError("");
 
     try {
+      // El mismo cuerpo que arma la app (shared/tickets/reportes.ts): categoría, mensaje y el usuario reportado enlazado al ticket.
+      const token = localStorage.getItem("token");
       const response = await fetch("/api/tickets", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify({
-          subject: `${t('profile.reportSubject', 'Profile report')}: ${userName}`,
-          description: `${t('profile.reason', 'Reason')}: ${REPORT_REASONS.find(r => r.value === selectedReason)?.label}\n\n${t('posts.description', 'Description')}: ${description}\n\n${t('profile.reportedProfile', 'Reported profile')}: ${userId}`,
-          priority: "high",
-          category: "abuse",
-        }),
+        body: JSON.stringify(
+          armarReporte({
+            sobre: "usuario",
+            usuarioId: userId,
+            nombre: userName,
+            detalle: `${t('profile.reason', 'Reason')}: ${REPORT_REASONS.find(r => r.value === selectedReason)?.label}\n\n${t('posts.description', 'Description')}: ${description}`,
+            prioridad: "high",
+          }),
+        ),
       });
 
       const data = await response.json();
@@ -172,6 +180,13 @@ export default function ReportProfileModal({
               {t('profile.falseReportWarning', 'False reports may result in the suspension of your account. The support team will review your report.')}
             </p>
           </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            ¿Preferís contarlo con más detalle, adjuntar archivos o dejar una sugerencia?{" "}
+            <Link to={rutaParaReportar({ sobre: "usuario", usuarioId: userId, nombre: userName })} className="font-medium text-sky-600 hover:underline dark:text-sky-400" onClick={onClose}>
+              Escribir a soporte
+            </Link>
+          </p>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { post } from '../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import { asuntoDelReporte, categoriaDelReporte, esUuid, mensajeInicialDelReporte, type SobreQue, type TipoDeReporte } from '../../../shared/tickets/reportes';
 
 const categories = [
   { value: 'support', label: 'Soporte General' },
@@ -41,12 +42,27 @@ export default function NewTicketScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
 
-  const [formData, setFormData] = useState({
-    subject: '',
-    category: 'support',
-    priority: 'medium',
-    message: '',
-  });
+  // Escribir a soporte sobre un contrato o un usuario: siempre se puede, sea cual sea su estado (ver shared/tickets/reportes.ts).
+  const params = useLocalSearchParams<{ sobre?: string; contractId?: string; userId?: string; nombre?: string; tipo?: string }>();
+  const sobre: SobreQue | null = params.sobre === 'contrato' || params.sobre === 'usuario' ? params.sobre : null;
+  const contratoId = esUuid(params.contractId) ? params.contractId : null;
+  const usuarioId = esUuid(params.userId) ? params.userId : null;
+  const nombre = typeof params.nombre === 'string' && params.nombre ? params.nombre : null;
+  const [tipo, setTipo] = useState<TipoDeReporte>(params.tipo === 'sugerencia' ? 'sugerencia' : 'problema');
+  const inicial = (t: TipoDeReporte) =>
+    sobre
+      ? { subject: asuntoDelReporte(sobre, t, nombre), category: categoriaDelReporte(sobre, t) as string, priority: 'medium', message: mensajeInicialDelReporte({ sobre, tipo: t, contratoId, usuarioId, nombre }) }
+      : { subject: '', category: 'support', priority: 'medium', message: '' };
+  const [formData, setFormData] = useState(() => inicial(tipo));
+
+  const cambiarTipo = (nuevo: TipoDeReporte) => {
+    if (!sobre) return;
+    const automaticoAntes = mensajeInicialDelReporte({ sobre, tipo, contratoId, usuarioId, nombre });
+    const otro = inicial(nuevo);
+    setTipo(nuevo);
+    // El mensaje solo se reemplaza si la persona todavía no escribió nada propio.
+    setFormData((prev) => ({ ...prev, subject: otro.subject, category: otro.category, message: prev.message === automaticoAntes ? otro.message : prev.message }));
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,7 +80,13 @@ export default function NewTicketScreen() {
     setError('');
 
     try {
-      const response = await post('/tickets', formData);
+      const response = await post('/tickets', {
+        ...formData,
+        // El contrato y el usuario van enlazados al ticket (el servidor lee `relatedContract` y `relatedUser`).
+        ...(contratoId ? { relatedContract: contratoId } : {}),
+        ...(usuarioId ? { relatedUser: usuarioId } : {}),
+        tags: sobre && tipo === 'sugerencia' ? ['sugerencia'] : [],
+      });
 
       if (response.success) {
         setFormData({ subject: '', category: 'support', priority: 'medium', message: '' });
@@ -116,6 +138,28 @@ export default function NewTicketScreen() {
           <View style={[styles.errorContainer, { backgroundColor: colors.danger[50], borderColor: colors.danger[200] }]}>
             <AlertCircle size={20} color={colors.danger[500]} />
             <Text style={[styles.errorText, { color: colors.danger[700] }]}>{error}</Text>
+          </View>
+        ) : null}
+
+        {/* Sobre qué se escribe, y si es un problema o una sugerencia */}
+        {sobre ? (
+          <View style={[styles.contextBox, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.contextText, { color: themeColors.text.primary }]}>
+              Estás escribiendo a soporte sobre {sobre === 'contrato' ? 'un contrato' : 'un usuario'}{nombre ? `: ${nombre}` : ''}.
+            </Text>
+            <View style={styles.selectContainer}>
+              {([['problema', 'Reportar un problema'], ['sugerencia', 'Dejar una sugerencia']] as const).map(([valor, etiqueta]) => (
+                <TouchableOpacity
+                  key={valor}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: tipo === valor }}
+                  style={[styles.selectOption, { backgroundColor: tipo === valor ? colors.primary[500] : themeColors.background, borderColor: tipo === valor ? colors.primary[500] : themeColors.border }]}
+                  onPress={() => cambiarTipo(valor)}
+                >
+                  <Text style={[styles.selectOptionText, { color: tipo === valor ? '#fff' : themeColors.text.primary }]}>{etiqueta}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -258,6 +302,17 @@ export default function NewTicketScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  contextBox: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.lg,
+  },
+  contextText: {
+    fontSize: fontSize.sm,
+    lineHeight: 20,
   },
   topBar: {
     flexDirection: 'row',

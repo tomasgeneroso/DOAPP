@@ -39,7 +39,9 @@ import {
   ClipboardList,
   Camera,
   Briefcase,
+  LifeBuoy,
 } from "lucide-react";
+import { rutaParaReportar } from "../../shared/tickets/reportes";
 import { usePermissions } from "@/hooks/usePermissions";
 import OrdenDePago from "@/components/pagos/OrdenDePago";
 import BotonReclamo from "@/components/pagos/BotonReclamo";
@@ -645,6 +647,31 @@ export default function ContractDetail() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/*
+            Soporte: SIEMPRE se puede reportar un problema o dejar una sugerencia, sea cual sea el estado del contrato (pendiente, cancelado, rechazado, en
+            disputa, terminado...). El reclamo con intervención de DOAPP es otra cosa y depende del estado y del pago; esto no depende de nada.
+          */}
+          <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+            <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
+              <LifeBuoy className="h-4 w-4" aria-hidden="true" />
+              ¿Algo no anda bien, o tenés una idea?
+            </span>
+            <Link
+              to={rutaParaReportar({ sobre: 'contrato', contratoId: contract.id, trabajoId: contract.job?.id || contract.jobId?.id || contract.jobId, nombre: contract.job?.title || contract.jobId?.title })}
+              className="font-semibold text-sky-600 hover:underline dark:text-sky-400"
+            >
+              Escribir a soporte sobre este contrato
+            </Link>
+            {(isClient ? contract.doer?.id : contract.client?.id) && (
+              <Link
+                to={rutaParaReportar({ sobre: 'usuario', usuarioId: isClient ? contract.doer?.id : contract.client?.id, contratoId: contract.id, nombre: isClient ? contract.doer?.name : contract.client?.name })}
+                className="font-semibold text-sky-600 hover:underline dark:text-sky-400"
+              >
+                Reportar a {(isClient ? contract.doer?.name : contract.client?.name) || 'la otra persona'}
+              </Link>
+            )}
           </div>
 
           {/*

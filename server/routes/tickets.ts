@@ -9,6 +9,8 @@ import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import emailService from "../services/email.js";
 import { uploadTicketAttachments, getFileUrl } from "../middleware/upload.js";
+import { esCategoriaDeTicket } from "../../shared/tickets/reportes.js";
+import { relacionesDelTicket, ErrorDeReporte } from "../services/reportesDeSoporte.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -136,7 +138,7 @@ router.post(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       // Validate required fields manually after upload
-      const { subject, category, priority, message, relatedUser, relatedContract, tags } = req.body;
+      const { subject, category, priority, message, tags } = req.body;
 
       if (!subject || !subject.trim()) {
         res.status(400).json({
@@ -154,13 +156,25 @@ router.post(
         return;
       }
 
-      const validCategories = ["bug", "feature", "support", "report_user", "report_contract", "dispute", "payment", "other"];
-      if (!category || !validCategories.includes(category)) {
+      if (!category || !esCategoriaDeTicket(category)) {
         res.status(400).json({
           success: false,
           message: "Categoría inválida",
         });
         return;
+      }
+
+      // El contrato y el usuario sobre los que se escribe a soporte. No importa en qué estado estén: siempre se puede reportar un problema o dejar una
+      // sugerencia (ver services/reportesDeSoporte.ts).
+      let relaciones: { relatedUser?: string; relatedContract?: string };
+      try {
+        relaciones = await relacionesDelTicket(req.user, req.body);
+      } catch (e) {
+        if (e instanceof ErrorDeReporte) {
+          res.status(e.status).json({ success: false, message: e.message });
+          return;
+        }
+        throw e;
       }
 
       const files = (req as any).files as Express.Multer.File[];
@@ -188,8 +202,7 @@ router.post(
         category,
         priority: priority || "medium",
         createdBy: req.user.id,
-        relatedUser,
-        relatedContract,
+        ...relaciones,
         tags: tags || [],
         attachments,
         messages: [

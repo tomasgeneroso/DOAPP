@@ -98,6 +98,9 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.SUPERUSER, // Owner has all permissions
   ],
   super_admin: [
+    // Escribirle a soporte (reportar un problema o dejar una sugerencia) lo puede hacer cualquier persona, también el equipo.
+    PERMISSIONS.TICKET_CREATE,
+
     // User management
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.USER_EDIT_ANY,
@@ -152,6 +155,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.BLOG_PUBLISH,
   ],
   admin: [
+    PERMISSIONS.TICKET_CREATE, // ver super_admin
+
     // User management (limited)
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.USER_BAN,
@@ -201,6 +206,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.ADMIN_DASHBOARD,
   ],
   marketing: [
+    PERMISSIONS.TICKET_CREATE, // ver super_admin
+
     // Analytics only
     PERMISSIONS.ADMIN_DASHBOARD,
     PERMISSIONS.ADMIN_ANALYTICS,
@@ -210,6 +217,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.CONTRACT_VIEW_ANY,
   ],
   dpo: [
+    PERMISSIONS.TICKET_CREATE, // ver super_admin
+
     // Privacy & compliance permissions
     PERMISSIONS.PRIVACY_VIEW_CONSENTS,
     PERMISSIONS.PRIVACY_VIEW_DATA_ACCESS,

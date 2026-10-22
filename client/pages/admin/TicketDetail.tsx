@@ -667,19 +667,33 @@ export default function TicketDetail() {
             </div>
           )}
 
-          {/* Contract link */}
-          {ticket.contractId && (
+          {/* Sobre qué se escribió: el contrato y/o el usuario, en el estado que estén */}
+          {(ticket.relatedContract || ticket.related) && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
-                Contrato relacionado
+                Sobre qué escribió
               </h3>
-              <a
-                href={`/admin/contracts/${ticket.contractId}`}
-                className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
-              >
-                <FileText className="h-4 w-4" />
-                Ver contrato
-              </a>
+              <div className="space-y-2 text-sm">
+                {ticket.relatedContract && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <a href={`/contracts/${ticket.relatedContract}`} className="flex items-center gap-2 text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 transition-colors">
+                      <FileText className="h-4 w-4" />
+                      Ver contrato{ticket.contract?.status ? ` (${ticket.contract.status})` : ""}
+                    </a>
+                    {ticket.contract?.jobId && (
+                      <a href={`/admin/jobs/${ticket.contract.jobId}/expediente`} className="text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 transition-colors">
+                        Ver expediente de la publicación
+                      </a>
+                    )}
+                  </div>
+                )}
+                {ticket.relatedUser && (
+                  <a href={`/admin/users/${ticket.relatedUser}`} className="flex items-center gap-2 text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 transition-colors">
+                    <User className="h-4 w-4" />
+                    Ver a {ticket.related?.name || "la persona reportada"}{ticket.related?.email ? ` · ${ticket.related.email}` : ""}
+                  </a>
+                )}
+              </div>
             </div>
           )}
 

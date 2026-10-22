@@ -284,7 +284,7 @@ export default function HelpScreen() {
               ¿Cuándo crear un ticket?
             </Text>
             <Text style={[styles.faqAnswer, { color: themeColors.text.muted }]}>
-              Para reportar bugs, hacer sugerencias, o cualquier consulta no relacionada con un contrato.
+              Para reportar un problema, hacer una sugerencia o hacer cualquier consulta, también sobre un contrato o una persona: siempre se puede, sea cual sea su estado. Si hay plata en juego y querés que intervenga un administrador, abrí una disputa desde el contrato.
             </Text>
           </View>
         </View>

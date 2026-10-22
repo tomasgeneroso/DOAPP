@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import { ArrowLeft, AlertCircle, Paperclip, X, ExternalLink, Briefcase, CheckCircle, LogIn, Mail } from 'lucide-react';
 import Transicion from "../components/ui/Transicion";
+import { asuntoDelReporte, categoriaDelReporte, mensajeInicialDelReporte, type SobreQue, type TipoDeReporte } from "../../shared/tickets/reportes";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -38,6 +39,12 @@ const CreateTicket: React.FC = () => {
   const jobId = searchParams.get('jobId');
   const ticketType = searchParams.get('type');
   const contractId = searchParams.get('contractId');
+  // Escribir a soporte sobre un contrato o un usuario: siempre se puede, sea cual sea su estado (ver shared/tickets/reportes.ts).
+  const userId = searchParams.get('userId');
+  const nombreParam = searchParams.get('nombre');
+  const sobre: SobreQue | null = ticketType === 'report_user' ? 'usuario' : ticketType === 'report_contract' ? 'contrato' : null;
+  const [tipoDeReporte, setTipoDeReporte] = useState<TipoDeReporte>(searchParams.get('tipo') === 'sugerencia' ? 'sugerencia' : 'problema');
+  const [mensajeAutomatico, setMensajeAutomatico] = useState('');
 
   const [guestEmail, setGuestEmail] = useState('');
   const [formData, setFormData] = useState({
@@ -118,8 +125,6 @@ const CreateTicket: React.FC = () => {
           setRelatedJobTitle(data.job.title);
           if (ticketType === 'support') {
             setFormData(prev => ({ ...prev, subject: `Problema con trabajo: ${data.job.title}`, category: 'support', message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n\nDescribe tu problema:\n` }));
-          } else if (ticketType === 'report_contract') {
-            setFormData(prev => ({ ...prev, subject: `Reporte de contrato - ${data.job.title}`, category: 'report_contract', message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n${contractId ? `Contrato ID: ${contractId}\n` : ''}\nDescribe el problema:\n` }));
           } else if (ticketType === 'payment') {
             setFormData(prev => ({ ...prev, subject: `Problema de pago - ${data.job.title}`, category: 'payment', message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n\nDescribe el problema de pago:\n` }));
           }
@@ -130,6 +135,33 @@ const CreateTicket: React.FC = () => {
     };
     fetchJobInfo();
   }, [isGuest, jobId, ticketType, contractId, token]);
+
+  // Reporte sobre un contrato o un usuario: asunto, categoría y arranque del mensaje salen del helper compartido (la web y la app mandan lo mismo).
+  useEffect(() => {
+    if (isGuest || !sobre) return;
+    const inicial = {
+      subject: asuntoDelReporte(sobre, tipoDeReporte, nombreParam),
+      category: categoriaDelReporte(sobre, tipoDeReporte),
+      message: mensajeInicialDelReporte({ sobre, tipo: tipoDeReporte, contratoId: contractId, usuarioId: userId, nombre: nombreParam }),
+    };
+    setMensajeAutomatico(inicial.message);
+    setFormData(prev => ({ ...prev, ...inicial }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest]);
+
+  const cambiarTipoDeReporte = (tipo: TipoDeReporte) => {
+    if (!sobre) return;
+    setTipoDeReporte(tipo);
+    const nuevoMensaje = mensajeInicialDelReporte({ sobre, tipo, contratoId: contractId, usuarioId: userId, nombre: nombreParam });
+    // El mensaje solo se reemplaza si la persona todavía no escribió nada propio.
+    setFormData(prev => ({
+      ...prev,
+      subject: asuntoDelReporte(sobre, tipo, nombreParam),
+      category: categoriaDelReporte(sobre, tipo),
+      message: prev.message === mensajeAutomatico ? nuevoMensaje : prev.message,
+    }));
+    setMensajeAutomatico(nuevoMensaje);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -164,15 +196,17 @@ const CreateTicket: React.FC = () => {
       formDataToSend.append('subject', formData.subject);
       formDataToSend.append('category', formData.category);
       formDataToSend.append('priority', formData.priority);
-      formDataToSend.append('message', formData.message);
+      // El servidor no guarda el trabajo vinculado: queda en el mensaje para que soporte lo encuentre.
+      const trabajoVinculado = !isGuest ? (selectedJobId || jobId) : null;
+      formDataToSend.append('message', trabajoVinculado && !formData.message.includes(String(trabajoVinculado)) ? `Referencia: Trabajo ID ${trabajoVinculado}\n${formData.message}` : formData.message);
 
       if (isGuest) {
         formDataToSend.append('email', guestEmail.trim());
       } else {
-        const finalJobId = selectedJobId || jobId;
-        if (finalJobId) formDataToSend.append('relatedJobId', finalJobId);
+        // `relatedContract` y `relatedUser` son los nombres que lee el servidor (antes se mandaban `relatedContractId`/`relatedJobId` y se perdían).
         const finalContractId = selectedContractId || contractId;
-        if (finalContractId) formDataToSend.append('relatedContractId', finalContractId);
+        if (finalContractId) formDataToSend.append('relatedContract', finalContractId);
+        if (userId) formDataToSend.append('relatedUser', userId);
       }
 
       attachments.forEach(file => formDataToSend.append('attachments', file));
@@ -289,6 +323,33 @@ const CreateTicket: React.FC = () => {
               <Link to={`/jobs/${jobId}`} className="flex items-center gap-1 text-sm text-sky-600 dark:text-sky-400 hover:underline">
                 Ver trabajo <ExternalLink className="h-3 w-3" />
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Sobre qué se escribe: un contrato o un usuario, en el estado que esté. Problema o sugerencia. */}
+        {!isGuest && sobre && (
+          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4 mb-6">
+            <p className="text-sm font-medium text-sky-800 dark:text-sky-200">
+              Estás escribiendo a soporte sobre {sobre === 'contrato' ? 'un contrato' : 'un usuario'}
+              {nombreParam ? <>: <strong>{nombreParam}</strong></> : ''}.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm">
+              {contractId && <Link to={`/contracts/${contractId}`} className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 hover:underline">Ver contrato <ExternalLink className="h-3 w-3" /></Link>}
+              {userId && <Link to={`/profile/${userId}`} className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 hover:underline">Ver perfil <ExternalLink className="h-3 w-3" /></Link>}
+            </div>
+            <div className="mt-3 inline-flex rounded-lg border border-sky-300 dark:border-sky-700 overflow-hidden text-sm" role="group" aria-label="Tipo de mensaje">
+              {(['problema', 'sugerencia'] as const).map((tipo) => (
+                <button
+                  key={tipo}
+                  type="button"
+                  onClick={() => cambiarTipoDeReporte(tipo)}
+                  aria-pressed={tipoDeReporte === tipo}
+                  className={`px-4 py-1.5 font-medium transition ${tipoDeReporte === tipo ? 'bg-sky-600 text-white' : 'bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30'}`}
+                >
+                  {tipo === 'problema' ? 'Reportar un problema' : 'Dejar una sugerencia'}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -440,6 +501,7 @@ const CreateTicket: React.FC = () => {
                     className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white text-sm"
                   >
                     <option value="">{t('common.none')}</option>
+                    {selectedContractId && !userContracts.some(c => c.id === selectedContractId) && <option value={selectedContractId}>{nombreParam ? `Contrato — ${nombreParam}` : 'Contrato seleccionado'}</option>}
                     {loadingContracts ? <option disabled>Cargando...</option> : userContracts.map(c => (
                       <option key={c.id} value={c.id}>
                         {c.job?.title || 'Contrato'} — ${Number(c.price).toLocaleString('es-AR')} — {c.status === 'completed' ? 'Completado' : c.status === 'in_progress' ? 'En progreso' : c.status === 'pending' ? 'Pendiente' : c.status === 'ready' ? 'Listo' : c.status === 'accepted' ? 'Aceptado' : c.status}

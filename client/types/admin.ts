@@ -125,6 +125,11 @@ export interface Ticket {
   };
   messages: TicketMessage[];
   tags?: string[];
+  /** El contrato y el usuario sobre los que se escribió a soporte, en el estado que estén. */
+  relatedContract?: string;
+  contract?: { id: string; jobId?: string; status?: string; price?: number };
+  relatedUser?: string;
+  related?: { id?: string; name: string; email: string };
   resolution?: string;
   closedAt?: string;
   closedBy?: string; // FK UUID
