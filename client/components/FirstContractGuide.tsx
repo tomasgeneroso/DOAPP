@@ -121,6 +121,19 @@ export default function FirstContractGuide() {
           ) : (
             <ChevronUp className="h-4 w-4 text-white" />
           )}
+          {/* Cerrar sin tener que desplegar la guía */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss();
+            }}
+            className="rounded p-0.5 text-white/80 hover:bg-white/20 hover:text-white"
+            aria-label="Cerrar la guía de inicio"
+            title="Cerrar la guía"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
