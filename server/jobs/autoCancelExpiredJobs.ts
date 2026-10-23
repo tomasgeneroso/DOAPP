@@ -6,7 +6,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { Proposal } from '../models/sql/Proposal.model.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
-import { publicacionDevuelta } from '../services/creditoDePublicacion.js';
+import { publicacionDevueltaPorCancelacion } from '../services/creditoDePublicacion.js';
 
 /**
  * Process a single expired job - cancel it and notify the owner
@@ -41,7 +41,8 @@ async function processExpiredJob(job: Job, sendEmail: boolean = true): Promise<b
     //
     // Una publicación se devuelve UNA vez. Reprogramar un trabajo sin postulantes lo vuelve a publicar con el mismo pago, y si vence otra vez
     // sin nadie (reprogramar otra vez es válido) no se acredita de nuevo lo que ya volvió al saldo.
-    const yaDevuelta = await publicacionDevuelta(job as any);
+    // Solo cuenta la devolución de la publicación entera: la parte que dejó un trabajador que no podía (republicar por menos) no impide devolver el resto.
+    const yaDevuelta = await publicacionDevueltaPorCancelacion(job as any);
     if ((job as any).publicationPaymentId && !yaDevuelta && ['open', 'pending_approval', 'paused'].includes(previousStatus)) {
       try {
         const { liquidarCancelacionDePublicacion } = await import('../services/jobCancellation.js');

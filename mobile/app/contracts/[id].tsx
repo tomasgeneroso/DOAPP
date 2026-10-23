@@ -347,7 +347,7 @@ export default function ContractDetailScreen() {
           onPress: () =>
             Alert.prompt(
               'Republicar por menos',
-              '¿Por cuánto lo republicamos? La diferencia te queda como saldo a favor.',
+              '¿Por cuánto lo republicamos? La diferencia te queda a favor; si Mercado Pago todavía no liberó el pago, figura como «a favor pendiente» y no se puede usar ni retirar hasta que lo libere.',
               [
                 { text: 'Cancelar', style: 'cancel' },
                 {
@@ -365,7 +365,7 @@ export default function ContractDetailScreen() {
           onPress: () =>
             Alert.alert(
               'Saldo a favor',
-              'El precio del trabajo pasa a tu saldo a favor. La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa en la app o se retira al banco, sin costo en los dos casos.',
+              'El precio del trabajo pasa a tu saldo a favor. La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. Si Mercado Pago todavía no liberó el pago, queda como «a favor pendiente» y pasa a tu saldo cuando lo libere; recién ahí se usa en la app o se retira al banco, sin costo en los dos casos.',
               [
                 { text: 'Volver', style: 'cancel' },
                 { text: 'Sí, a mi saldo', onPress: () => enviarResolucion('saldo') },

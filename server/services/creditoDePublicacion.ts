@@ -37,10 +37,30 @@ export async function publicacionDevuelta(job: { id: string; publicationPaymentI
   if (!job.publicationPaymentId) return false;
   const base = { origen: 'cancelacion', jobId: String(job.id) };
   const fila = await BalanceTransaction.findOne({
-    where: { type: 'refund', [Op.or]: [{ metadata: { ...base, pagoId: String(job.publicationPaymentId) } }, { metadata: { ...base, pagoId: null } }] } as any,
+    // Un asiento «failed» (cancelado, por ejemplo al anular el pago) no devolvió nada.
+    where: { type: 'refund', status: { [Op.ne]: 'failed' }, [Op.or]: [{ metadata: { ...base, pagoId: String(job.publicationPaymentId) } }, { metadata: { ...base, pagoId: null } }] } as any,
     attributes: ['id'],
   }).catch(() => null);
   return !!fila;
+}
+
+/**
+ * ¿La plata de esta publicación ya volvió al cliente por la CANCELACIÓN de la publicación (la que arma `liquidarCancelacionDePublicacion`)?
+ *
+ * Más estricta que `publicacionDevuelta`, que cuenta cualquier devolución con `origen: 'cancelacion'` de este trabajo y a la que le falte el pago —también la que
+ * deja un trabajador que no podía—. Eso está bien para decidir si reprogramar una publicación CANCELADA se paga de nuevo, pero no para decidir si una
+ * cancelación automática devuelve el dinero: si el cliente eligió «republicar por menos», el trabajo sigue abierto con el resto del dinero adentro, y si vence
+ * sin postulantes ese resto tiene que volver. Con `publicacionDevuelta` no volvía nunca.
+ */
+export async function publicacionDevueltaPorCancelacion(job: { id: string; publicationPaymentId?: string | null }): Promise<boolean> {
+  if (!job.publicationPaymentId) return false;
+  const base = { origen: 'cancelacion', jobId: String(job.id) };
+  const filas: any[] = await BalanceTransaction.findAll({
+    where: { type: 'refund', status: { [Op.ne]: 'failed' }, [Op.or]: [{ metadata: { ...base, pagoId: String(job.publicationPaymentId) } }, { metadata: { ...base, pagoId: null } }] } as any,
+    attributes: ['id', 'metadata'],
+    limit: 20,
+  }).catch(() => []);
+  return filas.some((f) => esDevolucionDeLaPublicacion(f.metadata));
 }
 
 /** ¿El libro muestra que el cliente pagó esta publicación con su saldo? (un descuento por la publicación; las pagadas con saldo antes de que existiera el registro de pago) */

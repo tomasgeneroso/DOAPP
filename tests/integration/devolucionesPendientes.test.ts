@@ -298,6 +298,36 @@ describe('devoluciones al cliente: a favor pendiente mientras Mercado Pago no li
     expect(await saldo()).toBe(5000);
   });
 
+  it('«republicar por menos»: el trabajo sigue abierto, y si después vence sin postulantes la cancelación automática devuelve el resto (antes no lo devolvía)', async () => {
+    const { job, pago } = await publicacion({ approvedAt: new Date(Date.now() - 12 * DIA) }, { status: 'in_progress', selectedWorkers: [] });
+    await Job.update({ selectedWorkers: [doer.id], maxWorkers: 1 } as any, { where: { id: job.id } });
+    const contrato: any = await crearContrato({ jobId: job.id, clientId: cliente.id, doerId: doer.id }, { status: 'accepted', price: 36000 });
+    contratos.push(contrato.id);
+    const { trabajadorNoDisponible } = await import('../../server/services/quotePayment.js');
+
+    const r = await trabajadorNoDisponible(String(contrato.id), 'parcial', 'Se enfermó', 20000);
+
+    expect([r.ok, r.aFavor, r.precioPublicado]).toEqual([true, 16000, 20000]);
+    const abierto: any = await Job.findByPk(job.id);
+    expect([abierto.status, Number(abierto.price)]).toEqual(['open', 20000]);
+    // La devolución parcial es del trabajador que no podía: NO es «la publicación devuelta».
+    const { publicacionDevueltaPorCancelacion, publicacionDevuelta } = await import('../../server/services/creditoDePublicacion.js');
+    expect(await publicacionDevueltaPorCancelacion(abierto)).toBe(false);
+    expect(await publicacionDevuelta(abierto)).toBe(true); // reprogramar una publicación cancelada con plata devuelta sigue pidiendo pagar de nuevo
+
+    // Vence sin postulantes: la cancelación automática devuelve el resto.
+    await Job.update({ startDate: dias(-3), endDate: dias(-2) } as any, { where: { id: job.id } });
+    const antes = await saldo();
+    const { checkAndProcessUserExpiredJobs } = await import('../../server/jobs/autoCancelExpiredJobs.js');
+    expect(await checkAndProcessUserExpiredJobs(String(cliente.id))).toBeGreaterThanOrEqual(1);
+
+    const filas = await devoluciones();
+    const delResto = filas.filter((f) => String(f.metadata?.reason || '').startsWith('job_cancelled_'));
+    expect(delResto).toHaveLength(1);
+    expect(String(delResto[0].metadata.pagoId)).toBe(String(pago.id));
+    expect(await saldo()).toBeGreaterThan(antes);
+  });
+
   /* ---------------- un administrador aprueba cancelar un contrato ---------------- */
 
   it('cancelación de un contrato aprobada por un administrador: lo del cliente es a favor PENDIENTE y lo del trabajador entra a su saldo con la espera de siempre', async () => {

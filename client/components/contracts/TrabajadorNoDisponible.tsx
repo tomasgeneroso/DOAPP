@@ -133,7 +133,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
             <TrendingDown className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
             <span>
               <span className="block font-medium text-slate-900 dark:text-white">Republicarlo por menos</span>
-              <span className="block text-xs text-slate-600 dark:text-slate-300">La diferencia queda como saldo a favor. Útil si aprendiste que el trabajo se consigue por menos.</span>
+              <span className="block text-xs text-slate-600 dark:text-slate-300">La diferencia queda a tu favor; si Mercado Pago todavía no liberó el pago, figura como «a favor pendiente» y no se puede usar ni retirar hasta que lo libere. Útil si aprendiste que el trabajo se consigue por menos.</span>
             </span>
           </div>
           <div className="mt-2 flex gap-2">
@@ -159,7 +159,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
 
         <button
           onClick={() => {
-            if (window.confirm(`¿Pasar ${$(precio)} a tu saldo a favor? La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa en la app o se retira al banco, sin costo en los dos casos.`)) {
+            if (window.confirm(`¿Pasar ${$(precio)} a tu saldo a favor? La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. Si Mercado Pago todavía no liberó el pago, queda como «a favor pendiente» y pasa a tu saldo cuando lo libere; recién ahí se usa en la app o se retira al banco, sin costo en los dos casos.`)) {
               llamar({ opcion: "saldo", motivo: "El trabajador avisó que no puede" }, "saldo");
             }
           }}
@@ -169,7 +169,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
           <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
           <span>
             <span className="block font-medium text-slate-900 dark:text-white">Pasar el precio a mi saldo a favor</span>
-            <span className="block text-xs text-slate-600 dark:text-slate-300">{$(precio)} a tu saldo, para usar en otra publicación o retirar al banco, sin costo. La comisión de publicación no se devuelve.</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-300">{$(precio)} a tu favor. Si Mercado Pago todavía no liberó el pago, queda «a favor pendiente» hasta que lo libere; ahí lo usás en otra publicación o lo retirás al banco, sin costo. La comisión de publicación no se devuelve.</span>
           </span>
         </button>
       </div>
