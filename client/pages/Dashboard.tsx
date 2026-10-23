@@ -246,11 +246,6 @@ export default function Dashboard() {
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
   // En la beta todos los contratos son sin comisión y sin límite: no hay un contador que mostrar.
   const enBeta = !!(user as any)?.platform?.isBeta;
-  const proContractsUsed = user?.monthlyContractsUsed || 0;
-  let monthlyFreeLimit = 0;
-  if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-  else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
-  const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
 
   // Grupo 1: Finanzas
   const financeCards = [
@@ -283,23 +278,7 @@ export default function Dashboard() {
       color: "text-indigo-500",
       bgColor: "bg-indigo-100 dark:bg-indigo-900/20",
       link: "/",
-      description: (() => {
-        const initialUsed = 3 - freeContractsRemaining;
-        const monthlyUsed = proContractsUsed;
-        const parts = [];
-
-        if (initialUsed > 0) {
-          parts.push(`${initialUsed} ${t('dashboard.initial', 'initial')}`);
-        }
-        if (monthlyUsed > 0 && monthlyFreeLimit > 0) {
-          parts.push(`${monthlyUsed} PRO`);
-        }
-
-        if (parts.length > 0) {
-          return `${t('dashboard.used', 'Used')}: ${parts.join(', ')}`;
-        }
-        return t('dashboard.postedJobsDescription', 'Jobs you posted as a client');
-      })(),
+      description: t('dashboard.postedJobsDescription', 'Jobs you posted as a client'),
     },
     {
       title: t('dashboard.activeContracts', 'Active contracts'),

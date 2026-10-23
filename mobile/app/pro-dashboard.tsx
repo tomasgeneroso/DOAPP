@@ -25,9 +25,6 @@ import { get } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
 interface UsageData {
-  contractsUsed: number;
-  contractsLimit: number;
-  contractsRemaining: number;
   freeContractsRemaining: number;
   membershipExpiresAt: string | null;
 }
@@ -77,22 +74,15 @@ export default function ProDashboardScreen() {
     return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  const getProgressPercent = () => {
-    if (!usage || usage.contractsLimit === 0) return 0;
-    return Math.min((usage.contractsUsed / usage.contractsLimit) * 100, 100);
-  };
-
   const benefits = isPro
     ? [
         'La comision es la misma que en el plan gratuito',
-        '1 contrato gratis por mes',
         'Badge PRO en tu perfil',
         'Estadisticas avanzadas',
         'Soporte prioritario',
       ]
     : [
         'La comision es la misma que en el plan gratuito',
-        '2 contratos gratis por mes',
         'Badge PRO en tu perfil',
         'Analytics avanzados',
         'Soporte VIP prioritario',
@@ -142,55 +132,24 @@ export default function ProDashboardScreen() {
           )}
         </View>
 
-        {/* Contract Usage */}
+        {/* Contratos libres de comisión: hay un solo cupo, el de lanzamiento. La membresía no tiene uno propio (no modifica la comisión). */}
         {usage && (
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <View style={styles.cardHeader}>
               <TrendingUp size={20} color={tierColor} />
               <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>
-                Contratos gratis este mes
-              </Text>
-            </View>
-
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { backgroundColor: themeColors.slate[100] }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { backgroundColor: tierColor, width: `${getProgressPercent()}%` },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.progressText, { color: themeColors.text.secondary }]}>
-                {usage.contractsUsed} / {usage.contractsLimit} usados
+                Contratos libres de comisión
               </Text>
             </View>
 
             <View style={styles.usageRow}>
               <View style={[styles.usageStat, { backgroundColor: themeColors.slate[50] }]}>
-                <Text style={[styles.usageValue, { color: tierColor }]}>{usage.contractsRemaining}</Text>
-                <Text style={[styles.usageLabel, { color: themeColors.text.muted }]}>Restantes</Text>
-              </View>
-              <View style={[styles.usageStat, { backgroundColor: themeColors.slate[50] }]}>
                 <Text style={[styles.usageValue, { color: tierColor }]}>{usage.freeContractsRemaining}</Text>
-                <Text style={[styles.usageLabel, { color: themeColors.text.muted }]}>Bonus total</Text>
+                <Text style={[styles.usageLabel, { color: themeColors.text.muted }]}>Restantes</Text>
               </View>
             </View>
           </View>
         )}
-
-        {/* Next Reset */}
-        <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-          <View style={styles.cardHeader}>
-            <Calendar size={20} color={tierColor} />
-            <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>
-              Proximo reinicio
-            </Text>
-          </View>
-          <Text style={[styles.resetText, { color: themeColors.text.secondary }]}>
-            Los contratos gratis se reinician el 1 de cada mes. Usa tus contratos restantes antes de esa fecha.
-          </Text>
-        </View>
 
         {/* Benefits */}
         <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>

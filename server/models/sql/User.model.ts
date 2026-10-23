@@ -642,7 +642,9 @@ export class User extends Model {
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;
 
-  @Default(3)
+  // Contratos libres de comisión (POLITICAS.CONTRATOS_LIBRES_DE_COMISION): los recibe `otorgarContratosLibres` si la cuenta está entre las primeras
+  // POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES. Antes toda cuenta nacía con 3.
+  @Default(0)
   @AllowNull(false)
   @Column(DataType.INTEGER)
   freeContractsRemaining!: number;

@@ -55,8 +55,8 @@ class MembershipService {
         priceEUR,
         priceARS,
         exchangeRateAtPurchase: exchangeRate,
-        freeContractsTotal: 5,
-        freeContractsRemaining: 5,
+        freeContractsTotal: 0,
+        freeContractsRemaining: 0,
         nextPaymentDate: endDate,
       });
 

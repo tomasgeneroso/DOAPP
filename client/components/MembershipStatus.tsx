@@ -7,10 +7,8 @@ import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing"
 interface Usage {
   membershipTier?: string | null;
   hasMembership?: boolean;
-  proContractsUsedThisMonth?: number;
   freeContractsRemaining?: number;
   membershipExpiresAt?: string | null;
-  monthlyFreeLimit?: number;
 }
 
 const LABEL: Record<string, string> = {
@@ -114,14 +112,7 @@ export default function MembershipStatus() {
           {!(user as any)?.platform?.isBeta && typeof usage?.freeContractsRemaining === "number" && usage.freeContractsRemaining > 0 && (
             <p>
               Te quedan <strong>{usage.freeContractsRemaining}</strong>{" "}
-              {usage.freeContractsRemaining === 1 ? "publicación inicial" : "publicaciones iniciales"} sin comisión.
-            </p>
-          )}
-
-          {!(user as any)?.platform?.isBeta && typeof usage?.proContractsUsedThisMonth === "number" && (usage.monthlyFreeLimit ?? 0) > 0 && (
-            <p>
-              Contratos mensuales sin comisión usados: <strong>{usage.proContractsUsedThisMonth}</strong> de{" "}
-              {usage.monthlyFreeLimit}.
+              {usage.freeContractsRemaining === 1 ? "contrato libre" : "contratos libres"} de comisión.
             </p>
           )}
 

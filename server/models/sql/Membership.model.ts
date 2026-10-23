@@ -241,10 +241,10 @@ export class Membership extends Model {
     // un cambio en esa tabla llegue acá solo.
     if (instance.plan === 'PRO') {
       instance.reducedCommissionPercentage = COMMISSION_RATES.pro;
-      instance.freeContractsTotal = 3;
+      instance.freeContractsTotal = 0;
     } else if (instance.plan === 'SUPER_PRO') {
       instance.reducedCommissionPercentage = COMMISSION_RATES.super_pro;
-      instance.freeContractsTotal = 3;
+      instance.freeContractsTotal = 0;
     }
 
     // Validate dates

@@ -67,9 +67,6 @@ export default function ProUsageDashboard() {
     );
   }
 
-  const progressPercentage = (usage.contractsUsed / usage.contractsLimit) * 100;
-  const hasReachedBonus = usage.contractsUsed >= 3;
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Says why the account has the PRO features. Showing the badge without
@@ -103,14 +100,14 @@ export default function ProUsageDashboard() {
               ) : (
                 <>
                   <Crown className="w-8 h-8 text-yellow-300" />
-                  {t('proUsage.monthlyUsagePro', 'Uso Mensual PRO')}
+                  {t('proUsage.membershipPro', 'Tu membresía PRO')}
                 </>
               )}
             </h1>
             <p className={user?.membershipTier === 'super_pro' ? 'text-pink-100' : 'text-purple-100'}>
               {user?.membershipTier === 'super_pro'
                 ? t('proUsage.subtitleSuperPro', 'Analytics avanzados y Centro Profesional')
-                : t('proUsage.subtitlePro', 'Seguí el uso mensual de tu membresía')
+                : t('proUsage.subtitlePro', 'Visibilidad y estadísticas de tu perfil')
               }
             </p>
           </div>
@@ -168,79 +165,8 @@ export default function ProUsageDashboard() {
             {user?.freeContractsRemaining || 0}
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {t('proUsage.referralContracts', 'Contratos por Recomendación')}
+            {t('proUsage.freeContracts', 'Contratos libres de comisión')}
           </p>
-        </div>
-      </div>
-
-      {/* Barra de progreso */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {t('proUsage.monthlyProgress', 'Progreso Mensual')}
-        </h2>
-        <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>{t('proUsage.contractsWithCommission', 'Contratos mensuales sin comisión')}</span>
-            <span>{usage.contractsUsed} {t('proUsage.ofSep', 'de')} {usage.contractsLimit}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                user?.membershipTier === 'super_pro'
-                  ? 'bg-gradient-to-r from-pink-600 to-purple-600'
-                  : 'bg-gradient-to-r from-purple-600 to-blue-600'
-              }`}
-              style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-            ></div>
-          </div>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {t('proUsage.contractsResetMonthly', 'Los contratos se resetean el día 1 de cada mes')}
-        </p>
-      </div>
-
-      {/* Bonus Contract */}
-      <div className={`rounded-lg shadow p-6 mb-6 ${
-        usage.earnedBonusContract || hasReachedBonus
-          ? 'bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-2 border-yellow-400'
-          : 'bg-white dark:bg-gray-800'
-      }`}>
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-            usage.earnedBonusContract || hasReachedBonus
-              ? 'bg-yellow-400'
-              : 'bg-gray-100 dark:bg-gray-700'
-          }`}>
-            <Gift className={`w-6 h-6 ${
-              usage.earnedBonusContract || hasReachedBonus
-                ? 'text-white'
-                : 'text-gray-400'
-            }`} />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-              {t('proUsage.bonusContract', 'Contrato Bonus')}
-              {usage.earnedBonusContract && (
-                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
-                  {t('proUsage.unlocked', '¡Desbloqueado!')}
-                </span>
-              )}
-            </h3>
-            {usage.earnedBonusContract ? (
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                {t('proUsage.bonusUnlockedDesc', '🎉 ¡Felicitaciones! Completaste 3 contratos este mes y ganaste 1 publicación libre de comisión adicional.')}
-              </p>
-            ) : hasReachedBonus ? (
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                {t('proUsage.bonusAboutToEarn', '✨ ¡Estás a punto de ganar 1 contrato bonus! Completa estos contratos para desbloquearlo.')}
-              </p>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('proUsage.bonusProgressDesc', 'Completá 3 contratos en este mes para ganar 1 publicación libre de comisión adicional.')}
-                {' '}{t('proUsage.progress', 'Progreso')}: {usage.contractsUsed}/3
-              </p>
-            )}
-          </div>
         </div>
       </div>
 

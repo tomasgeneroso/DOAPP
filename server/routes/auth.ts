@@ -5,6 +5,7 @@ import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { FamilyCode } from "../models/sql/FamilyCode.model.js";
+import { otorgarContratosLibres } from "../services/exencionDeComision.js";
 import { sequelize } from "../config/database.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
@@ -256,6 +257,8 @@ router.post(
         bankingInfo,
         registrationPending: registroEnPasos,
       });
+      // Contratos libres de comisión de lanzamiento (las primeras cuentas). No frena el alta si falla.
+      await otorgarContratosLibres(String(user.id));
 
       // Crear registro de referido si existe
       if (referrer) {
@@ -623,8 +626,6 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         membershipTier: user?.membershipTier,
         hasMembership: user?.hasMembership,
         isPremiumVerified: user?.isPremiumVerified,
-        monthlyContractsUsed: user?.proContractsUsedThisMonth ?? 0,
-        monthlyFreeContractsLimit: (await getEffectiveTier(user?.membershipTier, (user as any)?.adminRole)) === 'super_pro' ? 2 : 3,
         balance: user?.balanceArs,
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,
@@ -1313,6 +1314,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
         termsAccepted: true,
         termsAcceptedAt: new Date(),
       });
+      await otorgarContratosLibres(String(user.id));
     }
 
     // Update last login
@@ -1480,6 +1482,7 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
         termsAcceptedAt: new Date(),
         registrationPending: true, // falta verificar la identidad y completar los datos (también el correo)
       });
+      await otorgarContratosLibres(String(user.id));
 
       console.log(`✅ New user created via Twitter: ${user.id}`);
     } else {

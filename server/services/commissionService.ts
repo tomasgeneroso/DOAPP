@@ -12,7 +12,9 @@
  * Excepciones, en el orden en que se evalúan:
  * - Beta: 0% para todos, hasta la fecha de cierre (`isBetaPhase`).
  * - Plan Familia: 0%.
- * - Contrato gratuito (`isFreeContract`, o FREE con `freeContractsRemaining`): 0%.
+ * - Invitación de un creador de contenido (T&C 7.11): 0% hasta `commissionFreeUntil`.
+ * - Contrato libre de comisión (`isFreeContract`, o `freeContractsRemaining` > 0 con CUALQUIER plan): 0%. Cupo de lanzamiento, ver
+ *   `POLITICAS.CONTRATOS_LIBRES_DE_COMISION` y `otorgarContratosLibres`.
  *
  * Piso de la comisión: `MINIMUM_COMMISSION_EUR`, convertido a pesos con la cotización de
  * respaldo (`MINIMUM_COMMISSION_ARS`). Los Términos (7.4) prometen el cambio del día y el
@@ -262,14 +264,27 @@ async function computeCommissionBase(
       rate: 0,
       commission: 0,
       monthlyVolume: 0,
-      tierDescription: 'Contrato Gratuito',
+      tierDescription: 'Contrato libre de comisión',
       isFamilyPlan: false,
       isFreeContract: true,
       minimumApplied: false,
     };
   }
 
-  // 3. PRO membership: la misma tasa (la membresía no modifica la comisión)
+  // 3. Contratos libres de comisión de lanzamiento: valen con cualquier plan (la membresía no modifica la comisión)
+  if (freeContractsRemaining > 0) {
+    return {
+      rate: 0,
+      commission: 0,
+      monthlyVolume: 0,
+      tierDescription: `Contrato libre de comisión (${freeContractsRemaining} disponibles)`,
+      isFamilyPlan: false,
+      isFreeContract: true,
+      minimumApplied: false,
+    };
+  }
+
+  // 4. PRO membership: la misma tasa (la membresía no modifica la comisión)
   if (membershipType === 'pro') {
     const calculatedCommission = contractPrice * (PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -284,7 +299,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 4. SUPER PRO (cuentas heredadas; ya no se vende): la misma tasa
+  // 5. SUPER PRO (cuentas heredadas; ya no se vende): la misma tasa
   if (membershipType === 'super_pro') {
     const calculatedCommission = contractPrice * (SUPER_PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -299,21 +314,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 5. FREE user WITH available contracts = FREE (0% commission)
-  // Los primeros 1000 usuarios tienen 3 contratos gratis
-  if (membershipType === 'free' && freeContractsRemaining > 0) {
-    return {
-      rate: 0,
-      commission: 0,
-      monthlyVolume: 0,
-      tierDescription: `Contrato Gratuito (${freeContractsRemaining} disponibles)`,
-      isFamilyPlan: false,
-      isFreeContract: true,
-      minimumApplied: false,
-    };
-  }
-
-  // 6. FREE user WITHOUT available contracts: la tasa fija
+  // 6. Sin contratos libres: la tasa fija
   const monthlyVolume = options.currentVolume ?? await getUserMonthlyVolume(userId);
   const calculatedCommission = contractPrice * (FREE_COMMISSION_RATE / 100);
   const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);

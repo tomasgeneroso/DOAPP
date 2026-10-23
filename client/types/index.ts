@@ -216,9 +216,6 @@ export interface User {
   membershipTier?: 'free' | 'pro' | 'super_pro';
   hasMembership?: boolean;
   isPremiumVerified?: boolean;
-  monthlyContractsUsed?: number;
-  monthlyFreeContractsLimit?: number;
-  earnedBonusContract?: boolean;
   invitationCodesRemaining?: number;
   invitationCodesUsed?: number;
   invitedUsers?: string[];
@@ -513,11 +510,13 @@ export interface MembershipPricing {
 }
 
 export interface MembershipUsage {
-  contractsUsed: number;
-  contractsLimit: number;
-  contractsRemaining: number;
-  earnedBonusContract: boolean;
-  lastReset?: string;
+  /** Contratos libres de comisión que le quedan (el cupo de lanzamiento; la membresía no tiene uno propio). */
+  freeContractsRemaining?: number;
+  membershipExpiresAt?: string | null;
+  /** Campos viejos: el servidor los sigue mandando en cero para las versiones anteriores de la app. */
+  contractsUsed?: number;
+  contractsLimit?: number;
+  contractsRemaining?: number;
   nextReset?: string;
 }
 

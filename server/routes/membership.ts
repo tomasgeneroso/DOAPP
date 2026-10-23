@@ -6,6 +6,7 @@ import membershipService, { MembershipError } from "../services/membershipServic
 import currencyExchange from "../services/currencyExchange.js";
 import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing.js";
 import { areMembershipsAvailable } from "../services/platformPhase.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 import { body, validationResult } from "express-validator";
 
 // Una sola membresía paga: PRO mensual, cotizada en EUROS y cobrada en ARS al
@@ -196,7 +197,7 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.free,
           benefits: [
-            '3 publicaciones libres de comisión (primeros 1000 usuarios)',
+            `${POLITICAS.CONTRATOS_LIBRES_DE_COMISION} contratos libres de comisión (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas)`,
             `Comisión fija del ${COMMISSION_RATES.free}%`,
             '3 códigos de invitación',
           ],
@@ -213,7 +214,6 @@ router.get("/pricing", async (req, res) => {
             `Comisión del ${COMMISSION_RATES.free}%, igual que el plan gratuito`,
             `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes, los que elijas`,
             'Insignia de socio y prioridad en las búsquedas',
-            '1 contrato mensual sin comisión',
             'Estadísticas de tu perfil: visitas y contactos',
             'Soporte prioritario',
             'Cancelás cuando quieras',
@@ -520,7 +520,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
-      attributes: ['membershipTier', 'hasMembership', 'proContractsUsedThisMonth', 'freeContractsRemaining', 'membershipExpiresAt']
+      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt']
     });
 
     if (!user) {
@@ -539,18 +539,14 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Calculate monthly free contract limits
-    let monthlyFreeLimit = 0;
-    const usageTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
-    if (usageTier === 'super_pro') monthlyFreeLimit = 2;
-    else if (usageTier === 'pro') monthlyFreeLimit = 1;
-
     res.json({
       success: true,
       data: {
-        contractsUsed: user.proContractsUsedThisMonth,
-        contractsLimit: monthlyFreeLimit,
-        contractsRemaining: Math.max(0, monthlyFreeLimit - user.proContractsUsedThisMonth),
+        // La membresía ya no tiene cupo mensual de contratos libres de comisión (no modifica la comisión, T&C 7.3 y 8.1). Los ceros son para las
+        // versiones viejas de la app, que todavía leen estos campos.
+        contractsUsed: 0,
+        contractsLimit: 0,
+        contractsRemaining: 0,
         freeContractsRemaining: user.freeContractsRemaining,
         membershipExpiresAt: user.membershipExpiresAt,
       },

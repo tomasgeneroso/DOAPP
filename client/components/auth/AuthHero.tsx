@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, Wallet, Undo2, Scale, Gift } from "lucide-react";
+import { POLITICAS } from "../../../shared/constants/policies";
 
 /**
  * El panel de la izquierda en las pantallas de sesión.
@@ -89,8 +90,8 @@ export default function AuthHero({ className = "" }: { className?: string }) {
     },
     {
       icono: Gift,
-      titulo: t("authHero.betaTitle", "Los primeros 1000:"),
-      resaltado: t("authHero.betaHighlight", "3 contratos sin comisión"),
+      titulo: t("authHero.betaTitle", "Las primeras {{usuarios}} cuentas:", { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES }),
+      resaltado: t("authHero.betaHighlight", "{{cantidad}} contratos sin comisión", { cantidad: POLITICAS.CONTRATOS_LIBRES_DE_COMISION }),
       cuerpo: t(
         "authHero.betaBody",
         "Durante la beta DOAPP no cobra comisión a nadie. Pagás el trabajo y el costo de procesamiento del pago, nada más.",

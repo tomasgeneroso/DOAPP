@@ -116,8 +116,6 @@ export default function MembershipCheckout() {
     priceARS: pricing?.pro?.priceARS || 0,
     period: 'por mes',
     benefits: [
-      { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
-      { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
       { icon: TrendingUp, title: `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes`, description: 'Elegís los días en que querés que tu perfil aparezca destacado' },
       { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
       { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },

@@ -5,6 +5,7 @@ import { col, fn, where } from "sequelize";
 import { User } from "../models/sql/User.model.js";
 import { COOKIE_DE_VINCULO, leerVinculo, leerVinculoDeApp } from "../services/vincularCuentaSocial.js";
 import { config } from "./env.js";
+import { otorgarContratosLibres } from "../services/exencionDeComision.js";
 
 // Configurar Google OAuth solo si las credenciales están disponibles
 if (config.googleClientId && config.googleClientSecret) {
@@ -88,6 +89,7 @@ if (config.googleClientId && config.googleClientSecret) {
             termsAcceptedAt: new Date(),
             registrationPending: true, // falta verificar la identidad y completar los datos (registro en pasos)
           });
+          await otorgarContratosLibres(String(user.id));
 
           return done(null, user);
         } catch (error: any) {
@@ -132,6 +134,7 @@ if (config.facebookAppId && config.facebookAppSecret) {
             termsAccepted: true, // Asumimos aceptación al usar social login
             termsAcceptedAt: new Date(),
           });
+          await otorgarContratosLibres(String(user.id));
 
           return done(null, user);
         } catch (error) {

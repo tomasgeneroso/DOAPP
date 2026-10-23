@@ -31,7 +31,6 @@ import { redirigirDominiosAlternativos } from "./middleware/dominioCanonico.js";
 import { cabecerasDeSeguridad, OPCIONES_DE_CORS, opcionesDeHelmet } from "./middleware/cabecerasDeSeguridad.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
-import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
 import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
 import { refreshDiditWorkflowConfig } from "./services/didit.js";
 import { startBlogDraftGenerationJob } from "./jobs/generateBlogDrafts.js";
@@ -512,9 +511,6 @@ export { socketService };
 // Initialize contract change requests escalation cron job
 // TEMPORARILY DISABLED - DEBUGGING
 // startEscalateExpiredChangeRequestsJob();
-
-// Initialize PRO membership monthly reset job
-startResetProMembershipCountersJob();
 
 // Initialize auto-select worker job (24h before job start)
 

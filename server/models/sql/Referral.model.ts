@@ -16,7 +16,7 @@ import { User } from './User.model.js';
 /**
  * Referral Model - PostgreSQL/Sequelize
  *
- * Sistema de referidos para los primeros 1000 usuarios:
+ * Sistema de referidos para las primeras cuentas (POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES):
  *
  * Beneficios del referidor (quien refiere):
  * - 1er referido completa contrato: 2 contratos gratis
@@ -26,7 +26,7 @@ import { User } from './User.model.js';
  * - Máximo 3 referidos por usuario
  *
  * Beneficios del referido:
- * - 1 contrato gratis al registrarse (primeros 1000 usuarios)
+ * - 1 contrato libre de comisión al registrarse (primeras cuentas)
  */
 
 // ============================================

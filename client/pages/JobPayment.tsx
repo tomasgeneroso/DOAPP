@@ -102,13 +102,6 @@ export default function JobPayment() {
 
   // Free contracts info (display only — the server decides the amount)
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
-  const freeContractsLimit = 3; // Default initial free contracts
-
-  const proContractsUsed = user?.monthlyContractsUsed || 0;
-  let monthlyFreeLimit = 0;
-  if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-  else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
-  const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
 
   const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
 
@@ -537,16 +530,6 @@ export default function JobPayment() {
                           {freeContractsRemaining > 1 ? ` • Quedan ${freeContractsRemaining - 1} después de este` : ' • Este es el último'}
                         </p>
                       </>
-                    ) : monthlyFreeRemaining > 0 ? (
-                      <>
-                        <p>
-                          Este es uno de tus {monthlyFreeLimit} contratos mensuales libres de comisión: no pagás la comisión de DOAPP. Se abonan igual el costo del trabajo y el del medio de pago.
-                        </p>
-                        <p className="mt-1 text-xs">
-                          Usando publicación mensual libre de comisión: <strong>{proContractsUsed + 1} de {monthlyFreeLimit}</strong> este mes
-                          {monthlyFreeRemaining > 1 ? ` • Quedan ${monthlyFreeRemaining - 1} más` : ' • Este es el último este mes'}
-                        </p>
-                      </>
                     ) : null}
                   </div>
                 </div>
@@ -652,7 +635,7 @@ export default function JobPayment() {
                       <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
                       {isFreeContract && (
                         <span className="text-xs text-green-600 dark:text-green-400 mt-1">
-                          ✨ Libre de comisión — {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
+                          ✨ Libre de comisión — {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : ''}
                         </span>
                       )}
                       {!isFreeContract && quote?.minimumApplied && (

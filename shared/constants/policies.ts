@@ -40,6 +40,18 @@ export const POLITICAS = {
   INVITACIONES_POR_INFLUENCER: 5,
 
   /**
+   * Contratos LIBRES DE COMISIÓN de lanzamiento. Las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que se crean reciben
+   * `CONTRATOS_LIBRES_DE_COMISION` contratos para usar como Cliente en los que DOAPP no cobra su comisión; el trabajo y el costo del medio de pago
+   * se pagan igual (T&C 7.10). Regla del dueño del 2026-10-24: reemplaza al «3 contratos para los primeros 1000» que figuraba en pantallas y
+   * comentarios pero nunca se aplicó como tope (toda cuenta nueva nacía con 3) y a los cupos mensuales de la membresía PRO, que contradecían que la
+   * membresía no modifica la comisión (T&C 7.3 y 8.1).
+   *
+   * El tope se cuenta con `users.is_early_user` (ver `otorgarContratosLibres`, services/exencionDeComision.ts).
+   */
+  CONTRATOS_LIBRES_DE_COMISION: 6,
+  PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES: 2000,
+
+  /**
    * Horas en awaiting_confirmation antes de que el contrato se confirme solo y
    * el escrow se libere al trabajador. T&C 7.6.
    */

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Crown, X, Check, Zap } from 'lucide-react';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+import { POLITICAS } from '../../shared/constants/policies';
 
 interface MembershipOfferModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
       price: t('membership.planFreePrice', 'Gratis'),
       priceNote: t('membership.priceNoteAlways', 'siempre'),
       features: [
-        t('membership.freeFeat1', '3 publicaciones sin comisión*'),
+        t('membership.freeFeat1', '{{cantidad}} contratos sin comisión*', { cantidad: POLITICAS.CONTRATOS_LIBRES_DE_COMISION }),
         t('membership.freeFeat2', 'Comisión del {{comision}}%, a cargo del cliente', { comision: COMMISSION_RATES.free }),
         t('membership.freeFeat3', '3 códigos de invitación'),
       ],
@@ -123,7 +124,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
         </div>
 
         {/* Notes */}
-        <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para los primeros 1.000 usuarios')}</p>
+        <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para las primeras {{usuarios}} cuentas', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES })}</p>
         <p className="text-[10px] text-slate-400 text-center px-4 mt-1">
           {t('membership.sameCommissionNote', 'La comisión es la misma en todos los planes: PRO suma visibilidad, no cambia lo que pagás de comisión.')}
         </p>

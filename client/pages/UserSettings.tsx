@@ -44,6 +44,7 @@ import { FormField } from "../components/ui/FormField";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil } from "../../shared/identidad/documentos";
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
+import { POLITICAS } from "../../shared/constants/policies";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import Transicion from "../components/ui/Transicion";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
@@ -1446,6 +1447,8 @@ export default function UserSettings() {
                             comision: COMMISSION_RATES.free,
                             piso: MINIMUM_COMMISSION_EUR,
                             precio: MEMBERSHIP_PRICES_EUR.pro,
+                            usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,
+                            cantidad: POLITICAS.CONTRATOS_LIBRES_DE_COMISION,
                           }),
                         },
                         {

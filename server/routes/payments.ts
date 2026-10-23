@@ -1079,9 +1079,9 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           lastPaymentId: payment.id,
           lastPaymentDate: new Date(),
           nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          freeContractsTotal: 3,
+          freeContractsTotal: 0,
           freeContractsUsed: 0,
-          freeContractsRemaining: 3,
+          freeContractsRemaining: 0,
         });
         console.log("✅ Membresía creada");
       }
@@ -1091,7 +1091,6 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       if (user) {
         user.hasMembership = true;
         user.membershipTier = "pro";
-        user.proContractsUsedThisMonth = 0; // reset monthly counter on activation
         await user.save();
         console.log("✅ Usuario actualizado con membresía", plan);
       }

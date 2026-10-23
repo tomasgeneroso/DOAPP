@@ -1,10 +1,11 @@
 import { Referral } from "../models/sql/Referral.model.js";
 import { User } from "../models/sql/User.model.js";
+import { otorgarContratosLibres } from "./exencionDeComision.js";
 
 /**
  * Servicio de gestión de referidos
  *
- * Sistema para los primeros 1000 usuarios:
+ * Sistema para las primeras cuentas (POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, las mismas que reciben los contratos libres de lanzamiento):
  * 1. Usuario nuevo recibe 1 contrato gratis al registrarse con código
  * 2. Usuario que refiere obtiene beneficios por cada referido que complete un contrato:
  *    - 1er referido: 2 contratos gratis
@@ -261,35 +262,14 @@ class ReferralService {
   }
 
   /**
-   * Marcar los primeros 1000 usuarios
+   * Marca a la cuenta como una de las primeras y le da sus contratos libres de comisión de lanzamiento, si todavía hay lugar. Es el mismo otorgamiento
+   * que se hace al crear la cuenta (`otorgarContratosLibres`): llamarlo de nuevo no da dos veces.
    */
   async markEarlyUser(userId: string) {
-    try {
-      const earlyUserCount = await User.count({ where: { isEarlyUser: true } });
-
-      if (earlyUserCount >= 1000) {
-        return { isEarlyUser: false, message: 'Early user limit reached' };
-      }
-
-      const user = await User.findByPk(userId);
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      user.isEarlyUser = true;
-      user.earlyUserNumber = earlyUserCount + 1;
-      user.freeContractsRemaining = 1; // 1 contrato gratis para early users
-      await user.save();
-
-      return {
-        isEarlyUser: true,
-        earlyUserNumber: user.earlyUserNumber,
-        freeContractsRemaining: user.freeContractsRemaining,
-      };
-    } catch (error) {
-      console.error('Error marking early user:', error);
-      throw error;
-    }
+    const r = await otorgarContratosLibres(userId);
+    if (!r.otorgado) return { isEarlyUser: false, message: 'Early user limit reached or already marked' };
+    const user = await User.findByPk(userId);
+    return { isEarlyUser: true, earlyUserNumber: r.numero, freeContractsRemaining: user?.freeContractsRemaining };
   }
 }
 

@@ -126,16 +126,9 @@ export default function Header() {
       return { type: "beta" as const };
     }
 
+    // Un solo cupo: los contratos libres de comisión de lanzamiento. La membresía no tiene cupo propio (no modifica la comisión).
     const freeContractsRemaining = user.freeContractsRemaining || 0;
-    const proContractsUsed = user.monthlyContractsUsed || 0;
-    let monthlyFreeLimit = 0;
-    if (user.membershipTier === "super_pro") monthlyFreeLimit = 2;
-    else if (user.membershipTier === "pro") monthlyFreeLimit = 1;
-    const monthlyFreeRemaining = Math.max(
-      0,
-      monthlyFreeLimit - proContractsUsed,
-    );
-    const totalFreeRemaining = freeContractsRemaining + monthlyFreeRemaining;
+    const totalFreeRemaining = freeContractsRemaining;
     const isFreeUser = !user.membershipTier || user.membershipTier === "free";
 
     if (totalFreeRemaining > 0) {
@@ -143,7 +136,6 @@ export default function Header() {
         type: "free" as const,
         totalFreeRemaining,
         freeContractsRemaining,
-        monthlyFreeRemaining,
         isFreeUser,
       };
     }
@@ -222,16 +214,6 @@ export default function Header() {
                         <span className="text-xs font-semibold text-green-700 dark:text-green-300">
                           {contractsBadge.totalFreeRemaining} {contractsBadge.totalFreeRemaining === 1 ? t('nav.freeContractSingle', 'fee-free post available') : t('nav.freeContractPlural', 'fee-free posts available')}
                         </span>
-                        {contractsBadge.freeContractsRemaining > 0 && (
-                          <span className="text-[10px] text-green-600 dark:text-green-400">
-                            {contractsBadge.freeContractsRemaining} {contractsBadge.freeContractsRemaining === 1 ? t('nav.freeInitialSingle', 'initial') : t('nav.freeInitialPlural', 'initial')}
-                          </span>
-                        )}
-                        {contractsBadge.monthlyFreeRemaining > 0 && (
-                          <span className="text-[10px] text-green-600 dark:text-green-400">
-                            {contractsBadge.monthlyFreeRemaining} {t('nav.freeThisMonth', 'this month')}
-                          </span>
-                        )}
                       </>
                     )}
                   </div>

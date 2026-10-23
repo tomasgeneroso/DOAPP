@@ -4,6 +4,7 @@ import type { AuthRequest } from "../types/index.js";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import referralService from "../services/referralService.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 
 const router = express.Router();
 
@@ -68,12 +69,12 @@ router.get("/info", async (req, res): Promise<void> => {
     res.json({
       success: true,
       program: {
-        name: "Programa de Referidos - Primeros 1000 Usuarios",
+        name: `Programa de Referidos - Primeros ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} Usuarios`,
         description: "Refiere amigos y obtén beneficios exclusivos",
         maxReferrals: 3,
         referredBenefits: {
           title: "Beneficios para ti al registrarte con un código:",
-          items: ["1 publicación libre de comisión (solo primeros 1000 usuarios)"],
+          items: [`1 publicación libre de comisión (solo primeros ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} usuarios)`],
         },
         referrerBenefits: {
           title: "Beneficios por cada referido que complete su primer contrato:",
