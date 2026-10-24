@@ -18,6 +18,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 import Logo from '../../components/ui/Logo';
 import ContactarSoporte from '../../components/ContactarSoporte';
 import BotonesSociales from '../../components/BotonesSociales';
+import { POLITICAS } from '../../../shared/constants/policies';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
@@ -89,7 +90,7 @@ export default function LoginScreen() {
             {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
-                ¡Los primeros 1000 usuarios tendrán servicio gratuito por un año! 🎉
+                ¡Las primeras {POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas tienen {POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato sin comisión por mes durante {POLITICAS.MESES_DE_CONTRATOS_LIBRES} meses! 🎉
               </Text>
             </View>
 

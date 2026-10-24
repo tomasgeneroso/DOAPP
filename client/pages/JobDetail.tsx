@@ -1450,7 +1450,11 @@ export default function JobDetail() {
                       {job.status === "completed"
                         ? t("status.completed", "Completed")
                         : job.status === "in_progress"
-                          ? t("status.inProgress", "In Progress")
+                          ? contratoSinEmpezar
+                            ? t("status.notStarted", "Not started yet")
+                            : contractData?.status === "awaiting_confirmation"
+                              ? t("status.awaitingConfirmation", "Awaiting confirmation")
+                              : t("status.inProgress", "In Progress")
                           : job.status === "open"
                             ? t("status.open", "Open")
                             : job.status === "pending_approval"
@@ -1784,7 +1788,7 @@ export default function JobDetail() {
                               })}
                             </div>
                           )}
-                          {contractData?.commission && (
+                          {contractData && Number(contractData.commission) > 0 && (
                             <div className="flex justify-between">
                               <span className="text-sm text-gray-600 dark:text-gray-400">
                                 {t("common.commission", "Commission")}:
@@ -4136,7 +4140,7 @@ export default function JobDetail() {
                     )}{" "}
                     {contractData && (
                       <Link to={`/contracts/${contractData.id}/summary`} className="font-semibold underline">
-                        {t("jobs.viewContract", "Ver contrato")} →
+                        {t("jobs.viewContract", "Ver contrato →")}
                       </Link>
                     )}
                   </p>
@@ -4177,6 +4181,8 @@ export default function JobDetail() {
                       "jobs.confirmForWorkerPayment",
                       "Confirm that the job was completed correctly to proceed with payments to the worker.",
                     )}
+                    {" "}
+                    {t("jobs.autoConfirmNote", "Si nadie confirma, se da por terminado solo a las {{horas}} horas de la hora de fin y se libera el pago.", { horas: POLITICAS.AUTO_CONFIRMACION_HORAS })}
                   </p>
 
                   {/* Confirmation status */}
@@ -4762,7 +4768,7 @@ export default function JobDetail() {
                             )}
                           </span>
                         </div>
-                        {contractData.commission && (
+                        {Number(contractData.commission) > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-slate-400">
                               {t("common.commission", "Commission")}:

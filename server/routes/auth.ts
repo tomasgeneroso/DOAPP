@@ -5,7 +5,7 @@ import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { FamilyCode } from "../models/sql/FamilyCode.model.js";
-import { otorgarContratosLibres } from "../services/exencionDeComision.js";
+import { otorgarContratosLibres, contratosLibresDisponibles } from "../services/exencionDeComision.js";
 import { sequelize } from "../config/database.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
@@ -488,7 +488,9 @@ router.post(
         membershipTier: user.membershipTier,
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
-        freeContractsRemaining: user.freeContractsRemaining,
+        // Cuántos contratos libres de comisión puede usar ahora (el del mes de las primeras cuentas + los premios) y hasta cuándo dura el del mes.
+        freeContractsRemaining: contratosLibresDisponibles(user as any).total,
+        contratosLibres: contratosLibresDisponibles(user as any),
         registrationPending: !!(user as any).registrationPending,
         referralDiscountActive: (user as any).referralDiscountActive,
         monthlyContractsUsed: user.proContractsUsedThisMonth,
@@ -621,7 +623,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
           : undefined,
         notificationPreferences: user?.notificationPreferences,
         referralCode: user?.referralCode,
-        freeContractsRemaining: user?.freeContractsRemaining,
+        freeContractsRemaining: user ? contratosLibresDisponibles(user as any).total : undefined,
+        contratosLibres: user ? contratosLibresDisponibles(user as any) : undefined,
         totalReferrals: user?.totalReferrals,
         membershipTier: user?.membershipTier,
         hasMembership: user?.hasMembership,

@@ -108,26 +108,145 @@ describe('saldo vinculado a una publicación', () => {
     expect(Number(pagoConSaldo.amount)).toBeCloseTo(antes - (await saldo()), 2);
   });
 
-  it('el saldo NO paga una publicación nueva: solo una reprogramación cuyo crédito cubre el total', async () => {
+  it('el saldo liberado paga CUALQUIER publicación, no solo la reprogramación de la que salió (si alcanza el total)', async () => {
     const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
-    // saldo libre de sobra, pero la publicación no tiene crédito vinculado
     await acreditarSaldo(String(cliente.id), 900000, 'saldo ganado', { relatedModel: 'Job', relatedId: cliente.id });
     const { job } = await publicacionPagada(500000);
     await Job.update({ status: 'pending_payment', publicationPaid: false } as any, { where: { id: job.id } });
     const antes = await saldo();
+    const b = await request(app).get('/api/balance').set(con(cliente));
+    expect(b.body.saldoParaPagar).toBeGreaterThanOrEqual(550000);
+
     const p = await request(app).post('/api/payments/create-order').set(con(cliente)).send({ jobId: job.id, paymentType: 'job_publication', paymentMethod: 'balance' });
-    expect(p.status).toBe(409);
-    expect(p.body.code).toBe('SALDO_SOLO_PARA_REPROGRAMAR');
+
+    expect([p.status, p.body.paidWithBalance]).toEqual([200, true]);
+    expect(['pending_approval', 'open']).toContain((await leer(job.id)).status);
+    expect(await saldo()).toBeLessThan(antes);
+    pagos.push(p.body.paymentId);
+  });
+
+  it('si el saldo liberado no alcanza para el total, no paga nada y dice cuánto tiene (no hay pago parcial por este camino)', async () => {
+    const { job } = await publicacionPagada(5_000_000);
+    await Job.update({ status: 'pending_payment', publicationPaid: false } as any, { where: { id: job.id } });
+    const antes = await saldo();
+    const p = await request(app).post('/api/payments/create-order').set(con(cliente)).send({ jobId: job.id, paymentType: 'job_publication', paymentMethod: 'balance' });
+    expect([p.status, p.body.code]).toEqual([402, 'SALDO_INSUFICIENTE']);
+    expect(p.body.total).toBeGreaterThan(p.body.saldo);
     expect(await saldo()).toBe(antes);
     expect((await leer(job.id)).status).toBe('pending_payment');
+  });
 
-    // con crédito, pero que no cubre el total (subió el precio): tampoco
-    await Job.update({ publicationCredit: 1000 } as any, { where: { id: job.id } });
-    const q = await request(app).post('/api/payments/create-order').set(con(cliente)).send({ jobId: job.id, paymentType: 'job_publication', paymentMethod: 'balance' });
-    expect(q.status).toBe(409);
-    expect(q.body.creditoVinculado).toBe(1000);
-    expect(await saldo()).toBe(antes);
-    await Job.update({ publicationCredit: 0 } as any, { where: { id: job.id } });
+  it('el saldo que sigue «en liberación» (la pasarela no liberó ese pago) no se usa para pagar', async () => {
+    const otro: any = await crearUsuario({ role: 'client', dniVerified: true });
+    try {
+      const { acreditarSaldo } = await import('../../server/services/quotePayment.js');
+      await acreditarSaldo(String(otro.id), 800000, 'cobro de un trabajo', { relatedModel: 'Job', relatedId: otro.id, tipo: 'payment', metadata: { disponibleDesde: dias(5).toISOString() } });
+      const { saldoLiberadoUsable } = await import('../../server/services/creditoDePublicacion.js');
+      expect(await saldoLiberadoUsable(String(otro.id))).toBe(0);
+      const j: any = await crearTrabajo(otro.id, { status: 'pending_payment', price: 100000 });
+      const p = await request(app).post('/api/payments/create-order').set(con(otro)).send({ jobId: j.id, paymentType: 'job_publication', paymentMethod: 'balance' });
+      expect([p.status, p.body.code]).toEqual([402, 'SALDO_INSUFICIENTE']);
+    } finally {
+      await Job.destroy({ where: { clientId: otro.id }, force: true });
+      await BalanceTransaction.destroy({ where: { userId: otro.id }, force: true } as any);
+      await User.destroy({ where: { id: otro.id }, force: true });
+    }
+  });
+
+  describe('lo pendiente de una publicación cancelada sirve para volver a publicar ESA publicación y ninguna otra', () => {
+    const creados: string[] = [];
+    afterAll(async () => {
+      try {
+        await Job.destroy({ where: { clientId: creados }, force: true });
+        await Payment.destroy({ where: { payerId: creados }, force: true } as any);
+        await BalanceTransaction.destroy({ where: { userId: creados }, force: true } as any);
+        await User.destroy({ where: { id: creados }, force: true });
+      } catch { /* la limpieza no puede hacer fallar el test */ }
+    });
+
+    /** Un cliente con "liberado" de saldo, una publicación reprogramada (pendiente de pago) y "pendiente" a favor que viene de su cancelación. */
+    async function escenario(liberado: number, pendiente: number, pagoOriginal: Record<string, unknown> = {}) {
+      const c: any = await crearUsuario({ role: 'client', dniVerified: true, balanceArs: liberado });
+      creados.push(c.id);
+      const original: any = await Payment.create({
+        payerId: c.id, recipientId: c.id, amount: 10000, amountArs: 10000, currency: 'ARS', status: 'held_escrow', paymentType: 'job_publication',
+        paymentMethod: 'mercadopago', platformFee: 0, processingCharge: 0, mercadopagoStatus: 'approved', approvedAt: new Date(), ...pagoOriginal,
+      } as any);
+      const j: any = await crearTrabajo(c.id, { status: 'pending_payment', price: 10000, publicationPaid: false, publicationPaymentId: original.id, selectedWorkers: [] });
+      const hasta = dias(8);
+      const fila: any = await BalanceTransaction.create({
+        userId: c.id, type: 'refund', amount: pendiente, balanceBefore: liberado, balanceAfter: liberado + pendiente, status: 'pending',
+        description: 'Devolución por cancelar la publicación',
+        metadata: { origen: 'cancelacion', reason: 'job_cancelled_by_client', jobId: String(j.id), pagoId: String(original.id), pendienteDeLiquidacion: true, disponibleDesde: hasta.toISOString(), vincularAlLiquidar: true },
+      } as any);
+      return { c, j, original, fila, hasta };
+    }
+    const pagar = (c: any, j: any) => request(app).post('/api/payments/create-order').set(con(c)).send({ jobId: j.id, paymentType: 'job_publication', paymentMethod: 'balance' });
+
+    it('completa el pago con lo pendiente de esa publicación; el saldo que sobra queda en liberación y el pago hereda la fecha', async () => {
+      const { c, j, fila, hasta } = await escenario(3000, 8000); // 3.000 liberados + 8.000 pendientes de esta publicación = 11.000 para pagar 10.000
+
+      const b = await request(app).get('/api/balance').set(con(c));
+      expect([b.body.saldoParaPagar, b.body.pendientePorPublicacion[String(j.id)]]).toEqual([3000, 8000]);
+
+      const r = await pagar(c, j);
+
+      expect([r.status, r.body.paidWithBalance]).toEqual([200, true]);
+      const fin: any = await BalanceTransaction.findByPk(fila.id);
+      expect(fin.status).toBe('completed'); // pasó a saldo para pagar esto y nada más
+      const u: any = await User.findByPk(c.id);
+      expect(Number(u.balanceArs)).toBe(1000);
+      // Lo que sobró sigue "en liberación": no se puede retirar ni usar en otra cosa hasta la fecha de la pasarela.
+      const { saldoRetirable } = await import('../../server/services/liberacionDeSaldo.js');
+      expect((await saldoRetirable(String(c.id), 1000)).disponible).toBe(0);
+      const { saldoLiberadoUsable } = await import('../../server/services/creditoDePublicacion.js');
+      expect(await saldoLiberadoUsable(String(c.id))).toBe(0);
+      // El pago nuevo hereda esa fecha: si se vuelve a cancelar antes, lo que vuelva tampoco es saldo retirable.
+      const nuevo: any = await Payment.findByPk(r.body.paymentId);
+      pagos.push(nuevo.id);
+      expect(nuevo.paymentMethod).toBe('balance');
+      expect(new Date(nuevo.moneyReleaseDate).getTime()).toBe(hasta.getTime());
+      const { liberaMpEl } = await import('../../server/services/liberacionDeSaldo.js');
+      expect(liberaMpEl(nuevo)?.getTime()).toBe(hasta.getTime());
+      expect(['pending_approval', 'open']).toContain((await leer(j.id)).status);
+    });
+
+    it('si el saldo liberado alcanza solo, no toca lo pendiente', async () => {
+      const { c, j, fila } = await escenario(20000, 8000);
+      const r = await pagar(c, j);
+      expect(r.status).toBe(200);
+      pagos.push(r.body.paymentId);
+      expect(((await BalanceTransaction.findByPk(fila.id)) as any).status).toBe('pending');
+      expect(Number(((await User.findByPk(c.id)) as any).balanceArs)).toBe(10000);
+    });
+
+    it('lo pendiente de una publicación NO sirve para publicar otra distinta: hay que pagarla', async () => {
+      const { c, fila } = await escenario(3000, 8000);
+      const otra: any = await crearTrabajo(c.id, { status: 'pending_payment', price: 10000, publicationPaid: false, selectedWorkers: [] });
+
+      const r = await pagar(c, otra);
+
+      expect([r.status, r.body.code]).toEqual([402, 'SALDO_INSUFICIENTE']);
+      expect(r.body.pendienteDeEstaPublicacion).toBe(0);
+      expect(((await BalanceTransaction.findByPk(fila.id)) as any).status).toBe('pending');
+      expect(Number(((await User.findByPk(c.id)) as any).balanceArs)).toBe(3000);
+    });
+
+    it('si no alcanza ni con lo pendiente, no se mueve nada', async () => {
+      const { c, j, fila } = await escenario(1000, 2000);
+      const r = await pagar(c, j);
+      expect([r.status, r.body.code]).toEqual([402, 'SALDO_INSUFICIENTE']);
+      expect(((await BalanceTransaction.findByPk(fila.id)) as any).status).toBe('pending');
+    });
+
+    it('si el pago original se devolvió o se cayó, ya no hay plata detrás: no se usa y se frena el pago', async () => {
+      const { c, j, fila } = await escenario(3000, 8000, { status: 'refunded' });
+      const r = await pagar(c, j);
+      expect([r.status, r.body.code]).toEqual([409, 'PENDIENTE_NO_DISPONIBLE']);
+      expect(((await BalanceTransaction.findByPk(fila.id)) as any).status).toBe('pending');
+      expect(Number(((await User.findByPk(c.id)) as any).balanceArs)).toBe(3000);
+      expect(['pending_payment', 'draft']).toContain((await leer(j.id)).status);
+    });
   });
 
   it('retirar saldo vinculado baja el crédito de la publicación y avisa; lo libre se gasta primero', async () => {

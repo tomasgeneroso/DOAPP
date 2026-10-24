@@ -295,23 +295,6 @@ export default function MembershipPaymentSuccess() {
             </div>
           </div>
 
-          {/* Bonus contract info */}
-          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6 mb-8">
-            <div className="flex gap-3">
-              <div className="flex-shrink-0">
-                <Sparkles className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">
-                  {t('membershipSuccess.bonusTitle')}
-                </h4>
-                <p className="text-yellow-800 dark:text-yellow-300 text-sm">
-                  <Trans i18nKey="membershipSuccess.bonusDesc" components={{ b: <strong /> }} />
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Próximos pasos */}
           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-6 mb-8">
             <h3 className="font-bold text-sky-900 dark:text-sky-300 mb-4 text-lg">

@@ -109,7 +109,8 @@ describe('retiros pendientes y aprobados frente al uso del saldo', () => {
 
     const antes = await saldo();
     const p = await pagar(t.id, { confirmaRetiroPendiente: true });
-    expect(p.status).toBe(409);
+    // Lo reservado para un retiro aprobado no es saldo que se pueda usar: el saldo liberado usable es 0 y no alcanza.
+    expect([p.status, p.body.code]).toEqual([402, 'SALDO_INSUFICIENTE']);
     expect(await saldo()).toBe(antes);
 
     const { debitarSaldo } = await import('../../server/services/quotePayment.js');

@@ -290,6 +290,28 @@ export const CATALOGO_DE_PROBLEMAS = {
     queHacer: [{ texto: 'Acreditá la compensación con un asiento y avisale al trabajador.', ruta: '/admin/auditoria-saldos' }],
     gravedad: 'alta',
   },
+
+  'PAGO-APROBADO-SIN-DINERO': {
+    codigo: 'PAGO-APROBADO-SIN-DINERO',
+    titulo: 'Un pago figura como recibido pero el dinero nunca entró',
+    paraElUsuario: 'Estamos verificando un pago de tu cuenta. Administración ya fue avisada y te vamos a escribir si hace falta algo de tu parte.',
+    queSignifica:
+      'Una transferencia se aprobó a mano sin comprobar el banco (o fue un pago de prueba): figura como ingreso y pudo haber generado saldo a favor, pero esa plata no existe. Se corrige con el script `anularPago`, que por defecto SOLO muestra qué haría (vista previa) y solo escribe con `--aplicar`. No sirve para un pago confirmado por una pasarela: ahí el dinero entró de verdad y corresponde un reembolso.',
+    causas: [
+      'Una transferencia bancaria se aprobó a mano sin mirar el banco.',
+      'Un pago de prueba quedó como confirmado en producción.',
+      'El pago se aprobó por error sobre un comprobante que no era.',
+    ],
+    queHacer: [
+      { texto: 'En el servidor, desde la carpeta de la app, corré la VISTA PREVIA (no escribe nada): npx tsx server/scripts/anularPago.ts --pago=<id del pago> --motivo="Transferencia de prueba aprobada sin dinero real"' },
+      { texto: 'Leé lo que muestra: quién pagó y quién aprobó, la publicación, la factura y si ese pago ya devolvió saldo. Si dice «Falta descontar $X», primero se descuenta ese saldo con un ajuste (npx tsx server/scripts/ajustarSaldo.ts --email=<correo del cliente> --monto=-<lo que falta> --motivo="…" --publicacion=<id de la publicación>, también primero en vista previa). Si dice «a favor pendiente», no hay nada que descontar: se cancela junto con el pago porque nunca llegó a ser saldo.' },
+      { texto: 'Si el pago lo confirmó una pasarela (Mercado Pago, AstroPay, PayPal) el script lo rechaza: el dinero entró y lo que corresponde es un reembolso desde el panel. Solo el dueño usa --forzar.', ruta: '/admin/payments' },
+      { texto: 'Cuando la vista previa sea la esperada, repetí el MISMO comando agregando --aplicar. Es todo o nada (pago, facturas y a favor pendiente cambian juntos) y queda en el registro de auditoría como PAYMENT_VOIDED.' },
+      { texto: 'Si el script dice «permission denied for table invoices», la base no deja escribir en facturas: el mismo mensaje explica el permiso que falta darle al usuario de la aplicación. Nada se anuló todavía; reintentá cuando esté dado.' },
+      { texto: 'Si la factura ya se informó a ARCA, consultá al contador por la nota de crédito.' },
+    ],
+    gravedad: 'alta',
+  },
 } as const satisfies Record<string, ProblemaCatalogado>;
 
 export type CodigoDeProblema = keyof typeof CATALOGO_DE_PROBLEMAS;

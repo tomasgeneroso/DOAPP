@@ -5,6 +5,7 @@ import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import referralService from "../services/referralService.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
+import { COMMISSION_RATES } from "../../shared/constants/membershipPricing.js";
 
 const router = express.Router();
 
@@ -71,28 +72,28 @@ router.get("/info", async (req, res): Promise<void> => {
       program: {
         name: `Programa de Referidos - Primeros ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} Usuarios`,
         description: "Refiere amigos y obtén beneficios exclusivos",
-        maxReferrals: 3,
+        maxReferrals: POLITICAS.REFERIDOS_MAXIMOS,
         referredBenefits: {
           title: "Beneficios para ti al registrarte con un código:",
-          items: [`1 publicación libre de comisión (solo primeros ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} usuarios)`],
+          items: [`${POLITICAS.REFERIDOS_CONTRATOS_AL_REGISTRARSE} publicación libre de comisión (solo primeros ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} usuarios)`],
         },
         referrerBenefits: {
           title: "Beneficios por cada referido que complete su primer contrato:",
           items: [
             {
               position: 1,
-              reward: "2 publicaciones libres de comisión",
+              reward: `${POLITICAS.REFERIDOS_PREMIO_PRIMERO_CONTRATOS} publicaciones libres de comisión`,
               description: "Cuando tu primer referido complete su primer contrato",
             },
             {
               position: 2,
-              reward: "1 publicación libre de comisión",
+              reward: `${POLITICAS.REFERIDOS_PREMIO_SEGUNDO_CONTRATOS} publicación libre de comisión`,
               description: "Cuando tu segundo referido complete su primer contrato",
             },
             {
               position: 3,
-              reward: "3% de comisión permanente",
-              description: "Cuando tu tercer referido complete su primer contrato (en lugar del 5% normal)",
+              reward: `${POLITICAS.COMISION_PREMIO_DE_REFERIDOS}% de comisión durante ${POLITICAS.DIAS_PREMIO_DE_REFERIDOS} días`,
+              description: `Cuando tu tercer referido complete su primer contrato (en lugar del ${COMMISSION_RATES.free}% habitual)`,
             },
           ],
         },

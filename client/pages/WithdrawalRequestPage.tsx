@@ -22,7 +22,8 @@ import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import Transicion from "../components/ui/Transicion";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
-import { etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem } from "../../shared/pagos/aFavorPendiente";
+import { etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem, type CobroPendiente } from "../../shared/pagos/aFavorPendiente";
+import CobrosPendientes from "../components/CobrosPendientes";
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
@@ -37,6 +38,8 @@ export default function WithdrawalRequestPage() {
   const [aFavorPendiente, setAFavorPendiente] = useState(0);
   const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
   const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
+  // Una tarjeta por cada cobro pendiente, con su contrato y su trabajo.
+  const [cobros, setCobros] = useState<CobroPendiente[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -71,6 +74,7 @@ export default function WithdrawalRequestPage() {
         setAFavorPendiente(Number(balanceData.aFavorPendiente) || 0);
         setProximaLiquidacion(balanceData.proximaLiquidacion || null);
         setAFavorDetalle(Array.isArray(balanceData.aFavorPendienteDetalle) ? balanceData.aFavorPendienteDetalle : []);
+        setCobros(Array.isArray(balanceData.cobrosPendientes) ? balanceData.cobrosPendientes : []);
       }
 
       // Load withdrawals
@@ -382,6 +386,8 @@ export default function WithdrawalRequestPage() {
           </p>
         </div>
       </div>
+
+      <CobrosPendientes cobros={cobros} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Request Form */}

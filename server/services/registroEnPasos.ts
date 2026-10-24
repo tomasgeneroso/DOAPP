@@ -4,6 +4,7 @@ import { BannedIdentity } from '../models/sql/BannedIdentity.model.js';
 import { compararIdentidad } from '../../shared/identidad/coincidencia.js';
 import { dniValido, normalizarDni } from '../../shared/identidad/documentos.js';
 import { aplicarIdentidadDeDidit, controlarCoincidencia, leerDocumento } from './identidadDeDidit.js';
+import { otorgarContratosLibres } from './exencionDeComision.js';
 
 /**
  * Registro en pasos: 1) correo y contraseña (o Google/X), 2) verificación de identidad con Didit, 3) datos prellenados desde el documento
@@ -157,6 +158,8 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
 
   const name = `${nombres} ${apellidos}`;
   await user.update({ name, username, dni, phone: phone || user.phone || null, email, registrationPending: false, termsAcceptedAt: user.termsAcceptedAt ?? ahora });
+  // Recién con el registro completo la cuenta cuenta para las primeras (las que se abandonan en el paso 1 no ocupan un lugar).
+  await otorgarContratosLibres(String(user.id));
 
   // Contra el documento: lo corregido tiene que seguir siendo de la misma persona.
   let verificada = !!user.dniVerified;

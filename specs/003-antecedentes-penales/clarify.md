@@ -121,4 +121,7 @@ una acusación.
 
 | # | Decisión | Fecha |
 |---|---|---|
-| — | _(ninguna todavía)_ | |
+| C4 | A: los trabajadores que ya trabajan tienen 30 días para presentar el certificado; después se bloquea (el dueño entendió «para entregarlos» y dio el visto bueno) | 2026-10-24 |
+| C5 | A: insignia «Antecedentes verificados» solo cuando fue aceptado; la ausencia de insignia no dice nada | 2026-10-24 |
+| nota | Un cliente puede pedirle a soporte el estado de la verificación de un trabajador si lo necesita: se anota en los T&C cuando se redacte la cláusula | 2026-10-24 |
+| C1, C2, C3 | Pendientes de confirmar con el dueño: C1 dijo «ambos» (guardar el resultado y también el archivo); C2 pregunta si la lista de delitos va en los T&C; C3 pregunta a qué se refiere el bloqueo | — |

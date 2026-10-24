@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { InvitationCode } from '../types';
 import Button from './ui/Button';
 import analytics from '../utils/analytics';
+import { POLITICAS } from "../../shared/constants/policies";
 
 interface InvitationCodesModalProps {
   isOpen: boolean;
@@ -157,7 +158,7 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 dark:text-purple-400 font-bold">{t('referrals.thirdInvitee', '3rd invitee')}:</span>
-                    <span>{t('referrals.thirdBenefit', '3% permanent commission (vs 5% normal)')}</span>
+                    <span>{t('referrals.thirdBenefit', '{{comision}}% commission for {{dias}} days', { comision: POLITICAS.COMISION_PREMIO_DE_REFERIDOS, dias: POLITICAS.DIAS_PREMIO_DE_REFERIDOS })}</span>
                   </li>
                 </ul>
               </div>

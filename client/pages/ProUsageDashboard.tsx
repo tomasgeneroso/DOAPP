@@ -196,22 +196,6 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
-              <span>{t('proUsage.benefit3Contracts', 'Contratos mensuales sin comisión incluidos en tu membresía')}</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                user?.membershipTier === 'super_pro'
-                  ? 'text-purple-600 dark:text-purple-400'
-                  : 'text-blue-600 dark:text-blue-400'
-              }`} />
-              <span>{t('proUsage.benefitBonus', 'Bonus de 1 publicación libre de comisión al completar 3 contratos en el mes')}</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                user?.membershipTier === 'super_pro'
-                  ? 'text-purple-600 dark:text-purple-400'
-                  : 'text-blue-600 dark:text-blue-400'
-              }`} />
               <span>{t('proUsage.benefitBadge', 'Badge {{tier}} verificado y prioridad en búsquedas', { tier: 'PRO' })}</span>
             </li>
             <li className="flex items-start gap-2">

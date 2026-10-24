@@ -48,7 +48,7 @@ objeto construido a mano; B sola es cómoda pero no protege los logs. Juntas
 cubren el hueco de la otra, y el trabajo extra de B sobre A es una función
 de diez líneas.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: C** (dueño, 2026-10-24): las dos protecciones.
 
 ---
 
@@ -70,7 +70,7 @@ DNI cargado? ¿Cuántos, aproximadamente?
 backfill reversible cuesta unas horas; recuperar documentos corrompidos en
 una migración mal hecha cuesta muchísimo más.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A** (dueño, 2026-10-24, «ok» a la recomendación): se trata como datos reales en producción: migración con backfill por lotes, reversible y con lectura compatible.
 
 ---
 
@@ -117,4 +117,6 @@ dos bajos (`ModuleConfig`, `Quote`) no justifican demorar los altos.
 
 | # | Decisión | Fecha |
 |---|---|---|
-| — | _(ninguna todavía)_ | |
+| C2 | Los secretos se ocultan con `defaultScope` + `withSecrets` explícito y con `toJSON()` como red de seguridad (opción C) | 2026-10-24 |
+| C3 | Se asume que hay datos reales en producción: backfill reversible por lotes (opción A) | 2026-10-24 |
+| C1, C4, C5 | Pendientes: el dueño pidió que se expliquen más simple (huella para buscar, si el auditor frena el merge, alcance de la tanda) | — |

@@ -164,17 +164,16 @@ describe('el servidor calcula y describe la comisión vigente', () => {
     expect(f).toContain('splitFees(');
   });
 
-  it('la comisión de modificar el precio de un contrato sigue usando la tasa guardada, y eso está marcado como pendiente', () => {
+  it('la comisión de modificar el precio de un contrato sale de calculateCommission y se cobra junto con la diferencia', () => {
     /**
-     * Esa ruta (`modify-price`) lee `currentCommissionRate` —que en las cuentas
-     * existentes quedó con la tasa del plan viejo— y sólo cobra la diferencia, no la
-     * comisión sobre ella. Cambiar sólo el valor guardado dejaría un ingreso contable que
-     * nadie pagó (lo revisó el `reviewer`), así que no se tocó: queda marcado en el código
-     * para que no se olvide, y este test avisa si alguien lo cambia sin cobrar la plata.
+     * Esa ruta (`modify-price`) leía `currentCommissionRate` —que en las cuentas existentes quedó con la tasa del plan viejo— y sólo cobraba la diferencia, no la
+     * comisión sobre ella. Cambiar sólo el valor guardado habría dejado un ingreso contable que nadie pagó (lo marcó el `reviewer`), así que el cambio va completo:
+     * la comisión sale de la política y, si el precio sube, lo que se debita es la diferencia MÁS la comisión de la diferencia.
      */
-    const f = leer('server/routes/contracts.ts');
-    expect(f).toContain('currentCommissionRate / 100');
-    expect(f).toContain('pendiente de decisión del dueño');
+    const f = sinComentarios(leer('server/routes/contracts.ts'));
+    expect(f).not.toContain('currentCommissionRate / 100');
+    expect(f).toContain('comisionDeLaDiferencia');
+    expect(f).toMatch(/debitarSaldo\(String\(userId\), aDebitar,/);
   });
 });
 

@@ -27,6 +27,25 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
   { key: 's7p4', valores: [`EUR ${MINIMUM_COMMISSION_EUR}`], que: 'piso de comision' },
   { key: 's7p11', valores: [POLITICAS.INVITACION_DIAS_SIN_COMISION], que: 'dias sin comision de una invitacion de creador' },
   { key: 's7p6', valores: [POLITICAS.AUTO_CONFIRMACION_HORAS], que: 'horas de auto-confirmacion' },
+  { key: 's7p12', valores: [POLITICAS.DIAS_LIBERACION_PAGO], que: 'dias que la pasarela tarda en liberar un pago (saldo pendiente)' },
+  {
+    key: 's7p13',
+    valores: [POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, POLITICAS.CONTRATOS_LIBRES_POR_MES, POLITICAS.MESES_DE_CONTRATOS_LIBRES],
+    que: 'contratos libres de comision de lanzamiento',
+  },
+  {
+    key: 's7p14',
+    valores: [
+      POLITICAS.REFERIDOS_MAXIMOS,
+      POLITICAS.REFERIDOS_PREMIO_PRIMERO_CONTRATOS,
+      POLITICAS.REFERIDOS_PREMIO_SEGUNDO_CONTRATOS,
+      POLITICAS.REFERIDOS_CONTRATOS_AL_REGISTRARSE,
+      `${POLITICAS.COMISION_PREMIO_DE_REFERIDOS}%`,
+      POLITICAS.DIAS_PREMIO_DE_REFERIDOS,
+      POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,
+    ],
+    que: 'premio por referidos',
+  },
   { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`], que: 'precio de la membresia' },
   { key: 's9p2', valores: [POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES], que: 'horas para cancelar con devolucion' },
   {
@@ -56,9 +75,8 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
 ];
 
 /** Tasas de la tabla vieja (8/3/1) que hoy no son ninguna tasa vigente. */
-const TASAS_VIEJAS = [8, 3, 1].filter(
-  (n) => !Object.values(COMMISSION_RATES).includes(n as never),
-);
+const TASAS_VIGENTES: number[] = [...Object.values(COMMISSION_RATES), POLITICAS.COMISION_PREMIO_DE_REFERIDOS];
+const TASAS_VIEJAS = [8, 3, 1].filter((n) => !TASAS_VIGENTES.includes(n));
 
 /** Texto que ya no describe el sistema y no puede volver a aparecer. */
 const RESTOS_VIEJOS = [

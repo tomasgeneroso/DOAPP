@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { Gift, Users, Copy, Check, Trophy, Clock } from "lucide-react";
 import Transicion from "../components/ui/Transicion";
+import { POLITICAS } from "../../shared/constants/policies";
 
 interface ReferralStats {
   referralCode: string;
@@ -89,7 +90,7 @@ export default function ReferralsScreen() {
             {t('referrals.title', 'Referral Program')}
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            {t('referrals.subtitle', 'The first 1000 users get 1 year of free membership! Plus, invite your friends and earn benefits.')}
+            {t('referrals.subtitle', 'The first {{usuarios}} accounts get {{cantidad}} commission-free contract per month for {{meses}} months! Plus, invite your friends and earn benefits.', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES, meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES })}
           </p>
         </div>
 

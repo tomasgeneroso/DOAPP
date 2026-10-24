@@ -164,6 +164,83 @@ export async function saldoDe(userId: string): Promise<number> {
   return Math.max(0, r2((Number(u?.balanceArs) || 0) - (await reservadoEnRetiros(userId))));
 }
 
+/**
+ * Cuánto saldo puede usar el usuario YA para pagar una publicación o una contratación: el **saldo liberado** —el que ya está en la cuenta de la Plataforma y
+ * se puede retirar (T&C 7.9)— menos lo reservado para un retiro pendiente. No cuenta lo que sigue «en liberación» (ya figura en el saldo pero la pasarela todavía
+ * no liberó ese pago) ni lo a favor pendiente (que ni siquiera está en el saldo).
+ */
+export async function saldoLiberadoUsable(userId: string): Promise<number> {
+  const u: any = await User.findByPk(userId, { attributes: ['id', 'balanceArs'] });
+  const total = Number(u?.balanceArs) || 0;
+  const [{ saldoRetirable }, { reservadoEnRetiros }] = await Promise.all([import('./liberacionDeSaldo.js'), import('./saldoReservado.js')]);
+  const retirable = await saldoRetirable(userId, total);
+  return Math.max(0, r2(retirable.disponible - (await reservadoEnRetiros(userId))));
+}
+
+export interface PendienteDeLaPublicacion {
+  monto: number;
+  /** Cada asiento pendiente, el más viejo primero. */
+  filas: Array<{ id: string; monto: number; disponibleDesde: string | null }>;
+}
+
+/**
+ * Lo que el cliente tiene a favor PENDIENTE que viene de la cancelación de ESTA publicación (se canceló, y la pasarela todavía no liberó el pago original).
+ * Regla del dueño: ese importe se puede usar para volver a publicar la misma publicación y para ninguna otra; para publicar una distinta hay que pagar hasta que
+ * se libere. T&C 7.9.
+ */
+export async function pendienteDeLaPublicacion(userId: string, jobId: string): Promise<PendienteDeLaPublicacion> {
+  const filas: any[] = await BalanceTransaction.findAll({
+    where: { userId, type: 'refund', status: 'pending', amount: { [Op.gt]: 0 }, metadata: { pendienteDeLiquidacion: true, jobId: String(jobId) } } as any,
+    order: [['createdAt', 'ASC']],
+  }).catch(() => []);
+  const propias = filas.filter((f) => esDevolucionDeLaPublicacion(f.metadata));
+  return {
+    monto: r2(propias.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)),
+    filas: propias.map((f) => ({ id: String(f.id), monto: r2(Number(f.amount) || 0), disponibleDesde: f.metadata?.disponibleDesde ? String(f.metadata.disponibleDesde) : null })),
+  };
+}
+
+/** Lo pendiente de cada publicación cancelada del cliente (`jobId` → monto), para que la pantalla de pago sepa qué puede usar en cada una. */
+export async function pendientesPorPublicacion(userId: string): Promise<Record<string, number>> {
+  const filas: any[] = await BalanceTransaction.findAll({
+    where: { userId, type: 'refund', status: 'pending', amount: { [Op.gt]: 0 }, metadata: { pendienteDeLiquidacion: true } } as any,
+    attributes: ['amount', 'metadata'],
+  }).catch(() => []);
+  const out: Record<string, number> = {};
+  for (const f of filas) {
+    if (!esDevolucionDeLaPublicacion(f.metadata) || !f.metadata?.jobId) continue;
+    out[String(f.metadata.jobId)] = r2((out[String(f.metadata.jobId)] || 0) + (Number(f.amount) || 0));
+  }
+  return out;
+}
+
+/**
+ * Pasa a saldo, antes de tiempo, lo pendiente de ESTA publicación hasta cubrir `necesario` (de a asientos enteros, el más viejo primero), para pagar con eso
+ * su reprogramación. Es la única excepción a «lo pendiente no se usa»: solo vale para la misma publicación y el saldo no queda libre para nada más —sigue
+ * figurando «en liberación» (con su fecha) hasta que se gasta en este mismo pago—. Devuelve cuánto se pasó y la fecha más lejana en que la pasarela libera ese
+ * dinero: el pago con saldo hereda esa fecha, así que si esta publicación se vuelve a cancelar, lo que vuelva tampoco es retirable antes.
+ *
+ * Si el pago original se devolvió, se cayó o tiene un reembolso, ese asiento NO se pasa (ya lo frena `liquidarSaldoPendiente`).
+ */
+export async function usarPendienteDeLaPublicacion(userId: string, jobId: string, necesario: number): Promise<{ usado: number; liberaDesde: Date | null }> {
+  const { liquidarSaldoPendiente } = await import('./quotePayment.js');
+  const pendiente = await pendienteDeLaPublicacion(userId, jobId);
+  const lejos = new Date(Date.now() + 366 * 86_400_000); // adelanta la fecha: la comprobación del pago original sigue haciéndose
+  let usado = 0;
+  let liberaDesde: Date | null = null;
+  for (const fila of pendiente.filas) {
+    if (usado + 0.005 >= necesario) break;
+    const r = await liquidarSaldoPendiente(fila.id, lejos);
+    if (!r.liquidado) continue;
+    usado = r2(usado + r.monto);
+    if (fila.disponibleDesde) {
+      const d = new Date(fila.disponibleDesde);
+      if (!liberaDesde || d.getTime() > liberaDesde.getTime()) liberaDesde = d;
+    }
+  }
+  return { usado, liberaDesde };
+}
+
 export interface ResultadoPagoConSaldo {
   paymentId: string;
   monto: number;
@@ -182,6 +259,8 @@ export async function pagarPublicacionConSaldo(
   userId: string,
   monto: number,
   comision: { monto: number; porcentaje: number },
+  /** Si parte del saldo salió de lo pendiente de esta misma publicación: hasta cuándo la pasarela retiene ese dinero (el pago lo hereda). */
+  opciones: { liberaDesde?: Date | null } = {},
 ): Promise<ResultadoPagoConSaldo> {
   const [{ debitarSaldo }, { Payment }, { moduloActivo }, { MODULO_APROBACION_DE_PUBLICACIONES }, { DONDE_ES_ADMIN }] = await Promise.all([
     import('./quotePayment.js'),
@@ -214,6 +293,8 @@ export async function pagarPublicacionConSaldo(
     platformFee: comision.monto,
     platformFeePercentage: comision.porcentaje,
     isEscrow: false,
+    // Heredada de lo pendiente que se usó: si esta publicación se cancela otra vez antes de esa fecha, lo que vuelva queda a favor pendiente, no como saldo.
+    ...(opciones.liberaDesde ? { moneyReleaseDate: opciones.liberaDesde } : {}),
   } as any);
 
   const requiereAprobacion = await moduloActivo(MODULO_APROBACION_DE_PUBLICACIONES, true);

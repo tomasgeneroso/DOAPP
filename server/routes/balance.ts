@@ -37,6 +37,9 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const pendiente = await saldoPendienteDeLiquidar(String(req.user.id));
     // Cada cosa que tiene a favor pendiente, con su motivo (sobrante de un presupuesto, cancelación, baja de precio) y la fecha en que pasa a su saldo.
     const detalleDelAFavor = pendiente.monto > 0 ? await aFavorPendienteDetalle(String(req.user.id)) : [];
+    // Las tarjetas de «Cobros pendientes»: lo a favor pendiente y lo que está en liberación, cada una con su contrato y su trabajo.
+    const { cobrosPendientes } = await import('../services/liberacionDeSaldo.js');
+    const cobros = pendiente.monto > 0 || retirable.enLiberacion > 0 ? await cobrosPendientes(String(req.user.id)) : [];
     res.status(200).json({
       success: true,
       balance: user.balanceArs || 0,
@@ -46,6 +49,11 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       aFavorPendiente: pendiente.monto,
       proximaLiquidacion: pendiente.proximaLiquidacion,
       aFavorPendienteDetalle: detalleDelAFavor,
+      cobrosPendientes: cobros,
+      // El saldo LIBERADO que puede usar ya para pagar una publicación (T&C 7.9): sin lo que está en liberación ni lo reservado para un retiro.
+      saldoParaPagar: await (await import('../services/creditoDePublicacion.js')).saldoLiberadoUsable(String(req.user.id)),
+      // Lo pendiente de cada publicación cancelada (`jobId` → monto): se puede usar para volver a publicar ESA publicación y ninguna otra.
+      pendientePorPublicacion: await (await import('../services/creditoDePublicacion.js')).pendientesPorPublicacion(String(req.user.id)),
       ...(await (async () => {
         const { desgloseDelSaldo } = await import('../services/creditoDePublicacion.js');
         const d = await desgloseDelSaldo(String(req.user.id), Number(user.balanceArs) || 0);

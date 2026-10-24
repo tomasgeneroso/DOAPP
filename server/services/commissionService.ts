@@ -13,8 +13,10 @@
  * - Beta: 0% para todos, hasta la fecha de cierre (`isBetaPhase`).
  * - Plan Familia: 0%.
  * - Invitación de un creador de contenido (T&C 7.11): 0% hasta `commissionFreeUntil`.
- * - Contrato libre de comisión (`isFreeContract`, o `freeContractsRemaining` > 0 con CUALQUIER plan): 0%. Cupo de lanzamiento, ver
- *   `POLITICAS.CONTRATOS_LIBRES_DE_COMISION` y `otorgarContratosLibres`.
+ * - Contrato libre de comisión (`isFreeContract`, o `freeContractsRemaining` > 0 con CUALQUIER plan): 0%. El contador es el de los premios de referidos.
+ *   El contrato libre del MES de las primeras cuentas (`POLITICAS.CONTRATOS_LIBRES_POR_MES`) no se evalúa acá: lo reclama quien cobra
+ *   (`services/exencionDeComision.ts`) y pasa `isFreeContract`, así se gasta exactamente una vez.
+ * - Premio de referidos (tercer referido): `POLITICAS.COMISION_PREMIO_DE_REFERIDOS` % hasta `referralDiscountExpiresAt`.
  *
  * Piso de la comisión: `MINIMUM_COMMISSION_EUR`, convertido a pesos con la cotización de
  * respaldo (`MINIMUM_COMMISSION_ARS`). Los Términos (7.4) prometen el cambio del día y el
@@ -27,6 +29,7 @@ import { User } from '../models/sql/User.model.js';
 import { isBetaPhase } from './platformPhase.js';
 import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 // Las tasas viven en shared/constants/membershipPricing.ts junto con el
 // precio de los planes: cambiar una sin la otra rompe el calculo del punto
@@ -284,6 +287,23 @@ async function computeCommissionBase(
     };
   }
 
+  // 3b. Premio de referidos (tercer referido): una tasa menor hasta que vence. Antes `referralService` la guardaba en la cuenta y nadie la leía al cobrar.
+  const hastaPremio = user.hasReferralDiscount && user.referralDiscountExpiresAt ? new Date(user.referralDiscountExpiresAt) : null;
+  if (hastaPremio && hastaPremio.getTime() > Date.now()) {
+    const tasa = Math.min(POLITICAS.COMISION_PREMIO_DE_REFERIDOS, FREE_COMMISSION_RATE);
+    const calculatedCommission = contractPrice * (tasa / 100);
+    const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
+    return {
+      rate: tasa,
+      commission,
+      monthlyVolume: 0,
+      tierDescription: `Premio de referidos (${tasa}% hasta el ${hastaPremio.toLocaleDateString('es-AR')})`,
+      isFamilyPlan: false,
+      isFreeContract: false,
+      minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
+    };
+  }
+
   // 4. PRO membership: la misma tasa (la membresía no modifica la comisión)
   if (membershipType === 'pro') {
     const calculatedCommission = contractPrice * (PRO_COMMISSION_RATE / 100);
@@ -357,6 +377,17 @@ export async function getUserCommissionRate(userId: string): Promise<{
       rate: 0,
       monthlyVolume: 0,
       tierDescription: `Invitación (sin comisión hasta el ${hastaInvitacion.toLocaleDateString('es-AR')})`,
+      nextTier: null,
+    };
+  }
+
+  const hastaPremio = user?.hasReferralDiscount && user.referralDiscountExpiresAt ? new Date(user.referralDiscountExpiresAt) : null;
+  if (hastaPremio && hastaPremio.getTime() > Date.now()) {
+    const tasa = Math.min(POLITICAS.COMISION_PREMIO_DE_REFERIDOS, FREE_COMMISSION_RATE);
+    return {
+      rate: tasa,
+      monthlyVolume: 0,
+      tierDescription: `Premio de referidos (${tasa}% hasta el ${hastaPremio.toLocaleDateString('es-AR')})`,
       nextTier: null,
     };
   }

@@ -135,7 +135,7 @@ quitarlo, pero no se lo desobedece por atrás.
 | # | Decisión | Fecha |
 |---|---|---|
 | C1 | Filtro sobre lo que ve la propia persona. Todos / algunos / uno, elegible en onboarding y perfil, con aviso de que afecta al feed siempre | 2026-09-29 |
-| C2 | "Todos" es una opción explícita, no un interruptor aparte. A quien ya tenía rubros se le avisa una vez antes de aplicarlo | 2026-09-29 |
+| C2 | "Todos" es una opción explícita, no un interruptor aparte. A quien ya tenía rubros se le avisa una vez antes de aplicarlo. **Confirmado por el dueño el 2026-10-24** («C adaptada»; pidió que se explique qué cambia para cada parte) | 2026-09-29 / 2026-10-24 |
 | C3 | Sólo el feed en esta tanda; notificaciones anotadas como pendiente | 2026-09-29 |
 | C4 | Se reusa `User.interests` | 2026-09-29 |
 | C5 | Vacío explica el filtro y ofrece quitarlo | 2026-09-29 |

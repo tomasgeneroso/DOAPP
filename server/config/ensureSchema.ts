@@ -134,6 +134,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.registration_pending', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_pending BOOLEAN NOT NULL DEFAULT false` },
   // Contratos libres de comisión: se gasta un cupo una sola vez por trabajo.
   { label: 'jobs.commission_free_applied', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS commission_free_applied BOOLEAN NOT NULL DEFAULT false` },
+  // Contrato libre de comisión del mes (primeras 1000 cuentas): cuándo se gastó por última vez.
+  { label: 'users.free_monthly_used_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS free_monthly_used_at TIMESTAMPTZ` },
   // Una sesión de verificación de Didit pertenece a UNA sola cuenta.
   { label: 'users.didit_session_id único', sql: `CREATE UNIQUE INDEX IF NOT EXISTS users_didit_session_id_unico ON users (didit_session_id) WHERE didit_session_id IS NOT NULL` },
   /**

@@ -1,8 +1,8 @@
 import { QueryTypes } from 'sequelize';
-import { PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.js';
-import type { AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente.js';
+import { PAGO_TRABAJADOR_RETENCION_DIAS, POLITICAS } from '../../shared/constants/policies.js';
+import { etiquetaDelAFavor, type AFavorPendienteItem, type CobroPendiente, type ReferenciaDelCobro } from '../../shared/pagos/aFavorPendiente.js';
 
-export type { AFavorPendienteItem };
+export type { AFavorPendienteItem, CobroPendiente };
 
 /**
  * CUÁNDO el saldo de un usuario se puede retirar.
@@ -42,7 +42,7 @@ export interface PagoParaLiberar {
 const SIN_ESPERA_DE_MP = ['bank_transfer', 'balance'];
 
 /** Lo que tarda Mercado Pago en liberar un pago cuando no informó la fecha. `PAYMENT_RELEASE_DAYS` lo cambia; `0` apaga la espera. */
-export const DIAS_DE_LIBERACION_MP_POR_DEFECTO = 10;
+export const DIAS_DE_LIBERACION_MP_POR_DEFECTO = POLITICAS.DIAS_LIBERACION_PAGO;
 
 export function diasDeLiberacionMp(): number {
   const crudo = process.env.PAYMENT_RELEASE_DAYS;
@@ -76,10 +76,11 @@ const hasta = (v: Date | string | null | undefined): number => {
  */
 export function liberaMpEl(pago: PagoParaLiberar | null | undefined): Date | null {
   if (!pago) return null;
-  // Una transferencia que un administrador confirmó (la plata ya está en el banco) o una publicación pagada con saldo no esperan a Mercado Pago.
-  if (pago.paymentMethod && SIN_ESPERA_DE_MP.includes(String(pago.paymentMethod))) return null;
+  // Una fecha de liberación anotada manda: un pago con saldo que se pagó con plata todavía retenida (lo pendiente de la misma publicación) la hereda.
   const real = hasta(pago.moneyReleaseDate);
   if (real > 0) return new Date(real);
+  // Una transferencia que un administrador confirmó (la plata ya está en el banco) o una publicación pagada con saldo no esperan a Mercado Pago.
+  if (pago.paymentMethod && SIN_ESPERA_DE_MP.includes(String(pago.paymentMethod))) return null;
   const dias = diasDeLiberacionMp();
   const desde = hasta(pago.approvedAt) || hasta(pago.paidAt) || hasta(pago.createdAt);
   if (desde > 0 && dias > 0) return new Date(desde + dias * 86_400_000);
@@ -210,6 +211,66 @@ export async function aFavorPendienteDetalle(userId: string): Promise<AFavorPend
     descripcion: String(f.description || ''),
     disponibleDesde: f.metadata?.disponibleDesde ? String(f.metadata.disponibleDesde) : null,
   }));
+}
+
+/**
+ * Las tarjetas de «Cobros pendientes» de una persona: lo que tiene a favor pendiente de liquidar (devoluciones, todavía fuera de su saldo) y lo que ya está
+ * en su saldo pero no se puede retirar hasta una fecha (por ejemplo lo que cobra un trabajador por un contrato). Cada una dice a qué contrato y a qué
+ * trabajo pertenece, para que se pueda abrir. La más próxima a liberarse, primero.
+ */
+export async function cobrosPendientes(userId: string, ahora: Date = new Date()): Promise<CobroPendiente[]> {
+  const { sequelize } = await import('../config/database.js');
+  const filas = (await sequelize.query(
+    `SELECT id, amount, status, description, metadata, related_contract_id AS "contratoId"
+       FROM balance_transactions
+      WHERE user_id = :userId AND amount > 0 AND (
+              (status = 'pending' AND metadata->>'pendienteDeLiquidacion' = 'true')
+           OR (status = 'completed' AND metadata ? 'disponibleDesde' AND (metadata->>'disponibleDesde')::timestamptz > :ahora)
+            )
+      ORDER BY (metadata->>'disponibleDesde')::timestamptz ASC NULLS LAST
+      LIMIT 50`,
+    { replacements: { userId, ahora }, type: QueryTypes.SELECT },
+  )) as Array<{ id: string; amount: string | number; status: string; description: string; metadata: Record<string, any> | null; contratoId: string | null }>;
+  if (filas.length === 0) return [];
+
+  const idDe = (v: unknown): string | null => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
+  const refs = filas.map((f) => {
+    const m = f.metadata || {};
+    return {
+      contratoId: idDe(f.contratoId) ?? idDe(m.contractId) ?? (m.relatedModel === 'Contract' ? idDe(m.relatedId) : null),
+      trabajoId: idDe(m.jobId) ?? (m.relatedModel === 'Job' ? idDe(m.relatedId) : null),
+    };
+  });
+
+  const { Contract } = await import('../models/sql/Contract.model.js');
+  const { Job } = await import('../models/sql/Job.model.js');
+  const contratos = new Map<string, { jobId: string | null }>();
+  const idsDeContratos = [...new Set(refs.map((r) => r.contratoId).filter((x): x is string => !!x))];
+  if (idsDeContratos.length) {
+    for (const c of (await Contract.findAll({ where: { id: idsDeContratos } as any, attributes: ['id', 'jobId'] })) as any[]) contratos.set(String(c.id), { jobId: c.jobId ? String(c.jobId) : null });
+  }
+  const idsDeTrabajos = [...new Set([...refs.map((r) => r.trabajoId), ...[...contratos.values()].map((c) => c.jobId)].filter((x): x is string => !!x))];
+  const titulos = new Map<string, string>();
+  if (idsDeTrabajos.length) {
+    for (const j of (await Job.findAll({ where: { id: idsDeTrabajos } as any, attributes: ['id', 'title'] })) as any[]) titulos.set(String(j.id), String(j.title || ''));
+  }
+
+  return filas.map((f, i) => {
+    const m = f.metadata || {};
+    const aFavor = f.status === 'pending';
+    const trabajoId = refs[i].trabajoId ?? (refs[i].contratoId ? contratos.get(refs[i].contratoId!)?.jobId ?? null : null);
+    const referencia = (id: string | null): ReferenciaDelCobro | null => (id ? { id, titulo: titulos.get(trabajoId ?? '') || 'Trabajo' } : null);
+    return {
+      id: String(f.id),
+      tipo: aFavor ? 'a_favor' : 'en_liberacion',
+      monto: r2(Number(f.amount) || 0),
+      etiqueta: aFavor ? etiquetaDelAFavor(motivoDelAFavor(m)) : 'Cobro por un trabajo',
+      descripcion: String(f.description || ''),
+      disponibleDesde: m.disponibleDesde ? String(m.disponibleDesde) : null,
+      trabajo: trabajoId ? { id: trabajoId, titulo: titulos.get(trabajoId) || 'Trabajo' } : null,
+      contrato: referencia(refs[i].contratoId),
+    } satisfies CobroPendiente;
+  });
 }
 
 /** Cuándo libera Mercado Pago el pago de donde sale una devolución, y cuál es ese pago (la devolución lo anota para poder comprobarlo al liquidarla). */

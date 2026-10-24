@@ -197,7 +197,7 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.free,
           benefits: [
-            `${POLITICAS.CONTRATOS_LIBRES_DE_COMISION} contratos libres de comisión (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas)`,
+            `${POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato libre de comisión por mes durante ${POLITICAS.MESES_DE_CONTRATOS_LIBRES} meses (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas)`,
             `Comisión fija del ${COMMISSION_RATES.free}%`,
             '3 códigos de invitación',
           ],
@@ -520,7 +520,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
-      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt']
+      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyUsedAt']
     });
 
     if (!user) {
@@ -547,7 +547,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
         contractsUsed: 0,
         contractsLimit: 0,
         contractsRemaining: 0,
-        freeContractsRemaining: user.freeContractsRemaining,
+        freeContractsRemaining: (await import('../services/exencionDeComision.js')).contratosLibresDisponibles(user as any).total,
         membershipExpiresAt: user.membershipExpiresAt,
       },
     });

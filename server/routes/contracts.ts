@@ -19,6 +19,7 @@ import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op, literal } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
+import { reclamarContratoLibre, devolverContratoLibre, type CupoDeExencion } from "../services/exencionDeComision.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
@@ -989,14 +990,9 @@ router.post(
       // El contrato gratis se RECLAMA con un UPDATE condicional (dos pedidos simultáneos no gastan el mismo)
       // y se devuelve si el contrato no llega a crearse. Antes se descontaba antes de crear: si la creación
       // fallaba, el cliente perdía el contrato gratis.
-      let isFreeContract = false;
-      if (useFreeContract) {
-        const [reclamados] = await User.update(
-          { freeContractsRemaining: literal('"free_contracts_remaining" - 1') } as any,
-          { where: { id: req.user.id, freeContractsRemaining: { [Op.gt]: 0 } } },
-        );
-        isFreeContract = reclamados > 0;
-      }
+      let cupoReclamado: CupoDeExencion | null = null;
+      if (useFreeContract) cupoReclamado = await reclamarContratoLibre(String(req.user.id));
+      const isFreeContract = cupoReclamado !== null;
 
       let contract: any;
       try {
@@ -1031,12 +1027,7 @@ router.post(
           notes,
         });
       } catch (error) {
-        if (isFreeContract) {
-          await User.update(
-            { freeContractsRemaining: literal('"free_contracts_remaining" + 1') } as any,
-            { where: { id: req.user.id } },
-          ).catch(() => undefined);
-        }
+        if (cupoReclamado) await devolverContratoLibre(String(req.user.id), cupoReclamado).catch(() => undefined);
         throw error;
       }
 
@@ -3251,6 +3242,19 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
       return;
     }
 
+    // La comisión sale de la política (`calculateCommission`), igual que en las demás rutas: la misma tasa para todos, 0% en la beta y libre de comisión si la
+    // publicación ya gastó un contrato libre. Antes esta ruta usaba la tasa GUARDADA en la cuenta (`currentCommissionRate`), que en las cuentas existentes quedó
+    // con la de los planes viejos (8, 3 o 1), y NO cobraba comisión sobre la diferencia.
+    //  - Si el precio SUBE, se cobra además la comisión de la diferencia (con su IVA): `comisión(precio nuevo) − comisión(precio anterior)`, de modo que la
+    //    comisión anotada en el contrato es exactamente la que se cobró.
+    //  - Si BAJA, la comisión ya se retuvo cuando se eligió al trabajador (T&C 7.6): no se devuelve ni se recalcula.
+    const trabajoDelContrato = await Job.findByPk(contract.jobId, { attributes: ['id', 'commissionFreeApplied'] });
+    const libreDeComision = !!(trabajoDelContrato as any)?.commissionFreeApplied;
+    const comisionAntes = await calculateCommission(String(userId), Number(previousPrice), { isFreeContract: libreDeComision });
+    const comisionDespues = await calculateCommission(String(userId), newPrice, { isFreeContract: libreDeComision });
+    const comisionDeLaDiferencia = priceDifference > 0 ? Math.max(0, Math.round((comisionDespues.totalFee - comisionAntes.totalFee) * 100) / 100) : 0;
+    const aDebitar = Math.round((priceDifference + comisionDeLaDiferencia) * 100) / 100;
+
     let transaction;
     // Si baja el precio, la diferencia vuelve al cliente: a favor PENDIENTE si el pago sigue en Mercado Pago, saldo si ya lo liberó.
     let fraseDeLaBaja = '';
@@ -3258,13 +3262,14 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
 
     if (priceDifference > 0) {
       // Price increased - check if user has enough balance
-      if (client.balanceArs < priceDifference) {
+      if (client.balanceArs < aDebitar) {
         // User needs to pay the difference via MercadoPago
         res.status(402).json({
           success: false,
           message: "Debes pagar la diferencia para aumentar el precio",
           requiresPayment: true,
-          amountRequired: priceDifference,
+          amountRequired: aDebitar,
+          comisionDeLaDiferencia,
           currentBalance: client.balanceArs
         });
         return;
@@ -3280,10 +3285,10 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
        * movido sin nada que lo explicara.
        */
       const { debitarSaldo } = await import('../services/quotePayment.js');
-      await debitarSaldo(String(userId), priceDifference, 'Pago de diferencia por aumento de precio de contrato', {
+      await debitarSaldo(String(userId), aDebitar, comisionDeLaDiferencia > 0 ? 'Pago de diferencia y comisión por aumento de precio de contrato' : 'Pago de diferencia por aumento de precio de contrato', {
         relatedModel: 'Contract',
         relatedId: String(contract.id),
-        metadata: { previousPrice, newPrice, reason: reason || 'Aumento de precio' },
+        metadata: { previousPrice, newPrice, reason: reason || 'Aumento de precio', comisionDeLaDiferencia },
       });
       await client.reload();
       transaction = await BalanceTransaction.findOne({
@@ -3327,13 +3332,9 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
 
     // Update contract price
     contract.price = newPrice;
-    // OJO, pendiente de decisión del dueño (ver el informe): esta ruta usa la tasa
-    // GUARDADA en la cuenta (`currentCommissionRate`, que en las cuentas existentes quedó
-    // con la del plan viejo: 8, 3 o 1) y sólo cobra la DIFERENCIA de precio, no la comisión
-    // sobre esa diferencia, a diferencia de las otras rutas de este archivo. Cambiar sólo
-    // el valor de `commission` sin cobrarlo dejaría un ingreso contable que nadie pagó.
-    contract.commission = newPrice * (client.currentCommissionRate / 100);
-    contract.totalPrice = newPrice + contract.commission;
+    // Si el precio subió, la comisión anotada es la del precio nuevo (la diferencia ya se cobró arriba); si bajó, queda la que se retuvo.
+    if (priceDifference > 0) contract.commission = comisionDespues.commission;
+    contract.totalPrice = newPrice + Number(contract.commission || 0);
 
     // Add to price modification history
     if (!contract.priceModificationHistory) {
@@ -3396,6 +3397,8 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
       contract,
       transaction,
       newBalance: client.balanceArs,
+      // Lo que se cobró de más por la comisión de la diferencia (solo si el precio subió y hay comisión).
+      comisionCobrada: comisionDeLaDiferencia,
       // Si la diferencia quedó a favor PENDIENTE: la fecha en que pasa a su saldo.
       pendienteHasta: pendienteHastaDeLaBaja,
     });
@@ -4275,10 +4278,8 @@ router.post(
       const client = await User.findByPk(clientId);
       let isFreeContract = false;
 
-      if (useFreeContract && client && client.freeContractsRemaining > 0) {
-        isFreeContract = true;
-        client.freeContractsRemaining -= 1;
-        await client.save();
+      if (useFreeContract && client) {
+        isFreeContract = (await reclamarContratoLibre(String(clientId))) !== null;
       }
 
       // Calcular comisión

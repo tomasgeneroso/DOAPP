@@ -16,6 +16,30 @@ export interface AFavorPendienteItem {
   disponibleDesde: string | null;
 }
 
+/** A qué trabajo o contrato pertenece un cobro pendiente, para mostrarlo y poder abrirlo. */
+export interface ReferenciaDelCobro {
+  id: string;
+  titulo: string;
+}
+
+/**
+ * Una tarjeta de «Cobros pendientes»: plata que figura a nombre de la persona pero todavía no puede usar o retirar.
+ *  - `a_favor`: devolución al cliente que espera a que la pasarela libere el pago original (todavía NO está en su saldo).
+ *  - `en_liberacion`: ya está en su saldo (por ejemplo lo que cobra un trabajador por un contrato), pero se puede retirar recién desde `disponibleDesde`.
+ */
+export interface CobroPendiente {
+  id: string;
+  tipo: 'a_favor' | 'en_liberacion';
+  monto: number;
+  /** Cómo se llama en la tarjeta («Devolución por una cancelación», «Cobro de un contrato»…). */
+  etiqueta: string;
+  descripcion: string;
+  /** Cuándo pasa a ser saldo (`a_favor`) o se puede retirar (`en_liberacion`), ISO. */
+  disponibleDesde: string | null;
+  trabajo: ReferenciaDelCobro | null;
+  contrato: ReferenciaDelCobro | null;
+}
+
 export const ETIQUETA_DEL_A_FAVOR: Record<MotivoDelAFavor, string> = {
   sobrante_de_presupuesto: 'Sobrante de un presupuesto',
   cancelacion: 'Devolución por una cancelación',

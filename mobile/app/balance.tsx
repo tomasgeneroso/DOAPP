@@ -28,7 +28,8 @@ import {
   Filter,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-import { esAFavorPendiente, etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente';
+import { esAFavorPendiente, etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem, type CobroPendiente } from '../../shared/pagos/aFavorPendiente';
+import CobrosPendientes from '../components/CobrosPendientes';
 import { useAuth } from '../context/AuthContext';
 import { getBalance, getTransactions, requestWithdrawal, getWithdrawals } from '../services/balance';
 import { extraerFacturas, pedirDireccionDeDescarga } from '../services/facturas';
@@ -50,6 +51,7 @@ export default function BalanceScreen() {
   const [aFavorPendiente, setAFavorPendiente] = useState(0);
   const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
   const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
+  const [cobros, setCobros] = useState<CobroPendiente[]>([]);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -85,6 +87,7 @@ export default function BalanceScreen() {
         setAFavorPendiente(balanceRes.data.aFavorPendiente || 0);
         setProximaLiquidacion(balanceRes.data.proximaLiquidacion || null);
         setAFavorDetalle(balanceRes.data.aFavorPendienteDetalle || []);
+        setCobros(balanceRes.data.cobrosPendientes || []);
         setPendingBalance(balanceRes.data.pendingBalance || 0);
       }
 
@@ -340,6 +343,8 @@ export default function BalanceScreen() {
             <Text style={styles.withdrawButtonText}>Retirar fondos</Text>
           </TouchableOpacity>
         </View>
+
+        <CobrosPendientes cobros={cobros} />
 
         {/* Withdraw Form */}
         {showWithdrawForm && (

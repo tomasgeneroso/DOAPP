@@ -45,7 +45,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
       price: t('membership.planFreePrice', 'Gratis'),
       priceNote: t('membership.priceNoteAlways', 'siempre'),
       features: [
-        t('membership.freeFeat1', '{{cantidad}} contratos sin comisión*', { cantidad: POLITICAS.CONTRATOS_LIBRES_DE_COMISION }),
+        t('membership.freeFeat1', '{{cantidad}} contrato sin comisión por mes durante {{meses}} meses*', { cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES, meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES }),
         t('membership.freeFeat2', 'Comisión del {{comision}}%, a cargo del cliente', { comision: COMMISSION_RATES.free }),
         t('membership.freeFeat3', '3 códigos de invitación'),
       ],

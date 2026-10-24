@@ -16,6 +16,7 @@ import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import AuthHero from "../components/auth/AuthHero";
 import { rutaInternaSegura } from "../../shared/auth/rutaInterna";
+import { POLITICAS } from "../../shared/constants/policies";
 import { guardarDestino } from "../utils/destinoDespuesDeGoogle";
 
 type FormMode = "login" | "register";
@@ -508,7 +509,7 @@ export default function LoginScreen() {
           {/* Mensaje de bienvenida para nuevos usuarios */}
           <div className="mb-4 sm:mb-6 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 p-3 sm:p-4 text-center shadow-md">
             <p className="text-xs sm:text-sm font-semibold text-white">
-              {t('auth.promoFirst1000')}
+              {t('auth.promoFirst1000', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES, meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES })}
             </p>
           </div>
 

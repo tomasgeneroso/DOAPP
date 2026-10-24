@@ -1,6 +1,7 @@
 import { Referral } from "../models/sql/Referral.model.js";
 import { User } from "../models/sql/User.model.js";
-import { otorgarContratosLibres } from "./exencionDeComision.js";
+import { otorgarContratosLibres, contratosLibresDisponibles } from "./exencionDeComision.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 
 /**
  * Servicio de gestión de referidos
@@ -28,8 +29,8 @@ class ReferralService {
         throw new Error('Invalid referral code');
       }
 
-      if (referrer.totalReferrals >= 3) {
-        throw new Error('Referrer has reached maximum referrals (3)');
+      if (referrer.totalReferrals >= POLITICAS.REFERIDOS_MAXIMOS) {
+        throw new Error(`Referrer has reached maximum referrals (${POLITICAS.REFERIDOS_MAXIMOS})`);
       }
 
       const newUser = await User.findByPk(newUserId);
@@ -47,9 +48,9 @@ class ReferralService {
         registeredAt: new Date(),
       });
 
-      // Actualizar usuario referido: dar 1 contrato gratis si es early user
+      // Actualizar usuario referido: contrato libre de comisión al registrarse con un código, si está entre las primeras cuentas
       if (newUser.isEarlyUser) {
-        newUser.freeContractsRemaining += 1;
+        newUser.freeContractsRemaining += POLITICAS.REFERIDOS_CONTRATOS_AL_REGISTRARSE;
       }
       newUser.referredBy = referrer.id;
       await newUser.save();
@@ -126,17 +127,17 @@ class ReferralService {
       let newCommissionRate = referrer.currentCommissionRate;
 
       if (completedReferrals === 1) {
-        // Primer referido: 2 contratos gratis
+        // Primer referido: contratos libres de comisión
         rewardType = 'two_free';
-        freeContractsToAdd = 2;
+        freeContractsToAdd = POLITICAS.REFERIDOS_PREMIO_PRIMERO_CONTRATOS;
       } else if (completedReferrals === 2) {
-        // Segundo referido: 1 contrato gratis
+        // Segundo referido: contratos libres de comisión
         rewardType = 'one_free';
-        freeContractsToAdd = 1;
-      } else if (completedReferrals === 3) {
-        // Tercer referido: comisión reducida por 1 MES (no permanente)
+        freeContractsToAdd = POLITICAS.REFERIDOS_PREMIO_SEGUNDO_CONTRATOS;
+      } else if (completedReferrals === POLITICAS.REFERIDOS_MAXIMOS) {
+        // Tercer referido: comisión reducida por un tiempo (no permanente); `calculateCommission` la lee mientras no venza
         rewardType = 'reduced_commission';
-        newCommissionRate = 3;
+        newCommissionRate = POLITICAS.COMISION_PREMIO_DE_REFERIDOS;
       }
 
       if (rewardType) {
@@ -144,10 +145,9 @@ class ReferralService {
         referrer.currentCommissionRate = newCommissionRate;
         referrer.referralBenefitsUsed = completedReferrals;
 
-        // Si es el tercer referido, establecer fecha de expiración del descuento (1 mes)
-        if (completedReferrals === 3) {
-          const expirationDate = new Date();
-          expirationDate.setMonth(expirationDate.getMonth() + 1);
+        // Si es el tercer referido, establecer fecha de expiración del descuento
+        if (completedReferrals === POLITICAS.REFERIDOS_MAXIMOS) {
+          const expirationDate = new Date(Date.now() + POLITICAS.DIAS_PREMIO_DE_REFERIDOS * 86_400_000);
           referrer.hasReferralDiscount = true;
           referrer.referralDiscountExpiresAt = expirationDate;
         }
@@ -206,11 +206,11 @@ class ReferralService {
       const stats = {
         totalReferrals: user.totalReferrals,
         completedReferrals: user.completedReferrals,
-        maxReferrals: 3,
-        canReferMore: user.totalReferrals < 3,
+        maxReferrals: POLITICAS.REFERIDOS_MAXIMOS,
+        canReferMore: user.totalReferrals < POLITICAS.REFERIDOS_MAXIMOS,
         referralCode: user.referralCode,
         currentCommissionRate: user.currentCommissionRate,
-        freeContractsRemaining: user.freeContractsRemaining,
+        freeContractsRemaining: contratosLibresDisponibles(user).total,
         referrals: referrals.map(r => ({
           id: r.id,
           status: r.status,
@@ -243,7 +243,7 @@ class ReferralService {
         return { valid: false, message: 'Código de referido inválido' };
       }
 
-      if (referrer.totalReferrals >= 3) {
+      if (referrer.totalReferrals >= POLITICAS.REFERIDOS_MAXIMOS) {
         return { valid: false, message: 'Este código ha alcanzado el límite de referidos' };
       }
 
@@ -252,7 +252,7 @@ class ReferralService {
         referrer: {
           name: referrer.name,
           code: referrer.referralCode,
-          remainingSlots: 3 - referrer.totalReferrals,
+          remainingSlots: POLITICAS.REFERIDOS_MAXIMOS - referrer.totalReferrals,
         },
       };
     } catch (error) {

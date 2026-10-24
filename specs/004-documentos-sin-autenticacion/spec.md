@@ -67,6 +67,16 @@ antes de devolver el archivo.
 Queda por decidir qué se hace con las URLs ya repartidas y si el cambio se
 hace con enlaces firmados de vida corta o con una ruta autenticada.
 
+## Respuestas del dueño (2026-10-24)
+
+- «Sin autenticación» no habla de verificar a una persona: habla de que **cualquiera con la dirección de un archivo lo descarga sin haber iniciado sesión**.
+- El DNI y la selfie se verifican con Didit. El resto (matrícula, seguro) hoy no lo comprueba nadie: la app confía en lo que carga cada persona.
+- Quiere que el cliente que ya tiene un contrato con el trabajador pueda pedir esa información, y que **algunas cosas se vean de antemano** (por ejemplo la matrícula
+  y el seguro). Si se puede, comprobarlas contra fuentes verídicas y confiables antes de mostrarlas.
+
+Falta bajar esto a una regla de quién ve qué (borrador en la respuesta al dueño): documentos de identidad solo el dueño del documento y el equipo; matrícula y
+ seguro como insignia pública («cargado» / «verificado por DOAPP») y el documento solo para la contraparte de un contrato o a pedido a soporte.
+
 ## Preguntas abiertas
 
 Sin desarrollar: esta especificación está anotada, no planificada. Se

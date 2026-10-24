@@ -642,8 +642,8 @@ export class User extends Model {
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;
 
-  // Contratos libres de comisión (POLITICAS.CONTRATOS_LIBRES_DE_COMISION): los recibe `otorgarContratosLibres` si la cuenta está entre las primeras
-  // POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES. Antes toda cuenta nacía con 3.
+  // Contador de contratos libres de comisión que suman los PREMIOS (referidos). El beneficio mensual de las primeras cuentas no pasa por acá: ver
+  // `isEarlyUser` / `freeMonthlyUsedAt` y services/exencionDeComision.ts. Antes toda cuenta nacía con 3.
   @Default(0)
   @AllowNull(false)
   @Column(DataType.INTEGER)
@@ -736,6 +736,10 @@ export class User extends Model {
 
   @Column(DataType.INTEGER)
   earlyUserNumber?: number;
+
+  // Última vez que gastó el contrato libre de comisión del mes (primeras cuentas, POLITICAS.CONTRATOS_LIBRES_POR_MES). El mes que no se usa no se acumula.
+  @Column(DataType.DATE)
+  freeMonthlyUsedAt?: Date | null;
 
   @Default(3)
   @AllowNull(false)

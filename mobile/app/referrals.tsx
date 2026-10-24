@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { get } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { POLITICAS } from '../../shared/constants/policies';
 
 interface ReferralStats {
   totalReferrals: number;
@@ -121,7 +122,7 @@ export default function ReferralsScreen() {
           <Gift size={40} color="#fff" />
           <Text style={styles.heroTitle}>Invitá amigos y ganás</Text>
           <Text style={styles.heroSubtitle}>
-            Compartí tu código, ellos obtienen 1 contrato gratis y vos ganás beneficios exclusivos
+            Compartí tu código, ellos obtienen {POLITICAS.REFERIDOS_CONTRATOS_AL_REGISTRARSE} contrato libre de comisión y vos ganás beneficios exclusivos
           </Text>
         </View>
 
@@ -146,7 +147,7 @@ export default function ReferralsScreen() {
             <Text style={[styles.statValue, { color: themeColors.text.primary }]}>
               {stats?.benefitsEarned?.freeContracts || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: themeColors.text.muted }]}>Contratos gratis</Text>
+            <Text style={[styles.statLabel, { color: themeColors.text.muted }]}>Contratos libres de comisión</Text>
           </View>
         </View>
 
@@ -203,9 +204,9 @@ export default function ReferralsScreen() {
         <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Beneficios por referido</Text>
           {[
-            { emoji: '🎁', label: '1er referido completa contrato', benefit: '2 contratos gratis' },
-            { emoji: '🎁', label: '2do referido completa contrato', benefit: '1 contrato gratis' },
-            { emoji: '⭐', label: '3er referido completa contrato', benefit: '3% comisión por 1 mes' },
+            { emoji: '🎁', label: '1er referido completa contrato', benefit: `${POLITICAS.REFERIDOS_PREMIO_PRIMERO_CONTRATOS} contratos libres de comisión` },
+            { emoji: '🎁', label: '2do referido completa contrato', benefit: `${POLITICAS.REFERIDOS_PREMIO_SEGUNDO_CONTRATOS} contrato libre de comisión` },
+            { emoji: '⭐', label: '3er referido completa contrato', benefit: `${POLITICAS.COMISION_PREMIO_DE_REFERIDOS}% de comisión durante ${POLITICAS.DIAS_PREMIO_DE_REFERIDOS} días` },
           ].map((item, i) => (
             <View key={i} style={styles.benefitRow}>
               <Text style={styles.benefitEmoji}>{item.emoji}</Text>

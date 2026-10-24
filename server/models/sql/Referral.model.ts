@@ -12,6 +12,7 @@ import {
   BeforeValidate,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
+import { POLITICAS } from '../../../shared/constants/policies.js';
 
 /**
  * Referral Model - PostgreSQL/Sequelize
@@ -21,12 +22,12 @@ import { User } from './User.model.js';
  * Beneficios del referidor (quien refiere):
  * - 1er referido completa contrato: 2 contratos gratis
  * - 2do referido completa contrato: 1 contrato gratis
- * - 3er referido completa contrato: descuento de comisión por 1 mes, no permanente
- *   (lo otorga referralService.grantReferrerReward; el valor lo define esa lógica)
+ * - 3er referido completa contrato: comisión reducida (POLITICAS.COMISION_PREMIO_DE_REFERIDOS) durante POLITICAS.DIAS_PREMIO_DE_REFERIDOS días, no permanente
+ *   (lo otorga referralService.grantReferrerReward y la aplica calculateCommission)
  * - Máximo 3 referidos por usuario
  *
  * Beneficios del referido:
- * - 1 contrato libre de comisión al registrarse (primeras cuentas)
+ * - 1 contrato libre de comisión al registrarse (primeras cuentas) / suma al contador de premios
  */
 
 // ============================================
@@ -286,11 +287,11 @@ export class Referral extends Model {
   getRewardDescription(): string {
     switch (this.rewardType) {
       case 'two_free':
-        return '2 publicaciones libres de comisión';
+        return `${POLITICAS.REFERIDOS_PREMIO_PRIMERO_CONTRATOS} publicaciones libres de comisión`;
       case 'one_free':
-        return '1 publicación libre de comisión';
+        return `${POLITICAS.REFERIDOS_PREMIO_SEGUNDO_CONTRATOS} publicación libre de comisión`;
       case 'reduced_commission':
-        return '3% de comisión permanente';
+        return `${POLITICAS.COMISION_PREMIO_DE_REFERIDOS}% de comisión durante ${POLITICAS.DIAS_PREMIO_DE_REFERIDOS} días`;
       default:
         return 'Sin recompensa';
     }

@@ -34,7 +34,7 @@ import { clasificarPagoExistente, anularPagoHuerfano, direccionDePagoGuardada } 
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
-import { comisionDePublicacion, gastarCupoDeExencion } from "../services/exencionDeComision.js";
+import { comisionDePublicacion, gastarCupoDeExencion, devolverCupoDeExencion } from "../services/exencionDeComision.js";
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
 import { moduloActivo } from "../services/moduleFlags.js";
 import { MODULO_APROBACION_DE_PUBLICACIONES } from "../../shared/constants/modulos.js";
@@ -133,7 +133,10 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       const jobPrice = parseFloat(job.price as any) || 0;
       const { comision: commissionResult, gastar } = await comisionDePublicacion(user as any, job as any, jobPrice);
       // Con saldo el cupo se gasta recién cuando el pago salió bien (si el saldo no alcanza, no se pierde).
-      if (gastar && selectedPaymentMethod !== 'balance') await gastarCupoDeExencion(user, job, gastar);
+      if (gastar && selectedPaymentMethod !== 'balance' && !(await gastarCupoDeExencion(user, job, gastar))) {
+        res.status(409).json({ success: false, code: 'CUPO_YA_USADO', message: 'El contrato libre de comisión de este mes se acaba de usar en otro pago. Volvé a abrir el pago para ver el total actualizado.' });
+        return;
+      }
       const publicationCost = commissionResult.commission;
       const vat = commissionResult.vat;
 
@@ -153,21 +156,22 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       if (selectedPaymentMethod === 'balance') {
         try {
           const total = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
-          const { pagarPublicacionConSaldo, saldoDe } = await import('../services/creditoDePublicacion.js');
-          // El saldo solo paga una REPROGRAMACIÓN: la publicación cuyo pago volvió al saldo. Para cualquier otra publicación se paga por la
-          // pasarela o transferencia, así las cuentas quedan claras (el saldo ganado trabajando no se mezcla con publicar).
-          const { creditosVinculados } = await import('../services/creditoDePublicacion.js');
+          const { pagarPublicacionConSaldo, saldoLiberadoUsable, pendienteDeLaPublicacion, usarPendienteDeLaPublicacion } = await import('../services/creditoDePublicacion.js');
           const saldoTotal = Number((await User.findByPk(userId, { attributes: ['id', 'balanceArs'] }) as any)?.balanceArs) || 0;
-          // El crédito de la publicación, ya sin lo que está reservado para un retiro pendiente (esa plata no existe para gastarla).
-          const credito = (await creditosVinculados(String(userId), saldoTotal)).find((c) => c.jobId === String(job.id))?.monto ?? 0;
-          if (credito + 0.005 < total) {
-            res.status(409).json({
+          // Se paga con saldo LIBERADO (T&C 7.9): el que ya se puede usar o retirar. No el que la pasarela todavía no liberó ni el reservado para un retiro.
+          // Sirve para cualquier publicación, no solo para volver a publicar la que lo generó.
+          const liberado = await saldoLiberadoUsable(String(userId));
+          // Lo que quedó a favor PENDIENTE de la cancelación de ESTA publicación también sirve para volver a publicarla (y para ninguna otra).
+          const pendienteDeEsta = await pendienteDeLaPublicacion(String(userId), String(job.id));
+          if (liberado + pendienteDeEsta.monto + 0.005 < total) {
+            res.status(402).json({
               success: false,
-              code: 'SALDO_SOLO_PARA_REPROGRAMAR',
-              message: credito > 0
-                ? `El saldo vinculado a esta publicación ($${credito.toLocaleString('es-AR')}) no cubre el total ($${total.toLocaleString('es-AR')}). Pagala por Mercado Pago o transferencia.`
-                : 'El saldo solo sirve para volver a publicar una publicación cancelada que ya habías pagado. Elegí otro medio de pago.',
-              creditoVinculado: credito,
+              code: 'SALDO_INSUFICIENTE',
+              message: pendienteDeEsta.monto > 0
+                ? `Tu saldo liberado ($${liberado.toLocaleString('es-AR')}) más lo pendiente de esta publicación ($${pendienteDeEsta.monto.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`
+                : `Tu saldo liberado ($${liberado.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`,
+              saldo: liberado,
+              pendienteDeEstaPublicacion: pendienteDeEsta.monto,
               total,
             });
             return;
@@ -185,16 +189,30 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
             });
             return;
           }
-          const saldo = await saldoDe(String(userId));
-          if (saldo + 0.005 < total) {
-            res.status(402).json({ success: false, code: 'SALDO_INSUFICIENTE', message: `Tu saldo ($${saldo.toLocaleString('es-AR')}) no alcanza para pagar la publicación ($${total.toLocaleString('es-AR')}). Elegí otro medio de pago.`, saldo, total });
+          // El contrato libre se reclama justo antes de cobrar (atómico) y se devuelve si el cobro falla.
+          if (gastar && !(await gastarCupoDeExencion(user, job, gastar))) {
+            res.status(409).json({ success: false, code: 'CUPO_YA_USADO', message: 'El contrato libre de comisión de este mes se acaba de usar en otro pago. Volvé a abrir el pago para ver el total actualizado.' });
             return;
           }
-          const r = await pagarPublicacionConSaldo(job, String(userId), total, { monto: publicationCost, porcentaje: commissionResult.rate });
-          if (gastar) await gastarCupoDeExencion(user, job, gastar);
+          let r: Awaited<ReturnType<typeof pagarPublicacionConSaldo>>;
+          try {
+            // Solo si el saldo liberado no alcanza se usa lo pendiente de esta publicación (de a asientos enteros, el más viejo primero).
+            let liberaDesde: Date | null = null;
+            if (liberado + 0.005 < total) {
+              const u = await usarPendienteDeLaPublicacion(String(userId), String(job.id), Math.round((total - liberado) * 100) / 100);
+              if (liberado + u.usado + 0.005 < total) {
+                throw Object.assign(new Error('No se pudo usar lo pendiente de esta publicación: el pago original ya no está disponible. Elegí otro medio de pago.'), { estado: 409, code: 'PENDIENTE_NO_DISPONIBLE' });
+              }
+              liberaDesde = u.liberaDesde;
+            }
+            r = await pagarPublicacionConSaldo(job, String(userId), total, { monto: publicationCost, porcentaje: commissionResult.rate }, { liberaDesde });
+          } catch (e) {
+            if (gastar) await devolverCupoDeExencion(user, job, gastar).catch(() => undefined);
+            throw e;
+          }
           res.json({ success: true, paidWithBalance: true, message: 'Publicación pagada con tu saldo.', paymentId: r.paymentId, amount: r.monto, jobStatus: r.estado });
         } catch (e: any) {
-          res.status(500).json({ success: false, message: e?.message || 'No se pudo pagar con saldo.' });
+          res.status(e?.estado || 500).json({ success: false, ...(e?.code ? { code: e.code } : {}), message: e?.message || 'No se pudo pagar con saldo.' });
         }
         return;
       }

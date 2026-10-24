@@ -1,6 +1,6 @@
 import { BalanceTransaction, WithdrawalRequest, ApiResponse } from '../types';
 import { get, post } from './api';
-import type { AFavorPendienteItem } from '../../shared/pagos/aFavorPendiente';
+import type { AFavorPendienteItem, CobroPendiente } from '../../shared/pagos/aFavorPendiente';
 
 /**
  * Servicio para gestión de balance y retiros
@@ -19,6 +19,8 @@ interface BalanceData {
   proximaLiquidacion?: string | null;
   /** Cada cosa a favor pendiente, con su motivo y la fecha en que pasa al saldo. */
   aFavorPendienteDetalle?: AFavorPendienteItem[];
+  /** Una tarjeta por cada cobro pendiente (a favor pendiente o en liberación), con su contrato y su trabajo. */
+  cobrosPendientes?: CobroPendiente[];
 }
 
 interface BalanceSummary {

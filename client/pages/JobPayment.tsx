@@ -102,6 +102,9 @@ export default function JobPayment() {
 
   // Free contracts info (display only — the server decides the amount)
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
+  // Si lo que se gasta es el contrato libre del MES (primeras cuentas) o uno de los premios de referidos.
+  const contratoDelMes = (user?.contratosLibres?.mensual ?? 0) > 0;
+  const premiosDespues = user?.contratosLibres?.bono ?? 0;
 
   const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
 
@@ -526,8 +529,17 @@ export default function JobPayment() {
                           Esta publicación es libre de comisión: no pagás la comisión de DOAPP. Se abonan igual el costo del trabajo y el del medio de pago.
                         </p>
                         <p className="mt-1 text-xs">
-                          Publicaciones libres de comisión restantes: <strong>{freeContractsRemaining}</strong>
-                          {freeContractsRemaining > 1 ? ` • Quedan ${freeContractsRemaining - 1} después de este` : ' • Este es el último'}
+                          {contratoDelMes ? (
+                            <>
+                              Usás tu contrato libre de comisión de este mes; el próximo lo tenés desde el 1.º del mes que viene
+                              {premiosDespues > 0 ? ` y te quedan ${premiosDespues} de premios` : ''}.
+                            </>
+                          ) : (
+                            <>
+                              Publicaciones libres de comisión restantes: <strong>{freeContractsRemaining}</strong>
+                              {freeContractsRemaining > 1 ? ` • Quedan ${freeContractsRemaining - 1} después de este` : ' • Este es el último'}
+                            </>
+                          )}
                         </p>
                       </>
                     ) : null}
@@ -635,7 +647,7 @@ export default function JobPayment() {
                       <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
                       {isFreeContract && (
                         <span className="text-xs text-green-600 dark:text-green-400 mt-1">
-                          ✨ Libre de comisión — {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : ''}
+                          ✨ Libre de comisión — {contratoDelMes ? 'contrato del mes' : freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : ''}
                         </span>
                       )}
                       {!isFreeContract && quote?.minimumApplied && (

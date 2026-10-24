@@ -1,6 +1,7 @@
 /**
- * Reparte los contratos libres de comisión de lanzamiento (POLITICAS.CONTRATOS_LIBRES_DE_COMISION) entre las cuentas que ya existían: las más
- * antiguas, hasta completar POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES. Las cuentas nuevas lo reciben solas al crearse.
+ * Marca como «primeras cuentas» (POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES) a las que ya existían: las más antiguas con el registro completo.
+ * Quedan con el contrato libre de comisión del mes durante un año (POLITICAS.CONTRATOS_LIBRES_POR_MES). Las cuentas nuevas se marcan solas al completar
+ * el registro.
  *
  * Por defecto solo muestra qué haría (vista previa). Con --aplicar lo escribe. Correrlo dos veces no duplica nada.
  *

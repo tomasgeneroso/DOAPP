@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { POLITICAS } from '../shared/constants/policies.js';
 
 /**
- * Contratos libres de comisión: una sola regla (las primeras 2000 cuentas reciben 6), escrita en UN lugar (`POLITICAS`).
+ * Contratos libres de comisión: una sola regla (las primeras 1000 cuentas tienen 1 por mes durante 12 meses), escrita en UN lugar (`POLITICAS`).
  *
  * Antes la promesa vivía en cinco lugares con números distintos: «3 para los primeros 1000» en pantallas y mensajes, 1 en `markEarlyUser` (que nadie
  * llamaba), 3 como valor por defecto de TODA cuenta, 3 cada mes para PRO por un cron, y un cupo mensual de 1 (PRO) o 2 (SUPER PRO) que contradecía que la
@@ -24,18 +24,20 @@ function archivos(dir: string, extensiones: string[], acc: string[] = []): strin
 }
 
 describe('contratos libres de comisión: una sola regla', () => {
-  it('las constantes son 6 contratos para las primeras 2000 cuentas', () => {
-    expect(POLITICAS.CONTRATOS_LIBRES_DE_COMISION).toBe(6);
-    expect(POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES).toBe(2000);
+  it('las constantes son 1 contrato por mes, durante 12 meses, para las primeras 1000 cuentas', () => {
+    expect((POLITICAS as Record<string, unknown>).CONTRATOS_LIBRES_DE_COMISION).toBeUndefined(); // la regla de las «6 para 2000» ya no existe
+    expect(POLITICAS.CONTRATOS_LIBRES_POR_MES).toBe(1);
+    expect(POLITICAS.MESES_DE_CONTRATOS_LIBRES).toBe(12);
+    expect(POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES).toBe(1000);
   });
 
-  it('una cuenta nueva nace sin contratos libres (los da `otorgarContratosLibres`, solo a las primeras)', () => {
+  it('una cuenta nueva nace sin contratos libres en el contador (la marca de primera cuenta la da `otorgarContratosLibres`)', () => {
     expect(leer('server/models/sql/User.model.ts')).toMatch(/@Default\(0\)\s+@AllowNull\(false\)\s+@Column\(DataType\.INTEGER\)\s+freeContractsRemaining!/);
   });
 
-  it('no queda ningún cupo mensual de la membresía ni el cron que lo reseteaba', () => {
+  it('no queda ningún cupo mensual de la MEMBRESÍA ni el cron que lo reseteaba (el mensual de hoy es de las primeras cuentas, con cualquier plan)', () => {
     const exencion = leer('server/services/exencionDeComision.ts');
-    expect(exencion).not.toMatch(/CUPO_MENSUAL|proContractsUsedThisMonth|'mensual'/);
+    expect(exencion).not.toMatch(/proContractsUsedThisMonth|membershipTier|hasMembership/);
     expect(leer('server/index.ts')).not.toMatch(/resetProMembershipCounters|startResetProMembershipCountersJob/);
     expect(() => readFileSync(join(RAIZ, 'server/jobs/resetProMembershipCounters.ts'))).toThrow();
   });
@@ -54,7 +56,7 @@ describe('contratos libres de comisión: una sola regla', () => {
 
   it('los textos que cuentan la regla la toman de la constante, no de un literal', () => {
     for (const ruta of ['server/routes/membership.ts', 'server/routes/referrals.ts', 'client/components/auth/AuthHero.tsx', 'client/components/MembershipOfferModal.tsx']) {
-      expect([ruta, /POLITICAS\.(CONTRATOS_LIBRES_DE_COMISION|PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES)/.test(leer(ruta))]).toEqual([ruta, true]);
+      expect([ruta, /POLITICAS\.(CONTRATOS_LIBRES_POR_MES|MESES_DE_CONTRATOS_LIBRES|PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES)/.test(leer(ruta))]).toEqual([ruta, true]);
     }
   });
 });
