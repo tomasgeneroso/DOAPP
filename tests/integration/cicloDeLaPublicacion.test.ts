@@ -168,7 +168,10 @@ describe('ciclo de la publicación, postulaciones y equipo', () => {
     const r = await request(app).post(`/api/contracts/${c.id}/confirm`).set(con(cliente));
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('CONTRACT_NOT_CONFIRMABLE');
-    expect(r.body.message).toMatch(/pendiente/);
+    // Empieza solo a la hora de inicio: no se le pide a nadie que lo apruebe (ciclo del contrato).
+    expect(r.body.message).toMatch(/todavía no empezó/);
+    expect(r.body.message).toMatch(/arranca solo/);
+    expect(r.body.message).not.toMatch(/administrador/);
     expect(r.body.message).not.toMatch(/"pending"/);
   });
 });

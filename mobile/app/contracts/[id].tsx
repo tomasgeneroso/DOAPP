@@ -227,7 +227,7 @@ export default function ContractDetailScreen() {
 
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
-      pending: 'Pendiente de aprobación',
+      pending: 'Por empezar', // empieza solo a la hora de inicio: no hay aprobación de por medio
       ready: 'Listo para comenzar',
       accepted: 'Aceptado',
       in_progress: 'En progreso',

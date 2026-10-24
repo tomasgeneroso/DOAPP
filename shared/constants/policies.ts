@@ -58,6 +58,13 @@ export const POLITICAS = {
   AUTO_CONFIRMACION_HORAS: 24,
 
   /**
+   * Horas después de la hora de fin en que un contrato en progreso, si nadie tocó «terminó el trabajo», se da por terminado: pasa a «esperando
+   * confirmación» y desde ahí corre el plazo de `AUTO_CONFIRMACION_HORAS`. Regla del dueño, 2026-10-24 (el contrato empieza solo a la hora de inicio y
+   * termina cuando las dos partes lo confirman o una hora después de la hora de fin). Ver services/cicloDelContrato.ts.
+   */
+  AUTO_FINALIZACION_HORAS: 1,
+
+  /**
    * Horas que un aumento de precio pagado por Mercado Pago espera a un administrador. Pasado el plazo se aprueba solo,
    * siempre que Mercado Pago haya confirmado bien el pago (monto exacto, sin cuotas ni cupón). Un pago en revisión
    * por no coincidir no se aprueba solo nunca.

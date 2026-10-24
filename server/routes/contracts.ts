@@ -1328,9 +1328,9 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         code: 'CONTRACT_NOT_CONFIRMABLE',
         // El estado en palabras de la persona (antes decía «pending»), y qué falta para poder confirmar.
         message: ({
-          pending: 'El contrato todavía está pendiente: un administrador tiene que aprobarlo y las dos partes aceptarlo antes de que el trabajo empiece. Por eso todavía no se puede confirmar.',
-          ready: 'El contrato está aprobado pero falta que las dos partes lo acepten. Todavía no se puede confirmar.',
-          accepted: 'El contrato está aceptado pero el trabajo todavía no empezó: falta confirmar el inicio (con el código de emparejamiento). Se confirma cuando está en progreso.',
+          pending: 'El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado. Se confirma cuando está en progreso.',
+          ready: 'El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado. Se confirma cuando está en progreso.',
+          accepted: 'El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado. Se confirma cuando está en progreso.',
           cancelled: 'El contrato está cancelado: no se puede confirmar.',
           disputed: 'El contrato está en disputa: no se puede confirmar mientras se resuelve.',
           completed: 'El contrato ya está terminado.',

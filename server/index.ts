@@ -44,6 +44,7 @@ import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
 import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
+import { startCicloDelContratoJob } from "./jobs/cicloDelContrato.js";
 import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
 import { startDevolucionDePresupuestoJob } from "./jobs/devolucionDePresupuesto.js";
 import { startAprobarAumentosDePrecioJob } from "./jobs/aprobarAumentosDePrecio.js";
@@ -545,6 +546,9 @@ startResetReferralDiscountsJob();
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();
+
+// Los contratos empiezan solos a la hora de inicio y se dan por terminados una hora después de la hora de fin (ver services/cicloDelContrato.ts)
+startCicloDelContratoJob();
 startVencerOrdenesDePagoJob();
 startDevolucionDePresupuestoJob();
 startAprobarAumentosDePrecioJob();

@@ -1347,6 +1347,12 @@ export default function JobDetail() {
   const userId = user?.id;
   const isOwnJob = user && clientId === userId;
   const isDraft = job.status === "draft" || job.status === "pending_payment";
+  // Un contrato que todavía no empezó (pendiente, listo o aceptado) no puede estar «terminado» aunque ya haya pasado la hora de fin: empieza solo a la
+  // hora de inicio (server/services/cicloDelContrato.ts). Si no empezó es porque falta algo (el pago acreditado o resolver un pedido abierto), y eso
+  // es lo que se le dice, no «¡Trabajo finalizado!» junto a «el contrato está pendiente».
+  const contratoSinEmpezar = !!contractData && ["pending", "ready", "accepted"].includes(String(contractData.status));
+  const trabajoYaTermino = !!job.endDate && new Date(job.endDate) <= new Date() && !contratoSinEmpezar;
+  const horaDeInicioPaso = !!job.startDate && new Date(job.startDate) <= new Date();
 
   // Check if current user is a worker on this job
   const isWorkerOnJob =
@@ -2733,15 +2739,27 @@ export default function JobDetail() {
                     className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
                       job.status === "completed"
                         ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                        : job.status === "in_progress"
-                          ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                          : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                        : job.status === "in_progress" && contractData?.status === "awaiting_confirmation"
+                          ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                          : job.status === "in_progress" && !(contratoSinEmpezar && horaDeInicioPaso)
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                            : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
                     }`}
                   >
                     {job.status === "completed" ? (
                       <>
                         <CheckCircle className="h-4 w-4" />
                         {t("jobs.jobCompleted", "Job completed")}
+                      </>
+                    ) : job.status === "in_progress" && contractData?.status === "awaiting_confirmation" ? (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        {t("jobs.pillAwaitingConfirmation", "Terminó: falta confirmar")}
+                      </>
+                    ) : job.status === "in_progress" && contratoSinEmpezar && horaDeInicioPaso ? (
+                      <>
+                        <Clock className="h-4 w-4" />
+                        {t("jobs.pillNotStarted", "Todavía no empezó")}
                       </>
                     ) : job.status === "in_progress" ? (
                       <>
@@ -2921,7 +2939,7 @@ export default function JobDetail() {
                   contractData?.doerId === userId ||
                   (userId && job.selectedWorkers?.includes(userId)) ? (
                     // Check if end date has passed (job finished)
-                    job.endDate && new Date(job.endDate) <= new Date() ? (
+                    job.endDate && trabajoYaTermino ? (
                       // Job has finished - show celebration message and confirm button
                       <div className="rounded-2xl border-2 border-emerald-400 dark:border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 p-5">
                         <div className="flex items-center gap-3 mb-3">
@@ -3204,7 +3222,7 @@ export default function JobDetail() {
                   (userId && job.selectedWorkers?.includes(userId)) ? (
                     <>
                       {/* Check if job has finished (endDate passed) */}
-                      {job.endDate && new Date(job.endDate) <= new Date() ? (
+                      {job.endDate && trabajoYaTermino ? (
                         // Job has finished - show celebration message and confirm button
                         <div className="rounded-2xl border-2 border-emerald-400 dark:border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 p-5">
                           <div className="flex items-center gap-3 mb-3">
@@ -4103,13 +4121,35 @@ export default function JobDetail() {
               </div>
             )}
 
+            {/* Client view - llegó la hora de inicio y el contrato todavía no empezó */}
+            {isOwnJob &&
+              !isDraft &&
+              contratoSinEmpezar &&
+              horaDeInicioPaso &&
+              (job.status === "open" || job.status === "in_progress") && (
+                <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
+                  <p className="font-semibold">{t("jobs.contractNotStartedTitle", "El contrato todavía no empezó")}</p>
+                  <p className="mt-1">
+                    {t(
+                      "jobs.contractNotStartedBody",
+                      "Ya pasó la hora de inicio. Empieza solo cuando el pago está acreditado y no hay un pedido de cambio o de cancelación abierto: ahí queda en progreso sin que nadie tenga que aprobarlo.",
+                    )}{" "}
+                    {contractData && (
+                      <Link to={`/contracts/${contractData.id}/summary`} className="font-semibold underline">
+                        {t("jobs.viewContract", "Ver contrato")} →
+                      </Link>
+                    )}
+                  </p>
+                </div>
+              )}
+
             {/* Client view - Job finished, needs confirmation */}
             {isOwnJob &&
               !isDraft &&
               (job.doerId ||
                 (job.selectedWorkers && job.selectedWorkers.length > 0)) &&
               job.endDate &&
-              new Date(job.endDate) <= new Date() &&
+              trabajoYaTermino &&
               (job.status === "open" || job.status === "in_progress") &&
               contractData &&
               !contractData.clientConfirmed && (
@@ -4171,9 +4211,9 @@ export default function JobDetail() {
                   {!["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && (
                     <div role="note" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
                       {({
-                        pending: "El contrato todavía está pendiente: un administrador tiene que aprobarlo y las dos partes aceptarlo antes de que el trabajo empiece.",
-                        ready: "El contrato está aprobado pero falta que las dos partes lo acepten.",
-                        accepted: "El contrato está aceptado pero el trabajo todavía no empezó: falta confirmar el inicio con el código de emparejamiento.",
+                        pending: "El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado.",
+                        ready: "El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado.",
+                        accepted: "El contrato todavía no empezó: arranca solo a la hora de inicio, con el pago acreditado.",
                       } as Record<string, string>)[String(contractData.status)] || `El contrato está en estado «${contractData.status}».`}{" "}
                       Por eso todavía no se puede confirmar.{" "}
                       <Link to={`/contracts/${contractData.id}/summary`} className="font-semibold underline">Ver contrato →</Link>
