@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 
 /**
  * El ciclo del contrato que corre solo (regla del dueño, 2026-10-24): empieza cuando llega la hora de inicio y, si nadie toca «terminó el trabajo»,
- * se da por terminado una hora después de la hora de fin (pasa a «esperando confirmación»; el pago se libera con lo de siempre).
+ * pasa a «esperando confirmación» al llegar la hora de fin y, si nadie confirma, se da por terminado 24 h después (el pago se libera con lo de siempre).
  *
  * El caso que lo motivó: el trabajo terminó el 22/10, hoy es 24/10, y la pantalla decía a la vez «¡Trabajo finalizado!» y «el contrato todavía está
  * pendiente: un administrador tiene que aprobarlo», porque el contrato nunca se había empezado a mano.
@@ -148,9 +148,9 @@ describe('ciclo del contrato: empieza y termina solo', () => {
     expect(await Notification.count({ where: { recipientId: cliente.id, relatedId: contrato.id, title: 'Terminó el trabajo: falta confirmar' } as any })).toBe(1);
   });
 
-  it('un contrato en progreso termina una hora DESPUÉS de la hora de fin, no antes', async () => {
-    const a = await armar({ status: 'in_progress', startDate: hace(3 * HORA), endDate: hace(30 * 60_000) }); // terminó hace media hora
-    const b = await armar({ status: 'in_progress', startDate: hace(4 * HORA), endDate: hace(2 * HORA) }); // terminó hace dos horas
+  it('un contrato en progreso pasa a esperar confirmación al llegar la hora de fin, no antes', async () => {
+    const a = await armar({ status: 'in_progress', startDate: hace(3 * HORA), endDate: new Date(Date.now() + 30 * 60_000) }); // termina en media hora
+    const b = await armar({ status: 'in_progress', startDate: hace(4 * HORA), endDate: hace(60_000) }); // terminó hace un minuto
     await cerrarContratosQueTerminaron(ahora());
     expect([await estado(a.contrato.id), await estado(b.contrato.id)]).toEqual(['in_progress', 'awaiting_confirmation']);
   });

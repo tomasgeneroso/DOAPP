@@ -11,9 +11,9 @@ import { POLITICAS } from '../../shared/constants/policies.js';
  *
  *  - EMPIEZA cuando llega la hora de inicio. No hace falta que un administrador lo apruebe ni escribir el código de emparejamiento (el código sigue
  *    sirviendo para dejar anotada la presencia de las dos partes en el lugar, pero ya no es una puerta).
- *  - TERMINA cuando las dos partes tocan «terminó el trabajo» (`POST /contracts/:id/confirm`) o, si nadie lo hizo, una hora después de la hora de fin
- *    (`POLITICAS.AUTO_FINALIZACION_HORAS`): el contrato deja de estar «en progreso» y pasa a «esperando confirmación». Desde ahí rige lo de siempre: si las
- *    partes no confirman en `AUTO_CONFIRMACION_HORAS`, se confirma solo y se libera el pago (T&C 7.6; jobs/autoConfirmContracts.ts).
+ *  - TERMINA cuando las dos partes tocan «terminó el trabajo» (`POST /contracts/:id/confirm`) o, si nadie lo hizo, al llegar la hora de fin: el contrato
+ *    deja de estar «en progreso» y pasa a «esperando confirmación». Desde ahí corre el plazo de `AUTO_CONFIRMACION_HORAS` (24 h): si las partes no confirman,
+ *    se da por terminado solo y se libera el pago (T&C 7.6; jobs/autoConfirmContracts.ts). Es decir, 24 h después de la hora de fin, sin hora extra de gracia.
  *
  * Antes un contrato que nadie empezaba a mano se quedaba «pendiente» para siempre aunque el trabajo ya hubiera pasado, y la pantalla mostraba a la vez
  * «¡Trabajo finalizado!» y «el contrato todavía está pendiente: un administrador tiene que aprobarlo».
@@ -21,8 +21,6 @@ import { POLITICAS } from '../../shared/constants/policies.js';
  * Qué NO empieza solo: un contrato sin la plata asegurada (ni el pago de la publicación acreditado ni la custodia de este contrato), uno cuyo trabajo ya
  * no está activo, o uno con un pedido de cambio, de cancelación o un reclamo abierto. Esos esperan a que se resuelva.
  */
-
-export const HORAS_DE_GRACIA_AL_FINAL = POLITICAS.AUTO_FINALIZACION_HORAS;
 
 /** Estados anteriores al inicio: de cualquiera de ellos el contrato puede empezar solo. */
 export const ESTADOS_SIN_EMPEZAR = ['pending', 'ready', 'accepted'] as const;
@@ -105,14 +103,14 @@ export async function iniciarContratosQueLlegaronASuHora(ahora: Date = new Date(
 }
 
 /**
- * Da por terminados los contratos en progreso a los que ya pasó una hora desde la hora de fin sin que nadie confirmara: pasan a «esperando
- * confirmación» (con el plazo de siempre para responder). Un trabajo de fin flexible que todavía no tiene fecha de fin no termina solo: la fecha del
+ * Pasa a «esperando confirmación» los contratos en progreso a los que ya les llegó la hora de fin sin que nadie confirmara. Ahí empiezan a correr las
+ * `AUTO_CONFIRMACION_HORAS` (24 h) para responder; vencidas, `autoConfirmContracts` los da por terminados y libera el pago. `awaitingConfirmationAt` es el
+ * momento en que se avisa (no la hora de fin): un contrato que se descubre tarde (por ejemplo uno que nadie empezó) también tiene sus 24 h para responder. Un trabajo de fin flexible que todavía no tiene fecha de fin no termina solo: la fecha del
  * contrato es solo una estimación (inicio + duración estimada). Devuelve cuántos.
  */
 export async function cerrarContratosQueTerminaron(ahora: Date = new Date()): Promise<number> {
-  const limite = new Date(ahora.getTime() - HORAS_DE_GRACIA_AL_FINAL * 3_600_000);
   const candidatos = (await Contract.findAll({
-    where: { status: 'in_progress', endDate: { [Op.ne]: null, [Op.lte]: limite } } as never,
+    where: { status: 'in_progress', endDate: { [Op.ne]: null, [Op.lte]: ahora } } as never,
     include: [{ model: Job, as: 'job', attributes: ['id', 'title', 'endDate', 'endDateFlexible'] }],
     order: [['endDate', 'ASC']],
     limit: 200,

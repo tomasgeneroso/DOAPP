@@ -40,29 +40,48 @@ export const POLITICAS = {
   INVITACIONES_POR_INFLUENCER: 5,
 
   /**
-   * Contratos LIBRES DE COMISIÓN de lanzamiento. Las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que se crean reciben
-   * `CONTRATOS_LIBRES_DE_COMISION` contratos para usar como Cliente en los que DOAPP no cobra su comisión; el trabajo y el costo del medio de pago
-   * se pagan igual (T&C 7.10). Regla del dueño del 2026-10-24: reemplaza al «3 contratos para los primeros 1000» que figuraba en pantallas y
-   * comentarios pero nunca se aplicó como tope (toda cuenta nueva nacía con 3) y a los cupos mensuales de la membresía PRO, que contradecían que la
-   * membresía no modifica la comisión (T&C 7.3 y 8.1).
+   * Contratos LIBRES DE COMISIÓN de lanzamiento. Las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que completan su registro tienen
+   * `CONTRATOS_LIBRES_POR_MES` contrato libre de comisión por mes calendario, durante `MESES_DE_CONTRATOS_LIBRES` meses, para usar como Cliente: en ese
+   * contrato DOAPP no cobra su comisión; el trabajo y el costo del medio de pago se pagan igual (T&C 7.10). El mes que no se usa se pierde (no se
+   * acumula). El año arranca cuando empieza a cobrarse comisión (el fin de la beta) o, si la cuenta se crea después, el día del alta: durante la beta la
+   * comisión ya es cero y no se gastaría nada.
+   *
+   * Regla del dueño del 2026-10-24 (segunda versión el mismo día; la primera era «6 contratos para las primeras 2000 cuentas»). Reemplaza al «3
+   * contratos para los primeros 1000» que figuraba en pantallas y comentarios pero nunca se aplicó como tope, y a los cupos mensuales de la membresía
+   * PRO, que contradecían que la membresía no modifica la comisión (T&C 7.3 y 8.1): este beneficio es de las primeras cuentas, con cualquier plan.
    *
    * El tope se cuenta con `users.is_early_user` (ver `otorgarContratosLibres`, services/exencionDeComision.ts).
    */
-  CONTRATOS_LIBRES_DE_COMISION: 6,
-  PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES: 2000,
+  CONTRATOS_LIBRES_POR_MES: 1,
+  MESES_DE_CONTRATOS_LIBRES: 12,
+  PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES: 1000,
+
+  /**
+   * Días que la pasarela de pagos tarda en liberar un pago a la Plataforma. Hasta entonces, una devolución al Cliente que sale de ese pago figura como
+   * «a favor pendiente»: no se puede usar ni retirar (T&C 7.9). Es el valor por defecto; si la pasarela informa la fecha real de un pago, manda esa
+   * (`services/liberacionDeSaldo.ts`, que lo puede cambiar con `PAYMENT_RELEASE_DAYS`).
+   */
+  DIAS_LIBERACION_PAGO: 10,
+
+  /**
+   * Programa de referidos (T&C 7.14). Cada cuenta puede invitar hasta `REFERIDOS_MAXIMOS` personas. Cuando una invitada completa su primer contrato, la que
+   * invitó recibe: por la primera, `REFERIDOS_PREMIO_PRIMERO_CONTRATOS` contratos libres de comisión; por la segunda, `REFERIDOS_PREMIO_SEGUNDO_CONTRATOS`; por la
+   * tercera, la comisión `COMISION_PREMIO_DE_REFERIDOS` % durante `DIAS_PREMIO_DE_REFERIDOS` días (no es permanente; antes la pantalla decía «3% permanente (en
+   * lugar del 5% normal)» y la tasa guardada en la cuenta no la leía nadie al cobrar). La invitada que se registra con un código y está entre las primeras
+   * cuentas recibe `REFERIDOS_CONTRATOS_AL_REGISTRARSE` contrato libre de comisión. Los contratos libres de los premios suman al contador de la cuenta y no vencen.
+   */
+  REFERIDOS_MAXIMOS: 3,
+  REFERIDOS_PREMIO_PRIMERO_CONTRATOS: 2,
+  REFERIDOS_PREMIO_SEGUNDO_CONTRATOS: 1,
+  REFERIDOS_CONTRATOS_AL_REGISTRARSE: 1,
+  COMISION_PREMIO_DE_REFERIDOS: 3,
+  DIAS_PREMIO_DE_REFERIDOS: 30,
 
   /**
    * Horas en awaiting_confirmation antes de que el contrato se confirme solo y
    * el escrow se libere al trabajador. T&C 7.6.
    */
   AUTO_CONFIRMACION_HORAS: 24,
-
-  /**
-   * Horas después de la hora de fin en que un contrato en progreso, si nadie tocó «terminó el trabajo», se da por terminado: pasa a «esperando
-   * confirmación» y desde ahí corre el plazo de `AUTO_CONFIRMACION_HORAS`. Regla del dueño, 2026-10-24 (el contrato empieza solo a la hora de inicio y
-   * termina cuando las dos partes lo confirman o una hora después de la hora de fin). Ver services/cicloDelContrato.ts.
-   */
-  AUTO_FINALIZACION_HORAS: 1,
 
   /**
    * Horas que un aumento de precio pagado por Mercado Pago espera a un administrador. Pasado el plazo se aprueba solo,

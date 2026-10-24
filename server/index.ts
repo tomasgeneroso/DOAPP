@@ -547,7 +547,7 @@ startResetReferralDiscountsJob();
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();
 
-// Los contratos empiezan solos a la hora de inicio y se dan por terminados una hora después de la hora de fin (ver services/cicloDelContrato.ts)
+// Los contratos empiezan solos a la hora de inicio y pasan a esperar confirmación al llegar la hora de fin y se dan por terminados 24 h después si nadie confirma (ver services/cicloDelContrato.ts)
 startCicloDelContratoJob();
 startVencerOrdenesDePagoJob();
 startDevolucionDePresupuestoJob();

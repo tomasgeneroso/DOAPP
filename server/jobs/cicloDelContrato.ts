@@ -2,8 +2,8 @@ import cron from 'node-cron';
 import { iniciarContratosQueLlegaronASuHora, cerrarContratosQueTerminaron } from '../services/cicloDelContrato.js';
 
 /**
- * Cada 5 minutos: empieza los contratos a los que les llegó la hora de inicio y da por terminados los que pasaron una hora de su hora de fin sin que
- * nadie confirmara. Las reglas y el porqué están en services/cicloDelContrato.ts; la confirmación automática (pago) sigue en autoConfirmContracts.ts.
+ * Cada 5 minutos: empieza los contratos a los que les llegó la hora de inicio y pasa a «esperando confirmación» los que llegaron a su hora de fin sin
+ * que nadie confirmara (24 h después se dan por terminados). Las reglas y el porqué están en services/cicloDelContrato.ts; la confirmación automática (pago) sigue en autoConfirmContracts.ts.
  */
 export function startCicloDelContratoJob() {
   cron.schedule('*/5 * * * *', async () => {
