@@ -81,3 +81,8 @@ Falta bajar esto a una regla de quién ve qué (borrador en la respuesta al due�
 
 Sin desarrollar: esta especificación está anotada, no planificada. Se
 clarifica cuando se decida su prioridad frente a 001, 002 y 003.
+
+## Decisión del dueño (2026-10-25)
+
+- **Documentos de identidad** (DNI, fotos del documento, selfie): los ven **solo el dueño y el equipo** (administración y soporte). Ningún otro usuario (ni la contraparte de un contrato) los ve. Queda por confirmar si cada persona puede volver a ver su propio documento.
+- **Matrícula y seguro**: no se muestran como documento sino como **insignia** en el perfil («matrícula verificada», «seguro vigente»). El archivo lo ve el equipo; el público solo ve que está verificado.

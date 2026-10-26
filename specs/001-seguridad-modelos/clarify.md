@@ -27,7 +27,7 @@ romper el bloqueo de baneados. El costo es una columna extra y una
 migración; el beneficio es que un volcado de la base deja de ser una lista
 de documentos.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A** (dueño, 2026-10-25): la huella para buscar + el dato cifrado para mostrar.
 
 ---
 
@@ -91,7 +91,9 @@ conocidos, así que arranca desde cero falsos positivos. Si aparece uno, se
 ajusta el patrón — que es exactamente lo que hicimos hoy con
 `dontAskBankingInfo`.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A** (2026-10-25). El dueño dijo que no sabe cuál es mejor y deja la elección a la recomendación. En simple: el auditor es un
+revisor automático que mira los modelos de datos buscando secretos a la vista; con A, si un cambio nuevo deja un secreto a la vista, la
+subida no pasa hasta arreglarlo. Si algún día frena por un falso aviso, se corrige el revisor (como con `dontAskBankingInfo`) y listo.
 
 ---
 
@@ -109,7 +111,13 @@ ajusta el patrón — que es exactamente lo que hicimos hoy con
 riesgo latente pero cada día que pasa suman más consultas que arreglar. Los
 dos bajos (`ModuleConfig`, `Quote`) no justifican demorar los altos.
 
-**Respuesta**: _(pendiente)_
+**¿Hallazgos de qué?** (pregunta del dueño, 2026-10-25): de la auditoría de seguridad de los modelos de datos (`spec.md`), que revisó los 43
+modelos. Los tres altos: **H1** las contraseñas, tokens y semilla del 2FA salen en cada consulta salvo que alguien los saque a mano (180 de 244
+consultas); **H2** el DNI, las fotos del documento y los datos bancarios están guardados legibles en la base (un backup filtrado los
+entrega); **H3** una edición de trabajo acepta cualquier campo que mande el cliente (podría cambiar el precio o el estado). Los dos bajos
+(**H4**): `ModuleConfig` y `Quote` aceptan filas incompletas.
+
+**Respuesta**: _(pendiente: A = solo H1, H2 y H3 ahora y H4 después; B = todo junto; C = solo H3)_
 
 ---
 
@@ -119,4 +127,6 @@ dos bajos (`ModuleConfig`, `Quote`) no justifican demorar los altos.
 |---|---|---|
 | C2 | Los secretos se ocultan con `defaultScope` + `withSecrets` explícito y con `toJSON()` como red de seguridad (opción C) | 2026-10-24 |
 | C3 | Se asume que hay datos reales en producción: backfill reversible por lotes (opción A) | 2026-10-24 |
-| C1, C4, C5 | Pendientes: el dueño pidió que se expliquen más simple (huella para buscar, si el auditor frena el merge, alcance de la tanda) | — |
+| C1 | A: se agrega una huella del DNI para buscar (exacta, indexable) y el DNI se guarda cifrado para mostrar | 2026-10-25 |
+| C4 | A: el auditor frena la subida si aparece un hallazgo alto nuevo (el dueño no tenía preferencia: queda la recomendación) | 2026-10-25 |
+| C5 | Pendiente: explicado qué son los hallazgos; recomendación A (solo H1, H2 y H3 ahora) | — |

@@ -30,7 +30,11 @@ y cuándo, y volver a validarlo contra el RNR.
 
 Si la decisión es B o C, **003 no se despliega antes que 004**.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A, solo el resultado** (dueño, 2026-10-25). Pregunta del dueño: el certificado puede contar que la persona tiene antecedentes y aun así el
+resultado ser «apto» (lo que se verifica es que el papel sea verídico y que lo que dice no esté dentro de lo que se rechaza, ver C2); ¿se puede
+ver una sola vez y borrarlo? **Sí, es exactamente la opción A**: el revisor abre el certificado una vez, anota el resultado (apto / no apto), el
+código de verificación, la fecha de emisión y quién lo revisó, y al cerrar la revisión **el archivo se borra**. Lo que queda no revela qué decía el
+papel, solo que se miró y qué se resolvió; ante un reclamo se puede volver a verificar el código contra el Registro Nacional de Reincidencia.
 
 ---
 
@@ -57,7 +61,16 @@ rechazado y sostener si lo reclama. La lista la tenés que definir vos —es
 una decisión del negocio, no técnica—; yo la dejo como un documento aparte
 que el revisor consulta.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A, escrita corta y práctica** (dueño, 2026-10-25: «es un poco obvio, quien roba o mata no es aceptado»). Texto propuesto para el revisor
+(y, si el dueño lo aprueba, para los T&C), a confirmar:
+
+> **Se rechaza** a quien tenga antecedentes por delitos contra las personas (homicidio, lesiones, violencia, amenazas, delitos sexuales) o contra la
+> propiedad (robo, hurto, estafa), o por tráfico de drogas o armas.
+> **No se rechaza** por una falta menor, una contravención, un delito sin relación con el trabajo (por ejemplo, de tránsito) o un antecedente
+> prescripto o ya cancelado. Ante la duda, el revisor lo pasa a un administrador antes de rechazar.
+> A quien se rechaza se le dice el motivo en una frase y puede presentar otro certificado.
+
+La lista final de delitos es del dueño: queda como propuesta hasta que la apruebe.
 
 ---
 
@@ -75,7 +88,8 @@ posibles y la diferencia la siente el trabajador.
 **Recomendación: C**, con el bloqueo real en A y la verificación en B como
 control. El costo sobre A sola es una línea.
 
-**Respuesta**: _(pendiente)_
+**Respuesta: A, al postularse** (dueño, 2026-10-25). Cuando no puede postularse, la app le **explica por qué** y le **da la posibilidad de subir otro
+certificado** en ese mismo momento (sin tener que ir a buscar dónde).
 
 ---
 
@@ -124,4 +138,7 @@ una acusación.
 | C4 | A: los trabajadores que ya trabajan tienen 30 días para presentar el certificado; después se bloquea (el dueño entendió «para entregarlos» y dio el visto bueno) | 2026-10-24 |
 | C5 | A: insignia «Antecedentes verificados» solo cuando fue aceptado; la ausencia de insignia no dice nada | 2026-10-24 |
 | nota | Un cliente puede pedirle a soporte el estado de la verificación de un trabajador si lo necesita: se anota en los T&C cuando se redacte la cláusula | 2026-10-24 |
-| C1, C2, C3 | Pendientes de confirmar con el dueño: C1 dijo «ambos» (guardar el resultado y también el archivo); C2 pregunta si la lista de delitos va en los T&C; C3 pregunta a qué se refiere el bloqueo | — |
+| C1 | A: solo el resultado. El certificado se ve una vez y se borra al cerrar la revisión; quedan resultado, código de verificación, fecha y revisor (reemplaza el «ambos» anterior) | 2026-10-25 |
+| C2 | A: criterio escrito, corto y práctico (quien roba, mata o agrede no es aceptado); texto propuesto arriba, a aprobar | 2026-10-25 |
+| C3 | A: el bloqueo es al postularse, con el motivo a la vista y la posibilidad de subir otro certificado | 2026-10-25 |
+| nota (soporte) | Lo de que el cliente consulte a soporte el estado de la verificación **sí se puede**, porque se guarda el resultado; solo se responde «verificado / no verificado» | 2026-10-25 |

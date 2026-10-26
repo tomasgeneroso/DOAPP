@@ -139,3 +139,4 @@ quitarlo, pero no se lo desobedece por atrás.
 | C3 | Sólo el feed en esta tanda; notificaciones anotadas como pendiente | 2026-09-29 |
 | C4 | Se reusa `User.interests` | 2026-09-29 |
 | C5 | Vacío explica el filtro y ofrece quitarlo | 2026-09-29 |
+| C2 (regla final) | **Encendido si la persona eligió rubros; apagado si no puso ninguno.** Quien nunca eligió (o eligió «todos») ve todo; en cuanto elige uno o más, el feed se filtra. Sigue el aviso de una sola vez para quien ya tenía rubros de antes | 2026-10-25 |
