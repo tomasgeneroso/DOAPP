@@ -64,7 +64,10 @@ async function processScheduledAutoSelections() {
             type: 'trabajo',
             price: (job as any).budget || 0,
             status: 'pending',
-            termsAccepted: false
+            termsAccepted: true,
+            termsAcceptedAt: new Date(),
+            termsAcceptedByClient: true,
+            termsAcceptedByDoer: true,
           });
         }
 

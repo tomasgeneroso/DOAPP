@@ -638,7 +638,7 @@ export default function FinancialTransactions() {
       },
       membership: {
         label: 'Membresía',
-        tooltip: 'Pago de la suscripción PRO. Da visibilidad al perfil del trabajador (promoción, insignia, prioridad en búsquedas) y no modifica la comisión.',
+        tooltip: 'Pago de la suscripción PRO. Baja la comisión que paga en los contratos que contrata (la tasa de PRO), suma un contrato libre de comisión por mes, promoción del perfil, estadísticas y prioridad en búsquedas y en soporte.',
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
       },
       withdrawal: {

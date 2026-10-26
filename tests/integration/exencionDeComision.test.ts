@@ -8,7 +8,8 @@ import { describe, it, expect, afterAll, jest } from '@jest/globals';
  *
  * Regla del dueño (2026-10-24, segunda versión): las primeras 1000 cuentas (con el registro completo) tienen 1 contrato libre de comisión por mes durante
  * 12 meses (POLITICAS.CONTRATOS_LIBRES_POR_MES / MESES_DE_CONTRATOS_LIBRES / PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES), con cualquier plan; el mes que no se
- * usa se pierde. Aparte queda el contador de premios (referidos). La membresía NO tiene cupo propio: no modifica la comisión (T&C 7.3 y 8.1).
+ * usa se pierde. Aparte queda el contador de premios (referidos). La membresía PRO también tiene 1 contrato libre por mes (no se suma al de las primeras) y
+ * paga una comisión menor en los demás (regla del dueño, 2026-10-25; T&C 8.1).
  */
 
 jest.mock('../../server/services/platformPhase.js', () => ({
@@ -22,6 +23,7 @@ import { sequelize } from '../../server/config/database.js';
 import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 import {
   asignarContratosLibresAExistentes,
@@ -108,12 +110,30 @@ describe('comisionDePublicacion y cupos libres de comisión', () => {
       expect(r.gastar).toBe('bono');
     });
 
-    it('la membresía NO da un cupo mensual: una cuenta PRO que no es de las primeras paga la comisión', async () => {
-      for (const tier of ['pro', 'super_pro']) {
-        const u = await cuenta({ membershipTier: tier, proContractsUsedThisMonth: 0 });
+    it('PRO tiene su contrato libre de comisión por mes y paga la comisión de PRO en los demás; una cuenta con la membresía vencida no tiene nada de eso', async () => {
+      const vigente = await cuenta({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() + 20 * 86_400_000) });
+      const t1 = await trabajo(vigente.id);
+      const r1 = await comisionDePublicacion(vigente, t1, 100000);
+      expect([r1.comision.commission, r1.gastar]).toEqual([0, 'mensual']);
+      expect(await gastarCupoDeExencion(vigente, t1, 'mensual')).toBe(true);
+      // el mes que viene no se suma: este mes ya lo usó, y la segunda publicación paga la tasa reducida de PRO
+      // (con un precio alto, para que no mande el piso de la comisión: EUR 2)
+      const r2 = await comisionDePublicacion(await leer(vigente.id), await trabajo(vigente.id, { price: 1_000_000 }), 1_000_000);
+      expect(r2.gastar).toBeNull();
+      expect(r2.comision.rate).toBe(COMMISSION_RATES.pro);
+      expect(r2.comision.commission).toBeCloseTo(1_000_000 * (COMMISSION_RATES.pro / 100), 2);
+
+      for (const [tier, vence] of [['pro', -2], ['free', 20]] as const) {
+        const u = await cuenta({ membershipTier: tier, hasMembership: tier === 'pro', membershipExpiresAt: new Date(Date.now() + vence * 86_400_000) });
         const r = await comisionDePublicacion(u, await trabajo(u.id), 100000);
         expect([tier, r.comision.commission > 0, r.gastar]).toEqual([tier, true, null]);
       }
+    });
+
+    it('si una cuenta es de las primeras Y tiene PRO, el contrato libre del mes es UNO, no dos', async () => {
+      const u = await primera({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() + 20 * 86_400_000) });
+      expect(await reclamarCupoMensual(u.id)).toBe(true);
+      expect(await reclamarCupoMensual(u.id)).toBe(false);
     });
 
     it('una de las primeras cuentas tiene el contrato libre del mes: comisión 0 y se gasta el del mes', async () => {

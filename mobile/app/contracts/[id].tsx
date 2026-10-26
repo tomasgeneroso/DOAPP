@@ -42,6 +42,7 @@ import { puedePagarElContrato } from '../../services/pagos';
 import EmergencyButton from '../../components/EmergencyButton';
 import EscribirASoporte from '../../components/EscribirASoporte';
 import CompartirContrato from '../../components/CompartirContrato';
+import LiquidacionDelPago from '../../components/LiquidacionDelPago';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -520,6 +521,9 @@ export default function ContractDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador. */}
+          <LiquidacionDelPago liquidacion={(contract as any).liquidacion} rol={isDoer ? 'trabajador' : isClient ? 'cliente' : 'otro'} />
 
           {/*
             El panel de la orden. Se dibuja solo si el contrato es de los que

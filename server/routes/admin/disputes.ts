@@ -5,6 +5,7 @@ import { Dispute } from "../../models/sql/Dispute.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
+import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
 import { body, validationResult } from "express-validator";
 import { logAudit } from "../../utils/auditLog.js";
 import emailService from "../../services/email.js";
@@ -36,12 +37,13 @@ router.get(
         include: [
           { model: Contract, as: "contract", attributes: ["price"] },
           { model: Payment, as: "payment", attributes: ["id", "status", "amount"] },
-          { model: User, as: "initiator", attributes: ["name", "email", "avatar"] },
-          { model: User, as: "defendant", attributes: ["name", "email", "avatar"] },
+          { model: User, as: "initiator", attributes: ["name", "email", "avatar", ...ATRIBUTOS_DE_MEMBRESIA] },
+          { model: User, as: "defendant", attributes: ["name", "email", "avatar", ...ATRIBUTOS_DE_MEMBRESIA] },
           { model: User, as: "assignee", attributes: ["name"] },
           { model: User, as: "resolver", attributes: ["name"] },
         ],
-        order: [["createdAt", "DESC"]],
+        // Prioridad de soporte (T&C 8.1): los reclamos en que participa una cuenta con la membresía PRO van primero.
+        order: [premiumPrimero("initiator", "defendant") as any, ["createdAt", "DESC"]],
         limit: Number(limit),
         offset: (Number(page) - 1) * Number(limit),
       });
@@ -52,6 +54,7 @@ router.get(
         return {
           ...plain,
           hasPayment: !!plain.payment,
+          premium: esPremium((d as any).initiator) || esPremium((d as any).defendant),
         };
       });
 

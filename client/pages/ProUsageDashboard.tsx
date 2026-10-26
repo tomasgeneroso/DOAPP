@@ -5,6 +5,8 @@ import { MembershipUsage } from '../types';
 import { Crown, TrendingUp, Calendar, Gift, CheckCircle, Sparkles } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
+import { COMMISSION_RATES } from '../../shared/constants/membershipPricing';
+import { POLITICAS } from '../../shared/constants/policies';
 
 export default function ProUsageDashboard() {
   const { user } = useAuth();
@@ -196,7 +198,31 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
+              <span>{t('proUsage.benefitMonthly', '{{cantidad}} contrato libre de comisión por mes (el que no usás no se acumula)', { cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES })}</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                user?.membershipTier === 'super_pro'
+                  ? 'text-purple-600 dark:text-purple-400'
+                  : 'text-blue-600 dark:text-blue-400'
+              }`} />
+              <span>{t('proUsage.benefitRate', 'Comisión del {{pro}}% en los demás contratos, en vez del {{free}}%', { pro: COMMISSION_RATES.pro, free: COMMISSION_RATES.free })}</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                user?.membershipTier === 'super_pro'
+                  ? 'text-purple-600 dark:text-purple-400'
+                  : 'text-blue-600 dark:text-blue-400'
+              }`} />
               <span>{t('proUsage.benefitBadge', 'Badge {{tier}} verificado y prioridad en búsquedas', { tier: 'PRO' })}</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                user?.membershipTier === 'super_pro'
+                  ? 'text-purple-600 dark:text-purple-400'
+                  : 'text-blue-600 dark:text-blue-400'
+              }`} />
+              <span>{t('proUsage.benefitSupport', 'Prioridad en la atención de soporte')}</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${

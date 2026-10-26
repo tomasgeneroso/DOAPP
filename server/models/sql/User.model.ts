@@ -871,7 +871,7 @@ export class User extends Model {
     this.membershipTier = tier;
     this.membershipExpiresAt = endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
     // Set commission rate based on tier
-    // La tasa sale de COMMISSION_RATES: la membresía no modifica la comisión
+    // La tasa sale de COMMISSION_RATES (PRO paga menos comisión)
     this.currentCommissionRate = tier === 'pro' ? COMMISSION_RATES.pro : COMMISSION_RATES.super_pro;
     await this.save();
   }

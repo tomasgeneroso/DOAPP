@@ -393,10 +393,10 @@ export default function ContractSummary() {
                       {(!user.membershipTier || user.membershipTier === 'free') && t('contracts.summary.membershipFree', 'FREE User')}
                     </p>
                     <p className="text-purple-700 dark:text-purple-300">
-                      {(user.membershipTier === 'super_pro' || user.membershipTier === 'pro') && t('contracts.summary.proDesc', 'The commission is the same on every plan: your membership adds visibility, it does not change it.')}
+                      {(user.membershipTier === 'super_pro' || user.membershipTier === 'pro') && t('contracts.summary.proDesc', 'With PRO the commission is {{comision}}%, and each month you have a commission-free contract.', { comision: COMMISSION_RATES.pro })}
                       {(!user.membershipTier || user.membershipTier === 'free') && (
                         <>
-                          {t('contracts.summary.freeDesc', 'The commission is the same on every plan. PRO adds visibility to your profile.')}{' '}
+                          {t('contracts.summary.freeDesc', 'The commission is {{comision}}%. With PRO it is {{pro}}% plus a commission-free contract every month.', { comision: COMMISSION_RATES.free, pro: COMMISSION_RATES.pro })}{' '}
                           <Link to="/settings?tab=membership" className="underline font-semibold">
                             {t('contracts.summary.viewPlans', 'View plans')}
                           </Link>

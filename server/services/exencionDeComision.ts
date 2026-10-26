@@ -14,12 +14,13 @@ import { calculateCommission, type CommissionResult } from './commissionService.
  *
  * Hay DOS cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago):
  *
- *  - `mensual`: las primeras `POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que completaron su registro (`users.is_early_user`) tienen
- *    `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario durante `MESES_DE_CONTRATOS_LIBRES` meses, con cualquier plan. El mes que no se
- *    usa se pierde. Se gasta con `users.free_monthly_used_at`. Va primero porque vence a fin de mes.
+ *  - `mensual`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario. Lo tienen (a) las primeras `POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que
+ *    completaron su registro (`users.is_early_user`), durante `MESES_DE_CONTRATOS_LIBRES` meses, con cualquier plan, y (b) quien tiene la membresía PRO vigente (T&C 8.1),
+ *    mientras la tenga. Es UN solo contrato por mes aunque se cumplan las dos cosas. El mes que no se usa se pierde (no hay cron que lo reponga: se calcula con
+ *    la fecha del último uso, `users.free_monthly_used_at`). Va primero porque vence a fin de mes.
  *  - `bono`: el contador `users.free_contracts_remaining`, que suman los premios de referidos. No vence.
  *
- * La membresía NO tiene cupo propio: no modifica la comisión (T&C 7.3 y 8.1); antes PRO daba 1 por mes, SUPER PRO 2 y un bonus.
+ * En los demás contratos de PRO la comisión no es cero: es la de PRO (`COMMISSION_RATES.pro`), que calcula `calculateCommission`.
  *
  * Donde la comisión ya es cero por otra razón (la beta, el plan familia, una invitación) no se gasta ningún cupo: no habría nada que eximir.
  */
@@ -32,6 +33,10 @@ export interface CuentaParaExencion {
   isEarlyUser?: boolean | null;
   createdAt?: Date | string | null;
   freeMonthlyUsedAt?: Date | string | null;
+  /** Para saber si tiene la membresía PRO vigente. */
+  membershipTier?: string | null;
+  hasMembership?: boolean | null;
+  membershipExpiresAt?: Date | string | null;
 }
 
 export interface ComisionDePublicacion {
@@ -76,11 +81,23 @@ export function ventanaDelBeneficio(
   return { desde, hasta };
 }
 
-/** ¿Le queda a la cuenta el contrato libre de este mes? (Solo mira; gastarlo es `reclamarCupoMensual`.) */
-export function cupoMensualDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date(), cobroDesde: Date = inicioDelCobro()): boolean {
+/** ¿Tiene la membresía PRO (o la SUPER PRO heredada) vigente? (`has_membership` y no vencida). */
+export function tieneProVigente(cuenta: CuentaParaExencion, ahora: Date = new Date()): boolean {
+  if (!['pro', 'super_pro'].includes(String(cuenta.membershipTier))) return false;
+  if (cuenta.hasMembership !== true) return false;
+  return !cuenta.membershipExpiresAt || new Date(cuenta.membershipExpiresAt).getTime() > ahora.getTime();
+}
+
+/** ¿Está dentro del año del beneficio de las primeras cuentas? */
+function dentroDelAnioDeLasPrimeras(cuenta: CuentaParaExencion, ahora: Date, cobroDesde: Date): boolean {
   if (!cuenta.isEarlyUser) return false;
   const ventana = ventanaDelBeneficio(cuenta, cobroDesde);
-  if (!ventana || ahora.getTime() < ventana.desde.getTime() || ahora.getTime() >= ventana.hasta.getTime()) return false;
+  return !!ventana && ahora.getTime() >= ventana.desde.getTime() && ahora.getTime() < ventana.hasta.getTime();
+}
+
+/** ¿Le queda a la cuenta el contrato libre de este mes? (Solo mira; gastarlo es `reclamarCupoMensual`.) */
+export function cupoMensualDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date(), cobroDesde: Date = inicioDelCobro()): boolean {
+  if (!dentroDelAnioDeLasPrimeras(cuenta, ahora, cobroDesde) && !tieneProVigente(cuenta, ahora)) return false;
   const usado = cuenta.freeMonthlyUsedAt ? new Date(cuenta.freeMonthlyUsedAt) : null;
   return !usado || usado.getTime() < inicioDelMes(ahora).getTime();
 }
@@ -138,9 +155,16 @@ export async function reclamarCupoMensual(userId: string, ahora: Date = new Date
   const filas = (await sequelize.query(
     `UPDATE users
         SET free_monthly_used_at = CAST(:ahora AS timestamptz)
-      WHERE id = :id AND is_early_user = true
-        AND GREATEST(created_at, CAST(:cobro AS timestamptz)) <= CAST(:ahora AS timestamptz)
-        AND CAST(:ahora AS timestamptz) < GREATEST(created_at, CAST(:cobro AS timestamptz)) + make_interval(months => :meses)
+      WHERE id = :id
+        AND (
+          -- las primeras cuentas, dentro de su año
+          (is_early_user = true
+            AND GREATEST(created_at, CAST(:cobro AS timestamptz)) <= CAST(:ahora AS timestamptz)
+            AND CAST(:ahora AS timestamptz) < GREATEST(created_at, CAST(:cobro AS timestamptz)) + make_interval(months => :meses))
+          -- o la membresía PRO vigente
+          OR (membership_tier IN ('pro', 'super_pro') AND has_membership = true
+            AND (membership_expires_at IS NULL OR membership_expires_at > CAST(:ahora AS timestamptz)))
+        )
         AND (free_monthly_used_at IS NULL OR free_monthly_used_at < CAST(:inicioDelMes AS timestamptz))
     RETURNING id`,
     {

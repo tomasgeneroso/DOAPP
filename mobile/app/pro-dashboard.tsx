@@ -23,6 +23,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { get } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro';
 
 interface UsageData {
   freeContractsRemaining: number;
@@ -62,7 +63,6 @@ export default function ProDashboardScreen() {
   };
 
   const tier = user?.membershipTier || 'free';
-  const isPro = tier === 'pro';
   const isSuperPro = tier === 'super_pro';
   const tierColor = isSuperPro ? '#8b5cf6' : colors.primary[600];
   // 'super_pro' es el nombre interno de las cuentas heredadas: hoy se llama PRO.
@@ -74,20 +74,8 @@ export default function ProDashboardScreen() {
     return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  const benefits = isPro
-    ? [
-        'La comision es la misma que en el plan gratuito',
-        'Badge PRO en tu perfil',
-        'Estadisticas avanzadas',
-        'Soporte prioritario',
-      ]
-    : [
-        'La comision es la misma que en el plan gratuito',
-        'Badge PRO en tu perfil',
-        'Analytics avanzados',
-        'Soporte VIP prioritario',
-        'Destacado en busquedas',
-      ];
+  // La misma lista que el checkout, el modal de planes y los T&C (shared/constants/beneficiosPro.ts).
+  const benefits = beneficiosPro();
 
   if (loading) {
     return (
@@ -132,7 +120,7 @@ export default function ProDashboardScreen() {
           )}
         </View>
 
-        {/* Contratos libres de comisión: hay un solo cupo, el de lanzamiento. La membresía no tiene uno propio (no modifica la comisión). */}
+        {/* Contratos libres de comisión: el del mes (PRO o primeras cuentas) y los de premios; todos suman en `freeContractsRemaining`. */}
         {usage && (
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <View style={styles.cardHeader}>
@@ -174,7 +162,7 @@ export default function ProDashboardScreen() {
           activeOpacity={0.7}
         >
           <Text style={[styles.manageBtnText, { color: themeColors.text.secondary }]}>
-            Administrar membresia
+            Administrar membresía
           </Text>
         </TouchableOpacity>
       </ScrollView>

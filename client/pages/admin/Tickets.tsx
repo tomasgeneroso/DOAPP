@@ -417,7 +417,12 @@ export default function AdminTickets() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 dark:text-white">{ticket.subject}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Por {ticket.creator?.name || ticket.user?.name || 'N/A'}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Por {ticket.creator?.name || ticket.user?.name || 'N/A'}
+                    {(ticket as any).premium && (
+                      <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title="Membresía PRO: prioridad de soporte">PRO</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {({ bug: "Bug", feature: "Feature", support: "Soporte", report_user: "Denuncia usuario", report_contract: "Denuncia contrato", payment: "Pago", dispute: "Disputa", other: "Otro" } as Record<string, string>)[ticket.category] || ticket.category}

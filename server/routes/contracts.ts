@@ -20,6 +20,7 @@ import { socketService } from "../index.js";
 import { Op, literal } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { reclamarContratoLibre, devolverContratoLibre, type CupoDeExencion } from "../services/exencionDeComision.js";
+import { liquidacionDelContrato } from "../services/liquidacionDelContrato.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
@@ -262,6 +263,8 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
     res.json({
       success: true,
       contract,
+      // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
+      liquidacion: await liquidacionDelContrato(contract),
     });
   } catch (error: any) {
     res.status(500).json({
@@ -696,9 +699,11 @@ router.post("/repair-job/:jobId", protect, requireRole('admin', 'super_admin', '
       startDate,
       endDate,
       status: 'pending',
-      termsAccepted: false,
-      termsAcceptedByClient: false,
-      termsAcceptedByDoer: false,
+      // Los términos del contrato se aceptan al contratar: el cliente al elegir al trabajador, el trabajador al postularse. Ya no hay un paso aparte (T&C 7.x; el contrato empieza solo a la hora de inicio).
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
+      termsAcceptedByClient: true,
+      termsAcceptedByDoer: true,
     });
 
     // Update job's selectedWorkers if empty
@@ -876,6 +881,9 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
         ? { motivo: (aviso as any).reason, avisadoEl: (aviso as any).createdAt }
         : null;
     }
+
+    // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
+    plano.liquidacion = await liquidacionDelContrato(contract);
 
     res.json({
       success: true,

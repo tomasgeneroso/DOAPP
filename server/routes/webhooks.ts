@@ -12,6 +12,7 @@ import emailService from '../services/email.js';
 import { avisarPagoRecibido } from '../services/avisoDePago.js';
 import logger from '../services/logger.js';
 import { MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 import { Op } from 'sequelize';
 import crypto from 'crypto';
 import { esIdDePagoMp, ESTADOS_YA_PROCESADOS, TIPOS_QUE_CONFIRMA_EL_RETORNO, condicionesNoPermitidas } from '../services/pagoMercadoPago.js';
@@ -1212,11 +1213,8 @@ async function handleMembershipPayment(userId: string, paymentId: string, status
                   <p>Hola ${user.name},</p>
                   <p>¡Tu membresía PRO ha sido activada exitosamente!</p>
                   <h3>Tus beneficios:</h3>
-                  <div class="benefit">✅ ${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes, los que elijas</div>
-                  <div class="benefit">✅ Insignia de socio visible en tu perfil</div>
-                  <div class="benefit">✅ Prioridad en las búsquedas</div>
-                  <div class="benefit">✅ Estadísticas de tu perfil: visitas y contactos</div>
-                  <p>La comisión es la misma que en el plan gratuito: la membresía te da visibilidad, no cambia lo que se cobra por cada trabajo.</p>
+                  ${beneficiosPro().map((b) => `<div class="benefit">✅ ${b}</div>`).join('\n                  ')}
+                  <p>El contrato libre de comisión de cada mes se usa al publicar un trabajo: se abonan igual el precio del trabajo, el costo de procesamiento del pago y los impuestos.</p>
                   <p>¡Comienza a disfrutar de tus beneficios ahora!</p>
                 </div>
               </div>

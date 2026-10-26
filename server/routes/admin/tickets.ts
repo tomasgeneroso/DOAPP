@@ -8,6 +8,7 @@ import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireAdminRole } from "../../middleware/permissions.js";
 import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
+import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
 
 const router = express.Router();
 
@@ -79,9 +80,13 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       where: query,
       limit: parseInt(limit as string),
       offset: skip,
-      order: Object.entries(sortOptions).map(([key, value]) => [key, value === -1 ? 'DESC' : 'ASC']),
+      // Prioridad de soporte (T&C 8.1): los tickets de cuentas con la membresía PRO van primero; después, el orden pedido.
+      order: [
+        ...(req.user.adminRole ? [premiumPrimero('creator') as any] : []),
+        ...Object.entries(sortOptions).map(([key, value]) => [key, value === -1 ? 'DESC' : 'ASC']),
+      ],
       include: [
-        { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'avatar', ...ATRIBUTOS_DE_MEMBRESIA] },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'avatar'] },
         { model: User, as: 'related', attributes: ['id', 'name', 'email'] },
         { model: Contract, as: 'contract' }
@@ -105,9 +110,12 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     const stats: Record<string, number> = {};
     for (const row of byStatus) stats[row.status] = Number(row.count);
 
+    // Cada fila dice si su autor es premium, para marcarla en el panel.
+    const filas = tickets.map((t) => ({ ...(t.toJSON() as any), premium: esPremium((t as any).creator) }));
+
     res.json({
       success: true,
-      data: tickets,
+      data: filas,
       stats,
       pagination: {
         page: parseInt(page as string),

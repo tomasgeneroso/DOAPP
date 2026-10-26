@@ -427,7 +427,7 @@ export default function ProfileScreen() {
                   <View style={[styles.upgradePlan, styles.upgradePlanHighlight]}>
                     <Text style={styles.upgradePlanName}>👑 Membresía PRO</Text>
                     <Text style={styles.upgradePlanPrice}>Promoción de tu perfil</Text>
-                    <Text style={styles.upgradePlanFeature}>Insignia, prioridad en búsquedas y estadísticas</Text>
+                    <Text style={styles.upgradePlanFeature}>Comisión menor, un contrato libre por mes, insignia y estadísticas</Text>
                   </View>
                 </View>
               </TouchableOpacity>

@@ -3,9 +3,9 @@
  *
  * Sistema de comisiones.
  *
- * La comisión es UNA sola para todos los planes (`COMMISSION_RATES`, en
- * shared/constants/membershipPricing.ts), a cargo del cliente. La membresía PRO
- * (un solo plan pago, `MEMBERSHIP_PRICES_EUR.pro`) da visibilidad y NO la modifica.
+ * La comisión la fija el plan (`COMMISSION_RATES`, en shared/constants/membershipPricing.ts) y la paga el cliente: 10% en el plan gratuito y 3% con la
+ * membresía PRO (un solo plan pago, `MEMBERSHIP_PRICES_EUR.pro`; las cuentas SUPER PRO heredadas tienen lo mismo). Además PRO tiene un contrato libre de comisión por
+ * mes (lo reclama quien cobra, ver `services/exencionDeComision.ts`).
  * Este comentario tenía la tabla vieja (8% / 3% / 1%, PRO $4,999, SUPER PRO $8,999)
  * y un mínimo de $1,000: nada de eso se cobra. Los números viven en las constantes.
  *
@@ -274,7 +274,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 3. Contratos libres de comisión de lanzamiento: valen con cualquier plan (la membresía no modifica la comisión)
+  // 3. Contratos libres de comisión del contador (premios de referidos): valen con cualquier plan
   if (freeContractsRemaining > 0) {
     return {
       rate: 0,
@@ -304,7 +304,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 4. PRO membership: la misma tasa (la membresía no modifica la comisión)
+  // 4. Membresía PRO: su tasa reducida (`COMMISSION_RATES.pro`)
   if (membershipType === 'pro') {
     const calculatedCommission = contractPrice * (PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -319,7 +319,7 @@ async function computeCommissionBase(
     };
   }
 
-  // 5. SUPER PRO (cuentas heredadas; ya no se vende): la misma tasa
+  // 5. SUPER PRO (cuentas heredadas; ya no se vende): la misma tasa que PRO
   if (membershipType === 'super_pro') {
     const calculatedCommission = contractPrice * (SUPER_PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
@@ -395,9 +395,8 @@ export async function getUserCommissionRate(userId: string): Promise<{
   const membershipType = user?.membershipTier || 'free';
   const monthlyVolume = await getUserMonthlyVolume(userId);
 
-  // `nextTier` es siempre null: subir de plan NO baja la comisión (la membresía da
-  // visibilidad). Sugerir "pasate a PRO" o "a SUPER PRO" con una tasa menor era
-  // mostrar un ahorro que no existe. Nadie consume este campo hoy.
+  // `nextTier` es siempre null: nadie consume este campo hoy. (Hay un solo plan pago, PRO, con comisión reducida;
+  // el «pasate a PRO» se muestra en el checkout y en los modales, con los beneficios de `beneficiosPro()`.)
   if (membershipType === 'super_pro') {
     return {
       rate: SUPER_PRO_COMMISSION_RATE,

@@ -1445,6 +1445,7 @@ export default function UserSettings() {
                           q: t('settings.faq.commissions'),
                           a: t('settings.faq.commissionsAnswer', {
                             comision: COMMISSION_RATES.free,
+                            comisionPro: COMMISSION_RATES.pro,
                             piso: MINIMUM_COMMISSION_EUR,
                             precio: MEMBERSHIP_PRICES_EUR.pro,
                             usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,

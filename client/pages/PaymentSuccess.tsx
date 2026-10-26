@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, Shield } from "lucide-react";
-import { MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
+import { COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
 import { useAuth } from "../hooks/useAuth";
 import { analytics } from "../utils/analytics";
 
@@ -366,7 +366,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                       Promoción de tu perfil
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      Tienes {MEMBERSHIP_PROMO_DAYS} días de promoción por mes, los que elijas, para que tu perfil aparezca destacado. La comisión es la misma que en el plan FREE: la membresía suma visibilidad.
+                      Tienes {MEMBERSHIP_PROMO_DAYS} días de promoción por mes, los que elijas, para que tu perfil aparezca destacado. Además, pagás {COMMISSION_RATES.pro}% de comisión en vez del {COMMISSION_RATES.free}% y tenés un contrato libre de comisión por mes.
                     </p>
                   </div>
                 </div>

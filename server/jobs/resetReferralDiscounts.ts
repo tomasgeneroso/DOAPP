@@ -4,6 +4,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
 import { isBetaPhase } from '../services/platformPhase.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 import { Op } from 'sequelize';
 import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
 import { logEvento } from '../utils/auditLog.js';
@@ -48,23 +49,20 @@ export function startResetReferralDiscountsJob() {
       // "tu comisión ahora es del X%" o invitarlo a comprar sería falso.
       const enBeta = await isBetaPhase();
       const textoComision = enBeta
-        ? `Durante la beta no se cobra comisión; al terminar rige la estándar, del ${COMMISSION_RATES.free}%, igual para todos los planes.`
-        : `Tu comisión es la estándar, del ${COMMISSION_RATES.free}%, igual para todos los planes.`;
+        ? `Durante la beta no se cobra comisión; al terminar rige la estándar, del ${COMMISSION_RATES.free}% (${COMMISSION_RATES.pro}% con la membresía PRO).`
+        : `Tu comisión es la estándar, del ${COMMISSION_RATES.free}% (${COMMISSION_RATES.pro}% con la membresía PRO).`;
       const textoPro = enBeta
         ? ''
-        : ` La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes) da visibilidad -promoción del perfil, insignia, prioridad en las búsquedas-, pero no cambia la comisión.`;
+        : ` La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes) baja la comisión al ${COMMISSION_RATES.pro}% y suma un contrato libre de comisión por mes, promoción del perfil y prioridad en las búsquedas.`;
       const bloquePro = enBeta
         ? ''
         : `
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; margin: 20px 0; color: white;">
-                  <h3 style="margin-top: 0;">¿Quieres más visibilidad?</h3>
+                  <h3 style="margin-top: 0;">¿Querés pagar menos comisión y tener más visibilidad?</h3>
                   <p>La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes, cobrada en pesos al cambio del día) incluye:</p>
                   <ul>
-                    <li>Promoción de tu perfil (${MEMBERSHIP_PROMO_DAYS} días por mes)</li>
-                    <li>Insignia de socio y prioridad en las búsquedas</li>
-                    <li>Estadísticas de tu perfil</li>
+                    ${beneficiosPro().map((b) => `<li>${b}</li>`).join('\n                    ')}
                   </ul>
-                  <p>No cambia la comisión: es la misma que en el plan gratuito.</p>
                   <a href="${process.env.CLIENT_URL}/settings?tab=membership"
                      style="display: inline-block; padding: 12px 24px; background-color: white; color: #667eea; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">
                     Ver planes

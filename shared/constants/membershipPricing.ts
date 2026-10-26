@@ -8,10 +8,9 @@
  * todavia no sabemos si existen. El segundo se agrega cuando aparezcan
  * trabajadores de 20+ trabajos pidiendo mas descuento.
  *
- * Quien paga: el TRABAJADOR. La comision sale de su lado, asi que el descuento
- * le sirve a quien tiene volumen. Un cliente contrata dos veces al año y nunca
- * amortizaria una cuota; un plomero hace veinte trabajos por mes y hace la
- * cuenta en diez segundos.
+ * Que da PRO (regla del dueño, 2026-10-25): 1 contrato libre de comision por mes (sin acumular), comision reducida en los demas contratos, estadisticas,
+ * promocion del perfil, visibilidad y prioridad en soporte. Ver `shared/constants/beneficiosPro.ts`, que es la unica lista que repiten el T&C 8.1, las
+ * pantallas y los correos.
  *
  * El precio esta en euros por la misma razon que el resto: un precio fijado en
  * pesos se licua solo y nadie se acuerda de revisarlo.
@@ -39,35 +38,23 @@ export const MEMBERSHIP_PROMO_DAYS = 3;
 export type MembershipPlanKey = keyof typeof MEMBERSHIP_PRICES_EUR;
 
 /**
- * La comision es 10%, siempre.
+ * La comision, por plan. La paga el CLIENTE (T&C 7.3): el plan gratuito paga 10% y quien tiene PRO paga 3% en los contratos que contrata (ademas del contrato
+ * libre de comision de cada mes). Las cuentas SUPER PRO que quedaron de antes (ya no se vende) tienen lo mismo que PRO.
  *
- * La paga el cliente y el cliente no tiene membresia, asi que no hay plan
- * que la modifique. Las tasas por plan siguen declaradas porque el calculo
- * las lee, pero hoy todas valen lo mismo a proposito: si en algun momento
- * la membresia pasa a descontar comision, se cambian aca y el resto del
- * sistema se entera solo.
- *
- * El valor de la membresia es la visibilidad -- promocion del perfil,
- * insignia, prioridad en las busquedas, estadisticas -- no un descuento.
- * Es lo unico que se puede vender de forma coherente mientras quien paga la
- * comision sea el otro lado.
+ * Antes valian lo mismo las tres: se habia decidido que la membresia vendia solo visibilidad. El dueño lo cambio el 2026-10-25. Si la tasa vuelve a cambiar,
+ * se cambia aca y el resto del sistema (cobro, T&C, pantallas) se entera solo.
  */
 export const COMMISSION_RATES = {
   free: 10,
-  pro: 10,
-  super_pro: 10,
+  pro: 3,
+  super_pro: 3,
 } as const;
 
 /**
  * A partir de cuantos trabajos por mes se amortizaria el plan por comision.
  *
- * Hoy devuelve 0 siempre, porque todas las tasas son iguales y no hay ahorro
- * de comision que amortizar. Se deja escrita la cuenta para el dia que la
- * membresia si descuente: entonces empieza a dar un numero real sin tener
- * que reescribirla.
- *
- * Mientras tanto, la pantalla no deberia prometer un punto de equilibrio que
- * no existe: el plan se vende por visibilidad.
+ * Es el ahorro de comision de PRO (la diferencia entre la tasa gratuita y la de PRO) contra el precio de la cuota; no cuenta el contrato libre de cada mes
+ * ni la visibilidad, que tambien son parte de lo que se paga.
  */
 export function breakEvenJobsPerMonth(
   eurArs: number,

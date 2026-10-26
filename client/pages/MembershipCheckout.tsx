@@ -7,6 +7,7 @@ import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, Arro
 import Button from '../components/ui/Button';
 import OrigenDeLaCotizacion, { type Cotizacion } from '../components/ui/OrigenDeLaCotizacion';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+import { POLITICAS } from '../../shared/constants/policies';
 import Transicion from "../components/ui/Transicion";
 
 // Hay una sola membresia paga: PRO, mensual. Los links viejos con ?plan=quarterly
@@ -109,13 +110,16 @@ export default function MembershipCheckout() {
     }
   };
 
-  // PRO se vende por visibilidad: no cambia la comision. Los numeros salen de
+  // Lo que da PRO: comision reducida, un contrato libre por mes, promocion, estadisticas, visibilidad y soporte prioritario. Los numeros salen de
   // las constantes compartidas, no se escriben a mano aca.
   const proPlan = {
     name: t('membership.planMonthlyName', 'PRO'),
     priceARS: pricing?.pro?.priceARS || 0,
     period: 'por mes',
     benefits: [
+      { icon: Crown, title: `${POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato libre de comisión por mes`, description: 'El mes que no lo usás no se acumula. Se pagan igual el trabajo y el costo de procesamiento' },
+      { icon: TrendingUp, title: `Comisión del ${COMMISSION_RATES.pro}% en los demás contratos`, description: `En vez del ${COMMISSION_RATES.free}% del plan gratuito` },
+      { icon: Shield, title: 'Prioridad en la atención de soporte', description: 'Tus consultas y reclamos se atienden primero' },
       { icon: TrendingUp, title: `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes`, description: 'Elegís los días en que querés que tu perfil aparezca destacado' },
       { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
       { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
@@ -213,16 +217,16 @@ export default function MembershipCheckout() {
                 })}
               </div>
 
-              {/* La comisión no depende del plan */}
+              {/* La comisión depende del plan */}
               <div className="mt-8 rounded-lg p-6 bg-sky-50 dark:bg-sky-900/20">
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">
-                  {t('membership.commissionTitle', 'La comisión es la misma en todos los planes')}
+                  {t('membership.commissionTitle', 'La comisión depende del plan')}
                 </h3>
                 <p className="text-sm text-gray-700 dark:text-gray-300">
                   {t(
                     'membership.commissionSame',
-                    'La comisión es del {{comision}}% y la paga el cliente. PRO no la modifica: lo que suma es visibilidad para tu perfil.',
-                    { comision: COMMISSION_RATES.free },
+                    'La comisión la paga el cliente: {{comision}}% en el plan gratuito y {{comisionPro}}% con PRO, además de un contrato libre de comisión por mes.',
+                    { comision: COMMISSION_RATES.free, comisionPro: COMMISSION_RATES.pro },
                   )}
                 </p>
               </div>

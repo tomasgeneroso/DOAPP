@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye, ChevronDown } from "lucide-react";
 import PagarConSaldo from "@/components/pagos/PagarConSaldo";
+import { COMMISSION_RATES } from "../../shared/constants/membershipPricing";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payments/PaymentMethodSelector";
 import TransferenciaBancaria from "@/components/payments/TransferenciaBancaria";
 import { validarDatosDeTransferencia, documentoNormalizado, type DatosDeTransferencia, type ErroresDeTransferencia } from "../../shared/pagos/transferencia";
@@ -738,8 +739,8 @@ export default function JobPayment() {
                 </p>
               ) : (
                 <p>
-                  Tu comisión de publicación es del <strong>{commissionRate}%</strong> del presupuesto,
-                  la misma en todos los planes.
+                  Tu comisión de publicación es del <strong>{commissionRate}%</strong> del presupuesto
+                  ({COMMISSION_RATES.free}% en el plan gratuito, {COMMISSION_RATES.pro}% con PRO).
                 </p>
               )}
               <p className="pt-2">

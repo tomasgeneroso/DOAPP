@@ -6,6 +6,7 @@ import membershipService, { MembershipError } from "../services/membershipServic
 import currencyExchange from "../services/currencyExchange.js";
 import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing.js";
 import { areMembershipsAvailable } from "../services/platformPhase.js";
+import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { body, validationResult } from "express-validator";
 
@@ -210,12 +211,8 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.pro,
           benefits: [
-            // El plan no descuenta comision: se vende por visibilidad.
-            `Comisión del ${COMMISSION_RATES.free}%, igual que el plan gratuito`,
-            `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes, los que elijas`,
-            'Insignia de socio y prioridad en las búsquedas',
-            'Estadísticas de tu perfil: visitas y contactos',
-            'Soporte prioritario',
+            // La lista sale de `beneficiosPro()`: es la misma que el T&C 8.1, las pantallas y el correo de bienvenida.
+            ...beneficiosPro(),
             'Cancelás cuando quieras',
           ],
         },
@@ -542,7 +539,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     res.json({
       success: true,
       data: {
-        // La membresía ya no tiene cupo mensual de contratos libres de comisión (no modifica la comisión, T&C 7.3 y 8.1). Los ceros son para las
+        // El contrato libre del mes ya no es un cupo de la membresía que se cuente acá (ver `freeContractsRemaining`, que suma el del mes). Los ceros son para las
         // versiones viejas de la app, que todavía leen estos campos.
         contractsUsed: 0,
         contractsLimit: 0,

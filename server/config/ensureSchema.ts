@@ -1,4 +1,5 @@
 import type { Sequelize } from 'sequelize-typescript';
+import type { Transaction } from 'sequelize';
 
 /**
  * Idempotent "ensure schema" safety net.
@@ -26,6 +27,9 @@ import type { Sequelize } from 'sequelize-typescript';
  * mira. Así estuvo roto el registro de movimientos de dinero durante días.
  */
 export const STATEMENTS: Array<{ label: string; sql: string }> = [
+  // --- número de ticket de una secuencia (ver services/numeroDeTicket.ts y la migración 20261025120000) ---
+  { label: 'tickets_numero_seq', sql: `CREATE SEQUENCE IF NOT EXISTS tickets_numero_seq` },
+  { label: 'tickets_numero_seq arranca después del último', sql: `SELECT setval('tickets_numero_seq', GREATEST((SELECT COALESCE(MAX(SUBSTRING(ticket_number FROM 4)::bigint), 0) FROM tickets WHERE ticket_number ~ '^TK-[0-9]+$'), (SELECT last_value FROM tickets_numero_seq)), true)` },
   // --- memberships: precio de lista en euros ---
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },
   // --- auditoría: eventos de dinero que no dispara una persona ---
@@ -388,6 +392,47 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   },
 ];
 
+/**
+ * Columnas HEREDADAS de un esquema viejo que el modelo actual ya no escribe.
+ *
+ * Producción no hace `sync()`: las tablas se crearon con modelos anteriores y conservan columnas que hoy nadie escribe. Si una de ellas sigue `NOT NULL` y sin
+ * valor por defecto, cada alta de esa tabla revienta con «null value in column "x" … violates not-null constraint»: así falló `proposals.doer_id` (postularse) y
+ * `reviews.reviewee_id` (escribir una reseña después del trabajo). En vez de descubrir una por una, al arrancar se relaja ESA restricción en toda columna que:
+ * es `NOT NULL`, no tiene valor por defecto, no es una identidad y NO figura en el modelo de su tabla. Quitar el `NOT NULL` de una columna que nadie escribe no
+ * rompe ninguna lectura. Devuelve «tabla.columna» de cada una que relajó.
+ */
+export async function relajarColumnasHeredadas(sequelize: Sequelize, transaction?: Transaction): Promise<string[]> {
+  const relajadas: string[] = [];
+  for (const modelo of Object.values(sequelize.models)) {
+    try {
+      const nombre = modelo.getTableName() as unknown as string | { tableName: string };
+      const tabla = typeof nombre === 'string' ? nombre : nombre.tableName;
+      const propias = new Set(
+        Object.values(modelo.getAttributes()).map((a: any) => String(a.field || a.fieldName)),
+      );
+      const [filas] = (await sequelize.query(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = :tabla
+            AND is_nullable = 'NO' AND column_default IS NULL
+            AND is_identity = 'NO' AND is_generated = 'NEVER'`,
+        { replacements: { tabla }, transaction },
+      )) as [Array<{ column_name: string }>, unknown];
+      for (const { column_name } of filas) {
+        if (propias.has(column_name)) continue;
+        try {
+          await sequelize.query(`ALTER TABLE "${tabla}" ALTER COLUMN "${column_name}" DROP NOT NULL`, { transaction });
+          relajadas.push(`${tabla}.${column_name}`);
+        } catch (e: any) {
+          console.warn(`⚠️  [ensureSchema] no se pudo relajar ${tabla}.${column_name}: ${e?.message}`);
+        }
+      }
+    } catch (e: any) {
+      console.warn(`⚠️  [ensureSchema] columnas heredadas: se salteó un modelo: ${e?.message}`);
+    }
+  }
+  return relajadas;
+}
+
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
   let ok = 0;
   let failed = 0;
@@ -420,4 +465,8 @@ export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> 
   }
 
   console.log(`✅ ensureCriticalSchema: ${ok} ok${failed ? `, ${failed} skipped` : ''}`);
+
+  // Después de las sentencias (que pueden haber creado columnas): las heredadas que impedirían un alta.
+  const relajadas = await relajarColumnasHeredadas(sequelize);
+  if (relajadas.length > 0) console.log(`🧹 ensureSchema: columnas heredadas que ya no exigen valor: ${relajadas.join(', ')}`);
 }

@@ -46,6 +46,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import OrdenDePago from "@/components/pagos/OrdenDePago";
 import BotonReclamo from "@/components/pagos/BotonReclamo";
 import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
+import LiquidacionDelPago from "@/components/LiquidacionDelPago";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -463,6 +464,7 @@ export default function ContractDetail() {
       case "completed":
         return "bg-green-100 text-green-800";
       case "escrow":
+      case "held":
       case "held_escrow":
         return "bg-yellow-100 text-yellow-800";
       case "pending":
@@ -477,14 +479,18 @@ export default function ContractDetail() {
     }
   };
 
+  // El estado se guarda en inglés; a la persona se le muestra con el texto de `contracts.status.*`.
+  const getStatusLabel = (status: string) => t(`contracts.status.${status}`, status);
+
   const getPaymentStatusLabel = (status: string) => {
     const labels: Record<string, { key: string; fallback: string }> = {
       pending: { key: 'contracts.paymentStatus.pending', fallback: 'Pending' },
       held_escrow: { key: 'contracts.paymentStatus.heldEscrow', fallback: 'In Escrow' },
       escrow: { key: 'contracts.paymentStatus.escrow', fallback: 'In Escrow' },
       pending_payout: { key: 'contracts.paymentStatus.pendingPayout', fallback: 'Payment in progress' },
-      released: { key: 'contracts.paymentStatus.released', fallback: 'Payment in progress' },
-      completed: { key: 'contracts.paymentStatus.completed', fallback: 'Completed' },
+      held: { key: 'contracts.paymentStatus.held', fallback: 'In escrow' },
+      released: { key: 'contracts.paymentStatus.released', fallback: 'Released' },
+      completed: { key: 'contracts.paymentStatus.completed', fallback: 'Paid' },
       refunded: { key: 'contracts.paymentStatus.refunded', fallback: 'Refunded' },
     };
     const entry = labels[status];
@@ -569,18 +575,18 @@ export default function ContractDetail() {
 
           {/* Header */}
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2 break-words">
                   {contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
                 </h1>
-                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <span
                     className={`px-3 py-1 rounded-full font-medium ${getStatusColor(
                       contract.status
                     )}`}
                   >
-                    {contract.status}
+                    {getStatusLabel(contract.status)}
                   </span>
                   <span
                     className={`px-3 py-1 rounded-full font-medium ${getPaymentStatusColor(
@@ -602,7 +608,7 @@ export default function ContractDetail() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Link
                   to={`/jobs/${contract.job?.id || contract.jobId?.id || contract.jobId}`}
                   className="flex items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm"
@@ -614,7 +620,7 @@ export default function ContractDetail() {
                 <button
                   onClick={handleOpenChat}
                   disabled={loadingChat}
-                  className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-sky-600 text-sky-600 rounded-lg hover:bg-sky-50 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-sky-600 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-50 dark:hover:bg-slate-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   title={t('contracts.openChatTooltip', 'Open chat to communicate with the other party of the contract')}
                 >
                   <MessageCircle className="h-5 w-5" />
@@ -754,6 +760,7 @@ export default function ContractDetail() {
                     {t('contracts.protectedWithEscrow', 'Protected with Escrow')}
                   </div>
                 )}
+                <LiquidacionDelPago liquidacion={(contract as any).liquidacion} rol={isDoer ? 'trabajador' : isClient ? 'cliente' : 'otro'} />
                 {/* Tipo de contrato */}
                 <div className="flex justify-between border-t dark:border-gray-700 pt-2">
                   <span className="text-gray-600 dark:text-gray-400">{t('contracts.deliveryType', 'Tipo de entrega')}:</span>
@@ -828,49 +835,52 @@ export default function ContractDetail() {
                        contract.status === 'in_progress' ? t('contracts.statusInProgress', 'IN PROGRESS') :
                        contract.status === 'awaiting_confirmation' ? t('contracts.statusAwaitingConfirmation', 'AWAITING CONFIRMATION') :
                        contract.status === 'cancelled' ? t('contracts.statusCancelled', 'CANCELLED') :
-                       contract.status === 'accepted' ? t('contracts.statusAccepted', 'ACCEPTED') :
-                       contract.status === 'pending' ? t('contracts.statusPending', 'PENDING') :
+                       ['pending', 'ready', 'accepted'].includes(String(contract.status)) ? t('contracts.statusNotStarted', 'POR EMPEZAR') :
+                       contract.status === 'disputed' ? t('contracts.statusDisputed', 'EN DISPUTA') :
                        contract.status?.toUpperCase()}
                     </span>
                   </div>
                 </div>
 
-                {/* Aceptación de términos */}
-                <div className="border-t pt-3">
-                  <p className="text-xs text-gray-500 mb-2 font-medium">{t('contracts.termsAcceptance', 'Terms Acceptance')}</p>
-                  <div className="space-y-2">
+                {/* Aceptación de términos: se aceptan al contratar (el cliente al elegir al trabajador, el trabajador al postularse). */}
+                {(() => {
+                  // Un contrato que ya empezó o terminó no puede tener los términos sin aceptar: se aceptaron al contratar, aunque el dato viejo no lo diga.
+                  const empezo = !['pending', 'ready'].includes(String(contract.status));
+                  const clienteAcepto = !!contract.termsAcceptedByClient || empezo;
+                  const trabajadorAcepto = !!contract.termsAcceptedByDoer || empezo;
+                  const fila = (acepto: boolean, quien: string, cuando: string) => (
                     <div className="flex items-center gap-2">
-                      {contract.termsAcceptedByClient ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-yellow-600" />
-                      )}
-                      <span className="text-sm">{t('contracts.client', 'Client')}: {contract.termsAcceptedByClient ? t('contracts.accepted', 'Accepted') : t('contracts.pending', 'Pending')}</span>
+                      {acepto ? <CheckCircle className="h-5 w-5 text-green-600" /> : <AlertCircle className="h-5 w-5 text-yellow-600" />}
+                      <span className="text-sm">{quien}: {acepto ? cuando : t('contracts.pending', 'Pendiente')}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {contract.termsAcceptedByDoer ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-yellow-600" />
-                      )}
-                      <span className="text-sm">{t('contracts.worker', 'Worker')}: {contract.termsAcceptedByDoer ? t('contracts.accepted', 'Accepted') : t('contracts.pending', 'Pending')}</span>
-                    </div>
-                  </div>
-                  {contract.status === 'ready' && ((isClient && !contract.termsAcceptedByClient) || (isDoer && !contract.termsAcceptedByDoer)) && (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        {t('contracts.acceptHint', 'Administración ya revisó el contrato. Para avanzar, las dos partes tienen que aceptarlo.')}
+                  );
+                  return (
+                    <div className="border-t pt-3" data-testid="aceptacion-de-terminos">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">{t('contracts.termsAcceptance', 'Aceptación de términos')}</p>
+                      <div className="space-y-2">
+                        {fila(clienteAcepto, t('contracts.client', 'Cliente'), t('contracts.acceptedOnHiring', 'Aceptó al contratar'))}
+                        {fila(trabajadorAcepto, t('contracts.worker', 'Trabajador'), t('contracts.acceptedOnApplying', 'Aceptó al postularse'))}
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {t('contracts.termsHow', 'Los términos se aceptan al contratar: el cliente al elegir al trabajador y el trabajador al postularse. El contrato empieza solo a la hora de inicio, con el pago acreditado: no hace falta que un administrador lo apruebe ni un paso aparte.')}
                       </p>
-                      <button
-                        onClick={handleAcceptContract}
-                        disabled={acceptingContract}
-                        className="w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {acceptingContract ? t('contracts.accepting', 'Aceptando...') : t('contracts.acceptContract', 'Aceptar el contrato')}
-                      </button>
+                      {contract.status === 'ready' && ((isClient && !contract.termsAcceptedByClient) || (isDoer && !contract.termsAcceptedByDoer)) && (
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            {t('contracts.acceptHint', 'Este contrato es de los anteriores al cambio y todavía tiene la aceptación pendiente. Aceptalo para dejarlo en regla.')}
+                          </p>
+                          <button
+                            onClick={handleAcceptContract}
+                            disabled={acceptingContract}
+                            className="w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {acceptingContract ? t('contracts.accepting', 'Aceptando...') : t('contracts.acceptContract', 'Aceptar el contrato')}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
 
                 {/* Verificación de Código de Emparejamiento */}
                 {contract.pairingCode && (

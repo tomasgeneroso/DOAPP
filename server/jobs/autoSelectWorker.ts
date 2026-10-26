@@ -206,9 +206,11 @@ export function startAutoSelectWorkerJob() {
               startDate,
               endDate,
               status: 'pending',
-              termsAccepted: false,
-              termsAcceptedByClient: false,
-              termsAcceptedByDoer: false,
+              // El cliente aceptó al publicar y el trabajador al postularse: la elección automática es esa misma aceptación.
+              termsAccepted: true,
+              termsAcceptedAt: new Date(),
+              termsAcceptedByClient: true,
+              termsAcceptedByDoer: true,
             });
 
             const freelancer = proposal.freelancer as any;

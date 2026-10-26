@@ -28,6 +28,7 @@ export const BETA_POST_SLUG = 'que-incluye-la-beta-de-doapp';
  * ------------------------------------------------------------------ */
 
 const COMISION = COMMISSION_RATES.free;
+const COMISION_PRO = COMMISSION_RATES.pro;
 const PRECIO_PRO = MEMBERSHIP_PRICES_EUR.pro;
 const PISO = MINIMUM_COMMISSION_EUR;
 
@@ -98,7 +99,7 @@ export const betaPost = {
     {
       question: '¿Qué incluye la membresía PRO que tengo en la beta?',
       answer:
-        'Todas las funciones de la membresía, sin costo: promoción del perfil, insignia, prioridad en las búsquedas y estadísticas de tu actividad. La membresía da visibilidad: no modifica la comisión. Al terminar la beta tu cuenta vuelve al plan que tengas contratado, que por defecto es FREE.',
+        `Todas las funciones de la membresía, sin costo: promoción del perfil, insignia, prioridad en las búsquedas, estadísticas de tu actividad y prioridad en soporte. Las ventajas de comisión (un contrato libre de comisión por mes y ${COMISION_PRO}% en los demás contratos) empiezan a contar cuando termina la beta, porque hasta entonces la comisión es 0% para todos. Al terminar la beta tu cuenta vuelve al plan que tengas contratado, que por defecto es FREE.`,
     },
     {
       question: '¿Qué pasa exactamente el 1 de enero de 2027?',
@@ -106,7 +107,7 @@ export const betaPost = {
     },
     {
       question: '¿La membresía PRO baja la comisión?',
-      answer: `No. La comisión es del ${COMISION}% para todos, con o sin membresía, porque la paga el cliente. La membresía PRO (€${PRECIO_PRO} por mes) da visibilidad: promoción del perfil, insignia, prioridad en las búsquedas y estadísticas.`,
+      answer: `Sí, cuando termina la beta: con la membresía PRO la comisión es del ${COMISION_PRO}% en vez del ${COMISION}%, y además tenés un contrato libre de comisión por mes (el que no usás no se acumula). La comisión la paga el cliente. La membresía PRO (€${PRECIO_PRO} por mes) suma promoción del perfil, insignia, prioridad en las búsquedas, estadísticas y prioridad en soporte.`,
     },
     {
       question: '¿Los contratos que hice durante la beta van a pagar comisión después?',
@@ -160,6 +161,9 @@ Las funciones de la membresía, sin costo:
 - Insignia en el perfil
 - Prioridad en las búsquedas
 - Estadísticas de tu actividad
+- Prioridad en soporte
+
+Las ventajas de comisión de PRO (un contrato libre de comisión por mes y una comisión menor) empiezan a contar al terminar la beta: hasta entonces la comisión es 0% para todos.
 
 No es una versión de prueba recortada: es la membresía entera, para que puedas evaluarla con tu trabajo real antes de que cueste algo.
 
@@ -170,7 +174,7 @@ Al terminar la beta, tu cuenta vuelve al plan que tengas contratado. Si nunca co
 Tres cosas, y ninguna más:
 
 1. **Empieza a cobrarse la comisión**: ${COMISION}% sobre el precio del trabajo, a cargo del cliente, con IVA sobre la comisión.
-2. **La membresía PRO pasa a ser paga**: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día. Da visibilidad y no modifica la comisión.
+2. **La membresía PRO pasa a ser paga**: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día. Baja la comisión al ${COMISION_PRO}% (en vez del ${COMISION}%) y suma un contrato libre de comisión por mes, además de visibilidad y estadísticas.
 3. **El aviso de beta desaparece** y en su lugar avisamos que la plataforma pasó a su versión estable.
 
 ## ¿Y qué NO cambia?

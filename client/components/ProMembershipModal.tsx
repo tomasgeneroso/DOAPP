@@ -128,7 +128,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                     ))}
                   </ul>
 
-                  {/* La comisión es la misma en todos los planes */}
+                  {/* La comisión depende del plan: ver beneficiosPro() */}
                   <div className="mt-4 bg-white dark:bg-gray-600 rounded-lg p-4">
                     <div className="flex items-start gap-1.5">
                       <Info className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />

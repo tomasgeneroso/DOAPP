@@ -35,9 +35,10 @@ describe('contratos libres de comisión: una sola regla', () => {
     expect(leer('server/models/sql/User.model.ts')).toMatch(/@Default\(0\)\s+@AllowNull\(false\)\s+@Column\(DataType\.INTEGER\)\s+freeContractsRemaining!/);
   });
 
-  it('no queda ningún cupo mensual de la MEMBRESÍA ni el cron que lo reseteaba (el mensual de hoy es de las primeras cuentas, con cualquier plan)', () => {
+  it('el contrato libre del mes de PRO sale de la fecha del último uso: no hay contador de membresía ni el cron que lo reseteaba', () => {
     const exencion = leer('server/services/exencionDeComision.ts');
-    expect(exencion).not.toMatch(/proContractsUsedThisMonth|membershipTier|hasMembership/);
+    expect(exencion).toMatch(/tieneProVigente/); // PRO tiene su contrato libre por mes (regla del dueño, 2026-10-25)
+    expect(exencion).not.toMatch(/proContractsUsedThisMonth/); // pero sin el contador mensual de antes
     expect(leer('server/index.ts')).not.toMatch(/resetProMembershipCounters|startResetProMembershipCountersJob/);
     expect(() => readFileSync(join(RAIZ, 'server/jobs/resetProMembershipCounters.ts'))).toThrow();
   });

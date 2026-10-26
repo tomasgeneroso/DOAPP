@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Crown, X, Check, Zap } from 'lucide-react';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro';
 import { POLITICAS } from '../../shared/constants/policies';
 
 interface MembershipOfferModalProps {
@@ -27,16 +28,8 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
 
   if (!isOpen) return null;
 
-  // PRO se vende por visibilidad: no modifica la comision, que es la misma en
-  // todos los planes. Los numeros salen de las constantes compartidas.
-  // Sólo lo que dicen los Términos (8.1): visibilidad. Antes la lista prometía también
-  // "1 publicación/mes sin comisión" y "2 iniciales gratis", que contradicen la nota de
-  // abajo (la comisión es la misma en todos los planes).
-  const proFeatures = [
-    t('membership.proFeat3', '{{dias}} días de promoción de tu perfil por mes', { dias: MEMBERSHIP_PROMO_DAYS }),
-    t('membership.proFeat4', 'Prioridad en búsquedas'),
-    t('membership.proFeat5', 'Badge PRO dorado'),
-  ];
+  // Lo que da PRO sale de `beneficiosPro()`: la misma lista que el T&C 8.1, el checkout y el correo de bienvenida.
+  const proFeatures = beneficiosPro();
 
   const plans = [
     {
@@ -126,7 +119,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
         {/* Notes */}
         <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para las primeras {{usuarios}} cuentas', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES })}</p>
         <p className="text-[10px] text-slate-400 text-center px-4 mt-1">
-          {t('membership.sameCommissionNote', 'La comisión es la misma en todos los planes: PRO suma visibilidad, no cambia lo que pagás de comisión.')}
+          {t('membership.commissionNote', 'La comisión la paga el cliente: {{free}}% en el plan gratuito y {{pro}}% con PRO.', { free: COMMISSION_RATES.free, pro: COMMISSION_RATES.pro })}
         </p>
 
         {/* Actions */}

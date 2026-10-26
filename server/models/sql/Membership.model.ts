@@ -22,7 +22,7 @@ import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js
  * - PRO: la única que se vende. Precio en EUR (MEMBERSHIP_PRICES_EUR), cobrado
  *   en ARS al cambio del día.
  * - SUPER_PRO: ya no se vende; queda como valor del enum para las cuentas heredadas.
- * - La membresía NO modifica la comisión (COMMISSION_RATES): vende visibilidad.
+ * - La membresía PRO baja la comisión (COMMISSION_RATES.pro) y suma un contrato libre de comisión por mes (ver exencionDeComision).
  * - Tracking de contratos usados
  * - Integración MercadoPago subscriptions
  * - Auto-renovación

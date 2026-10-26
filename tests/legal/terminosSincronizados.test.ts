@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES, PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.js';
-import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../../shared/pricing/minimums.js';
 import { termsEs } from '../../shared/legal/terms.es.js';
 import { termsEn } from '../../shared/legal/terms.en.js';
@@ -23,7 +23,7 @@ import { TERMS_COMMISSION_ROWS, TERMS_BODY_KEYS } from '../../shared/legal/terms
 /** Clausula → constantes que tiene que nombrar. */
 const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: string }> = [
   { key: 's6p6', valores: [POLITICAS.COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR], que: 'dias habiles antes de pausar' },
-  { key: 's7p3', valores: [`${COMMISSION_RATES.free}%`], que: 'comision' },
+  { key: 's7p3', valores: [`${COMMISSION_RATES.free}%`, `${COMMISSION_RATES.pro}%`], que: 'comision' },
   { key: 's7p4', valores: [`EUR ${MINIMUM_COMMISSION_EUR}`], que: 'piso de comision' },
   { key: 's7p11', valores: [POLITICAS.INVITACION_DIAS_SIN_COMISION], que: 'dias sin comision de una invitacion de creador' },
   { key: 's7p6', valores: [POLITICAS.AUTO_CONFIRMACION_HORAS], que: 'horas de auto-confirmacion' },
@@ -46,7 +46,7 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
     ],
     que: 'premio por referidos',
   },
-  { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`], que: 'precio de la membresia' },
+  { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`, `${COMMISSION_RATES.pro}%`, MEMBERSHIP_PROMO_DAYS, POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES], que: 'precio y beneficios de la membresia' },
   { key: 's9p2', valores: [POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES], que: 'horas para cancelar con devolucion' },
   {
     key: 's9p3',

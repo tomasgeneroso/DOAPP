@@ -264,8 +264,8 @@ export default function AdminDashboard() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
                   {t(
                     'admin.dashboard.commissionSameNote',
-                    'La membresía no modifica la comisión: {{comision}}% a cargo del cliente, con un piso de EUR {{piso}}. Durante la beta es 0% hasta la fecha de cierre.',
-                    { comision: COMMISSION_RATES.free, piso: MINIMUM_COMMISSION_EUR },
+                    'La comisión la paga el cliente: {{comision}}% en el plan gratuito y {{comisionPro}}% con PRO, con un piso de EUR {{piso}}. Durante la beta es 0% hasta la fecha de cierre.',
+                    { comision: COMMISSION_RATES.free, comisionPro: COMMISSION_RATES.pro, piso: MINIMUM_COMMISSION_EUR },
                   )}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">

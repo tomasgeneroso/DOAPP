@@ -126,7 +126,7 @@ export default function Header() {
       return { type: "beta" as const };
     }
 
-    // Un solo cupo: los contratos libres de comisión de lanzamiento. La membresía no tiene cupo propio (no modifica la comisión).
+    // Los contratos libres de comisión que puede usar ahora: el del mes (primeras cuentas o PRO) más los de premios. El servidor ya los suma.
     const freeContractsRemaining = user.freeContractsRemaining || 0;
     const totalFreeRemaining = freeContractsRemaining;
     const isFreeUser = !user.membershipTier || user.membershipTier === "free";

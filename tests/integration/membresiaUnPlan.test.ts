@@ -72,7 +72,8 @@ import {
   PHASE_SETTING_KEY,
 } from '../../server/services/platformPhase.js';
 import membershipService from '../../server/services/membershipService.js';
-import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 
 const PRECIO_ARS = MEMBERSHIP_PRICES_EUR.pro * TIPO_EUR;
 const PLAN_VIEJO_ACEPTADO = ['quarterly', 'super_pro'];
@@ -276,11 +277,14 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       }
     });
 
-    it('trae PRO con el precio en euros de la constante y la comisión sin cambios', async () => {
+    it('trae PRO con el precio en euros de la constante y su comisión reducida', async () => {
       const r = await request(app).get('/api/membership/pricing');
       expect(r.body.pricing.pro.priceEUR).toBe(MEMBERSHIP_PRICES_EUR.pro);
       expect(r.body.pricing.pro.priceARS).toBe(PRECIO_ARS);
-      expect(r.body.pricing.pro.commissionRate).toBe(COMMISSION_RATES.free);
+      expect(r.body.pricing.pro.commissionRate).toBe(COMMISSION_RATES.pro);
+      expect(r.body.pricing.free.commissionRate).toBe(COMMISSION_RATES.free);
+      // los beneficios que se ofrecen son los de la lista única (T&C 8.1)
+      expect(r.body.pricing.pro.benefits).toEqual(expect.arrayContaining(beneficiosPro()));
       expect(JSON.stringify(r.body)).not.toMatch(/SUPER PRO/);
     });
 
@@ -289,7 +293,7 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       const r = await request(app).get('/api/membership/pricing');
       expect(r.body.available).toBe(false);
       expect(r.body.unavailableReason).toMatch(/beta/i);
-      expect(r.body.unavailableReason).not.toMatch(/comisi/i); // la membresía no baja la comisión
+      expect(r.body.unavailableReason).not.toMatch(/comisi/i); // el motivo es la beta, no la comisión
     });
 
     it('fuera de la beta queda a la venta y no trae motivo', async () => {
@@ -500,7 +504,7 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       const html = mailEnviado();
       expect(html).toContain(`${COMMISSION_RATES.free}%`);
       expect(html).toContain(`€${MEMBERSHIP_PRICES_EUR.pro}`);
-      expect(html).toMatch(/no cambia la comisión/i);
+      expect(html).toContain(`Comisión del ${COMMISSION_RATES.pro}% en los demás contratos`);
       for (const v of VIEJO) expect({ patron: String(v), aparece: v.test(html) }).toEqual({ patron: String(v), aparece: false });
 
       const u: any = await User.findByPk(usuarios.libre.id);
@@ -534,20 +538,22 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
     const fuente = readFileSync(join(process.cwd(), 'server/routes/webhooks.ts'), 'utf8');
     const bienvenida = fuente.slice(fuente.indexOf('async function handleMembershipPayment'), fuente.indexOf('Webhook de suscripción: hoy NO cambia'));
 
-    it('no promete comisión reducida, contratos por plan ni soporte prioritario', () => {
+    it('no promete lo que PRO ya no tiene (3 contratos mensuales, estadísticas «avanzadas») ni escribe la tasa a mano', () => {
       expect(bienvenida.length).toBeGreaterThan(500);
       expect(bienvenida).not.toMatch(/3 contratos mensuales/);
-      expect(bienvenida).not.toMatch(/\b3%/);
-      expect(bienvenida).not.toMatch(/Soporte prioritario/);
+      expect(bienvenida).not.toMatch(/\b3%/); // la tasa sale de COMMISSION_RATES vía beneficiosPro()
       expect(bienvenida).not.toMatch(/Estadísticas avanzadas/);
     });
 
-    it('lista promoción del perfil (con los días de la constante), insignia, prioridad en búsquedas y estadísticas', () => {
-      expect(bienvenida).toContain('${MEMBERSHIP_PROMO_DAYS} días de promoción');
-      expect(bienvenida).toMatch(/Insignia/);
-      expect(bienvenida).toMatch(/Prioridad en las búsquedas/);
-      expect(bienvenida).toMatch(/Estadísticas de tu perfil/);
-      expect(bienvenida).toMatch(/la misma que en el plan gratuito/);
+    it('lista los beneficios de la lista única (beneficiosPro): contrato libre, comisión, promoción con los días de la constante, estadísticas, insignia y soporte', () => {
+      expect(bienvenida).toContain('beneficiosPro()');
+      const lista = beneficiosPro().join(' | ');
+      expect(lista).toContain(`${MEMBERSHIP_PROMO_DAYS} días de promoción`);
+      expect(lista).toContain(`Comisión del ${COMMISSION_RATES.pro}%`);
+      expect(lista).toMatch(/contrato libre de comisión por mes/);
+      expect(lista).toMatch(/Estadísticas/);
+      expect(lista).toMatch(/Insignia/);
+      expect(lista).toMatch(/soporte/i);
     });
   });
 

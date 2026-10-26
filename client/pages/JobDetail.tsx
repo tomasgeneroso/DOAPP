@@ -45,6 +45,8 @@ import { getClientInfo } from "@/lib/utils";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
 import { POLITICAS } from "../../shared/constants/policies";
+import LiquidacionDelPago from "../components/LiquidacionDelPago";
+import type { LiquidacionDelContrato } from "../../shared/pagos/liquidacion";
 import { SuspendedNotice, CancellationMark } from "../components/CancellationLadder";
 import { mostrarRating } from "../../shared/rating/display";
 import LocationCircleMap from "../components/map/LocationCircleMap";
@@ -142,6 +144,8 @@ export default function JobDetail() {
     useState<string>("");
 
   // Contract data for pairing code and confirmation (for worker view)
+  // Cuándo se libera el dinero del contrato y desde cuándo lo puede retirar el trabajador («Detalles de pago»).
+  const [liquidacion, setLiquidacion] = useState<LiquidacionDelContrato | null>(null);
   const [contractData, setContractData] = useState<{
     id: string;
     pairingCode?: string;
@@ -562,6 +566,7 @@ export default function JobDetail() {
         );
         const data = await response.json();
         if (data.success && data.contract) {
+          setLiquidacion(data.liquidacion ?? null);
           setContractData({
             id: data.contract.id,
             pairingCode: data.contract.pairingCode,
@@ -1831,6 +1836,7 @@ export default function JobDetail() {
                               )}
                             </div>
                           )}
+                          {contractData && <LiquidacionDelPago liquidacion={liquidacion} rol={isWorkerOnJob ? "trabajador" : isOwnJob ? "cliente" : "otro"} />}
                         </div>
                       </div>
 

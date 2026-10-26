@@ -6,7 +6,8 @@ import { useSocket } from "../hooks/useSocket";
 import { SkeletonDashboardCard } from "../components/ui/Skeleton";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { usePendingTasks } from "../hooks/usePendingTasks";
-import { MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
+import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
+import { beneficiosPro } from "../../shared/constants/beneficiosPro";
 import {
   TrendingUp,
   TrendingDown,
@@ -527,7 +528,7 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                {/* Plan PRO: la unica membresia paga. No cambia la comision, da visibilidad. */}
+                {/* Plan PRO: la unica membresia paga. Lo que da sale de beneficiosPro(), la misma lista que los T&C y el checkout. */}
                 <div className="grid grid-cols-1 gap-4 mb-6 max-w-md mx-auto">
                   <div
                     onClick={() => navigate("/membership/checkout?plan=monthly")}
@@ -542,18 +543,12 @@ export default function Dashboard() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">{t('membership.priceNoteMonth', 'per month, charged in pesos at the day\'s rate')}</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.profilePromo', '{{dias}} days of profile promotion per month', { dias: MEMBERSHIP_PROMO_DAYS })}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.fullDashboard', 'Full dashboard')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>{t('dashboard.verifiedBadge', 'Verified badge')}</span>
-                      </li>
+                      {beneficiosPro().map((beneficio) => (
+                        <li key={beneficio} className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                          <span>{beneficio}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 </div>

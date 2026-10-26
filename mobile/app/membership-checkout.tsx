@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { get, post } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { beneficiosPro } from '../../shared/constants/beneficiosPro';
 
 // Hay un solo plan pago: PRO, mensual. Esta pantalla ofrecía además PRO Trimestral y
 // SUPER PRO, que ya no se venden (y el servidor los rechaza).
@@ -15,7 +16,7 @@ const PLAN_DETAILS: Record<string, any> = {
     name: 'PRO',
     period: '/mes',
     color: '#7c3aed',
-    benefits: ['Promoción de tu perfil', 'Insignia de socio', 'Prioridad en las búsquedas', 'Estadísticas de tu perfil', 'La comisión no cambia: es la misma que en el plan gratuito'],
+    benefits: beneficiosPro(),
   },
 };
 

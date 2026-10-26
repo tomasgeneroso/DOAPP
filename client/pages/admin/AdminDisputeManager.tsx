@@ -730,7 +730,12 @@ const AdminDisputeManager: React.FC = () => {
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900 dark:text-white">{dispute.initiatedBy.name}</p>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {dispute.initiatedBy.name}
+                          {(dispute as any).premium && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title="Membresía PRO: prioridad de soporte">PRO</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">vs {dispute.against.name}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
