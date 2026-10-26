@@ -203,9 +203,9 @@ export class Ticket extends Model {
   @BeforeCreate
   static async generateTicketNumber(instance: Ticket) {
     if (!instance.ticketNumber) {
-      // Count existing tickets to generate sequential number
-      const count = await Ticket.count();
-      instance.ticketNumber = `TK-${String(count + 1).padStart(6, '0')}`;
+      // De una secuencia de la base, no de un conteo: con RLS cada persona ve solo sus tickets y el conteo repetía números (ver services/numeroDeTicket.ts).
+      const { siguienteNumeroDeTicket } = await import('../../services/numeroDeTicket.js');
+      instance.ticketNumber = await siguienteNumeroDeTicket(Ticket.sequelize as any);
     }
   }
 

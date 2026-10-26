@@ -337,6 +337,14 @@ export class AuditLog extends Model {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
+    // Con RLS la app no puede borrar auditoría (solo agregar): la depuración pasa por una función de la base que fija qué se borra (rls.cjs).
+    try {
+      const [filas] = (await AuditLog.sequelize!.query('SELECT app_depurar_auditoria(:dias) AS n', { replacements: { dias: retentionDays } })) as [Array<{ n: number }>, unknown];
+      return Number(filas[0]?.n ?? 0);
+    } catch (e: any) {
+      if ((e?.original?.code ?? e?.parent?.code) !== '42883') throw e; // la función no existe: la base todavía no tiene la migración de RLS
+    }
+
     const result = await AuditLog.destroy({
       where: {
         createdAt: {

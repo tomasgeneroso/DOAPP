@@ -265,6 +265,14 @@ export class DataAccessLog extends Model {
   static async cleanupOldLogs(): Promise<number> {
     const sevenYearsAgo = new Date(Date.now() - 7 * 365 * 24 * 60 * 60 * 1000);
 
+    // Con RLS la app no puede borrar este rastro (solo agregar): la depuración pasa por una función de la base (rls.cjs).
+    try {
+      const [filas] = (await DataAccessLog.sequelize!.query('SELECT app_depurar_accesos() AS n')) as [Array<{ n: number }>, unknown];
+      return Number(filas[0]?.n ?? 0);
+    } catch (e: any) {
+      if ((e?.original?.code ?? e?.parent?.code) !== '42883') throw e; // la función no existe: la base todavía no tiene la migración de RLS
+    }
+
     const result = await DataAccessLog.destroy({
       where: {
         timestamp: { [Op.lt]: sevenYearsAgo },

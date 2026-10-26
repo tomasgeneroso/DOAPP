@@ -19,7 +19,7 @@ module.exports = {
       return !!(filas && filas[0] && filas[0].t);
     };
     try {
-      const r = await aplicarRls(ejecutar);
+      const r = await aplicarRls(ejecutar, { tandas: ['dinero'] });
       console.log(`[rls] protegidas: ${r.protegidas.join(', ') || '(ninguna)'}${r.saltadas.length ? ` | sin tabla: ${r.saltadas.join(', ')}` : ''}`);
     } catch (e) {
       console.warn(`[rls] NO se aplicó (la app sigue como estaba): ${e && e.message}`);
@@ -33,6 +33,6 @@ module.exports = {
       const [filas] = await q.query(sql);
       return !!(filas && filas[0] && filas[0].t);
     };
-    await quitarRls(ejecutar);
+    await quitarRls(ejecutar, { tandas: ['dinero'] });
   },
 };

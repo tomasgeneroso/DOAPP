@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Sequelize } from 'sequelize';
-import { ROL_DE_LA_APP, TABLAS } from './rls.cjs';
+import { ROL_DE_LA_APP, SOLO_AGREGAR, TABLAS } from './rls.cjs';
 
 /**
  * Quién está pidiendo, para que PostgreSQL decida qué filas puede ver (Row Level Security: ver `server/db/rls.cjs`).
@@ -113,6 +113,8 @@ export async function estadoDeLaBase(sequelize: Sequelize, rolDeLaApp: string = 
   const tablas = Object.keys(TABLAS)
     .map((t) => `('${t}')`)
     .join(',');
+  // Las de rastro se leen y se agregan, pero no se modifican ni borran: no cuenta como «falta un permiso».
+  const soloAgregar = SOLO_AGREGAR.map((t) => `'${t}'`).join(',');
   // Las funciones de privilegios (pg_has_role, has_table_privilege) FALLAN si el rol no existe, y con un nombre escrito en la consulta
   // Postgres las evalúa antes de mirar cualquier condición. Por eso se consultan por el oid del rol, dentro de una subconsulta que no
   // devuelve nada si el rol no está.
@@ -126,8 +128,8 @@ export async function estadoDeLaBase(sequelize: Sequelize, rolDeLaApp: string = 
             WHERE r.rolname = '${rolDeLaApp}' AND t.schemaname = 'public'
               AND NOT (has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'SELECT')
                    AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'INSERT')
-                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'UPDATE')
-                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'DELETE'))
+                   AND (t.tablename IN (${soloAgregar}) OR (has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'UPDATE')
+                   AND has_table_privilege(r.oid, format('%I.%I', t.schemaname, t.tablename)::regclass, 'DELETE'))))
            UNION ALL
            SELECT ('secuencia ' || c.relname)::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, pg_roles r
             WHERE r.rolname = '${rolDeLaApp}' AND n.nspname = 'public' AND c.relkind = 'S'

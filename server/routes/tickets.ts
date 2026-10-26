@@ -11,6 +11,8 @@ import emailService from "../services/email.js";
 import { uploadTicketAttachments, getFileUrl } from "../middleware/upload.js";
 import { esCategoriaDeTicket } from "../../shared/tickets/reportes.js";
 import { relacionesDelTicket, ErrorDeReporte } from "../services/reportesDeSoporte.js";
+import { siguienteNumeroDeTicket } from "../services/numeroDeTicket.js";
+import { sequelize } from "../config/database.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -67,8 +69,7 @@ router.post(
         uploadedAt: new Date(),
       })) : [];
 
-      const ticketCount = await Ticket.count();
-      const ticketNumber = `TK-${String(ticketCount + 1).padStart(6, "0")}`;
+      const ticketNumber = await siguienteNumeroDeTicket(sequelize);
 
       const ticket = await Ticket.create({
         ticketNumber,
@@ -193,8 +194,7 @@ router.post(
       }) : [];
 
       // Generate ticket number
-      const ticketCount = await Ticket.count();
-      const ticketNumber = `TK-${String(ticketCount + 1).padStart(6, '0')}`;
+      const ticketNumber = await siguienteNumeroDeTicket(sequelize);
 
       const ticket = await Ticket.create({
         ticketNumber,

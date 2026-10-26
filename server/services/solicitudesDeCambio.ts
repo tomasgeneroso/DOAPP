@@ -6,6 +6,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Ticket } from '../models/sql/Ticket.model.js';
+import { siguienteNumeroDeTicket } from './numeroDeTicket.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { logEvento } from '../utils/auditLog.js';
@@ -540,10 +541,9 @@ export async function escalarSolicitudesVencidas(ahora: Date = new Date()): Prom
       const sinRespuesta = pidioElCliente ? contrato.doer : contrato.client;
       const trabajo = contrato.job?.title || 'Contrato';
 
-      // El número lo exige la validación del modelo antes de que corra su gancho de creación: se calcula acá,
-      // igual que en las rutas de tickets. Si dos escalamientos chocan por el mismo número, uno se reintenta en la
-      // próxima corrida (cada 6 h): no se pierde, queda pendiente.
-      const numero = `TK-${String((await Ticket.count({ transaction: t })) + 1).padStart(6, '0')}`;
+      // El número lo exige la validación del modelo antes de que corra su gancho de creación: se pide acá,
+      // igual que en las rutas de tickets (de una secuencia: no repite aunque dos corran a la vez).
+      const numero = await siguienteNumeroDeTicket(sequelize);
       const ticket: any = await Ticket.create(
         {
           ticketNumber: numero,
