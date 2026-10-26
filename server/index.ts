@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
 import { initDatabase, sequelize } from "./config/database.js";
 import { activarRlsSiLaBaseEstaLista } from "./db/contextoRls.js";
+import { TABLAS as TABLAS_CON_RLS } from "./db/rls.cjs";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { respuestasDeError } from "./middleware/respuestasDeError.js";
 import { crearVerificadorDeOrigen } from "./middleware/corsOrigen.js";
@@ -209,11 +210,11 @@ app.use(redirigirDominiosAlternativos());
 // Conectar a PostgreSQL
 await initDatabase();
 
-// Row Level Security de las tablas de dinero. Va DESPUÉS del arranque del esquema (el rol de la app no tiene permiso de DDL) y se enciende con
+// Row Level Security (dinero, datos personales, chats, tickets, disputas, contratos, propuestas, cotizaciones y notificaciones). Va DESPUÉS del arranque del esquema (el rol de la app no tiene permiso de DDL) y se enciende con
 // RLS_ACTIVO=true; con la variable apagada la app se comporta como siempre y apagarla es el rollback.
 if (process.env.RLS_ACTIVO === 'true') {
   if (await activarRlsSiLaBaseEstaLista(sequelize)) {
-    console.log('🛡️  RLS activo: las tablas de dinero solo muestran a cada usuario sus propias filas');
+    console.log(`🛡️  RLS activo en ${Object.keys(TABLAS_CON_RLS).length} tablas: cada usuario solo ve sus propias filas (dinero, datos personales, chats, tickets, disputas, contratos, propuestas, cotizaciones y notificaciones)`);
   }
 }
 
