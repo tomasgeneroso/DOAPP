@@ -43,6 +43,7 @@ import { Notification } from '../../server/models/sql/Notification.model.js';
 import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { sequelize } from '../../server/config/database.js';
 import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
+import { ESTADO_PARA_UN_AJENO } from '../helpers/ajeno.js';
 
 describe('solicitudes de cambio de un contrato', () => {
   let app: Express;
@@ -104,7 +105,7 @@ describe('solicitudes de cambio de un contrato', () => {
 
     it('lo que no está bien se rechaza con un motivo (no un 500)', async () => {
       const c = await contratoEn('in_progress');
-      expect((await pedir(ajeno, { contractId: c.id, type: 'cancel', reason: motivo })).status).toBe(403);
+      expect((await pedir(ajeno, { contractId: c.id, type: 'cancel', reason: motivo })).status).toBe(ESTADO_PARA_UN_AJENO);
       expect((await pedir(cliente, { contractId: '00000000-0000-4000-8000-000000000000', type: 'cancel', reason: motivo })).status).toBe(404);
       expect((await pedir(cliente, { contractId: c.id, type: 'cancel', reason: 'no' })).status).toBe(400);
       expect((await pedir(cliente, { contractId: c.id, type: 'cancel', reason: 'x'.repeat(1001) })).status).toBe(400);
@@ -201,8 +202,8 @@ describe('solicitudes de cambio de un contrato', () => {
       expect(lista.body.changeRequests).toHaveLength(1);
       expect(lista.body.changeRequests[0].requestedBy).toMatchObject({ id: cliente.id });
 
-      expect((await request(app).get(`/api/contract-change-requests/${id}`).set(como(ajeno))).status).toBe(403);
-      expect((await request(app).get(`/api/contract-change-requests/contract/${c.id}`).set(como(ajeno))).status).toBe(403);
+      expect((await request(app).get(`/api/contract-change-requests/${id}`).set(como(ajeno))).status).toBe(ESTADO_PARA_UN_AJENO);
+      expect((await request(app).get(`/api/contract-change-requests/contract/${c.id}`).set(como(ajeno))).status).toBe(ESTADO_PARA_UN_AJENO);
       expect((await request(app).get(`/api/contract-change-requests/00000000-0000-4000-8000-000000000000`).set(como(cliente))).status).toBe(404);
     });
   });
@@ -212,7 +213,7 @@ describe('solicitudes de cambio de un contrato', () => {
       const c = await contratoEn('in_progress');
       const id = (await pedir(cliente, { contractId: c.id, type: 'cancel', reason: motivo })).body.changeRequest.id;
       expect((await responder(cliente, id, true)).status).toBe(400); // no puede aceptar su propia solicitud
-      expect((await responder(ajeno, id, true)).status).toBe(403);
+      expect((await responder(ajeno, id, true)).status).toBe(ESTADO_PARA_UN_AJENO);
       expect((await responder(trabajador, id, 'quizás')).status).toBe(400);
       expect((await responder(trabajador, id, false)).status).toBe(200);
       expect((await responder(trabajador, id, true)).status).toBe(400); // ya procesada

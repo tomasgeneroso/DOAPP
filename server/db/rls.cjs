@@ -64,10 +64,24 @@ const TABLAS = {
   // Al reportado NO se le muestra el ticket que lo reporta: `related_user` no cuenta como «mío».
   tickets: { tanda: 2, mia: 'created_by = app_usuario()', equipo: 'equipo' },
   disputes: { tanda: 2, mia: '(initiated_by = app_usuario() OR against = app_usuario())', equipo: 'equipo' },
+
+  // — Tanda 3: dos partes con mucho cruce —
+  // Un contrato lo ven quien contrata y quien trabaja, más el equipo. Casi todo lo que la app hace con un contrato lo pide una de las dos partes; lo que toca el
+  // contrato de OTRO (el auto-cierre, el cobro del trabajador cuando confirma el cliente) corre como sistema o con `conSistema`.
+  contracts: { tanda: 3, mia: '(client_id = app_usuario() OR doer_id = app_usuario())', equipo: 'equipo' },
+  contract_cancellation_requests: { tanda: 3, mia: '(requested_by = app_usuario() OR other_party_id = app_usuario())', equipo: 'equipo' },
+  // Una solicitud de cambio la ven las dos partes del contrato: una la pide y la OTRA la responde.
+  contract_change_requests: { tanda: 3, mia: 'contract_id IN (SELECT id FROM contracts WHERE client_id = app_usuario() OR doer_id = app_usuario())', equipo: 'equipo' },
+  quotes: { tanda: 3, mia: '(sender_id = app_usuario() OR recipient_id = app_usuario())', borra: 'mia' },
+  // Una propuesta la ven quien la hace y el cliente del trabajo; los demás postulantes no ven las ajenas.
+  proposals: { tanda: 3, mia: '(freelancer_id = app_usuario() OR client_id = app_usuario())', borra: 'mia' },
+  // Casi todas las notificaciones las crea OTRA persona para vos. Se leen, se editan y se borran solo las propias; crearlas pasa por `Notification.create`,
+  // que corre como sistema (ver Notification.model.ts): un INSERT ... RETURNING también necesita poder LEER la fila, así que un «crear abierto» no alcanza.
+  notifications: { tanda: 3, mia: 'recipient_id = app_usuario()', borra: 'mia' },
 };
 
 /** Tandas que existen, de la más vieja a la más nueva. */
-const TANDAS = ['dinero', 1, 2, 'rastro'];
+const TANDAS = ['dinero', 1, 2, 3, 'rastro'];
 
 /**
  * Tablas de rastro: la app solo puede LEER y AGREGAR filas (se les quita UPDATE y DELETE al rol `doapp_app`). Ni una ruta con un error ni una

@@ -11,6 +11,7 @@ import { dataMinimizationMiddleware } from "../middleware/dataMinimization.js";
 import { protect, type AuthRequest } from "../middleware/auth.js";
 import { puedeVerLosArchivosDeLaMatricula, leerArchivoDeMatricula } from "../services/matricula.js";
 import { logEvento } from "../utils/auditLog.js";
+import { conSistema } from "../db/contextoRls.js";
 
 const router = express.Router();
 
@@ -359,8 +360,8 @@ router.get("/:id/completed-by-category", async (req: Request, res: Response): Pr
       return;
     }
 
-    // Get all completed contracts for this user as doer
-    const completedContracts = await Contract.findAll({
+    // Get all completed contracts for this user as doer. El perfil es público: con RLS un contrato es de sus dos partes, así que esto se lee como sistema.
+    const completedContracts = await conSistema(() => Contract.findAll({
       where: {
         doerId: userId,
         status: 'completed',
@@ -372,7 +373,7 @@ router.get("/:id/completed-by-category", async (req: Request, res: Response): Pr
           attributes: ['id', 'category'],
         },
       ],
-    });
+    }));
 
     // Get reviews for the completed contracts
     const contractIds = completedContracts.map(c => c.id);
@@ -470,8 +471,8 @@ router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<v
       jobWhere.category = category;
     }
 
-    // Get completed contracts for this user as doer
-    const { count, rows: contracts } = await Contract.findAndCountAll({
+    // Get completed contracts for this user as doer (perfil público: se lee como sistema, ver arriba)
+    const { count, rows: contracts } = await conSistema(() => Contract.findAndCountAll({
       where: {
         doerId: userId,
         status: 'completed',
@@ -492,7 +493,7 @@ router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<v
       order: [['updatedAt', 'DESC']],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
-    });
+    }));
 
     // Get reviews for these contracts
     const contractIds = contracts.map(c => c.id);

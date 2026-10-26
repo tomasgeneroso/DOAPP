@@ -33,6 +33,7 @@ import { publicacionDevuelta } from "../services/creditoDePublicacion.js";
 import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
+import { conSistema } from "../db/contextoRls.js";
 
 const router = express.Router();
 
@@ -3493,13 +3494,13 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
       acceptedAt: new Date(),
     });
 
-    // Contar propuestas activas
-    const totalProposals = await Proposal.count({
+    // Contar propuestas activas (las de todos los postulantes: con RLS cada uno ve solo la suya, así que el conteo se hace como sistema)
+    const totalProposals = await conSistema(() => Proposal.count({
       where: {
         jobId: job.id,
         status: { [Op.in]: ['pending', 'approved'] }
       }
-    });
+    }));
 
     // Verificar si todos han aceptado
     const allAccepted = acceptances.length >= totalProposals;
@@ -3791,14 +3792,14 @@ router.get("/:id/pending-price-decrease", protect, async (req: AuthRequest, res:
       return;
     }
 
-    // Contar propuestas activas
+    // Contar propuestas activas (las de todos los postulantes: con RLS cada uno ve solo la suya, así que el conteo se hace como sistema)
     const { Proposal } = await import('../models/sql/Proposal.model.js');
-    const totalProposals = await Proposal.count({
+    const totalProposals = await conSistema(() => Proposal.count({
       where: {
         jobId: job.id,
         status: { [Op.in]: ['pending', 'approved'] }
       }
-    });
+    }));
 
     // Verificar si el usuario actual ya respondió
     const acceptances = job.priceDecreaseAcceptances || [];

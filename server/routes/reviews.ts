@@ -15,6 +15,7 @@ import {
   clearPostWorkRatingNotification,
 } from "../services/postWorkRating.js";
 import { recalculateUserRatings } from "../services/userRatings.js";
+import { conSistema } from "../db/contextoRls.js";
 
 const router = Router();
 
@@ -517,7 +518,9 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
       publicReviewsWhere.reviewedRole = role;
     }
 
-    const reviews = await Review.findAll({
+    // Las reseñas públicas de una persona vienen de contratos con OTRAS personas: con RLS un contrato es de sus dos partes y el `include` del contrato
+    // saldría vacío, así que esta lista (pública, solo id y tipo del contrato) se lee como sistema.
+    const reviews = await conSistema(() => Review.findAll({
       where: publicReviewsWhere,
       // La nota privada no sale del servidor por este camino: es del reseñado.
       attributes: { exclude: ["privateComment"] },
@@ -536,7 +539,7 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
       order: [["createdAt", "DESC"]],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
-    });
+    }));
 
     const total = await Review.count({ where: publicReviewsWhere });
 

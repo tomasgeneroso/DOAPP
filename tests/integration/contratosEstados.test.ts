@@ -34,6 +34,7 @@ import { Notification } from '../../server/models/sql/Notification.model.js';
 import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { leerMetadata } from '../../server/utils/auditLog.js';
 import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.js';
+import { ESTADO_PARA_UN_AJENO } from '../helpers/ajeno.js';
 
 describe('contratos: cada ruta mira el estado antes de mover nada', () => {
   let app: Express;
@@ -241,7 +242,7 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
 
     it('quien no es parte del contrato recibe 403', async () => {
       const c = await contratoEn('in_progress');
-      expect((await confirmar(c.id, ajeno)).status).toBe(403);
+      expect((await confirmar(c.id, ajeno)).status).toBe(ESTADO_PARA_UN_AJENO);
       expect(await estado(c.id)).toBe('in_progress');
     });
   });
@@ -262,7 +263,7 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
       const real = codigo();
       const c = await contratoEn('accepted', { ...proximo, pairingCode: real, pairingExpiry: new Date(Date.now() + 3_600_000) });
       const r = await generar(c.id, ajeno);
-      expect(r.status).toBe(403);
+      expect(r.status).toBe(ESTADO_PARA_UN_AJENO);
       expect(((await Contract.findByPk(c.id)) as any).pairingCode).toBe(real);
     });
 
@@ -286,8 +287,8 @@ describe('contratos: cada ruta mira el estado antes de mover nada', () => {
 
     it('un usuario ajeno no obtiene "ya iniciado": sigue siendo 403 aunque el contrato esté en curso', async () => {
       const c = await contratoEn('in_progress', {});
-      expect((await confirmarCodigo(c.id, ajeno, 'XXXXXX')).status).toBe(403);
-      expect((await generar(c.id, ajeno)).status).toBe(403);
+      expect((await confirmarCodigo(c.id, ajeno, 'XXXXXX')).status).toBe(ESTADO_PARA_UN_AJENO);
+      expect((await generar(c.id, ajeno)).status).toBe(ESTADO_PARA_UN_AJENO);
     });
 
     it('generate-pairing: sólo en un contrato aceptado', async () => {

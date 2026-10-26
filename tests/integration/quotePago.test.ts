@@ -35,6 +35,8 @@ import { COMMISSION_RATES } from '../../shared/constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
 
+import { ESTADO_PARA_UN_AJENO } from '../helpers/ajeno.js';
+
 describe('POST /api/quotes/:id/pay', () => {
   let app: Express;
   let pagador: { id: string; token: string };
@@ -142,7 +144,7 @@ describe('POST /api/quotes/:id/pay', () => {
     const id = await crearCotizacion(5000);
     const ajeno = await crearUsuario('ajeno');
     const r = await request(app).post(`/api/quotes/${id}/pay`).set('Authorization', `Bearer ${ajeno.token}`).send({});
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(ESTADO_PARA_UN_AJENO);
     await User.destroy({ where: { id: ajeno.id } });
   });
 });

@@ -3,6 +3,7 @@ import { Review } from "../models/sql/Review.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { User } from "../models/sql/User.model.js";
 import { POST_WORK_DRAFT } from "./postWorkRating.js";
+import { conSistema } from "../db/contextoRls.js";
 import { ventanaDeRating, entraEnVentana } from "../../shared/rating/ventana.js";
 
 /**
@@ -114,10 +115,11 @@ async function resolveRoles(reviews: Review[]): Promise<Map<string, ReviewedRole
   }
 
   if (missing.length > 0) {
-    const contracts = await Contract.findAll({
+    // Las reseñas de una persona vienen de contratos con OTRAS personas: con RLS un contrato es de sus dos partes, así que este cálculo lee como sistema.
+    const contracts = await conSistema(() => Contract.findAll({
       where: { id: { [Op.in]: missing.map((r) => r.contractId) } },
       attributes: ["id", "doerId", "clientId"],
-    });
+    }));
     const doerByContract = new Map(
       contracts.map((c) => [c.id.toString(), c.doerId?.toString()])
     );

@@ -33,6 +33,7 @@ import { Job } from '../../server/models/sql/Job.model.js';
 import { Proposal } from '../../server/models/sql/Proposal.model.js';
 import { Quote } from '../../server/models/sql/Quote.model.js';
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
+import { ESTADO_PARA_UN_AJENO } from '../helpers/ajeno.js';
 
 describe('cotizaciones: aceptar y crear', () => {
   let app: Express;
@@ -175,7 +176,7 @@ describe('cotizaciones: aceptar y crear', () => {
     it('las reglas de siempre: solo el destinatario, y solo una pendiente', async () => {
       const q = (await cotizar(trabajador, { recipientId: cliente.id })).body.data;
       expect((await aceptar(trabajador, q.id)).status).toBe(403);
-      expect((await aceptar(intruso, q.id)).status).toBe(403);
+      expect((await aceptar(intruso, q.id)).status).toBe(ESTADO_PARA_UN_AJENO);
       expect((await aceptar(cliente, '00000000-0000-4000-8000-000000000000')).status).toBe(404);
       expect((await aceptar(cliente, q.id)).status).toBe(200);
       expect((await aceptar(cliente, q.id)).status).toBe(400);

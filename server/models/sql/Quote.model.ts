@@ -139,8 +139,9 @@ export class Quote extends Model {
 
   @BeforeCreate
   static async generateQuoteNumber(instance: Quote): Promise<void> {
-    const count = await Quote.count();
-    instance.quoteNumber = `COT-${String(count + 1).padStart(6, '0')}`;
+    // De una secuencia de la base, no de un conteo: con RLS cada persona ve solo sus cotizaciones y el conteo repetía números (ver services/numeroDeTicket.ts).
+    const { siguienteNumeroDeCotizacion } = await import('../../services/numeroDeTicket.js');
+    instance.quoteNumber = await siguienteNumeroDeCotizacion(Quote.sequelize as any);
   }
 }
 

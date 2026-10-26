@@ -6,6 +6,7 @@ import { User } from '../models/sql/User.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import pdfGenerator from './pdfGenerator.js';
 import { Op } from 'sequelize';
+import { conSistema } from '../db/contextoRls.js';
 
 /**
  * Invoice Service
@@ -19,12 +20,13 @@ async function getNextInvoiceNumber(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `DOAPP-${year}-`;
 
-  const lastInvoice = await Invoice.findOne({
+  // El último número se mira entre TODAS las facturas: con RLS cada persona ve solo las suyas y repetiría un número.
+  const lastInvoice = await conSistema(() => Invoice.findOne({
     where: {
       invoiceNumber: { [Op.like]: `${prefix}%` },
     },
     order: [['invoiceNumber', 'DESC']],
-  });
+  }));
 
   let nextNum = 1;
   if (lastInvoice) {

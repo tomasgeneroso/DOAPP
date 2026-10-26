@@ -11,6 +11,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
+import { conSistema } from '../../db/contextoRls.js';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'alert' | 'job_reminder' | 'group_chat' | 'job_auto_cancelled' | 'confirm_remind';
 export type NotificationCategory = 'ticket' | 'contract' | 'user' | 'payment' | 'system' | 'admin' | 'jobs' | 'chat' | 'proposal';
@@ -113,3 +114,15 @@ export class Notification extends Model {
 }
 
 export default Notification;
+
+/**
+ * Crear una notificación es casi siempre para OTRA persona (el cliente aprueba y le avisa al trabajador). Con Row Level Security cada uno lee, edita y
+ * borra solo las suyas, y un INSERT ... RETURNING también necesita poder leer la fila que devuelve: por eso crear corre como sistema, igual que antes de RLS.
+ * Lo demás (leer, marcar como leída, borrar) sigue siendo solo de la persona destinataria.
+ */
+for (const metodo of ['create', 'bulkCreate'] as const) {
+  const original = (Notification as any)[metodo] as (...args: unknown[]) => Promise<unknown>;
+  (Notification as any)[metodo] = function (this: unknown, ...args: unknown[]) {
+    return conSistema(() => original.apply(this, args));
+  };
+}

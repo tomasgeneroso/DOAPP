@@ -29,6 +29,8 @@ import type { Transaction } from 'sequelize';
 export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // --- número de ticket de una secuencia (ver services/numeroDeTicket.ts y la migración 20261025120000) ---
   { label: 'tickets_numero_seq', sql: `CREATE SEQUENCE IF NOT EXISTS tickets_numero_seq` },
+  { label: 'quotes_numero_seq', sql: `CREATE SEQUENCE IF NOT EXISTS quotes_numero_seq` },
+  { label: 'quotes_numero_seq arranca después del último', sql: `SELECT setval('quotes_numero_seq', GREATEST((SELECT COALESCE(MAX(SUBSTRING(quote_number FROM 5)::bigint), 0) FROM quotes WHERE quote_number ~ '^COT-[0-9]+$'), (SELECT last_value FROM quotes_numero_seq)), true)` },
   { label: 'tickets_numero_seq arranca después del último', sql: `SELECT setval('tickets_numero_seq', GREATEST((SELECT COALESCE(MAX(SUBSTRING(ticket_number FROM 4)::bigint), 0) FROM tickets WHERE ticket_number ~ '^TK-[0-9]+$'), (SELECT last_value FROM tickets_numero_seq)), true)` },
   // --- memberships: precio de lista en euros ---
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },
@@ -140,6 +142,7 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'jobs.commission_free_applied', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS commission_free_applied BOOLEAN NOT NULL DEFAULT false` },
   // Contrato libre de comisión del mes (primeras 1000 cuentas): cuándo se gastó por última vez.
   { label: 'users.free_monthly_used_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS free_monthly_used_at TIMESTAMPTZ` },
+  { label: 'users.free_monthly_pro_used_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS free_monthly_pro_used_at TIMESTAMPTZ` },
   // Una sesión de verificación de Didit pertenece a UNA sola cuenta.
   { label: 'users.didit_session_id único', sql: `CREATE UNIQUE INDEX IF NOT EXISTS users_didit_session_id_unico ON users (didit_session_id) WHERE didit_session_id IS NOT NULL` },
   /**

@@ -1,6 +1,6 @@
 export const ROL_DE_LA_APP: string;
 export interface TablaRls {
-  tanda: 'dinero' | 1 | 2;
+  tanda: 'dinero' | 1 | 2 | 3;
   mia: string;
   equipo?: 'soporte' | 'equipo';
   borra?: 'mia';
@@ -8,7 +8,7 @@ export interface TablaRls {
 export const TABLAS: Record<string, TablaRls>;
 export const TANDAS: Tanda[];
 export const SOLO_AGREGAR: string[];
-export type Tanda = 'dinero' | 1 | 2 | 'rastro';
+export type Tanda = 'dinero' | 1 | 2 | 3 | 'rastro';
 export interface OpcionesRls {
   tandas?: Tanda[];
 }
