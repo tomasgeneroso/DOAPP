@@ -1,6 +1,6 @@
 # Especificación 005 — Pago combinado: saldo liberado + pasarela
 
-- **Estado**: propuesta — sin planificar
+- **Estado**: DESCARTADA por el dueño (2026-10-26): no habrá pago combinado. Rige lo que ya existe (ver abajo)
 - **Fecha**: 2026-10-24
 - **Origen**: regla del dueño, 2026-10-24
 - **Severidad**: media (no es un fallo: es una regla nueva que toca dinero)
@@ -68,9 +68,8 @@ publicación y asumen que `payment.amount` es el total que pagó el cliente:
   pendiente hasta que complete? (Recomendado: publicar igual; es lo que ya acepta el sistema.)
 - **D3.** ¿La devolución al medio de pago se pierde en estas publicaciones (punto 4)? (Recomendado: sí; la devolución a saldo no tiene costo y el saldo se puede retirar.)
 
-## Respuestas del dueño (2026-10-26)
+## Decisión final del dueño (2026-10-26): no hay pago combinado
 
-- **D1**: la casilla del saldo **NO** viene marcada: la persona tiene que tildarla.
-- **D2**: si al confirmar el pago ya no alcanza el saldo, **no se publica** (no se publica «igual y se reclama la diferencia»).
-- **D3**: pidió que se la explique mejor antes de decidir (ver el mensaje del 2026-10-26: si se paga mitad con saldo y mitad con Mercado Pago y después se cancela, la plata no puede volver «a la tarjeta» por completo porque Mercado Pago solo devuelve lo que cobró).
-- Falta confirmar que quiere que se arme el pago combinado (usar el saldo que haya y cobrar por Mercado Pago solo lo que falta). Hasta que lo confirme, no se construye.
+> «No debería poder pagar con saldo salvo que el total del trabajo sea igual o menor al saldo. Si el trabajo es de 100.000, el saldo tiene que ser mayor o igual para poder pagarlo con saldo. Si no, paga el contrato completo en Mercado Pago.»
+
+O sea que la regla que ya funciona es la definitiva: el saldo **liberado** paga una publicación solo si alcanza para el total; si no alcanza, se paga **todo** por Mercado Pago. Se descartan el diseño de arriba y las preguntas D1, D2 y D3 (no hay casilla, no hay segundo origen de plata y no hay que decidir cómo devolver). Nada que construir; el T&C 7.12 ya dice lo mismo.
