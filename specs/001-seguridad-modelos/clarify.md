@@ -117,7 +117,7 @@ consultas); **H2** el DNI, las fotos del documento y los datos bancarios están 
 entrega); **H3** una edición de trabajo acepta cualquier campo que mande el cliente (podría cambiar el precio o el estado). Los dos bajos
 (**H4**): `ModuleConfig` y `Quote` aceptan filas incompletas.
 
-**Respuesta**: _(pendiente: A = solo H1, H2 y H3 ahora y H4 después; B = todo junto; C = solo H3)_
+**Respuesta: B, todo junto** (dueño, 2026-10-26: «hacé todos los H»): H1, H2, H3 y H4 en esta misma tanda.
 
 ---
 
@@ -129,4 +129,4 @@ entrega); **H3** una edición de trabajo acepta cualquier campo que mande el cli
 | C3 | Se asume que hay datos reales en producción: backfill reversible por lotes (opción A) | 2026-10-24 |
 | C1 | A: se agrega una huella del DNI para buscar (exacta, indexable) y el DNI se guarda cifrado para mostrar | 2026-10-25 |
 | C4 | A: el auditor frena la subida si aparece un hallazgo alto nuevo (el dueño no tenía preferencia: queda la recomendación) | 2026-10-25 |
-| C5 | Pendiente: explicado qué son los hallazgos; recomendación A (solo H1, H2 y H3 ahora) | — |
+| C5 | B: se hacen todos los hallazgos (H1, H2, H3 y H4) en esta tanda | 2026-10-26 |

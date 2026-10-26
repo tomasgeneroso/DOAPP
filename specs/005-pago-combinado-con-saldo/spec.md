@@ -67,3 +67,10 @@ publicación y asumen que `payment.amount` es el total que pagó el cliente:
 - **D2.** Si al confirmar no alcanza el saldo (punto 5): ¿se publica igual y se le reclama la diferencia (como hoy el aumento de precio), o se deja la publicación
   pendiente hasta que complete? (Recomendado: publicar igual; es lo que ya acepta el sistema.)
 - **D3.** ¿La devolución al medio de pago se pierde en estas publicaciones (punto 4)? (Recomendado: sí; la devolución a saldo no tiene costo y el saldo se puede retirar.)
+
+## Respuestas del dueño (2026-10-26)
+
+- **D1**: la casilla del saldo **NO** viene marcada: la persona tiene que tildarla.
+- **D2**: si al confirmar el pago ya no alcanza el saldo, **no se publica** (no se publica «igual y se reclama la diferencia»).
+- **D3**: pidió que se la explique mejor antes de decidir (ver el mensaje del 2026-10-26: si se paga mitad con saldo y mitad con Mercado Pago y después se cancela, la plata no puede volver «a la tarjeta» por completo porque Mercado Pago solo devuelve lo que cobró).
+- Falta confirmar que quiere que se arme el pago combinado (usar el saldo que haya y cobrar por Mercado Pago solo lo que falta). Hasta que lo confirme, no se construye.

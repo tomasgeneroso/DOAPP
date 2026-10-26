@@ -477,15 +477,6 @@ app.use("/api/admin/pending-payments", adminPendingPaymentsRoutes);
 // Analytics Routes
 app.use("/api/analytics/disputes", analyticsDisputesRoutes);
 
-// Endpoint para obtener términos y condiciones
-app.get("/api/legal/terms-app", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/legal/terminos-condiciones-app.txt"));
-});
-
-app.get("/api/legal/terms-contract", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/legal/terminos-condiciones-contrato.txt"));
-});
-
 // Error handler (debe ser el último middleware)
 app.use(errorHandler);
 

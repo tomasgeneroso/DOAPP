@@ -84,5 +84,6 @@ clarifica cuando se decida su prioridad frente a 001, 002 y 003.
 
 ## Decisión del dueño (2026-10-25)
 
-- **Documentos de identidad** (DNI, fotos del documento, selfie): los ven **solo el dueño y el equipo** (administración y soporte). Ningún otro usuario (ni la contraparte de un contrato) los ve. Queda por confirmar si cada persona puede volver a ver su propio documento.
+- **Documentos de identidad** (DNI, fotos del documento, selfie): los ven **solo el owner** (el rol `owner`, el dueño de la plataforma) **y el equipo** (administración y soporte). Ningún otro usuario (ni la contraparte de un contrato) los ve.
+- **Cada persona puede ver su propio documento**, y la pantalla lo aclara siempre: «solo se te muestra a vos» (dueño, 2026-10-26).
 - **Matrícula y seguro**: no se muestran como documento sino como **insignia** en el perfil («matrícula verificada», «seguro vigente»). El archivo lo ve el equipo; el público solo ve que está verificado.
