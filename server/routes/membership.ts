@@ -517,7 +517,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
-      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyUsedAt']
+      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyUsedAt', 'freeMonthlyProUsedAt']
     });
 
     if (!user) {

@@ -12,19 +12,21 @@ import { calculateCommission, type CommissionResult } from './commissionService.
  * IVA); lo único que se exime es la COMISIÓN de DOAPP. Antes, con uno de estos contratos el servidor publicaba el trabajo sin cobrar
  * nada y lo marcaba como pagado: el costo del trabajo no se cobraba nunca.
  *
- * Hay DOS cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago):
+ * Hay TRES cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago). Los dos mensuales se SUMAN
+ * (regla del dueño, 2026-10-26): quien cumple las dos condiciones tiene dos contratos libres por mes, cada uno mientras dure lo suyo.
  *
- *  - `mensual`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario. Lo tienen (a) las primeras `POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que
- *    completaron su registro (`users.is_early_user`), durante `MESES_DE_CONTRATOS_LIBRES` meses, con cualquier plan, y (b) quien tiene la membresía PRO vigente (T&C 8.1),
- *    mientras la tenga. Es UN solo contrato por mes aunque se cumplan las dos cosas. El mes que no se usa se pierde (no hay cron que lo reponga: se calcula con
- *    la fecha del último uso, `users.free_monthly_used_at`). Va primero porque vence a fin de mes.
+ *  - `mensual`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario para las primeras `POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que completaron su
+ *    registro (`users.is_early_user`), durante `MESES_DE_CONTRATOS_LIBRES` meses, con cualquier plan. El mes que no se usa se pierde (no hay cron que lo reponga: se
+ *    calcula con la fecha del último uso, `users.free_monthly_used_at`). Va primero porque vence a fin de mes.
+ *  - `pro`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga. Mismo criterio (se pierde
+ *    a fin de mes; `users.free_monthly_pro_used_at`). Aparte del anterior: una cuenta de las primeras con PRO tiene los dos.
  *  - `bono`: el contador `users.free_contracts_remaining`, que suman los premios de referidos. No vence.
  *
  * En los demás contratos de PRO la comisión no es cero: es la de PRO (`COMMISSION_RATES.pro`), que calcula `calculateCommission`.
  *
  * Donde la comisión ya es cero por otra razón (la beta, el plan familia, una invitación) no se gasta ningún cupo: no habría nada que eximir.
  */
-export type CupoDeExencion = 'mensual' | 'bono';
+export type CupoDeExencion = 'mensual' | 'pro' | 'bono';
 
 /** Lo que hace falta saber de una cuenta para decidir si le queda el contrato libre del mes. */
 export interface CuentaParaExencion {
@@ -33,6 +35,8 @@ export interface CuentaParaExencion {
   isEarlyUser?: boolean | null;
   createdAt?: Date | string | null;
   freeMonthlyUsedAt?: Date | string | null;
+  /** Cuándo gastó el contrato libre del mes de la membresía PRO (es aparte del de las primeras cuentas). */
+  freeMonthlyProUsedAt?: Date | string | null;
   /** Para saber si tiene la membresía PRO vigente. */
   membershipTier?: string | null;
   hasMembership?: boolean | null;
@@ -95,16 +99,26 @@ function dentroDelAnioDeLasPrimeras(cuenta: CuentaParaExencion, ahora: Date, cob
   return !!ventana && ahora.getTime() >= ventana.desde.getTime() && ahora.getTime() < ventana.hasta.getTime();
 }
 
-/** ¿Le queda a la cuenta el contrato libre de este mes? (Solo mira; gastarlo es `reclamarCupoMensual`.) */
-export function cupoMensualDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date(), cobroDesde: Date = inicioDelCobro()): boolean {
-  if (!dentroDelAnioDeLasPrimeras(cuenta, ahora, cobroDesde) && !tieneProVigente(cuenta, ahora)) return false;
-  const usado = cuenta.freeMonthlyUsedAt ? new Date(cuenta.freeMonthlyUsedAt) : null;
+const noGastadoEsteMes = (usadoEn: Date | string | null | undefined, ahora: Date): boolean => {
+  const usado = usadoEn ? new Date(usadoEn) : null;
   return !usado || usado.getTime() < inicioDelMes(ahora).getTime();
+};
+
+/** ¿Le queda a la cuenta el contrato libre de este mes de las primeras cuentas? (Solo mira; gastarlo es `reclamarCupoMensual`.) */
+export function cupoMensualDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date(), cobroDesde: Date = inicioDelCobro()): boolean {
+  return dentroDelAnioDeLasPrimeras(cuenta, ahora, cobroDesde) && noGastadoEsteMes(cuenta.freeMonthlyUsedAt, ahora);
+}
+
+/** ¿Le queda el contrato libre de este mes de la membresía PRO? (Solo mira; gastarlo es `reclamarCupoDeLaMembresia`.) */
+export function cupoDeLaMembresiaDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date()): boolean {
+  return tieneProVigente(cuenta, ahora) && noGastadoEsteMes(cuenta.freeMonthlyProUsedAt, ahora);
 }
 
 export interface ContratosLibresDisponibles {
-  /** El del mes: 1 si todavía no lo usó este mes y está dentro del año del beneficio. */
+  /** El del mes de las primeras cuentas: 1 si todavía no lo usó este mes y está dentro del año del beneficio. */
   mensual: number;
+  /** El del mes de la membresía PRO: 1 si tiene PRO vigente y todavía no lo usó este mes. Se suma al anterior. */
+  membresia: number;
   /** Los del contador (premios de referidos). */
   bono: number;
   total: number;
@@ -115,9 +129,10 @@ export interface ContratosLibresDisponibles {
 /** Lo que se le muestra a la persona: cuántos contratos libres de comisión puede usar ahora y hasta cuándo dura el beneficio mensual. */
 export function contratosLibresDisponibles(cuenta: CuentaParaExencion, ahora: Date = new Date()): ContratosLibresDisponibles {
   const mensual = cupoMensualDisponible(cuenta, ahora) ? POLITICAS.CONTRATOS_LIBRES_POR_MES : 0;
+  const membresia = cupoDeLaMembresiaDisponible(cuenta, ahora) ? POLITICAS.CONTRATOS_LIBRES_POR_MES : 0;
   const bono = Math.max(0, Number(cuenta.freeContractsRemaining) || 0);
   const ventana = cuenta.isEarlyUser ? ventanaDelBeneficio(cuenta) : null;
-  return { mensual, bono, total: mensual + bono, hasta: ventana ? ventana.hasta.toISOString() : null };
+  return { mensual, membresia, bono, total: mensual + membresia + bono, hasta: ventana ? ventana.hasta.toISOString() : null };
 }
 
 export async function comisionDePublicacion(
@@ -136,9 +151,12 @@ export async function comisionDePublicacion(
   // Beta, plan familia o invitación: la comisión ya es cero y no hay nada que eximir.
   if (normal.commission === 0 && !normal.isFreeContract) return { comision: normal, gastar: null };
 
-  // El contrato libre del mes va primero: se pierde a fin de mes, el contador de premios no.
+  // Los contratos libres del mes van primero (el de las primeras cuentas y después el de la membresía): se pierden a fin de mes, el contador de premios no.
   if (cupoMensualDisponible(user)) {
     return { comision: await calculateCommission(userId, precio, { isFreeContract: true }), gastar: 'mensual' };
+  }
+  if (cupoDeLaMembresiaDisponible(user)) {
+    return { comision: await calculateCommission(userId, precio, { isFreeContract: true }), gastar: 'pro' };
   }
 
   // Contador de premios: calculateCommission ya lo aplica (comisión 0, isFreeContract).
@@ -156,15 +174,10 @@ export async function reclamarCupoMensual(userId: string, ahora: Date = new Date
     `UPDATE users
         SET free_monthly_used_at = CAST(:ahora AS timestamptz)
       WHERE id = :id
-        AND (
-          -- las primeras cuentas, dentro de su año
-          (is_early_user = true
-            AND GREATEST(created_at, CAST(:cobro AS timestamptz)) <= CAST(:ahora AS timestamptz)
-            AND CAST(:ahora AS timestamptz) < GREATEST(created_at, CAST(:cobro AS timestamptz)) + make_interval(months => :meses))
-          -- o la membresía PRO vigente
-          OR (membership_tier IN ('pro', 'super_pro') AND has_membership = true
-            AND (membership_expires_at IS NULL OR membership_expires_at > CAST(:ahora AS timestamptz)))
-        )
+        -- las primeras cuentas, dentro de su año
+        AND is_early_user = true
+        AND GREATEST(created_at, CAST(:cobro AS timestamptz)) <= CAST(:ahora AS timestamptz)
+        AND CAST(:ahora AS timestamptz) < GREATEST(created_at, CAST(:cobro AS timestamptz)) + make_interval(months => :meses)
         AND (free_monthly_used_at IS NULL OR free_monthly_used_at < CAST(:inicioDelMes AS timestamptz))
     RETURNING id`,
     {
@@ -182,7 +195,32 @@ export async function reclamarCupoMensual(userId: string, ahora: Date = new Date
   return filas.length > 0;
 }
 
-/** Devuelve el contrato libre del mes (si el pago no llegó a hacerse). Solo deshace el gasto de ESTE mes. */
+/**
+ * Gasta el contrato libre del mes de la membresía PRO, igual que `reclamarCupoMensual` (un UPDATE condicional atómico). Es un cupo aparte: no toca el de las primeras cuentas.
+ */
+export async function reclamarCupoDeLaMembresia(userId: string, ahora: Date = new Date(), transaction?: Transaction): Promise<boolean> {
+  const filas = (await sequelize.query(
+    `UPDATE users
+        SET free_monthly_pro_used_at = CAST(:ahora AS timestamptz)
+      WHERE id = :id
+        AND membership_tier IN ('pro', 'super_pro') AND has_membership = true
+        AND (membership_expires_at IS NULL OR membership_expires_at > CAST(:ahora AS timestamptz))
+        AND (free_monthly_pro_used_at IS NULL OR free_monthly_pro_used_at < CAST(:inicioDelMes AS timestamptz))
+    RETURNING id`,
+    { replacements: { id: userId, ahora: ahora.toISOString(), inicioDelMes: inicioDelMes(ahora).toISOString() }, type: QueryTypes.SELECT, transaction },
+  )) as Array<{ id: string }>;
+  return filas.length > 0;
+}
+
+/** Devuelve el contrato libre del mes de la membresía (si el pago no llegó a hacerse). Solo deshace el gasto de ESTE mes. */
+export async function devolverCupoDeLaMembresia(userId: string, ahora: Date = new Date()): Promise<void> {
+  await sequelize.query(
+    'UPDATE users SET free_monthly_pro_used_at = NULL WHERE id = :id AND free_monthly_pro_used_at >= CAST(:inicioDelMes AS timestamptz)',
+    { replacements: { id: userId, inicioDelMes: inicioDelMes(ahora).toISOString() } },
+  );
+}
+
+/** Devuelve el contrato libre del mes de las primeras cuentas (si el pago no llegó a hacerse). Solo deshace el gasto de ESTE mes. */
 export async function devolverCupoMensual(userId: string, ahora: Date = new Date()): Promise<void> {
   await sequelize.query(
     'UPDATE users SET free_monthly_used_at = NULL WHERE id = :id AND free_monthly_used_at >= CAST(:inicioDelMes AS timestamptz)',
@@ -199,6 +237,9 @@ export async function gastarCupoDeExencion(user: any, job: any, cupo: CupoDeExen
     if (!(await reclamarCupoMensual(String(user.id)))) return false;
     // Para que este mismo objeto no lo vea libre otra vez, sin marcarlo como cambiado (ya está escrito).
     user.set('freeMonthlyUsedAt', new Date(), { raw: true });
+  } else if (cupo === 'pro') {
+    if (!(await reclamarCupoDeLaMembresia(String(user.id)))) return false;
+    user.set('freeMonthlyProUsedAt', new Date(), { raw: true });
   } else {
     user.freeContractsRemaining = Math.max(0, (user.freeContractsRemaining || 0) - 1);
     await user.save();
@@ -213,6 +254,9 @@ export async function devolverCupoDeExencion(user: any, job: any, cupo: CupoDeEx
   if (cupo === 'mensual') {
     await devolverCupoMensual(String(user.id));
     user.set('freeMonthlyUsedAt', null, { raw: true });
+  } else if (cupo === 'pro') {
+    await devolverCupoDeLaMembresia(String(user.id));
+    user.set('freeMonthlyProUsedAt', null, { raw: true });
   } else {
     user.freeContractsRemaining = (user.freeContractsRemaining || 0) + 1;
     await user.save();
@@ -227,6 +271,7 @@ export async function devolverCupoDeExencion(user: any, job: any, cupo: CupoDeEx
  */
 export async function reclamarContratoLibre(userId: string): Promise<CupoDeExencion | null> {
   if (await reclamarCupoMensual(userId)) return 'mensual';
+  if (await reclamarCupoDeLaMembresia(userId)) return 'pro';
   const [reclamados] = await User.update(
     { freeContractsRemaining: literal('"free_contracts_remaining" - 1') } as never,
     { where: { id: userId, freeContractsRemaining: { [Op.gt]: 0 } } },
@@ -238,6 +283,10 @@ export async function reclamarContratoLibre(userId: string): Promise<CupoDeExenc
 export async function devolverContratoLibre(userId: string, cupo: CupoDeExencion): Promise<void> {
   if (cupo === 'mensual') {
     await devolverCupoMensual(userId);
+    return;
+  }
+  if (cupo === 'pro') {
+    await devolverCupoDeLaMembresia(userId);
     return;
   }
   await User.update({ freeContractsRemaining: literal('"free_contracts_remaining" + 1') } as never, { where: { id: userId } });

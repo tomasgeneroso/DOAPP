@@ -741,6 +741,10 @@ export class User extends Model {
   @Column(DataType.DATE)
   freeMonthlyUsedAt?: Date | null;
 
+  // Lo mismo para el contrato libre del mes de la membresía PRO (regla del dueño, 2026-10-26: se suma al de las primeras cuentas).
+  @Column(DataType.DATE)
+  freeMonthlyProUsedAt?: Date | null;
+
   @Default(3)
   @AllowNull(false)
   @Column(DataType.INTEGER)

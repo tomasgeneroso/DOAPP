@@ -48,7 +48,7 @@ export const POLITICAS = {
    *
    * Regla del dueño del 2026-10-24 (segunda versión el mismo día; la primera era «6 contratos para las primeras 2000 cuentas»). Reemplaza al «3
    * contratos para los primeros 1000» que figuraba en pantallas y comentarios pero nunca se aplicó como tope. Desde el 2026-10-25 también lo tiene quien
-   * tenga PRO activo (T&C 8.1), pero es UN solo crédito por mes: si la cuenta además es de las primeras, no se suman.
+   * tenga PRO activo (T&C 8.1). Los dos SE SUMAN (regla del dueño, 2026-10-26): una cuenta de las primeras con PRO tiene dos contratos libres por mes, cada uno mientras dure lo suyo.
    *
    * El tope se cuenta con `users.is_early_user` (ver `otorgarContratosLibres`, services/exencionDeComision.ts).
    */

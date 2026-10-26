@@ -8,7 +8,7 @@ import { describe, it, expect, afterAll, jest } from '@jest/globals';
  *
  * Regla del dueño (2026-10-24, segunda versión): las primeras 1000 cuentas (con el registro completo) tienen 1 contrato libre de comisión por mes durante
  * 12 meses (POLITICAS.CONTRATOS_LIBRES_POR_MES / MESES_DE_CONTRATOS_LIBRES / PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES), con cualquier plan; el mes que no se
- * usa se pierde. Aparte queda el contador de premios (referidos). La membresía PRO también tiene 1 contrato libre por mes (no se suma al de las primeras) y
+ * usa se pierde. Aparte queda el contador de premios (referidos). La membresía PRO también tiene 1 contrato libre por mes (se SUMA al de las primeras: regla del dueño, 2026-10-26) y
  * paga una comisión menor en los demás (regla del dueño, 2026-10-25; T&C 8.1).
  */
 
@@ -36,6 +36,8 @@ import {
   otorgarContratosLibres,
   reclamarContratoLibre,
   reclamarCupoMensual,
+  reclamarCupoDeLaMembresia,
+  cupoDeLaMembresiaDisponible,
   ventanaDelBeneficio,
 } from '../../server/services/exencionDeComision.js';
 
@@ -114,8 +116,10 @@ describe('comisionDePublicacion y cupos libres de comisión', () => {
       const vigente = await cuenta({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() + 20 * 86_400_000) });
       const t1 = await trabajo(vigente.id);
       const r1 = await comisionDePublicacion(vigente, t1, 100000);
-      expect([r1.comision.commission, r1.gastar]).toEqual([0, 'mensual']);
-      expect(await gastarCupoDeExencion(vigente, t1, 'mensual')).toBe(true);
+      expect([r1.comision.commission, r1.gastar]).toEqual([0, 'pro']);
+      expect(await gastarCupoDeExencion(vigente, t1, 'pro')).toBe(true);
+      expect((await leer(vigente.id)).freeMonthlyProUsedAt).toBeTruthy();
+      expect((await leer(vigente.id)).freeMonthlyUsedAt).toBeNull(); // el de las primeras cuentas es otro cupo y no se tocó
       // el mes que viene no se suma: este mes ya lo usó, y la segunda publicación paga la tasa reducida de PRO
       // (con un precio alto, para que no mande el piso de la comisión: EUR 2)
       const r2 = await comisionDePublicacion(await leer(vigente.id), await trabajo(vigente.id, { price: 1_000_000 }), 1_000_000);
@@ -130,10 +134,34 @@ describe('comisionDePublicacion y cupos libres de comisión', () => {
       }
     });
 
-    it('si una cuenta es de las primeras Y tiene PRO, el contrato libre del mes es UNO, no dos', async () => {
+    it('si una cuenta es de las primeras Y tiene PRO, los dos contratos libres del mes se SUMAN: son dos, cada uno una sola vez', async () => {
       const u = await primera({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() + 20 * 86_400_000) });
-      expect(await reclamarCupoMensual(u.id)).toBe(true);
-      expect(await reclamarCupoMensual(u.id)).toBe(false);
+      expect(contratosLibresDisponibles(await leer(u.id))).toMatchObject({ mensual: 1, membresia: 1, total: 2 });
+      const [t1, t2, t3] = [await trabajo(u.id), await trabajo(u.id), await trabajo(u.id)];
+      const r1 = await comisionDePublicacion(await leer(u.id), t1, 100000);
+      expect(r1.gastar).toBe('mensual'); // primero el de las primeras cuentas
+      expect(await gastarCupoDeExencion(await leer(u.id), t1, 'mensual')).toBe(true);
+      const r2 = await comisionDePublicacion(await leer(u.id), t2, 100000);
+      expect([r2.comision.commission, r2.gastar]).toEqual([0, 'pro']); // y después el de la membresía
+      expect(await gastarCupoDeExencion(await leer(u.id), t2, 'pro')).toBe(true);
+      const r3 = await comisionDePublicacion(await leer(u.id), t3, 1_000_000);
+      expect(r3.gastar).toBeNull();
+      expect(r3.comision.commission).toBeGreaterThan(0); // el tercero del mes paga la comisión de PRO
+      expect(contratosLibresDisponibles(await leer(u.id))).toMatchObject({ mensual: 0, membresia: 0, total: 0 });
+    });
+
+    it('cada uno de los dos se reclama una sola vez aunque lleguen pagos a la vez', async () => {
+      const u = await primera({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() + 20 * 86_400_000) });
+      const r = await Promise.all([reclamarCupoMensual(u.id), reclamarCupoMensual(u.id), reclamarCupoDeLaMembresia(u.id), reclamarCupoDeLaMembresia(u.id)]);
+      expect(r.filter(Boolean)).toHaveLength(2);
+      expect(cupoDeLaMembresiaDisponible(await leer(u.id))).toBe(false);
+    });
+
+    it('una cuenta sin PRO vigente no puede reclamar el de la membresía', async () => {
+      const sinPro = await primera({ membershipTier: 'free' });
+      const vencida = await cuenta({ membershipTier: 'pro', hasMembership: true, membershipExpiresAt: new Date(Date.now() - 2 * 86_400_000) });
+      expect(await reclamarCupoDeLaMembresia(sinPro.id)).toBe(false);
+      expect(await reclamarCupoDeLaMembresia(vencida.id)).toBe(false);
     });
 
     it('una de las primeras cuentas tiene el contrato libre del mes: comisión 0 y se gasta el del mes', async () => {
