@@ -239,8 +239,8 @@ export default function AdminLayout() {
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/auditoria-saldos", icon: Scale, label: t('admin.sidebar.balanceAudit', 'Auditoría de saldos'), roles: ["owner", "super_admin"] },
-        { path: "/admin/family-codes", icon: Gift, label: t('admin.sidebar.familyCodes', 'Family Codes'), roles: ["owner"] },
-        { path: "/admin/influencer-invites", icon: Gift, label: t('admin.sidebar.influencerInvites', 'Invitaciones de influencers'), roles: ["owner"] },
+        // Códigos de familia e invitaciones de influencers: una sola entrada con dos pestañas.
+        { path: "/admin/codigos", icon: Gift, label: t('admin.sidebar.accessCodes', 'Códigos e invitaciones'), roles: ["owner"] },
         { path: "/admin/business-plan", icon: Calculator, label: t('admin.sidebar.businessPlan', 'Proyección de gastos'), roles: ["owner"] },
         { path: "/admin/unit-economics", icon: TrendingUp, label: t('admin.sidebar.unitEconomics', 'Economía unitaria'), roles: ["owner"] },
       ]

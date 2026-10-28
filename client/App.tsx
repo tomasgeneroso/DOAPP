@@ -126,8 +126,7 @@ const AdminFichaUsuario = lazy(() => import("./pages/admin/FichaUsuario"));
 const AdminExpedienteDePublicacion = lazy(() => import("./pages/admin/ExpedienteDePublicacion"));
 const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
-const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
-const AdminInfluencerInvites = lazy(() => import("./pages/admin/InfluencerInvites"));
+const AdminCodigosDeAcceso = lazy(() => import("./pages/admin/CodigosDeAcceso"));
 const InvitacionPage = lazy(() => import("./pages/InvitacionPage"));
 const AdminBusinessPlan = lazy(() => import("./pages/admin/BusinessPlan"));
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMonitor"));
@@ -755,8 +754,10 @@ export default function App() {
               <Route path="manual" element={<AdminAyuda inicial="manual" />} />
               <Route path="guia-de-errores" element={<AdminAyuda inicial="errores" />} />
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
-              <Route path="family-codes" element={<AdminFamilyCodes />} />
-              <Route path="influencer-invites" element={<AdminInfluencerInvites />} />
+              {/* Códigos de familia e invitaciones de influencers: una sola pantalla con dos pestañas. Las direcciones viejas abren la pestaña que corresponde. */}
+              <Route path="codigos" element={<AdminCodigosDeAcceso />} />
+              <Route path="family-codes" element={<AdminCodigosDeAcceso inicial="familia" />} />
+              <Route path="influencer-invites" element={<AdminCodigosDeAcceso inicial="influencers" />} />
               <Route path="business-plan" element={<AdminBusinessPlan />} />
               {/* La proyección dice "si pasa X, cuánto gano"; esto dice si el
                   negocio cierra. Dos preguntas, dos pantallas. */}
