@@ -274,9 +274,15 @@ export default function JobBoard() {
             <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
           </div>
         ) : filas.length === 0 ? (
-          <p className="text-center py-16 text-slate-500 dark:text-slate-400">
-            No hay publicaciones en este estado.
-          </p>
+          <div className="text-center py-16 text-slate-500 dark:text-slate-400 space-y-2">
+            <p>{filtro === 'todos' ? 'No hay publicaciones vivas en este momento.' : 'No hay publicaciones en este estado.'}</p>
+            {filtro === 'todos' && (
+              <p className="text-sm">
+                Este panel muestra solo las que están abiertas, pausadas o esperando aprobación. Las que ya están en curso o terminadas se ven en{' '}
+                <Link to="/admin/jobs" className="text-sky-600 dark:text-sky-400 hover:underline">Publicaciones</Link>.
+              </p>
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">

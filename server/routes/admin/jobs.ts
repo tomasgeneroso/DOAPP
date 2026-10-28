@@ -10,6 +10,7 @@ import { PaymentProof } from '../../models/sql/PaymentProof.model.js';
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from '../../utils/sanitizer.js';
 import { logAudit } from '../../utils/auditLog.js';
+import { conSistema } from '../../db/contextoRls.js';
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 import { socketService } from '../../index.js';
@@ -181,11 +182,13 @@ router.get(
       // Cotizaciones por trabajo en una sola consulta: una por trabajo serían
       // cientos de idas a la base para pintar una tabla.
       const ids = jobs.map((j) => j.id);
+      // Las cuenta como sistema: con RLS una propuesta es de quien la hizo y del cliente del trabajo, y el panel lo mira también soporte, que no es ninguno de los dos
+      // (veía 0 cotizaciones en todas y los estados salían mal). La ruta ya exige un rol de administración.
       const propuestas = ids.length
-        ? await Proposal.findAll({
+        ? await conSistema(() => Proposal.findAll({
             where: { jobId: { [Op.in]: ids } },
             attributes: ['id', 'jobId', 'status'],
-          })
+          }))
         : [];
 
       const porJob = new Map<string, { total: number; aceptadas: number }>();
