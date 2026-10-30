@@ -268,6 +268,10 @@ class MercadoPagoPaymentService {
         transaction_amount_refunded: (payment as any).transaction_amount_refunded as number | undefined,
         currency: payment.currency_id || 'ARS',
         currency_id: payment.currency_id,
+        // Cómo se pagó. Sin esto `evaluarPagoMercadoPago` no veía las cuotas ni los cupones y daba por bueno un pago que DOAPP no acepta.
+        installments: payment.installments,
+        coupon_amount: payment.coupon_amount,
+        campaign_id: (payment as any).campaign_id as number | string | null | undefined,
         provider: provider,
         metadata: payment.metadata || {},
         // Payment method details

@@ -8,6 +8,7 @@ import {
   ESTADOS_CAPTURABLES,
   ESTADOS_YA_PROCESADOS,
 } from '../server/services/pagoMercadoPago.js';
+import mercadopagoService from '../server/services/mercadopago.js';
 
 /**
  * F1: /capture-order daba por aprobado lo que MercadoPago no confirmaba (sin id de pago, con
@@ -89,6 +90,37 @@ describe('cuotas y cupones: DOAPP no los acepta (quedan en revisión, no se ejec
   it('la preferencia de MercadoPago limita las cuotas a UNA (guardián de código: si alguien lo saca, las cuotas vuelven)', () => {
     const codigo = readFileSync(join(process.cwd(), 'server/services/mercadopago.ts'), 'utf8');
     expect(codigo).toMatch(/payment_methods:\s*\{\s*installments:\s*1,/);
+  });
+});
+
+describe('getPayment: lo que lee de Mercado Pago llega entero al control de cuotas y cupones', () => {
+  // Esto faltaba: getPayment armaba un objeto reducido sin cuotas ni cupón, así que el control (que sí estaba probado con datos a mano) nunca los veía
+  // y un pago en 3 cuotas se daba por bueno. Se prueba con la respuesta cruda del SDK, que es lo que llega de verdad.
+  const leerCon = async (crudo: Record<string, unknown>) => {
+    const servicio = mercadopagoService as any;
+    const antes = { inicializado: servicio.isInitialized, cliente: servicio.paymentClient };
+    servicio.isInitialized = true;
+    servicio.paymentClient = { get: async () => ({ id: 77, status: 'approved', transaction_amount: 11000, currency_id: 'ARS', ...crudo }) };
+    try {
+      return await mercadopagoService.getPayment('77', 'mercadopago');
+    } finally {
+      servicio.isInitialized = antes.inicializado;
+      servicio.paymentClient = antes.cliente;
+    }
+  };
+
+  it('un pago en 3 cuotas se ve como cuotas', async () => {
+    expect(condicionesNoPermitidas(await leerCon({ installments: 3 }))?.motivo).toBe('cuotas');
+    expect(evaluarPagoMercadoPago(await leerCon({ installments: 3 }), esperado)).toMatchObject({ ok: false, motivo: 'cuotas' });
+  });
+
+  it('un pago con cupón o campaña se ve como cupón', async () => {
+    expect(condicionesNoPermitidas(await leerCon({ installments: 1, coupon_amount: 1100 }))?.motivo).toBe('cupon');
+    expect(condicionesNoPermitidas(await leerCon({ installments: 1, campaign_id: 4321 }))?.motivo).toBe('cupon');
+  });
+
+  it('un pago en un solo pago y sin descuento pasa', async () => {
+    expect(evaluarPagoMercadoPago(await leerCon({ installments: 1, coupon_amount: 0 }), { ...esperado, payerId: 'user-1' }).ok).toBe(true);
   });
 });
 

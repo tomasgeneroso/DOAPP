@@ -14,6 +14,7 @@ import { conSistema } from '../../db/contextoRls.js';
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 import { socketService } from '../../index.js';
+import { cacheService } from '../../services/cacheService.js';
 
 const router = express.Router();
 
@@ -494,6 +495,9 @@ router.put(
           ? { cancelledAt: new Date(), cancelledById: status === 'cancelled' ? job.clientId : req.user.id, cancelledByRole: status === 'cancelled' ? 'owner' : 'admin' }
           : {}),
       });
+
+      // El muro público se guarda en memoria un minuto: sin esto, una publicación recién aprobada no aparece hasta que pasa.
+      cacheService.delPattern('jobs:*');
 
       /**
        * La plata. Rechazar una publicación pagada la dejaba en "cancelled" con
