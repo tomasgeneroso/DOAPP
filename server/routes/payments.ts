@@ -38,6 +38,7 @@ import { comisionDePublicacion, gastarCupoDeExencion, devolverCupoDeExencion } f
 import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
 import { moduloActivo } from "../services/moduleFlags.js";
 import { MODULO_APROBACION_DE_PUBLICACIONES } from "../../shared/constants/modulos.js";
+import { ErrorResponse } from '../middleware/errorHandler.js';
 import {
   evaluarPagoMercadoPago,
   esIdDePagoMp,
@@ -77,7 +78,7 @@ const upload = multer({
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Solo se permiten archivos de imagen (JPEG, PNG) o PDF'));
+      cb(new ErrorResponse('Solo se permiten archivos de imagen (JPEG, PNG) o PDF', 400));
     }
   }
 });

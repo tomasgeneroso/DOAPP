@@ -34,6 +34,7 @@ import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.j
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
+import { ErrorResponse } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -59,7 +60,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Solo se permiten archivos de imagen'));
+    cb(new ErrorResponse('Solo se permiten archivos de imagen', 400));
   }
 };
 

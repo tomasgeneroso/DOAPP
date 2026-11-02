@@ -16,6 +16,7 @@ import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ const clientProofUpload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.'));
+      cb(new ErrorResponse('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.', 400));
     }
   }
 });
@@ -969,6 +970,9 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
   }
 });
 
+/** Estados de un pago desde los que un administrador lo aprueba: todavía no se aprobó, ni se rechazó, ni se devolvió. */
+const ESTADOS_QUE_SE_APRUEBAN = ['pending', 'processing', 'pending_verification'];
+
 /**
  * Approve payment proof OR MercadoPago payment (admin only)
  * POST /api/admin/payments/:paymentId/approve
@@ -998,6 +1002,45 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       res.status(bloqueoPropio.status).json(bloqueoPropio.body);
       return;
     }
+
+    // Determine the correct status based on payment type.
+    // Escrow flow (money that ends up with the worker) goes through the full
+    // sequence: pending_verification → verified → held_escrow → confirmed_for_payout.
+    //   - contract_payment / escrow_deposit: the contract amount.
+    //   - budget_increase: the extra budget also goes to the worker, so it must
+    //     follow the same escrow flow (NOT jump straight to "completed").
+    // Other payments (job_publication, membership, ...) finish at "completed".
+    const isEscrowFlow = ['contract_payment', 'escrow_deposit', 'budget_increase'].includes(payment.paymentType);
+    // Un aumento de precio ya cobrado por Mercado Pago (tiene la marca de que MP lo confirmó bien) termina en
+    // "completed", igual que cuando se aplicaba al volver el comprador; no hay escrow que verificar después.
+    const esAumentoCobradoPorMp = payment.paymentType === 'budget_increase' && !payment.contractId && !!payment.mercadopagoVerifiedAt;
+    const newStatus = isEscrowFlow && !esAumentoCobradoPorMp ? 'verified' : 'completed';
+
+    // Un comprobante que ya se procesó no se vuelve a aprobar.
+    if (proofId) {
+      const elegido = await PaymentProof.findOne({ where: { id: proofId, paymentId, isActive: true } });
+      if (elegido && elegido.status !== 'pending') {
+        res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
+        return;
+      }
+    }
+
+    // Solo se aprueba un pago que está esperando aprobación. Antes este endpoint aprobaba cualquiera: uno ya completado, en garantía, devuelto o
+    // rechazado volvía a «completed»/«verified», reabría el trabajo aunque ya estuviera en curso o cancelado y repetía avisos y facturas (con dos
+    // toques seguidos al botón alcanzaba). El cambio de estado es un solo UPDATE condicional: si dos aprobaciones llegan juntas, gana una.
+    const [reclamados] = await Payment.update(
+      { status: newStatus, approvedBy: adminId, approvedAt: new Date(), ...(notes ? { adminNotes: notes } : {}) } as any,
+      { where: { id: paymentId, status: { [Op.in]: ESTADOS_QUE_SE_APRUEBAN } } },
+    );
+    if (reclamados === 0) {
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_NOT_PENDING_APPROVAL',
+        message: `Este pago ya está "${payment.status}": solo se aprueba un pago que espera aprobación.`,
+      });
+      return;
+    }
+    await payment.reload();
 
     // If admin uploaded a proof directly, store it as the ADMIN VERIFICATION proof
     // (kind='admin_verification', isActive=false) so it never replaces the client's
@@ -1063,28 +1106,6 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     }
     // If no proof exists, that's OK - we can still approve the payment directly
     // This handles MercadoPago payments and migrated payments without proofs
-
-    // Determine the correct status based on payment type.
-    // Escrow flow (money that ends up with the worker) goes through the full
-    // sequence: pending_verification → verified → held_escrow → confirmed_for_payout.
-    //   - contract_payment / escrow_deposit: the contract amount.
-    //   - budget_increase: the extra budget also goes to the worker, so it must
-    //     follow the same escrow flow (NOT jump straight to "completed").
-    // Other payments (job_publication, membership, ...) finish at "completed".
-    const isEscrowFlow = ['contract_payment', 'escrow_deposit', 'budget_increase'].includes(payment.paymentType);
-    // Un aumento de precio ya cobrado por Mercado Pago (tiene la marca de que MP lo confirmó bien) termina en
-    // "completed", igual que cuando se aplicaba al volver el comprador; no hay escrow que verificar después.
-    const esAumentoCobradoPorMp = payment.paymentType === 'budget_increase' && !payment.contractId && !!payment.mercadopagoVerifiedAt;
-    const newStatus = isEscrowFlow && !esAumentoCobradoPorMp ? 'verified' : 'completed';
-
-    // Update payment
-    payment.status = newStatus;
-    payment.approvedBy = adminId;
-    payment.approvedAt = new Date();
-    if (notes) {
-      payment.adminNotes = notes;
-    }
-    await payment.save();
 
     void logAudit({
       req, action: 'payment.approve', category: 'payment', severity: 'high',

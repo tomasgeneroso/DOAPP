@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import type { Request, Response, NextFunction } from "express";
+import { ErrorResponse } from './errorHandler.js';
 
 /**
  * File upload middleware with security validations
@@ -144,7 +145,7 @@ function imageFileFilter(
   callback: multer.FileFilterCallback
 ) {
   if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-    callback(new Error("Tipo de archivo no permitido. Solo se permiten imágenes."));
+    callback(new ErrorResponse("Tipo de archivo no permitido. Solo se permiten imágenes.", 400));
     return;
   }
   callback(null, true);
@@ -159,7 +160,7 @@ function documentFileFilter(
   callback: multer.FileFilterCallback
 ) {
   if (!ALLOWED_DOCUMENT_TYPES.includes(file.mimetype)) {
-    callback(new Error("Tipo de archivo no permitido. Solo se permiten documentos."));
+    callback(new ErrorResponse("Tipo de archivo no permitido. Solo se permiten documentos.", 400));
     return;
   }
   callback(null, true);
@@ -176,7 +177,7 @@ function allFilesFilter(
   const allowedTypes = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOCUMENT_TYPES];
 
   if (!allowedTypes.includes(file.mimetype)) {
-    callback(new Error("Tipo de archivo no permitido"));
+    callback(new ErrorResponse("Tipo de archivo no permitido", 400));
     return;
   }
   callback(null, true);
@@ -193,7 +194,7 @@ function disputeFileFilter(
   const allowedTypes = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOCUMENT_TYPES];
 
   if (!allowedTypes.includes(file.mimetype)) {
-    callback(new Error("Tipo de archivo no permitido. Solo se permiten imágenes, videos y documentos."));
+    callback(new ErrorResponse("Tipo de archivo no permitido. Solo se permiten imágenes, videos y documentos.", 400));
     return;
   }
   callback(null, true);
@@ -418,7 +419,7 @@ const ticketFileFilter = (
   if (allowedMimeTypes.includes(file.mimetype)) {
     callback(null, true);
   } else {
-    callback(new Error("Solo se permiten imágenes (JPG, PNG, WebP) y archivos PDF"));
+    callback(new ErrorResponse("Solo se permiten imágenes (JPG, PNG, WebP) y archivos PDF", 400));
   }
 };
 
@@ -463,7 +464,7 @@ const proposalFileFilter = (
   if (allowedMimeTypes.includes(file.mimetype)) {
     callback(null, true);
   } else {
-    callback(new Error("Solo se permiten imágenes (JPG, PNG) y archivos PDF"));
+    callback(new ErrorResponse("Solo se permiten imágenes (JPG, PNG) y archivos PDF", 400));
   }
 };
 
@@ -513,7 +514,7 @@ const dniFileFilter = (
   if (allowed.includes(file.mimetype)) {
     callback(null, true);
   } else {
-    callback(new Error("Solo se permiten imágenes (JPG, PNG) o PDF"));
+    callback(new ErrorResponse("Solo se permiten imágenes (JPG, PNG) o PDF", 400));
   }
 };
 
@@ -540,7 +541,7 @@ export const uploadMatricula = multer({
   fileFilter: (_req, file, cb) => {
     const allowed = [...ALLOWED_IMAGE_TYPES, "application/pdf"];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF"));
+    else cb(new ErrorResponse("Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF", 400));
   },
   limits: { fileSize: 10 * 1024 * 1024, files: 2 },
 }).fields([
@@ -561,7 +562,7 @@ export const uploadInsuranceDocument = multer({
   fileFilter: (_req, file, cb) => {
     const allowed = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF'));
+    else cb(new ErrorResponse('Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF', 400));
   },
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 }).single('insuranceDocument');

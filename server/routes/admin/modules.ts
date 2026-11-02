@@ -25,7 +25,7 @@ const MODULOS_SENSIBLES: Record<string, { accion: (typeof ACTIONS)[keyof typeof 
 };
 
 // Módulos disponibles (seed inicial)
-const DEFAULT_MODULES = [
+export const DEFAULT_MODULES = [
   {
     moduleId: 'payment:mercadopago',
     category: 'payment',

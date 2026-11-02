@@ -20,6 +20,7 @@ import { logMoneyEvent } from "../../utils/auditLog.js";
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 import { pagableDesde } from "../../services/liberacionDeSaldo.js";
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
+import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ const workerPaymentProofUpload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.'));
+      cb(new ErrorResponse('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.', 400));
     }
   }
 });
