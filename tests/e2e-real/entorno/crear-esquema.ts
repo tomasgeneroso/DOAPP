@@ -11,6 +11,12 @@ process.env.NODE_ENV = 'development';
 
 const { initDatabase, sequelize } = await import('../../../server/config/database.js');
 await initDatabase();
+
+// En producción la tabla de módulos se carga la primera vez que el dueño abre «Módulos» (hasta entonces la pantalla de pago ofrece solo Mercado Pago). Las pruebas
+// parten de ese estado normal, no de una base sin configurar: si no, ninguna ve la transferencia, Binance ni los demás medios.
+const { DEFAULT_MODULES } = await import('../../../server/routes/admin/modules.js');
+const { ModuleConfig } = await import('../../../server/models/sql/ModuleConfig.model.js');
+await ModuleConfig.bulkCreate(DEFAULT_MODULES as any[]);
 const [filas] = (await sequelize.query("select count(*)::int as n from information_schema.tables where table_schema = 'public'")) as any[];
 console.log(`[e2e] esquema listo en ${nombre}: ${filas[0].n} tablas`);
 await sequelize.close();
