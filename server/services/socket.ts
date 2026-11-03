@@ -10,6 +10,8 @@ import { estaBaneadoAhora } from "../middleware/auth.js";
 import fcmService from "./fcm";
 import emailService from "./email";
 import { Op } from 'sequelize';
+import { SALA_DE_ADMINISTRACION } from "./avisosEnVivo.js";
+import { paraQuienMira } from "./privacidadTrabajo.js";
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,7 +46,6 @@ interface ReadReceiptData {
 
 export class SocketService {
   private io: Server;
-  private userSockets: Map<string, string> = new Map(); // userId -> socketId
 
   constructor(httpServer: HTTPServer) {
     this.io = new Server(httpServer, {
@@ -95,16 +96,16 @@ export class SocketService {
     this.io.on("connection", (socket: AuthenticatedSocket) => {
       console.log(`✅ User connected: ${socket.userId}`);
 
-      // Store user socket mapping
-      if (socket.userId) {
-        this.userSockets.set(socket.userId, socket.id);
-      }
-
-      // Join user's personal room
+      // Sala personal: todos los avisos para una persona van acá, así llegan a TODAS sus pestañas y dispositivos (antes se guardaba un solo socket por
+      // persona: abrir una segunda pestaña dejaba a la primera sin avisos, y cerrar una la dejaba «desconectada» para las dos).
       socket.join(`user:${socket.userId}`);
 
-      // Send online status to contacts
-      this.broadcastOnlineStatus(socket.userId!, true);
+      // El equipo de administración recibe además los avisos de cambios de dinero, contratos y trabajos (`admin:*`). Antes se emitían a TODOS los
+      // conectados, con los datos del pago o del retiro de otras personas.
+      if ((socket.user as any)?.adminRole) socket.join(SALA_DE_ADMINISTRACION);
+
+      // Send online status to contacts (sólo cuando es su primera conexión)
+      if (this.cantidadDeConexiones(socket.userId!) === 1) this.broadcastOnlineStatus(socket.userId!, true);
 
       // Handle joining conversation rooms
       socket.on("join:conversation", async (conversationId: string) => {
@@ -143,8 +144,8 @@ export class SocketService {
       // Handle disconnect
       socket.on("disconnect", () => {
         console.log(`❌ User disconnected: ${socket.userId}`);
-        if (socket.userId) {
-          this.userSockets.delete(socket.userId);
+        // Sólo figura sin conexión cuando se cierra la ÚLTIMA pestaña.
+        if (socket.userId && this.cantidadDeConexiones(socket.userId) === 0) {
           this.broadcastOnlineStatus(socket.userId, false);
         }
       });
@@ -276,7 +277,7 @@ export class SocketService {
           continue;
         }
 
-        const isOnline = this.userSockets.has(participantIdStr);
+        const isOnline = this.cantidadDeConexiones(participantIdStr) > 0;
 
         // Notify unread count update to the recipient
         const participantConversations = await Conversation.findAll({
@@ -466,11 +467,18 @@ export class SocketService {
     }
   }
 
+  /** Cuántas pestañas o dispositivos tiene conectados una persona. */
+  private cantidadDeConexiones(userId: string): number {
+    return this.io.sockets.adapter.rooms.get(`user:${userId}`)?.size ?? 0;
+  }
+
   public async notifyUser(userId: string, event: string, data: any) {
-    const socketId = this.userSockets.get(userId);
-    if (socketId) {
-      this.io.to(socketId).emit(event, data);
-    }
+    this.io.to(`user:${userId}`).emit(event, data);
+  }
+
+  /** A una sala cualquiera (la conversación abierta, la administración). */
+  public emitToRoom(sala: string, event: string, data: unknown) {
+    this.io.to(sala).emit(event, data);
   }
 
   // Broadcast updates to specific users
@@ -484,11 +492,36 @@ export class SocketService {
     this.broadcastToUser(doerId, "contract:updated", { contractId, ...data });
   }
 
+  /**
+   * Lo que se le avisa a TODOS (el muro) de un trabajo que cambió.
+   *
+   * Antes se emitía el trabajo entero (`job.toJSON()`) a todos los conectados: la calle y el número de la casa, el teléfono y el email del cliente, y hasta
+   * borradores, publicaciones sin pagar y listas de tareas. La web promete que «la dirección exacta solo se comparte con el trabajador asignado» y las lecturas
+   * públicas (`GET /api/jobs`) ya lo cumplen con `privacidadTrabajo`: el aviso en vivo tiene que ser igual de reservado. Ahora sale el id y el estado, y el
+   * trabajo mismo SÓLO si está abierto (es lo que muestra el muro) y sin dirección exacta ni contacto. El dueño y la administración reciben el completo por su
+   * propio aviso (`job:updated`, `admin:job:*`).
+   */
+  private trabajoParaTodos(jobId: string | undefined, data: any): Record<string, unknown> {
+    const job = data?.job;
+    const resumen: Record<string, unknown> = { jobId: jobId ?? job?.id, action: data?.action, status: job?.status ?? data?.status };
+    if (job && job.status === "open") {
+      // Copia: el objeto original también se le manda al dueño y a administración, que sí ven la dirección.
+      const copia = {
+        ...job,
+        client: job.client ? { ...job.client } : job.client,
+        doer: job.doer ? { ...job.doer } : job.doer,
+        selectedWorkersData: Array.isArray(job.selectedWorkersData) ? job.selectedWorkersData.map((u: any) => ({ ...u })) : job.selectedWorkersData,
+      };
+      resumen.job = paraQuienMira(copia);
+    }
+    return resumen;
+  }
+
   // Broadcast job updates
   public notifyJobUpdate(jobId: string, clientId: string, data: any) {
     this.broadcastToUser(clientId, "job:updated", { jobId, ...data });
-    // Broadcast to all users for job listings
-    this.io.emit("jobs:refresh", { jobId, ...data });
+    // Broadcast to all users for job listings (sin datos reservados: ver trabajoParaTodos)
+    this.io.emit("jobs:refresh", this.trabajoParaTodos(jobId, data));
   }
 
   // Broadcast proposal updates
@@ -521,26 +554,26 @@ export class SocketService {
 
   // Broadcast new job created (for admin panel)
   public notifyNewJob(job: any) {
-    this.io.emit("admin:job:created", { job, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:job:created", { job, timestamp: new Date() });
     // Also notify job listings refresh
-    this.io.emit("jobs:refresh", { action: "created", job });
+    this.io.emit("jobs:refresh", this.trabajoParaTodos(job?.id, { action: "created", job }));
   }
 
   // Broadcast job status changed
   public notifyJobStatusChanged(job: any, previousStatus: string) {
-    this.io.emit("admin:job:updated", { job, previousStatus, timestamp: new Date() });
-    this.io.emit("jobs:refresh", { action: "updated", job });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:job:updated", { job, previousStatus, timestamp: new Date() });
+    this.io.emit("jobs:refresh", this.trabajoParaTodos(job?.id, { action: "updated", job }));
   }
 
   // Broadcast job updated (general updates, not just status)
   public notifyAdminJobUpdated(job: any) {
-    this.io.emit("admin:job:updated", { job, timestamp: new Date() });
-    this.io.emit("jobs:refresh", { action: "updated", job });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:job:updated", { job, timestamp: new Date() });
+    this.io.emit("jobs:refresh", this.trabajoParaTodos(job?.id, { action: "updated", job }));
   }
 
   // Broadcast new proposal (for admin and job owner)
   public notifyNewProposal(proposal: any, jobOwnerId: string) {
-    this.io.emit("admin:proposal:created", { proposal, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:proposal:created", { proposal, timestamp: new Date() });
     this.broadcastToUser(jobOwnerId, "proposal:new", { proposal });
     // Also refresh the job owner's jobs list
     this.broadcastToUser(jobOwnerId, "myjobs:refresh", { proposal });
@@ -548,27 +581,27 @@ export class SocketService {
 
   // Broadcast new contract created
   public notifyNewContract(contract: any) {
-    this.io.emit("admin:contract:created", { contract, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:contract:created", { contract, timestamp: new Date() });
   }
 
   // Broadcast contract status changed
   public notifyContractStatusChanged(contract: any, previousStatus: string) {
-    this.io.emit("admin:contract:updated", { contract, previousStatus, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:contract:updated", { contract, previousStatus, timestamp: new Date() });
   }
 
   // Broadcast new payment (for admin)
   public notifyNewPayment(payment: any) {
-    this.io.emit("admin:payment:created", { payment, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:payment:created", { payment, timestamp: new Date() });
   }
 
   // Broadcast payment status changed
   public notifyPaymentStatusChanged(payment: any, previousStatus: string) {
-    this.io.emit("admin:payment:updated", { payment, previousStatus, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:payment:updated", { payment, previousStatus, timestamp: new Date() });
   }
 
   // Broadcast new user registered
   public notifyNewUser(user: any) {
-    this.io.emit("admin:user:created", {
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:user:created", {
       user: {
         id: user.id,
         name: user.name,
@@ -582,17 +615,17 @@ export class SocketService {
 
   // Broadcast new dispute
   public notifyNewDispute(dispute: any) {
-    this.io.emit("admin:dispute:created", { dispute, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:dispute:created", { dispute, timestamp: new Date() });
   }
 
   // Broadcast dispute status changed
   public notifyDisputeStatusChanged(dispute: any, previousStatus: string) {
-    this.io.emit("admin:dispute:updated", { dispute, previousStatus, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:dispute:updated", { dispute, previousStatus, timestamp: new Date() });
   }
 
   // Broadcast new ticket
   public notifyNewTicket(ticket: any) {
-    this.io.emit("admin:ticket:created", { ticket, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:ticket:created", { ticket, timestamp: new Date() });
   }
 
   // ============================================
@@ -601,22 +634,22 @@ export class SocketService {
 
   // Broadcast ticket status changed
   public notifyTicketStatusChanged(ticket: any, previousStatus: string) {
-    this.io.emit("admin:ticket:updated", { ticket, previousStatus, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:ticket:updated", { ticket, previousStatus, timestamp: new Date() });
   }
 
   // Broadcast new withdrawal request
   public notifyNewWithdrawal(withdrawal: any) {
-    this.io.emit("admin:withdrawal:created", { withdrawal, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:withdrawal:created", { withdrawal, timestamp: new Date() });
   }
 
   // Broadcast withdrawal status changed
   public notifyWithdrawalStatusChanged(withdrawal: any, previousStatus: string) {
-    this.io.emit("admin:withdrawal:updated", { withdrawal, previousStatus, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit("admin:withdrawal:updated", { withdrawal, previousStatus, timestamp: new Date() });
   }
 
   // Generic admin notification
   public notifyAdminEvent(event: string, data: any) {
-    this.io.emit(`admin:${event}`, { ...data, timestamp: new Date() });
+    this.io.to(SALA_DE_ADMINISTRACION).emit(`admin:${event}`, { ...data, timestamp: new Date() });
   }
 
   // Get IO instance for direct use in routes

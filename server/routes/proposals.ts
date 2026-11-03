@@ -92,7 +92,7 @@ async function createOrUpdateGroupChat(job: Job, workerIds: string[]): Promise<C
 
       // Send real-time notification
       const { socketService } = await import('../index.js');
-      socketService.notifyUser(participantId, "notification:new", notification.toJSON());
+      // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
     }
 
     return groupChat;
@@ -678,7 +678,7 @@ router.post(
         });
 
         // Send real-time notification to job owner
-        socketService.notifyUser(job.clientId, "notification:new", notification.toJSON());
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       } catch (notifError: any) {
         // Use silentError to always capture this, even in production
         logger.silentError('proposals', 'Failed to create proposal notification', notifError, {
@@ -1116,10 +1116,10 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     });
 
     // Send real-time notification
-    socketService.notifyUser(proposal.freelancerId, "notification:new", notification.toJSON());
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     // Al cliente se le avisó que quedó plata a su favor (la notificación la crea services/presupuestoDelTrabajo.ts): acá solo llega en vivo.
-    if (devolucion.notificacion) socketService.notifyUser(req.user.id, 'notification:new', devolucion.notificacion.toJSON());
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     // Notify admin panel of new contract
     const populatedContract = await Contract.findByPk(contract.id, {

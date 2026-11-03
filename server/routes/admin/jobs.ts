@@ -594,7 +594,7 @@ router.put(
       });
 
       // Send real-time notification
-      socketService.notifyUser(job.clientId, "notification:new", notification.toJSON());
+      // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
       res.json({
         success: true,

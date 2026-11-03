@@ -18,6 +18,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { cacheService } from '../../services/cacheService.js';
+import { avisarQueCambioElMuro } from '../../services/avisoDelMuro.js';
 import type { ModoDePago } from '../../../shared/pagos/modoDePago.js';
 
 /**
@@ -785,12 +786,15 @@ export class Job extends Model {
   @AfterDestroy
   static vaciarMuroEnCache(): void {
     cacheService.delPattern('jobs:*');
+    // Y se les avisa en vivo a las pantallas abiertas (antes el aviso salía solo de algunas rutas y el resto dejaba la lista vieja hasta recargar).
+    avisarQueCambioElMuro();
   }
 
   @AfterBulkUpdate
   @AfterBulkDestroy
   static vaciarMuroEnCacheEnMasa(): void {
     cacheService.delPattern('jobs:*');
+    avisarQueCambioElMuro();
   }
 }
 

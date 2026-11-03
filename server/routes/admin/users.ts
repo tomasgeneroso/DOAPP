@@ -940,7 +940,7 @@ router.post(
           actionText: 'Ver mi perfil',
           data: { tab: 'profession' },
         });
-        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       } catch (notifErr) {
         console.error('Error sending license approval notification:', notifErr);
       }
@@ -1005,7 +1005,7 @@ router.post(
           actionText: 'Ver mi perfil',
           data: { tab: 'profession' },
         });
-        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       } catch (notifErr) {
         console.error('Error sending insurance approval notification:', notifErr);
       }
@@ -1148,7 +1148,7 @@ router.post(
           actionText: 'Actualizar documentos',
           data: { tab: 'profession' },
         });
-        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       } catch (notifErr) {
         console.error('Error sending license rejection notification:', notifErr);
       }

@@ -19,6 +19,9 @@ import { respuestasDeError } from "./middleware/respuestasDeError.js";
 import { crearVerificadorDeOrigen } from "./middleware/corsOrigen.js";
 import passport from "./config/passport.js";
 import SocketService, { setSocketServiceInstance } from "./services/socket.js";
+import { registrarAvisoDelMuro } from "./services/avisoDelMuro.js";
+import { registrarAvisosEnVivo } from "./services/avisosEnVivo.js";
+import { instalarAvisosPorCambios } from "./services/avisosPorCambios.js";
 import {
   xssProtection,
   preventDirectoryTraversal,
@@ -491,6 +494,14 @@ const isHttps = false;
 // Inicializar Socket.io
 const socketService = new SocketService(httpServer);
 setSocketServiceInstance(socketService); // Register for global access via getIO()
+// Cada cambio de un trabajo (el hook del modelo) avisa en vivo a las pantallas abiertas que el muro cambió: una publicación aparece o desaparece al instante.
+registrarAvisoDelMuro(() => socketService.getIO().emit('jobs:refresh', { action: 'updated' }));
+// Cada cambio de un contrato, pago, saldo, retiro, mensaje o notificación avisa en vivo a las personas involucradas, lo cambie una ruta, un cron o un webhook.
+registrarAvisosEnVivo({
+  aUsuario: (usuarioId, evento, datos) => socketService.broadcastToUser(usuarioId, evento, datos),
+  aSala: (sala, evento, datos) => socketService.emitToRoom(sala, evento, datos),
+});
+instalarAvisosPorCambios();
 console.log("🔌 Socket.io initialized");
 
 // Export socket service for use in other modules

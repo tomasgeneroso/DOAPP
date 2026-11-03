@@ -1359,10 +1359,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           sentVia: ['in_app'],
         });
 
-        socketService.notifyUser((quote as any).senderId, 'notification:new', {
-          title: 'Cotización pagada',
-          message: `Recibiste el pago de "${(quote as any).title}"`,
-        });
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
         res.json({
           success: true,

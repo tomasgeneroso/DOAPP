@@ -1948,11 +1948,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
         });
 
         // Notificar en tiempo real
-        socketService.notifyUser(contract.doerId, 'notification:new', {
-          type: 'warning',
-          title: 'Contrato cancelado',
-          message: `El trabajo "${jobTitle}" ha sido eliminado por el cliente. Tu contrato ha sido cancelado.`,
-        });
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       }
     }
 
@@ -1981,11 +1977,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
         });
 
         // Notificar en tiempo real
-        socketService.notifyUser(proposal.freelancerId, 'notification:new', {
-          type: 'warning',
-          title: 'Trabajo eliminado',
-          message: `El trabajo "${jobTitle}" para el que fuiste seleccionado ha sido eliminado por el cliente.`,
-        });
+        // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
       }
     }
 
@@ -2666,7 +2658,7 @@ router.post("/:id/start-with-current", protect, async (req: AuthRequest, res: Re
     // Los lugares que no se cubrieron ya no se van a contratar: lo que quedaba de su presupuesto vuelve al SALDO del cliente (un asiento del libro,
     // nunca un pedido de retiro). Si falla, se avisa a administración y el barrido lo reintenta.
     const devolucion = await intentarDevolverPresupuesto(String(job.id), { lugaresPedidos });
-    if (devolucion.notificacion) socketService.notifyUser(req.user.id, "notification:new", devolucion.notificacion.toJSON());
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     cacheService.delPattern("jobs:*");
     socketService.notifyJobStatusChanged(job.toJSON(), "open");

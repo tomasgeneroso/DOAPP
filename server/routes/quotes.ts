@@ -288,14 +288,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       sentVia: ['in_app'],
     });
 
-    const io = getIO();
-    if (io) {
-      io.emit(`user:${recipientId}`, {
-        event: 'notification:new',
-        title: `Nueva cotización de ${req.user.name}`,
-        message: `"${title}" por $${total.toLocaleString('es-AR')} ARS`,
-      });
-    }
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     await quote.reload({
       include: [
@@ -530,14 +523,7 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       sentVia: ['in_app'],
     });
 
-    const io = getIO();
-    if (io) {
-      io.emit(`user:${quote.senderId}`, {
-        event: 'notification:new',
-        title: 'Cotización aceptada',
-        message: `${req.user.name} aceptó "${quote.title}"`,
-      });
-    }
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     res.json({
       success: true,
@@ -710,14 +696,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response): Promise<void
       sentVia: ['in_app'],
     });
 
-    const io = getIO();
-    if (io) {
-      io.emit(`user:${quote.senderId}`, {
-        event: 'notification:new',
-        title: 'Cotización rechazada',
-        message: `${req.user.name} rechazó "${quote.title}"`,
-      });
-    }
+    // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
 
     res.json({ success: true, message: 'Cotización rechazada', data: quote });
   } catch (error: any) {
