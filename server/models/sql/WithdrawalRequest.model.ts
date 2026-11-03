@@ -48,8 +48,11 @@ export interface IBankingInfo {
   accountHolder: string;
   bankName: string;
   accountType: AccountType;
-  cbu: string; // 22 digits
+  /** 22 digitos (CBU de banco o CVU de billetera). Falta en un retiro a Lemon por $lemontag o alias. */
+  cbu?: string;
   alias?: string;
+  /** Solo Lemon: el $lemontag. */
+  lemonTag?: string;
 }
 
 export interface IWithdrawalMetadata {

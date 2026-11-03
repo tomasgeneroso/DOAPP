@@ -170,7 +170,7 @@ describe('retiro: solo lo disponible, y el tope diario pasa por el dueño', () =
       // Sin aprobar no se puede saltear al paso siguiente: procesar y completar piden que esté aprobado.
       for (const accion of ['processing', 'complete']) {
         const a = await request(app).post(`/api/admin/withdrawals/${p.id}/${accion}`).set(con(admin)).send({ proofOfTransfer: 'x' });
-        expect([accion, a.status]).toEqual([accion, 400]);
+        expect([accion, a.status]).toEqual([accion, 409]); // un estado que no corresponde es un conflicto
       }
       expect((await pedidoDe(u)).status).toBe('pending'); // nada se movió
     });

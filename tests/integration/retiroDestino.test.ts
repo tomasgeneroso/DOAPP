@@ -10,6 +10,9 @@ import jwt from 'jsonwebtoken';
  * caracteres (22 letras pasaban). El enfriamiento posterior a un cambio de CBU mide la fecha del último
  * cambio del PERFIL, que un CBU mandado por el formulario de retiro nunca toca: una sesión robada retiraba
  * todo el saldo a una cuenta nueva en una sola llamada, sin que el enfriamiento se enterara.
+ *
+ * Ahora se puede cobrar en una cuenta distinta de la del perfil (pedido del dueño), pero lo que protege es el TIEMPO: ese retiro queda pedido y no se
+ * procesa hasta pasadas 24 horas (administración no lo aprueba antes), y el dueño real recibe el aviso. Ver retirosCuentaNuevaYAdministracion.test.ts.
  */
 
 jest.mock('../../server/services/email.js', () => ({
@@ -63,20 +66,27 @@ describe('retiro: el destino es la cuenta del perfil', () => {
     expect(await pedidos(u)).toBe(1);
   });
 
-  it('a un CBU DISTINTO del perfil NO retira (la sesión robada que manda su propia cuenta)', async () => {
+  it('a un CBU DISTINTO del perfil se puede pedir, pero NO se procesa antes de 24 h (la sesión robada que manda su propia cuenta no cobra en el momento)', async () => {
     const u = await usuario({ bankingInfo: { accountHolder: 'Persona de Prueba', bankName: 'Banco de Prueba', cbu: CBU_PERFIL } });
     const r = await retirar(u, CBU_DEL_ATACANTE);
-    expect(r.status).toBe(403);
-    expect(r.body.code).toBe('CBU_DIFFERS_FROM_PROFILE');
-    expect(await pedidos(u)).toBe(0);
+    expect(r.status).toBe(201);
+    expect(r.body.esCuentaNueva).toBe(true);
+    const pedido: any = await WithdrawalRequest.findOne({ where: { userId: u.id } });
+    expect(pedido.metadata.destinoNuevo).toBe(true);
+    expect(new Date(pedido.metadata.noSeProcesaAntesDe).getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
   });
 
-  it('un usuario sin cuenta guardada en el perfil no retira: primero la guarda (y empieza el enfriamiento)', async () => {
+  it('un usuario sin cuenta guardada en el perfil: sin cuenta en el pedido no retira; con una cuenta nueva, sí (con la misma espera)', async () => {
     const u = await usuario();
-    const r = await retirar(u, CBU_DEL_ATACANTE);
-    expect(r.status).toBe(400);
-    expect(r.body.code).toBe('BANKING_INFO_NOT_SAVED');
+    const sin = await request(app).post('/api/balance/withdraw').set(con(u)).send({ aceptaCostoPasarela: true });
+    expect(sin.status).toBe(400);
+    expect(sin.body.code).toBe('BANKING_INFO_NOT_SAVED');
     expect(await pedidos(u)).toBe(0);
+
+    const con1 = await retirar(u, CBU_DEL_ATACANTE);
+    expect(con1.status).toBe(201);
+    expect(con1.body.esCuentaNueva).toBe(true);
+    expect(await pedidos(u)).toBe(1);
   });
 
   it('el CBU tiene que ser de 22 DÍGITOS (22 letras o símbolos ya no pasan)', async () => {

@@ -277,7 +277,7 @@ describe('aumento de precio pagado: espera al administrador y se aprueba solo a 
       const { trabajo, pago, pref } = await armar();
       await capturar(pref);
 
-      const r = await request(app).post(`/api/admin/payments/${pago.id}/reject`).set(con(admin)).send({ reason: 'Monto que no corresponde' });
+      const r = await request(app).post(`/api/admin/payments/${pago.id}/reject`).set(con(admin)).send({ reason: 'Monto que no corresponde', reconoceQueMercadoPagoYaCobro: true });
 
       expect(r.status).toBe(200);
       const t = await trabajoDe(trabajo.id);

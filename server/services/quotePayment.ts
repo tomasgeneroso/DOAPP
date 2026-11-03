@@ -515,20 +515,38 @@ export async function debitarSaldo(
      * se usó adentro de la que se fue de la plataforma.
      */
     tipo?: 'adjustment' | 'withdrawal' | 'payment';
+    /**
+     * Si ya hay un asiento de este usuario y de este tipo con `metadata[campo] === valor`, NO se descuenta otra vez (devuelve false). Se mira con la
+     * fila del usuario ya bloqueada, así dos pedidos a la vez no descuentan los dos. Es lo que hace seguro completar un retiro dos veces.
+     */
+    unicoPorMetadata?: { campo: string; valor: string };
   } = {},
-): Promise<void> {
-  if (!(monto > 0)) return;
+): Promise<boolean> {
+  if (!(monto > 0)) return false;
 
   const { sequelize } = await import('../config/database.js');
   const { User } = await import('../models/sql/User.model.js');
   const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
   let descuadre = null as SaldoContraLibro | null;
+  let debitado = true;
   // Acreditar o debitar el saldo de un usuario toca SU libro aunque lo dispare otro (el cliente confirma y se le acredita al trabajador):
   // es una operación de sistema. Row Level Security solo le muestra a cada usuario sus propias filas (ver server/db/contextoRls.ts).
   await conSistema(() => sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
     if (!user) throw new Error(`Usuario ${userId} no encontrado al debitar saldo`);
+
+    if (ref.unicoPorMetadata) {
+      const yaDebitado = await BalanceTransaction.findOne({
+        where: { userId, type: ref.tipo || 'adjustment', metadata: { [ref.unicoPorMetadata.campo]: ref.unicoPorMetadata.valor } } as any,
+        attributes: ['id'],
+        transaction: t,
+      });
+      if (yaDebitado) {
+        debitado = false;
+        return;
+      }
+    }
 
     const antes = parseFloat(String((user as any).balanceArs)) || 0;
     if (antes + 0.005 < monto) throw new Error(`Saldo insuficiente: tiene ${antes}, se necesitan ${monto}`);
@@ -584,6 +602,7 @@ export async function debitarSaldo(
       console.error('No se pudieron revisar los retiros pendientes después de usar saldo:', e?.message);
     }
   }
+  return debitado;
 }
 
 /**

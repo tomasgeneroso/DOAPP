@@ -123,6 +123,10 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
      * valor viejo y los dos se creen dentro del límite.
      */
     const { sequelize } = await import("../../config/database.js");
+    // Un pago existe en DOS lugares: lo que ya volvió por Mercado Pago (`refundedAmount`) y lo que el libro ya le acreditó al SALDO del cliente por ese mismo pago
+    // (una cancelación, una baja de precio). Si se mirara solo el primero, un pago devuelto al saldo se podía devolver otra vez al medio de pago: dos veces la misma plata.
+    const { acreditadoAlSaldoPorElPago } = await import("../../services/controlesDeDinero.js");
+    const acreditadoAlSaldo = await acreditadoAlSaldoPorElPago(String(payment.id));
     const disponibleParaDevolver = await sequelize.transaction(async (t) => {
       const bloqueado = await Payment.findByPk(payment.id, {
         lock: t.LOCK.UPDATE,
@@ -130,7 +134,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       });
       const totalPago = Number(bloqueado?.amount) || 0;
       const yaDevuelto = Number((bloqueado as any)?.refundedAmount) || 0;
-      return Math.round((totalPago - yaDevuelto) * 100) / 100;
+      return Math.round((totalPago - yaDevuelto - acreditadoAlSaldo) * 100) / 100;
     });
 
     const total = Number(payment.amount) || 0;
@@ -153,7 +157,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
         success: false,
         message:
           yaDevuelto > 0
-            ? `De este pago ya se devolvieron $${yaDevuelto.toLocaleString('es-AR')}. ` +
+            ? `De este pago ya se devolvieron $${yaDevuelto.toLocaleString('es-AR')}${acreditadoAlSaldo > 0 ? ` (de ellos, $${acreditadoAlSaldo.toLocaleString('es-AR')} al saldo del cliente)` : ''}. ` +
               `Podés devolver hasta $${disponibleParaDevolver.toLocaleString('es-AR')} más.`
             : `El monto a devolver tiene que estar entre $1 y $${total.toLocaleString('es-AR')}.`,
         yaDevuelto,
@@ -974,6 +978,30 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
 const ESTADOS_QUE_SE_APRUEBAN = ['pending', 'processing', 'pending_verification'];
 
 /**
+ * Lo que dice Mercado Pago de este pago AHORA. Un pago de Mercado Pago existe en DOS lugares (DOAPP y Mercado Pago) y los dos tienen que decir lo
+ * mismo antes de aprobarlo o rechazarlo: aprobar lo que Mercado Pago no cobró regala una publicación, y rechazar lo que Mercado Pago sí cobró deja al
+ * cliente sin su trabajo y sin su plata. `aplica` es false si el pago no pasó por Mercado Pago (una transferencia, un pago con saldo): ahí no hay
+ * otro lugar donde mirar. `disponible` es false si no se pudo consultar: en ese caso no se decide a ciegas.
+ */
+async function estadoEnMercadoPago(payment: any): Promise<{ aplica: boolean; disponible: boolean; status?: string; devuelto?: number; monto?: number }> {
+  if (!payment?.mercadopagoPaymentId) return { aplica: false, disponible: true };
+  try {
+    const mercadoPagoService = (await import("../../services/mercadopago.js")).default;
+    const vivo: any = await mercadoPagoService.getPayment(String(payment.mercadopagoPaymentId), 'mercadopago');
+    if (!vivo) return { aplica: true, disponible: false };
+    return { aplica: true, disponible: true, status: String(vivo.status || ''), devuelto: Number(vivo.transaction_amount_refunded) || 0, monto: Number(vivo.transaction_amount) || 0 };
+  } catch {
+    return { aplica: true, disponible: false };
+  }
+}
+
+const MP_NO_RESPONDE = {
+  success: false,
+  code: 'MERCADOPAGO_NO_RESPONDE',
+  message: 'No pude consultar a Mercado Pago para confirmar este pago, y no se decide a ciegas. Probá de nuevo en un momento.',
+};
+
+/**
  * Approve payment proof OR MercadoPago payment (admin only)
  * POST /api/admin/payments/:paymentId/approve
  * Accepts: notes, proofId (optional), proofUrl + bankReference + transferAmount + transferDate (admin-uploaded proof)
@@ -1001,6 +1029,31 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     if (bloqueoPropio) {
       res.status(bloqueoPropio.status).json(bloqueoPropio.body);
       return;
+    }
+
+    // Si el pago pasó por Mercado Pago, Mercado Pago tiene que confirmarlo ahora: aprobado, por el monto y sin devolución. Se mira ANTES de tocar nada.
+    const enMp = await estadoEnMercadoPago(payment);
+    if (enMp.aplica) {
+      if (!enMp.disponible) {
+        res.status(503).json(MP_NO_RESPONDE);
+        return;
+      }
+      if (enMp.status !== 'approved' || (enMp.devuelto || 0) > 0) {
+        res.status(409).json({
+          success: false,
+          code: 'MERCADOPAGO_NO_CONFIRMA',
+          message: `Mercado Pago dice que este pago está "${enMp.status || 'sin estado'}"${(enMp.devuelto || 0) > 0 ? ` y ya devolvió $${enMp.devuelto}` : ''}: no se aprueba hasta que figure aprobado y sin devolución. Mirá el pago en el panel de Mercado Pago.`,
+        });
+        return;
+      }
+      if ((enMp.monto || 0) + 0.01 < (Number(payment.amount) || 0)) {
+        res.status(409).json({
+          success: false,
+          code: 'MERCADOPAGO_MONTO_DISTINTO',
+          message: `Mercado Pago cobró $${enMp.monto} y DOAPP esperaba $${Number(payment.amount)}: no se aprueba. Mirá el pago en el panel de Mercado Pago.`,
+        });
+        return;
+      }
     }
 
     // Determine the correct status based on payment type.
@@ -1294,6 +1347,61 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
+    // DOAPP: solo se rechaza un pago que espera aprobación. Antes se rechazaba cualquiera: uno completado, en garantía o devuelto pasaba a «rechazado» y la
+    // publicación volvía a «pendiente de pago» aunque ya estuviera en curso.
+    if (!ESTADOS_QUE_SE_APRUEBAN.includes(String(payment.status))) {
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_NOT_PENDING_APPROVAL',
+        message: `Este pago ya está "${payment.status}": solo se rechaza un pago que espera aprobación. Si hay que devolver plata, se hace con un reembolso.`,
+      });
+      return;
+    }
+    // DOAPP: si ya se le devolvió plata al cliente (reembolso o saldo a favor) por este pago, no hay nada que rechazar.
+    const { acreditadoAlSaldoPorElPago } = await import("../../services/controlesDeDinero.js");
+    const yaAlSaldo = await acreditadoAlSaldoPorElPago(String(payment.id));
+    if (yaAlSaldo > 0 || Number((payment as any).refundedAmount) > 0) {
+      res.status(409).json({
+        success: false,
+        code: 'PAYMENT_ALREADY_REFUNDED',
+        message: `A este pago ya se le devolvió plata al cliente (${yaAlSaldo > 0 ? `$${yaAlSaldo} a su saldo` : ''}${yaAlSaldo > 0 && Number((payment as any).refundedAmount) > 0 ? ' y ' : ''}${Number((payment as any).refundedAmount) > 0 ? `$${Number((payment as any).refundedAmount)} por Mercado Pago` : ''}): no se rechaza.`,
+      });
+      return;
+    }
+    // Mercado Pago: si ya cobró este pago, rechazarlo en DOAPP NO devuelve la plata: el cliente se queda sin su publicación y sin su dinero hasta que alguien le haga el
+    // reembolso. Por eso no se rechaza «a ciegas»: quien lo hace tiene que reconocer que Mercado Pago ya cobró (queda anotado) y que falta devolver.
+    let mpYaCobro = false;
+    const enMp = await estadoEnMercadoPago(payment);
+    if (enMp.aplica) {
+      if (!enMp.disponible) {
+        res.status(503).json(MP_NO_RESPONDE);
+        return;
+      }
+      if (enMp.status === 'approved' && !((enMp.devuelto || 0) > 0)) {
+        if (req.body?.reconoceQueMercadoPagoYaCobro !== true) {
+          res.status(409).json({
+            success: false,
+            code: 'MERCADOPAGO_YA_COBRO',
+            requiereReconocimiento: true,
+            message: 'Mercado Pago ya cobró este pago. Rechazarlo en DOAPP no devuelve la plata: el cliente se queda sin su publicación y sin su dinero hasta que se le haga el reembolso. Lo normal es aprobarlo, o devolverlo con un reembolso.',
+          });
+          return;
+        }
+        mpYaCobro = true;
+      }
+    }
+
+    // De una sola vez: si dos rechazos (o un rechazo y una aprobación) llegan juntos, gana uno.
+    const [reclamados] = await Payment.update(
+      { status: 'rejected', adminNotes: `[Rechazado] ${reason}${notes ? `\nNotas: ${notes}` : ''}${mpYaCobro ? '\n⚠️ Mercado Pago ya había cobrado este pago: falta devolverle la plata al cliente.' : ''}` } as any,
+      { where: { id: paymentId, status: { [Op.in]: ESTADOS_QUE_SE_APRUEBAN } } },
+    );
+    if (reclamados === 0) {
+      res.status(409).json({ success: false, code: 'PAYMENT_NOT_PENDING_APPROVAL', message: 'Este pago ya no espera aprobación: otra persona lo aprobó o lo rechazó mientras tanto. Actualizá la lista.' });
+      return;
+    }
+    await payment.reload();
+
     // Find active proof (optional - payment can be rejected without proof)
     let proof = null;
     if (proofId) {
@@ -1318,15 +1426,10 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
       console.log(`[ADMIN REJECT] Proof ${proof.id} rejected for payment ${paymentId}`);
     }
 
-    // Update payment status to rejected
-    payment.status = 'rejected';
-    payment.adminNotes = `[Rechazado] ${reason}${notes ? `\nNotas: ${notes}` : ''}`;
-    await payment.save();
-
     void logAudit({
       req, action: 'payment.reject', category: 'payment', severity: 'high',
       description: `Rechazó el pago ${paymentId}. Motivo: ${reason}`,
-      targetModel: 'Payment', targetId: paymentId, metadata: { reason },
+      targetModel: 'Payment', targetId: paymentId, metadata: { reason, mercadoPagoYaCobro: mpYaCobro },
     });
 
     console.log(`[ADMIN REJECT] Payment ${paymentId} rejected. Reason: ${reason}`);
@@ -1337,7 +1440,8 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
         where: { publicationPaymentId: paymentId }
       });
 
-      if (job) {
+      // Solo una publicación que todavía espera su pago vuelve a «pendiente de pago»: una que ya está publicada, en curso, terminada o cancelada no se toca.
+      if (job && ['pending_approval', 'pending_payment', 'draft'].includes(String(job.status))) {
         job.status = 'pending_payment';
         await job.save();
 

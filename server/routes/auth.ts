@@ -1037,7 +1037,25 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
        */
       const cbuAnterior = oldUser.bankingInfo?.cbu;
       const cbuNuevo = updateData.bankingInfo.cbu;
-      if (cbuNuevo && cbuNuevo !== cbuAnterior) {
+      // Lemon se cobra con el $lemontag, el alias o el CVU: cambiar cualquiera de los tres cambia a dónde va la plata.
+      const { esLemon: esDeLemon, normalizarLemonTag, huellaDelDestino: huella } = await import('../../shared/pagos/destinoDeRetiro.js');
+      let cambioElDestinoDeLemon = false;
+      if (esDeLemon(updateData.bankingInfo.bankName)) {
+        const bi = updateData.bankingInfo;
+        const tag = bi.lemonTag ? normalizarLemonTag(bi.lemonTag) : '';
+        if (tag && !/^\$[a-z0-9._-]{3,30}$/.test(tag)) {
+          res.status(400).json({ success: false, message: 'El $lemontag tiene que empezar con $ y tener entre 3 y 30 letras, números, punto, guion o guion bajo.' });
+          return;
+        }
+        if (!tag && !bi.alias && !bi.cbu) {
+          res.status(400).json({ success: false, message: 'Para cobrar en Lemon cargá tu $lemontag, tu alias o tu CVU.' });
+          return;
+        }
+        updateData.bankingInfo.lemonTag = tag || undefined;
+        const anterior = oldUser.bankingInfo || {};
+        cambioElDestinoDeLemon = huella({ bankName: 'Lemon', cbu: bi.cbu, alias: bi.alias, lemonTag: tag }) !== huella({ bankName: anterior.bankName, cbu: anterior.cbu, alias: anterior.alias, lemonTag: anterior.lemonTag });
+      }
+      if ((cbuNuevo && cbuNuevo !== cbuAnterior) || cambioElDestinoDeLemon) {
         updateData.bankingInfoUpdatedAt = new Date();
 
         const { logMoneyEvent } = await import('../utils/auditLog.js');
@@ -1052,7 +1070,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
             // Sólo los últimos cuatro dígitos: alcanzan para reconocer la cuenta
             // en una discusión y no convierten al registro en una lista de CBUs.
             cbuAnteriorUlt4: cbuAnterior ? String(cbuAnterior).slice(-4) : null,
-            cbuNuevoUlt4: String(cbuNuevo).slice(-4),
+            cbuNuevoUlt4: cbuNuevo ? String(cbuNuevo).slice(-4) : null,
           },
           metadata: { ip: req.ip, userAgent: req.get('user-agent') },
         });

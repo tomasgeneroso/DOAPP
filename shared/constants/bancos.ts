@@ -18,9 +18,13 @@ export const OTRO_BANCO = 'Otro';
 
 export const MERCADO_PAGO = 'Mercado Pago';
 
+/** Lemon se cobra con el $lemontag, el alias o el CVU (ver `shared/pagos/destinoDeRetiro.ts`). */
+export const LEMON = 'Lemon';
+
 export const BANCOS: readonly Banco[] = [
   { nombre: MERCADO_PAGO, tipo: 'billetera' },
   { nombre: 'Ualá', tipo: 'billetera' },
+  { nombre: LEMON, tipo: 'billetera' },
   { nombre: 'Brubank', tipo: 'banco', codigo: '143' },
   { nombre: 'Naranja X', tipo: 'billetera' },
   { nombre: 'Personal Pay', tipo: 'billetera' },

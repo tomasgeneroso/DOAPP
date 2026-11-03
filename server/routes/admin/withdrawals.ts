@@ -13,7 +13,8 @@ const asText = (column: string, matcher: any) => sqlWhere(cast(col(column), 'tex
 import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
 import { logAudit } from "../../utils/auditLog.js";
 import { respuestaDeErrorDeDinero, ErrorDeDinero } from "../../services/controlesDeDinero.js";
-import { retiroEsperaAlDueno } from "../../services/paymentSafeguards.js";
+import { retiroEsperaAlDueno, ENFRIAMIENTO_CBU_HORAS } from "../../services/paymentSafeguards.js";
+import { decryptCBU } from "../../utils/encryption.js";
 import { TOPE_DIARIO_RETIRO_USUARIO_ARS } from "../../../shared/constants/topesDeDinero.js";
 
 const router = express.Router();
@@ -40,6 +41,40 @@ async function frenarSiEsperaAlDueno(withdrawal: any, req: AuthRequest, res: Res
   await withdrawal.update({ metadata: { ...(withdrawal.metadata || {}), aprobadoPorDueno: { by: String(req.user.id), at: new Date().toISOString() } } });
   return false;
 }
+
+/**
+ * Un retiro a una cuenta que NO es la del perfil espera el enfriamiento (ENFRIAMIENTO_CBU_HORAS desde el pedido): nadie lo aprueba, lo procesa ni lo
+ * completa antes. Rechazarlo sí se puede en cualquier momento. Devuelve true si frenó el pedido (y ya contestó).
+ */
+function frenarSiEsperaElEnfriamiento(withdrawal: any, res: Response): boolean {
+  const hasta = withdrawal.metadata?.noSeProcesaAntesDe ? new Date(withdrawal.metadata.noSeProcesaAntesDe) : null;
+  if (!hasta || Number.isNaN(hasta.getTime()) || hasta.getTime() <= Date.now()) return false;
+  res.status(403).json({
+    success: false,
+    code: 'WITHDRAWAL_NEW_DESTINATION_COOLDOWN',
+    message:
+      `Este retiro va a una cuenta que no es la del perfil del usuario: por seguridad no se puede aprobar ni transferir antes del ${hasta.toLocaleString('es-AR')} ` +
+      `(pasadas ${ENFRIAMIENTO_CBU_HORAS} horas desde el pedido). Si el usuario no fue quien lo pidió, rechazalo.`,
+    enfriamiento: { hasta: hasta.toISOString() },
+  });
+  return true;
+}
+
+/**
+ * Pasa el retiro de un estado a otro DE UNA SOLA VEZ: el cambio solo se aplica si sigue en alguno de los estados de partida. Antes se miraba el
+ * estado y después se guardaba el nuevo: dos administradores (o un doble toque) aprobaban o rechazaban el mismo retiro dos veces, con dos avisos al
+ * usuario, y uno pisaba al otro. Devuelve false si otro pedido se adelantó.
+ */
+async function reclamarEstado(id: string, desde: string[], cambios: Record<string, unknown>): Promise<boolean> {
+  const [n] = await WithdrawalRequest.update(cambios as any, { where: { id, status: { [Op.in]: desde } } as any });
+  return n > 0;
+}
+
+const YA_PROCESADO = {
+  success: false,
+  code: 'WITHDRAWAL_ALREADY_PROCESSED',
+  message: 'Este retiro ya no está en ese estado: otra persona lo procesó o el usuario lo canceló. Actualizá la lista.',
+};
 
 /**
  * Get all withdrawal requests (admin)
@@ -108,9 +143,23 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       return acc;
     }, []);
 
+    // Administración transfiere a mano: necesita el CBU/CVU a la vista (en la base está cifrado).
+    const conDestinoAbierto = withdrawals.map((w: any) => {
+      const plano = w.toJSON();
+      const bi = { ...(plano.bankingInfo || {}) };
+      if (typeof bi.cbu === 'string' && bi.cbu && !/^\d{22}$/.test(bi.cbu)) {
+        try {
+          bi.cbu = decryptCBU(bi.cbu);
+        } catch {
+          bi.cbu = undefined;
+        }
+      }
+      return { ...plano, bankingInfo: bi };
+    });
+
     res.status(200).json({
       success: true,
-      withdrawals,
+      withdrawals: conDestinoAbierto,
       pagination: {
         total: totalCount,
         limit: Number(limit),
@@ -148,21 +197,18 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
     }
 
     if (withdrawal.status !== 'pending') {
-      res.status(400).json({
-        success: false,
-        message: "Solo puedes aprobar solicitudes pendientes"
-      });
+      res.status(409).json({ ...YA_PROCESADO, message: `Solo se aprueban solicitudes pendientes: este retiro ya está "${withdrawal.status}". Actualizá la lista.` });
       return;
     }
 
+    if (frenarSiEsperaElEnfriamiento(withdrawal, res)) return;
     if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
 
-    await withdrawal.update({
-      status: 'approved',
-      processedAt: new Date(),
-      processedBy: adminId,
-      ...(adminNotes && { adminNotes })
-    });
+    if (!(await reclamarEstado(String(withdrawal.id), ['pending'], { status: 'approved', processedAt: new Date(), processedBy: adminId, ...(adminNotes && { adminNotes }) }))) {
+      res.status(409).json(YA_PROCESADO);
+      return;
+    }
+    await withdrawal.reload();
 
     void logAudit({
       req, action: 'withdrawal.approve', category: 'payment', severity: 'high',
@@ -215,19 +261,18 @@ router.post("/:id/processing", protect, requireRole('admin', 'super_admin', 'own
     }
 
     if (withdrawal.status !== 'approved') {
-      res.status(400).json({
-        success: false,
-        message: "Solo puedes procesar retiros aprobados"
-      });
+      res.status(409).json({ ...YA_PROCESADO, message: `Solo se procesan retiros aprobados: este retiro está "${withdrawal.status}". Actualizá la lista.` });
       return;
     }
 
+    if (frenarSiEsperaElEnfriamiento(withdrawal, res)) return;
     if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
 
-    await withdrawal.update({
-      status: 'processing',
-      processedBy: adminId
-    });
+    if (!(await reclamarEstado(String(withdrawal.id), ['approved'], { status: 'processing', processedBy: adminId }))) {
+      res.status(409).json(YA_PROCESADO);
+      return;
+    }
+    await withdrawal.reload();
 
     void logAudit({
       req, action: 'withdrawal.processing', category: 'payment', severity: 'medium',
@@ -269,13 +314,11 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     }
 
     if (!['approved', 'processing'].includes(withdrawal.status)) {
-      res.status(400).json({
-        success: false,
-        message: "Estado inválido para completar"
-      });
+      res.status(409).json({ ...YA_PROCESADO, message: `Solo se completan retiros aprobados o en proceso: este retiro está "${withdrawal.status}". Actualizá la lista.` });
       return;
     }
 
+    if (frenarSiEsperaElEnfriamiento(withdrawal, res)) return;
     if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
 
     /**
@@ -341,7 +384,9 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     const saldoADebitar = Number((withdrawal as any).metadata?.saldoDebitado) || Number(withdrawal.amount) || 0;
     const balanceBefore = parseFloat(user.balanceArs as any) || 0;
 
-    if (balanceBefore - saldoADebitar < 0) {
+    // Si este retiro ya se descontó (un pedido anterior descontó y no llegó a cerrarlo), no se vuelve a pedir saldo ni se descuenta otra vez.
+    const yaDescontado = await BalanceTransaction.findOne({ where: { userId: user.id, type: 'withdrawal', metadata: { withdrawalId: String(withdrawal.id) } } as any, attributes: ['id'] });
+    if (!yaDescontado && balanceBefore - saldoADebitar < 0) {
       res.status(400).json({
         success: false,
         message: "Balance insuficiente para completar el retiro"
@@ -365,6 +410,7 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       `Retiro a cuenta bancaria (${withdrawal.bankingInfo?.bankName || 'CBU'})`,
       {
         tipo: 'withdrawal',
+        unicoPorMetadata: { campo: 'withdrawalId', valor: String(withdrawal.id) },
         metadata: {
           withdrawalId: withdrawal.id,
           transferido: Number(withdrawal.amount) || 0,
@@ -383,14 +429,18 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     });
 
     // Update withdrawal
-    await withdrawal.update({
+    if (!(await reclamarEstado(String(withdrawal.id), ['approved', 'processing'], {
       status: 'completed',
       completedAt: new Date(),
       processedBy: adminId,
       ...(transaction ? { transactionId: transaction.id } : {}),
       ...(proofOfTransfer && { proofOfTransfer }),
-      ...(adminNotes && { adminNotes })
-    });
+      ...(adminNotes && { adminNotes }),
+    }))) {
+      res.status(409).json(YA_PROCESADO);
+      return;
+    }
+    await withdrawal.reload();
 
     // Además del audit log de admin, queda el asiento de dinero con las
     // cuentas: es el que sirve cuando hay que reconstruir a dónde fue la plata.
@@ -493,19 +543,15 @@ router.post("/:id/reject", protect, requireRole('admin', 'super_admin', 'owner')
     }
 
     if (!['pending', 'approved'].includes(withdrawal.status)) {
-      res.status(400).json({
-        success: false,
-        message: "No puedes rechazar retiros en proceso o completados"
-      });
+      res.status(409).json({ ...YA_PROCESADO, message: `No se rechazan retiros en proceso, completados ni ya rechazados: este retiro está "${withdrawal.status}". Actualizá la lista.` });
       return;
     }
 
-    await withdrawal.update({
-      status: 'rejected',
-      rejectionReason,
-      processedAt: new Date(),
-      processedBy: adminId
-    });
+    if (!(await reclamarEstado(String(withdrawal.id), ['pending', 'approved'], { status: 'rejected', rejectionReason, processedAt: new Date(), processedBy: adminId }))) {
+      res.status(409).json(YA_PROCESADO);
+      return;
+    }
+    await withdrawal.reload();
 
     void logAudit({
       req, action: 'withdrawal.reject', category: 'payment', severity: 'high',

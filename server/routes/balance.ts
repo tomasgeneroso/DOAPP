@@ -9,6 +9,48 @@ import { Payment } from "../models/sql/Payment.model.js";
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { respuestaDeErrorDeDinero } from '../services/controlesDeDinero.js';
+import { enmascararCbu, etiquetaDelDestino, huellaDelDestino, leerDestinoDelPerfil, validarDestino, type DestinoDeRetiro } from '../../shared/pagos/destinoDeRetiro.js';
+import { decryptCBU } from '../utils/encryption.js';
+
+/**
+ * El retiro tal como lo ve SU dueño: el monto como número (la base lo devuelve como texto y sumarlo en la pantalla daba «$02407.52») y la cuenta
+ * sin el CBU entero. En la base el CBU está cifrado y antes se mandaba así a la pantalla: se veía un código larguísimo en vez de la cuenta.
+ */
+function retiroParaElUsuario(w: any) {
+  const plano = typeof w?.toJSON === 'function' ? w.toJSON() : { ...w };
+  const bi = plano.bankingInfo || {};
+  let cbuClaro: string | null = null;
+  if (typeof bi.cbu === 'string' && bi.cbu) {
+    try {
+      cbuClaro = /^\d{22}$/.test(bi.cbu) ? bi.cbu : decryptCBU(bi.cbu);
+    } catch {
+      cbuClaro = null;
+    }
+  }
+  const m = plano.metadata || {};
+  return {
+    ...plano,
+    amount: Number(plano.amount) || 0,
+    balanceBeforeWithdrawal: Number(plano.balanceBeforeWithdrawal) || 0,
+    balanceAfterWithdrawal: Number(plano.balanceAfterWithdrawal) || 0,
+    bankingInfo: {
+      accountHolder: bi.accountHolder,
+      bankName: bi.bankName,
+      accountType: bi.accountType,
+      cbu: cbuClaro ? enmascararCbu(cbuClaro) : undefined,
+      alias: bi.alias,
+      lemonTag: bi.lemonTag,
+    },
+    // De la metadata, solo lo que le sirve a la persona: la IP y el navegador son del sistema.
+    metadata: {
+      retencion: m.retencion,
+      saldoDebitado: m.saldoDebitado,
+      destinoNuevo: m.destinoNuevo === true,
+      noSeProcesaAntesDe: m.noSeProcesaAntesDe,
+      requiereDueno: m.requiereDueno === true,
+    },
+  };
+}
 
 const router = express.Router();
 
@@ -21,13 +63,18 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const userId = req.user.id;
 
     const user = await User.findByPk(userId, {
-      attributes: ['balanceArs']
+      attributes: ['balanceArs', 'name', 'bankingInfo', 'bankingInfoUpdatedAt']
     });
 
     if (!user) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
       return;
     }
+
+    // La cuenta guardada en el perfil, sin el número entero: la pantalla de retiros la ofrece como destino y avisa si el cambio de cuenta todavía enfría.
+    const perfil = leerDestinoDelPerfil((user as any).bankingInfo, (c) => { try { return decryptCBU(c); } catch { return null; } }, String((user as any).name || ''));
+    const { verificarEnfriamientoCbu, ENFRIAMIENTO_CBU_HORAS } = await import('../services/paymentSafeguards.js');
+    const enfriamientoDelPerfil = verificarEnfriamientoCbu((user as any).bankingInfoUpdatedAt);
 
     // El saldo se suma en el momento del hecho, pero solo se retira desde que Mercado Pago libera ese pago (services/liberacionDeSaldo.ts).
     const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
@@ -42,6 +89,11 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const cobros = pendiente.monto > 0 || retirable.enLiberacion > 0 ? await cobrosPendientes(String(req.user.id)) : [];
     res.status(200).json({
       success: true,
+      cuentaDelPerfil: perfil
+        ? { accountHolder: perfil.accountHolder, bankName: perfil.bankName, cbu: perfil.cbu ? enmascararCbu(perfil.cbu) : undefined, alias: perfil.alias, lemonTag: perfil.lemonTag, etiqueta: etiquetaDelDestino(perfil) }
+        : null,
+      enfriamientoDelPerfil: enfriamientoDelPerfil.permitido ? null : { motivo: enfriamientoDelPerfil.motivo, horasFaltantes: enfriamientoDelPerfil.detalle?.horasFaltantes },
+      horasDeEnfriamiento: ENFRIAMIENTO_CBU_HORAS,
       balance: user.balanceArs || 0,
       disponibleParaRetirar: retirable.disponible,
       enLiberacion: retirable.enLiberacion,
@@ -168,12 +220,14 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
       ]
     });
 
+    // La base devuelve las sumas como texto («12500.00»): se pasan a número para que la pantalla las pueda formatear y sumar.
+    const suma = (tipo: string) => Number(stats.find((s: any) => s.type === tipo)?.total) || 0;
     const summary = {
-      currentBalance: user.balanceArs,
-      totalRefunds: stats.find((s: any) => s.type === 'refund')?.total || 0,
-      totalPayments: Math.abs(stats.find((s: any) => s.type === 'payment')?.total || 0),
-      totalBonuses: stats.find((s: any) => s.type === 'bonus')?.total || 0,
-      totalAdjustments: stats.find((s: any) => s.type === 'adjustment')?.total || 0,
+      currentBalance: Number(user.balanceArs) || 0,
+      totalRefunds: suma('refund'),
+      totalPayments: Math.abs(suma('payment')),
+      totalBonuses: suma('bonus'),
+      totalAdjustments: suma('adjustment'),
       transactionCount: stats.reduce((sum: number, s: any) => sum + Number(s.count), 0),
       recentTransactions
     };
@@ -198,24 +252,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
 router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id;
-    const { bankingInfo } = req.body;
-
-    if (!bankingInfo || !bankingInfo.accountHolder || !bankingInfo.bankName || !bankingInfo.cbu) {
-      res.status(400).json({
-        success: false,
-        message: "Información bancaria incompleta"
-      });
-      return;
-    }
-
-    // 22 DÍGITOS: antes sólo se medía el largo, y una cadena de 22 letras pasaba.
-    if (typeof bankingInfo.cbu !== 'string' || !/^\d{22}$/.test(bankingInfo.cbu)) {
-      res.status(400).json({
-        success: false,
-        message: "El CBU debe tener exactamente 22 dígitos"
-      });
-      return;
-    }
+    const { bankingInfo, guardarEnPerfil } = req.body ?? {};
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -224,56 +261,61 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     }
 
     /**
-     * El destino del retiro es la cuenta que está guardada en el PERFIL, no la que mande el pedido.
+     * A dónde va el retiro: a la cuenta del PERFIL, o a una cuenta NUEVA que se carga en este mismo formulario (y se puede guardar en el perfil).
      *
-     * El enfriamiento de abajo mide hace cuánto se cambió el CBU DEL PERFIL (bankingInfoUpdatedAt). Pero esta
-     * ruta aceptaba cualquier CBU en el cuerpo, que nunca toca esa fecha: una sesión robada retiraba todo el
-     * saldo a una cuenta nueva en una sola llamada y el enfriamiento no se enteraba. Cambiar de cuenta pasa
-     * por el perfil (que fija la fecha y activa el enfriamiento), no por el formulario de retiro.
+     * Lo que protege contra la sesión robada es el TIEMPO, no el formulario. Quien entra con una contraseña ajena y manda su propia cuenta no
+     * cobra en el momento: un retiro a una cuenta que no es la del perfil queda pedido pero NO se procesa hasta pasadas ENFRIAMIENTO_CBU_HORAS
+     * (administración no lo puede aprobar ni completar antes, ver admin/withdrawals.ts) y el dueño real recibe el aviso para frenarlo. Es el mismo
+     * plazo que ya existía al cambiar la cuenta desde el perfil. Antes esta ruta rechazaba cualquier cuenta distinta de la del perfil y, para
+     * cobrar en otra, había que ir a Configuración, esperar y volver.
      */
-    const { decryptCBU } = await import('../utils/encryption.js');
-    let cbuDelPerfil: string | null = null;
-    const guardado = (user as any).bankingInfo?.cbu;
-    if (typeof guardado === 'string' && guardado) {
-      try {
-        cbuDelPerfil = /^\d{22}$/.test(guardado) ? guardado : decryptCBU(guardado);
-      } catch {
-        cbuDelPerfil = null;
+    const destinoDelPerfil = leerDestinoDelPerfil(
+      (user as any).bankingInfo,
+      (cifrado) => {
+        try {
+          return decryptCBU(cifrado);
+        } catch {
+          return null;
+        }
+      },
+      String((user as any).name || ''),
+    );
+    let destino: DestinoDeRetiro;
+    if (bankingInfo === undefined) {
+      if (!destinoDelPerfil) {
+        res.status(400).json({
+          success: false,
+          code: 'BANKING_INFO_NOT_SAVED',
+          message: "No tenés una cuenta guardada en tu perfil. Cargá los datos de la cuenta donde querés cobrar.",
+        });
+        return;
       }
+      destino = destinoDelPerfil;
+    } else {
+      const v = validarDestino(bankingInfo);
+      if ('message' in v) {
+        res.status(400).json({ success: false, message: v.message });
+        return;
+      }
+      destino = v.destino;
     }
-    if (!cbuDelPerfil) {
-      res.status(400).json({
-        success: false,
-        code: 'BANKING_INFO_NOT_SAVED',
-        message: "Primero guardá tu cuenta bancaria en tu perfil. Por seguridad, los retiros se habilitan unas horas después de cargarla o cambiarla.",
-      });
-      return;
-    }
-    if (cbuDelPerfil !== bankingInfo.cbu) {
-      res.status(403).json({
-        success: false,
-        code: 'CBU_DIFFERS_FROM_PROFILE',
-        message: "El CBU del retiro tiene que ser el de tu perfil. Si querés cobrar en otra cuenta, cambiala desde tu perfil (por seguridad, los retiros se habilitan unas horas después del cambio).",
-      });
-      return;
-    }
+    const esDelPerfil = !!destinoDelPerfil && huellaDelDestino(destino) === huellaDelDestino(destinoDelPerfil);
 
-    /**
-     * Enfriamiento posterior a un cambio de cuenta bancaria.
-     *
-     * Va antes que cualquier otra validación porque es la única que protege
-     * contra una cuenta tomada, y las demás no tienen sentido si la cuenta de
-     * destino no es del dueño real.
-     */
-    const { verificarEnfriamientoCbu } = await import('../services/paymentSafeguards.js');
-    const enfriamiento = verificarEnfriamientoCbu((user as any).bankingInfoUpdatedAt);
-    if (!enfriamiento.permitido) {
-      res.status(403).json({
-        success: false,
-        message: enfriamiento.motivo,
-        enfriamiento: enfriamiento.detalle,
-      });
-      return;
+    // La cuenta del perfil pasa por el enfriamiento de siempre (se mide desde que se cambió); una cuenta nueva espera ella misma.
+    const salvaguardas = await import('../services/paymentSafeguards.js');
+    let noSeProcesaAntesDe: Date | null = null;
+    if (esDelPerfil) {
+      const enfriamiento = salvaguardas.verificarEnfriamientoCbu((user as any).bankingInfoUpdatedAt);
+      if (!enfriamiento.permitido) {
+        res.status(403).json({
+          success: false,
+          message: enfriamiento.motivo,
+          enfriamiento: enfriamiento.detalle,
+        });
+        return;
+      }
+    } else {
+      noSeProcesaAntesDe = new Date(Date.now() + salvaguardas.ENFRIAMIENTO_CBU_HORAS * 3_600_000);
     }
 
     // Retiro "todo o nada": se retira SIEMPRE todo lo que está DISPONIBLE (mín $1,000 ARS). Lo que está en la cuenta pero todavía no se libera
@@ -417,18 +459,25 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     const retiradoHoy = await retiradoHoyPorElUsuario(String(userId));
     const requiereDueno = retiradoHoy + montoATransferir > TOPE_DIARIO_RETIRO_USUARIO_ARS;
 
-    // Create withdrawal request
-    const withdrawal = await WithdrawalRequest.create({
+    // Create withdrawal request.
+    // Se bloquea la fila de la persona y se vuelve a mirar si ya tiene un retiro abierto: dos pedidos a la vez (dos pestañas, un doble toque) esperan acá y
+    // el segundo ve al primero. Mirar y crear por separado dejaba pasar los dos (la mirada de más arriba solo sirve para contestar rápido).
+    const withdrawal = await sequelize.transaction(async (t) => {
+      await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
+      const abiertos = await WithdrawalRequest.count({ where: { userId, status: { [Op.in]: ['pending', 'approved', 'processing'] } }, transaction: t });
+      if (abiertos > 0) return null;
+      return WithdrawalRequest.create({
       userId,
       // Se transfiere el saldo menos lo retenido sobre la parte devuelta. El
       // saldo se debita completo: la retencion se cobro, no se perdio.
       amount: montoATransferir,
       bankingInfo: {
-        accountHolder: bankingInfo.accountHolder,
-        bankName: bankingInfo.bankName,
-        accountType: bankingInfo.accountType || 'savings',
-        cbu: bankingInfo.cbu,
-        alias: bankingInfo.alias,
+        accountHolder: destino.accountHolder,
+        bankName: destino.bankName,
+        accountType: destino.accountType || 'savings',
+        cbu: destino.cbu,
+        alias: destino.alias,
+        ...(destino.lemonTag ? { lemonTag: destino.lemonTag } : {}),
       },
       status: 'pending',
       balanceBeforeWithdrawal: user.balanceArs,
@@ -446,13 +495,65 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         costoComision,
         costoPasarela,
         retencion,
+        destinoNuevo: !esDelPerfil,
+        ...(noSeProcesaAntesDe ? { noSeProcesaAntesDe: noSeProcesaAntesDe.toISOString() } : {}),
+        guardadaEnPerfil: !esDelPerfil && guardarEnPerfil === true,
       }
+    }, { transaction: t });
     });
+    if (!withdrawal) {
+      res.status(409).json({ success: false, message: "Ya tienes una solicitud de retiro pendiente. Por favor espera a que se procese." });
+      return;
+    }
 
     // El saldo vinculado a publicaciones que se retira ya no está: esas publicaciones se vuelven a publicar pagando de nuevo.
     if (vinculadoQueSeRetira.length > 0) {
       const { consumirCreditosAlRetirar } = await import('../services/creditoDePublicacion.js');
       await consumirCreditosAlRetirar(String(userId), amount, saldoTotal).catch((e: any) => console.error('No se pudo anotar el saldo vinculado retirado:', e?.message));
+    }
+
+    // Una cuenta que no es la del perfil: si la persona lo pidió se guarda en el perfil, queda en el registro de dinero y se le avisa para que lo frene si no fue ella.
+    if (!esDelPerfil) {
+      try {
+        if (guardarEnPerfil === true) {
+          (user as any).bankingInfo = {
+            ...((user as any).bankingInfo || {}),
+            accountHolder: destino.accountHolder,
+            bankName: destino.bankName,
+            accountType: destino.accountType || 'savings',
+            cbu: destino.cbu,
+            alias: destino.alias,
+            lemonTag: destino.lemonTag,
+          };
+          (user as any).bankingInfoUpdatedAt = new Date();
+          await user.save();
+        }
+        const { logMoneyEvent } = await import('../utils/auditLog.js');
+        void logMoneyEvent({
+          action: 'WITHDRAWAL_TO_NEW_DESTINATION',
+          actor: `user:${userId}`,
+          severity: 'high',
+          description: `Pidió un retiro a una cuenta que no es la de su perfil (${etiquetaDelDestino(destino)}). No se procesa antes de ${noSeProcesaAntesDe?.toISOString()}.`,
+          userId: String(userId),
+          monto: montoATransferir,
+          cuentas: { cbuUlt4: destino.cbu ? destino.cbu.slice(-4) : null, alias: destino.alias ?? null, lemonTag: destino.lemonTag ?? null },
+          metadata: { withdrawalId: withdrawal.id, guardadaEnPerfil: guardarEnPerfil === true, ip: req.ip, userAgent: req.get('user-agent') },
+        });
+        const { Notification } = await import('../models/sql/Notification.model.js');
+        await Notification.create({
+          recipientId: userId,
+          type: 'warning',
+          category: 'payment',
+          title: 'Pediste un retiro a una cuenta nueva',
+          message: `Pediste retirar $${montoATransferir.toLocaleString('es-AR')} a ${etiquetaDelDestino(destino)}, una cuenta que todavía no estaba en tu perfil. Por seguridad se procesa recién pasadas ${salvaguardas.ENFRIAMIENTO_CBU_HORAS} horas. Si no fuiste vos, cancelá el retiro desde Retiros y escribinos ahora.`,
+          relatedModel: 'WithdrawalRequest',
+          relatedId: String(withdrawal.id),
+          read: false,
+        } as any);
+      } catch (e: any) {
+        // El retiro ya está creado: guardar la cuenta o avisar es secundario y no puede tirarlo abajo.
+        console.error('No se pudo registrar el retiro a una cuenta nueva:', e?.message);
+      }
     }
 
     // Send email notification
@@ -472,9 +573,13 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       success: true,
       message: requiereDueno
         ? `Solicitud de retiro creada. Supera el tope diario de $${TOPE_DIARIO_RETIRO_USUARIO_ARS.toLocaleString("es-AR")}, así que tiene que aprobarla el dueño de la plataforma antes de procesarse: puede demorar un poco más de 24-48 horas.`
-        : "Solicitud de retiro creada exitosamente. Será procesada en 24-48 horas.",
+        : !esDelPerfil
+          ? `Solicitud de retiro enviada. Como es una cuenta nueva (${destinoDelPerfil ? 'distinta de la de tu perfil' : 'la primera que cargás'}), por seguridad se procesa recién pasadas ${salvaguardas.ENFRIAMIENTO_CBU_HORAS} horas. Después, un administrador tiene que aprobar el envío del retiro a tu cuenta. Gracias por tu paciencia.`
+          : "Solicitud de retiro enviada. Un administrador tiene que aprobar el envío del retiro a tu cuenta: lo hace en 24 a 48 horas hábiles. Gracias por tu paciencia.",
       requiereAprobacionDelDueno: requiereDueno,
-      withdrawal
+      esCuentaNueva: !esDelPerfil,
+      noSeProcesaAntesDe: noSeProcesaAntesDe ? noSeProcesaAntesDe.toISOString() : null,
+      withdrawal: retiroParaElUsuario(withdrawal),
     });
   } catch (error: any) {
     console.error("Error creating withdrawal request:", error);
@@ -527,7 +632,7 @@ router.get("/withdrawals", protect, async (req: AuthRequest, res: Response): Pro
 
     res.status(200).json({
       success: true,
-      withdrawals,
+      withdrawals: withdrawals.map(retiroParaElUsuario),
       pagination: {
         total: totalCount,
         limit: Number(limit),
@@ -563,20 +668,25 @@ router.post("/withdrawals/:id/cancel", protect, async (req: AuthRequest, res: Re
     }
 
     if (withdrawal.status !== 'pending') {
-      res.status(400).json({
+      res.status(409).json({
         success: false,
-        message: "Solo puedes cancelar solicitudes pendientes"
+        message: "Solo se cancelan solicitudes pendientes: esta ya la procesó un administrador. Actualizá la pantalla."
       });
       return;
     }
 
-    withdrawal.status = 'cancelled';
-    await withdrawal.save();
+    // De una sola vez: si un administrador la aprobó mientras tanto, ya no se cancela (el estado que se miró arriba pudo haber cambiado).
+    const [cancelados] = await WithdrawalRequest.update({ status: 'cancelled' } as any, { where: { id, userId, status: 'pending' } as any });
+    if (cancelados === 0) {
+      res.status(409).json({ success: false, message: "Esta solicitud ya no está pendiente: un administrador la procesó mientras tanto. Actualizá la pantalla." });
+      return;
+    }
+    await withdrawal.reload();
 
     res.status(200).json({
       success: true,
       message: "Solicitud de retiro cancelada",
-      withdrawal
+      withdrawal: retiroParaElUsuario(withdrawal)
     });
   } catch (error: any) {
     console.error("Error cancelling withdrawal:", error);

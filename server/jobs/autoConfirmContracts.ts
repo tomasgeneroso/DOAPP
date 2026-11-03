@@ -8,6 +8,7 @@ import { Payment } from '../models/sql/Payment.model.js';
 import emailService from '../services/email.js';
 import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { pagableDesde } from '../services/liberacionDeSaldo.js';
+import { completarTrabajoSiTerminaron } from '../services/trabajoTerminado.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -83,6 +84,10 @@ export function startAutoConfirmContractsJob() {
             const client = contract.client as any;
             const doer = contract.doer as any;
 
+            // Se reclama el cierre de una sola vez: si mientras tanto alguien confirmó a mano (o una corrida anterior ya lo cerró) no se paga dos veces.
+            const [reclamado] = await Contract.update({ status: 'completed' } as any, { where: { id: contract.id, status: 'awaiting_confirmation' } as any });
+            if (reclamado === 0) continue;
+
             // Lo que cobra el trabajador: su parte menos la pasarela real. Antes
             // se usaba el precio entero y la pasarela la absorbia DOAPP en cada
             // contrato auto-confirmado.
@@ -126,6 +131,9 @@ export function startAutoConfirmContractsJob() {
                 status: 'pending', // Pendiente de procesamiento por admin
               });
             }
+
+            // El trabajo también termina: antes solo se cerraba el contrato y el trabajo quedaba «en curso» para siempre.
+            await completarTrabajoSiTerminaron(String(contract.jobId));
 
             // Notificación al cliente
             await Notification.create({

@@ -326,6 +326,11 @@ describe('devoluciones al cliente: a favor pendiente mientras Mercado Pago no li
     expect(delResto).toHaveLength(1);
     expect(String(delResto[0].metadata.pagoId)).toBe(String(pago.id));
     expect(await saldo()).toBeGreaterThan(antes);
+    // Lo devuelto por ESE pago (16.000 al bajar el precio + el resto al vencer) nunca supera lo que costó. Antes el resto contaba otra vez los 16.000 (en el «IVA» que
+    // sobraba del total) y se devolvían $56.355,99 de un pago de $42.511,27.
+    const totalDevuelto = (await devoluciones()).reduce((t, f) => t + Number(f.amount), 0);
+    expect(totalDevuelto).toBeLessThanOrEqual(42511.27 + 0.01);
+    expect(Number(delResto[0].amount)).toBeLessThanOrEqual(42511.27 - 16000 + 0.01);
   });
 
   /* ---------------- un administrador aprueba cancelar un contrato ---------------- */

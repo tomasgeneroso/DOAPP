@@ -13,6 +13,7 @@ import { componentesDelPago } from './payoutAmount.js';
 import { disponibleDesdeDeUnaDevolucion } from './liberacionDeSaldo.js';
 import { problemaDelCatalogo, type CodigoDeProblema, type ProblemaDeDinero } from '../../shared/errores/catalogoDeProblemas.js';
 import {
+  acreditadoAlSaldoPorElPago,
   avisarProblemasDeDinero,
   controlarPagoOriginal,
   problemaDesdeControles,
@@ -130,7 +131,10 @@ export async function liquidarCancelacionDePublicacion(
   } catch (e: any) {
     anotar('PAGO-NO-LEIDO', `no se pudo leer el pago de la publicación: ${e?.message}`);
   }
-  const { comision, iva, procesamiento } = componentesDelPago(pagoReal as any, jobPrice);
+  // Lo que el libro ya le acreditó al saldo por ESTE pago (una baja de precio, un trabajador que no pudo…). El IVA se deduce como lo que sobra del total, así que con el
+  // precio ya REBAJADO esa devolución caía dentro del «IVA» y se devolvía otra vez al cancelar: el precio pagado es el actual más lo que ya volvió.
+  const acreditadoAlSaldoDelPago = pagoReal ? await acreditadoAlSaldoPorElPago(String((pagoReal as any).id)) : 0;
+  const { comision, iva, procesamiento } = componentesDelPago(pagoReal as any, jobPrice + acreditadoAlSaldoDelPago);
 
   const liq = liquidarCancelacion({
     precio: jobPrice,
@@ -199,6 +203,7 @@ export async function liquidarCancelacionDePublicacion(
     destino: salida === 'devolucion' ? 'medio' : 'saldo',
     canceladoEl,
     mpEnVivo,
+    acreditadoAlSaldoDelPago,
     devolucionesRecientesDelCliente: devolucionesRecientes,
     pagadaConSaldo: pagoReal ? undefined : await pagadaConSaldoSegunElLibro(String(job.id)),
   });
@@ -211,7 +216,7 @@ export async function liquidarCancelacionDePublicacion(
     const p = problemaDesdeControles('DEV-CONTROL-FALLIDO', control, 'la devolución al medio de pago quedó para revisión y el dinero se acreditó como saldo');
     anotar('DEV-CONTROL-FALLIDO', p.detalle, { controles: p.controles });
     // Para el saldo alcanzan las comprobaciones de recepción. Se conservan en `controles` las de la primera pasada, que incluyen la que falló.
-    control = controlarPagoOriginal({ job: jobParaControlar, pago: pagoReal as any, monto: liq.aCliente, destino: 'saldo', canceladoEl });
+    control = controlarPagoOriginal({ job: jobParaControlar, pago: pagoReal as any, monto: liq.aCliente, destino: 'saldo', canceladoEl, acreditadoAlSaldoDelPago });
   }
 
   // El pago no esta confirmado, o no es de este cliente / esta publicacion, o no cierra: NO se acredita nada ni se devuelve nada. El trabajo

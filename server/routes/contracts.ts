@@ -29,6 +29,7 @@ import { logAudit, logEvento, getSeverityForAction } from "../utils/auditLog.js"
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
+import { completarTrabajoSiTerminaron } from "../services/trabajoTerminado.js";
 
 const router = express.Router();
 
@@ -1371,6 +1372,17 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         return;
       }
 
+      // Gana un solo pedido: dos toques seguidos (o las dos partes a la vez) llegaban los dos hasta acá, mandaban el aviso dos veces y, si eran
+      // las dos partes, dejaban el contrato con las dos confirmaciones y sin completarse nunca.
+      const [propuestaReclamada] = await Contract.update(
+        { [isClient ? 'clientConfirmed' : 'doerConfirmed']: true } as any,
+        { where: { id: contract.id, status: { [Op.in]: ['in_progress', 'awaiting_confirmation'] }, clientConfirmed: false, doerConfirmed: false } as any },
+      );
+      if (propuestaReclamada === 0) {
+        res.status(409).json({ success: false, code: 'CONTRACT_ALREADY_CONFIRMED', message: 'Ya hay una confirmación en curso para este contrato. Actualizá la pantalla para ver el estado.' });
+        return;
+      }
+
       // Guardar propuesta
       contract.confirmationProposedBy = userId;
       contract.proposedStartTime = startTime;
@@ -1447,6 +1459,16 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     // === CASO 2: Segunda parte confirma (acepta las horas propuestas) ===
+    // El cierre se reclama de una sola vez: con un doble toque los dos pedidos llegaban hasta acá y cada uno liberaba el pago y, en un trabajo
+    // con varios lugares, le acreditaba el cobro al trabajador. El primero se lleva el contrato; el otro recibe un aviso.
+    const [cierreReclamado] = await Contract.update(
+      { [isClient ? 'clientConfirmed' : 'doerConfirmed']: true, status: 'completed', paymentStatus: 'pending_payout', escrowStatus: 'released' } as any,
+      { where: { id: contract.id, status: { [Op.in]: ['in_progress', 'awaiting_confirmation'] }, [isClient ? 'clientConfirmed' : 'doerConfirmed']: false, [isClient ? 'doerConfirmed' : 'clientConfirmed']: true } as any },
+    );
+    if (cierreReclamado === 0) {
+      res.status(409).json({ success: false, code: 'CONTRACT_ALREADY_CONFIRMED', message: 'Este contrato ya se confirmó. Actualizá la pantalla para ver el estado.' });
+      return;
+    }
     if (isClient) {
       contract.clientConfirmed = true;
       contract.clientConfirmedAt = new Date();
@@ -1574,27 +1596,12 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         },
       });
 
-      const allJobContracts = await Contract.findAll({ where: { jobId: job.id } });
-      const allContractsCompleted = allJobContracts.every(c => c.clientConfirmed && c.doerConfirmed);
-
-      if (allContractsCompleted) {
-        job.status = 'completed';
-        await job.save();
-        socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
-          action: 'job_completed',
-          job
-        });
-      }
-    } else if (job) {
-      job.status = 'completed';
-      await job.save();
-      socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
-        action: 'job_completed',
-        job
-      });
     }
 
     await contract.save();
+
+    // El trabajo termina cuando terminaron todos sus contratos vigentes (ya no cuentan los cancelados ni rechazados).
+    if (job) await completarTrabajoSiTerminaron(String(job.id));
 
     // Puntuación post-trabajo obligatoria para ambas partes
     await notifyPostWorkRatingPending(contract.clientId.toString(), contract.id.toString());

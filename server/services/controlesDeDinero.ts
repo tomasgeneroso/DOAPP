@@ -96,6 +96,11 @@ export interface DatosParaControlar {
   mpEnVivo?: MercadoPagoEnVivo | null;
   devolucionesRecientesDelCliente?: number;
   /**
+   * Lo que el libro ya le acreditó al saldo del cliente por ESTE pago (devoluciones completadas o a favor pendiente, menos las correcciones).
+   * `pago.refundedAmount` solo cuenta lo que volvió por Mercado Pago: sin esto, devolver al saldo dos veces el mismo pago pasaba el control.
+   */
+  acreditadoAlSaldoDelPago?: number;
+  /**
    * Hay un descuento de saldo del cliente por ESTA publicación (se pagó con saldo). Una publicación «pagada» sin registro de pago NI descuento
    * de saldo no se cobró (contrato libre de comisión, de prueba, cargada a mano): no hay plata que devolver.
    */
@@ -119,6 +124,25 @@ function fechaDe(v: Date | string | null | undefined): Date | null {
   if (!v) return null;
   const d = v instanceof Date ? v : new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Lo que el libro ya le acreditó al saldo de los clientes por un pago: las devoluciones completadas y las a favor pendiente que nombran ese pago
+ * (`pagoId` es el de la publicación, `pagoOrigenId` el del contrato), menos lo que una corrección de doble devolución ya descontó. Es lo que falta
+ * para saber cuánto de un pago ya volvió, porque `Payment.refundedAmount` solo conoce los reembolsos de Mercado Pago.
+ */
+export async function acreditadoAlSaldoPorElPago(pagoId: string): Promise<number> {
+  const [{ sequelize }, { QueryTypes }, { conSistema }] = await Promise.all([import('../config/database.js'), import('sequelize'), import('../db/contextoRls.js')]);
+  const filas = (await conSistema(() =>
+    sequelize.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM balance_transactions
+        WHERE COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') = :pagoId
+          AND ((type = 'refund' AND status IN ('completed', 'pending'))
+            OR (type = 'adjustment' AND status = 'completed' AND metadata->>'origen' = 'correccion_doble_devolucion'))`,
+      { replacements: { pagoId: String(pagoId) }, type: QueryTypes.SELECT },
+    ),
+  )) as Array<{ total: string | number }>;
+  return r2(Number(filas[0]?.total) || 0);
 }
 
 /** Quién confirmó el pago, en palabras. null si nadie. */
@@ -155,6 +179,7 @@ export function controlarPagoOriginal(d: DatosParaControlar): ResultadoDeControl
 
   const total = r2(Number(pago.amount) || 0);
   const devuelto = r2(Number(pago.refundedAmount) || 0);
+  const alSaldo = r2(Number(d.acreditadoAlSaldoDelPago) || 0);
 
   add({
     id: 'pago_de_esta_publicacion',
@@ -212,9 +237,9 @@ export function controlarPagoOriginal(d: DatosParaControlar): ResultadoDeControl
     id: 'no_supera_lo_pagado',
     titulo: 'Lo que se devuelve no supera lo que pagó el cliente',
     grupo: 'recepcion',
-    ok: monto <= total - devuelto + TOLERANCIA,
+    ok: monto <= total - devuelto - alSaldo + TOLERANCIA,
     bloqueante: true,
-    esperado: `hasta ${$(total - devuelto)} (pagó ${$(total)}${devuelto > 0 ? `, ya devuelto ${$(devuelto)}` : ''})`,
+    esperado: `hasta ${$(total - devuelto - alSaldo)} (pagó ${$(total)}${devuelto > 0 ? `, ya devuelto por Mercado Pago ${$(devuelto)}` : ''}${alSaldo > 0 ? `, ya acreditado a su saldo ${$(alSaldo)}` : ''})`,
     encontrado: $(monto),
   });
 

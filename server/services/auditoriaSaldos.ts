@@ -53,10 +53,18 @@ import { quienConfirmoElPago } from './controlesDeDinero.js';
  *      Lo producía la aprobación de propuestas en trabajos para varios
  *      lugares: devolvía en cada elección, y elegir al segundo fallaba
  *      DESPUÉS de acreditar, así que cada intento sumaba otro crédito.
+ *
+ *   9. DEVUELTO DE MÁS POR UN MISMO PAGO. Lo que el libro le acreditó al saldo
+ *      por un pago (más lo que devolvió Mercado Pago) supera lo que ese pago
+ *      costó. Es el «Reembolsos totales $12.500» de quien pagó $5.000: una
+ *      publicación cancelada dos veces con el mismo pago devolvía el precio
+ *      cada vez. Los otros invariantes miran una publicación o un tipo de
+ *      devolución; este mira el PAGO, que es de donde sale la plata, sea cual
+ *      sea el camino por el que se devolvió.
  */
 
 export interface Hallazgo {
-  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  invariante: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   gravedad: 'alta' | 'media';
   titulo: string;
   detalle: string;
@@ -275,6 +283,46 @@ export async function auditarSaldos(): Promise<ResultadoAuditoria> {
           monto: exceso,
           userId: String(j.clientId),
           jobId: String(j.id),
+        });
+      }
+    }
+  }
+
+  // 9. Devuelto de más por un mismo pago: lo acreditado al saldo con ese pago (menos las correcciones) más lo devuelto por Mercado Pago no puede superar el pago.
+  const porPago = (await sequelize.query(
+    `SELECT COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') AS pago_id,
+            COALESCE(SUM(amount), 0) AS acreditado,
+            COUNT(*) FILTER (WHERE type = 'refund' AND metadata->>'origen' = 'cancelacion') AS cancelaciones,
+            MIN(user_id::text) AS user_id
+       FROM balance_transactions
+      WHERE COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') IS NOT NULL
+        AND ((type = 'refund' AND status IN ('completed', 'pending'))
+          OR (type = 'adjustment' AND status = 'completed' AND metadata->>'origen' = 'correccion_doble_devolucion'))
+      GROUP BY 1`,
+    { type: QueryTypes.SELECT },
+  )) as Array<{ pago_id: string; acreditado: string; cancelaciones: string; user_id: string }>;
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const idsDePagos = porPago.map((p) => String(p.pago_id)).filter((id) => UUID.test(id));
+  if (idsDePagos.length > 0) {
+    const pagos: any[] = await Payment.findAll({ where: { id: { [Op.in]: idsDePagos } } as any, attributes: ['id', 'amount', 'currency', 'refundedAmount', 'payerId', 'description'] });
+    const pagoPorId = new Map<string, any>(pagos.map((p) => [String(p.id), p]));
+    for (const f of porPago) {
+      const pago = pagoPorId.get(String(f.pago_id));
+      if (!pago || String(pago.currency || 'ARS').toUpperCase() !== 'ARS') continue;
+      const costo = r2(Number(pago.amount) || 0);
+      const devuelto = r2((Number(f.acreditado) || 0) + (Number(pago.refundedAmount) || 0));
+      const exceso = r2(devuelto - costo);
+      if (exceso > 0.01) {
+        const dosCancelaciones = Number(f.cancelaciones) > 1;
+        hallazgos.push({
+          invariante: 9,
+          gravedad: 'alta',
+          titulo: 'Se devolvió más de lo que costó el pago',
+          detalle:
+            `El pago ${f.pago_id}${pago.description ? ` («${String(pago.description).slice(0, 60)}»)` : ''} costó $${costo.toLocaleString('es-AR')} y ya volvieron $${devuelto.toLocaleString('es-AR')}: $${exceso.toLocaleString('es-AR')} de más.` +
+            (dosCancelaciones ? ` Hay ${f.cancelaciones} devoluciones por cancelación del mismo pago: corré corregirDobleDevolucion (muestra qué haría antes de tocar nada).` : ' Mirá los asientos de ese pago y descontá el exceso con scripts/ajustarSaldo.'),
+          monto: exceso,
+          userId: String(pago.payerId || f.user_id),
         });
       }
     }

@@ -61,6 +61,8 @@ interface BankingInfo {
   accountNumber?: string;
   cbu?: string;
   alias?: string;
+  /** Solo Lemon: el $lemontag. */
+  lemonTag?: string;
 }
 
 interface LegalInfo {
