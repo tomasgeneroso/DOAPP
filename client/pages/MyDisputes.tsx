@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 import {
   AlertCircle,
   Plus,
@@ -86,9 +87,13 @@ export default function MyDisputes() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadDisputes = async () => {
+  // Un reclamo nuevo o que cambia de estado: la lista se actualiza sola, sin tapar la pantalla.
+  const recargarReclamos = useRecargaJuntada(() => loadDisputes(true));
+  useEventoEnVivo(['dispute:updated', 'socket:reconectado'], recargarReclamos);
+
+  const loadDisputes = async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const response = await fetch('/api/disputes/my-disputes', {
         headers: { Authorization: `Bearer ${token}` },
       });

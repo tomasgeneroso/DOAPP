@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, FileEdit } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useEventoEnVivo } from "@/hooks/useSocket";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -24,6 +25,11 @@ interface Solicitud {
 export default function SolicitudesDeCambioCard({ contractId, status, esParte }: { contractId: string; status: string; esParte: boolean }) {
   const { token, user } = useAuth();
   const [pendiente, setPendiente] = useState<Solicitud | null | undefined>(undefined);
+  // Sube cuando la otra parte pide o responde un cambio: la tarjeta lo vuelve a pedir sin recargar.
+  const [version, setVersion] = useState(0);
+  useEventoEnVivo(['contract:updated', 'socket:reconectado'], (datos?: { contractId?: string }) => {
+    if (!datos?.contractId || datos.contractId === contractId) setVersion((v) => v + 1);
+  });
 
   useEffect(() => {
     if (!esParte || !token) return;
@@ -39,7 +45,7 @@ export default function SolicitudesDeCambioCard({ contractId, status, esParte }:
     return () => {
       vigente = false;
     };
-  }, [contractId, esParte, token]);
+  }, [contractId, esParte, token, version]);
 
   if (!esParte || !ESTADOS_CON_CAMBIOS.includes(status)) return null;
 

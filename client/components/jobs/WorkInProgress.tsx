@@ -92,9 +92,7 @@ export default function WorkInProgress() {
     }
   }, [fetchActiveTasks]);
 
-  useEffect(() => {
-    registerJobUpdateHandler(handleJobUpdate);
-  }, [registerJobUpdateHandler, handleJobUpdate]);
+  useEffect(() => registerJobUpdateHandler(handleJobUpdate), [registerJobUpdateHandler, handleJobUpdate]);
 
   // Update task status
   const handleUpdateStatus = async (jobId: string, task: JobTask, newStatus: "in_progress" | "completed") => {

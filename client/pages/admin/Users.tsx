@@ -87,8 +87,8 @@ export default function AdminUsers() {
   }, []);
 
   useEffect(() => {
-    registerAdminUserCreatedHandler(handleNewUser);
-    registerAdminUserUpdatedHandler(handleUserUpdated);
+    const bajas = [registerAdminUserCreatedHandler(handleNewUser), registerAdminUserUpdatedHandler(handleUserUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler, handleNewUser, handleUserUpdated]);
 
   useEffect(() => {

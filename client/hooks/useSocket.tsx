@@ -104,35 +104,103 @@ const setTypingUsers = (cambio: (previos: Map<string, TypingStatus>) => Map<stri
 const setOnlineUsers = (cambio: (previos: Set<string>) => Set<string>) =>
   cambiarEstadoDelSocket({ onlineUsers: cambio(estadoDelSocket.onlineUsers) });
 
-// Event handlers stored globally to survive re-renders
-const eventHandlers = {
-  onContractUpdate: null as ((data: any) => void) | null,
-  onJobUpdate: null as ((data: any) => void) | null,
-  onProposalUpdate: null as ((data: any) => void) | null,
-  onQuoteStatus: null as ((data: any) => void) | null,
-  onDashboardRefresh: null as (() => void) | null,
-  onJobsRefresh: null as ((data?: any) => void) | null,
-  onUnreadUpdate: null as ((count: number) => void) | null,
-  onAdminJobCreated: null as ((data: any) => void) | null,
-  onAdminJobUpdated: null as ((data: any) => void) | null,
-  onAdminProposalCreated: null as ((data: any) => void) | null,
-  onAdminContractCreated: null as ((data: any) => void) | null,
-  onAdminContractUpdated: null as ((data: any) => void) | null,
-  onAdminPaymentCreated: null as ((data: any) => void) | null,
-  onAdminPaymentUpdated: null as ((data: any) => void) | null,
-  onAdminUserCreated: null as ((data: any) => void) | null,
-  onAdminUserUpdated: null as ((data: any) => void) | null,
-  onAdminDisputeCreated: null as ((data: any) => void) | null,
-  onAdminDisputeUpdated: null as ((data: any) => void) | null,
-  onAdminTicketCreated: null as ((data: any) => void) | null,
-  onAdminTicketUpdated: null as ((data: any) => void) | null,
-  onAdminWithdrawalCreated: null as ((data: any) => void) | null,
-  onAdminWithdrawalUpdated: null as ((data: any) => void) | null,
-  onNewProposal: null as ((data: any) => void) | null,
-  onContractsRefresh: null as ((data?: any) => void) | null,
-  onMyJobsRefresh: null as ((data?: any) => void) | null,
-  onNotification: null as ((data: any) => void) | null,
-};
+/**
+ * Quién escucha cada aviso del servidor. Son VARIOS por aviso: antes había un solo lugar (`eventHandlers.onX = handler`) y la última pantalla en anotarse
+ * pisaba a las demás, así que el trabajo y sus tareas se quitaban el aviso entre sí, y la lista de notificaciones dejaba sin aviso a la campanita. Cada
+ * pantalla se anota con `suscribirseAEvento` (o con `useEventoEnVivo`) y recibe de vuelta cómo darse de baja al desmontarse.
+ */
+type Oyente = (datos?: any) => void;
+const oyentes = new Map<string, Set<Oyente>>();
+
+export function suscribirseAEvento(evento: string, oyente: Oyente): () => void {
+  let grupo = oyentes.get(evento);
+  if (!grupo) {
+    grupo = new Set();
+    oyentes.set(evento, grupo);
+  }
+  grupo.add(oyente);
+  return () => {
+    oyentes.get(evento)?.delete(oyente);
+  };
+}
+
+function avisarAOyentes(evento: string, datos?: unknown): void {
+  oyentes.get(evento)?.forEach((oyente) => {
+    // Un oyente que falla no puede dejar sin aviso a los demás.
+    try {
+      oyente(datos);
+    } catch (error) {
+      console.error(`Error en un oyente de ${evento}:`, error);
+    }
+  });
+}
+
+/** Avisos que se vuelven a pedir cuando el socket se reconecta: lo que pasó mientras no había conexión no llegó, y las pantallas lo recargan. */
+const AL_RECONECTAR = [
+  'dashboard:refresh',
+  'contracts:refresh',
+  'myjobs:refresh',
+  'jobs:refresh',
+  'notifications:refresh',
+  'chat:actualizado',
+  'balance:updated',
+  'socket:reconectado',
+];
+let yaSeConecto = false;
+
+/**
+ * Junta varios avisos seguidos en UNA sola recarga. Guardar un contrato toca contrato, trabajo, pago y saldo en el mismo instante, y cada uno avisa:
+ * la pantalla pide los datos una vez, no cuatro.
+ */
+export function useRecargaJuntada(recargar: () => void, esperaMs = 250): () => void {
+  const ultima = useRef(recargar);
+  useEffect(() => {
+    ultima.current = recargar;
+  });
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (temporizador.current) clearTimeout(temporizador.current);
+    },
+    [],
+  );
+  return useCallback(() => {
+    if (temporizador.current) return;
+    temporizador.current = setTimeout(() => {
+      temporizador.current = null;
+      ultima.current();
+    }, esperaMs);
+  }, [esperaMs]);
+}
+
+/**
+ * Pantallas de administración: algo de dinero, contratos, trabajos o reclamos cambió (lo hizo un usuario, un cron o Mercado Pago) y la lista se recarga.
+ * Los tipos son los de `admin:cambio` (`services/avisosPorCambios.ts`): 'payment', 'contract', 'job', 'withdrawal', 'dispute'.
+ */
+export function useCambiosDeAdministracion(tipos: string[], recargar: () => void): void {
+  const juntada = useRecargaJuntada(recargar);
+  useEventoEnVivo('admin:cambio', (datos?: { tipo?: string }) => {
+    if (!datos?.tipo || tipos.includes(datos.tipo)) juntada();
+  });
+  useEventoEnVivo('socket:reconectado', juntada);
+}
+
+/**
+ * Se anota a un aviso del servidor mientras la pantalla está montada. El oyente puede cambiar en cada render sin volver a anotarse.
+ *
+ *   useEventoEnVivo(['balance:updated', 'withdrawal:updated'], recargar);
+ */
+export function useEventoEnVivo(eventos: string | string[], oyente: Oyente): void {
+  const ultimo = useRef(oyente);
+  useEffect(() => {
+    ultimo.current = oyente;
+  });
+  const clave = Array.isArray(eventos) ? eventos.join('|') : eventos;
+  useEffect(() => {
+    const bajas = clave.split('|').map((evento) => suscribirseAEvento(evento, (datos) => ultimo.current(datos)));
+    return () => bajas.forEach((baja) => baja());
+  }, [clave]);
+}
 
 export function useSocket() {
   const { user } = useAuth();
@@ -173,6 +241,9 @@ export function useSocket() {
       {
         setIsConnected(true);
       }
+      // Reconexión (se cortó la red, la computadora durmió): lo que cambió mientras tanto no llegó, así que las pantallas recargan.
+      if (yaSeConecto) AL_RECONECTAR.forEach((evento) => avisarAOyentes(evento, { reconexion: true }));
+      yaSeConecto = true;
     });
 
     socketInstance.on("disconnect", (reason) => {
@@ -210,7 +281,7 @@ export function useSocket() {
     socketInstance.on("message:new", (message: Message) => {
       // Debug logging for socket messages - TEMPORARY
       {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => (message.id && prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
       }
     });
 
@@ -283,175 +354,9 @@ export function useSocket() {
       console.error("Socket error:", error);
     });
 
-    // Global real-time event handlers - use stored handlers
-    socketInstance.on("contract:updated", (data: any) => {
-      if (eventHandlers.onContractUpdate) {
-        eventHandlers.onContractUpdate(data);
-      }
-    });
-
-    socketInstance.on("job:updated", (data: any) => {
-      if (eventHandlers.onJobUpdate) {
-        eventHandlers.onJobUpdate(data);
-      }
-    });
-
-    socketInstance.on("jobs:refresh", (data: any) => {
-      if (eventHandlers.onJobsRefresh) {
-        eventHandlers.onJobsRefresh(data);
-      }
-    });
-
-    socketInstance.on("proposal:updated", (data: any) => {
-      if (eventHandlers.onProposalUpdate) {
-        eventHandlers.onProposalUpdate(data);
-      }
-    });
-
-    socketInstance.on("dashboard:refresh", () => {
-      if (eventHandlers.onDashboardRefresh) {
-        eventHandlers.onDashboardRefresh();
-      }
-    });
-
-    socketInstance.on("unread:updated", (data: { unreadCount: number; unreadConversations?: number }) => {
-      if (eventHandlers.onUnreadUpdate) {
-        eventHandlers.onUnreadUpdate(data.unreadConversations ?? data.unreadCount);
-      }
-    });
-
-    // Admin panel event handlers
-    socketInstance.on("admin:job:created", (data: any) => {
-      if (eventHandlers.onAdminJobCreated) {
-        eventHandlers.onAdminJobCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:job:updated", (data: any) => {
-      if (eventHandlers.onAdminJobUpdated) {
-        eventHandlers.onAdminJobUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:proposal:created", (data: any) => {
-      if (eventHandlers.onAdminProposalCreated) {
-        eventHandlers.onAdminProposalCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:contract:created", (data: any) => {
-      if (eventHandlers.onAdminContractCreated) {
-        eventHandlers.onAdminContractCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:contract:updated", (data: any) => {
-      if (eventHandlers.onAdminContractUpdated) {
-        eventHandlers.onAdminContractUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:payment:created", (data: any) => {
-      if (eventHandlers.onAdminPaymentCreated) {
-        eventHandlers.onAdminPaymentCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:payment:updated", (data: any) => {
-      if (eventHandlers.onAdminPaymentUpdated) {
-        eventHandlers.onAdminPaymentUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:user:created", (data: any) => {
-      if (eventHandlers.onAdminUserCreated) {
-        eventHandlers.onAdminUserCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:user:updated", (data: any) => {
-      if (eventHandlers.onAdminUserUpdated) {
-        eventHandlers.onAdminUserUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:dispute:created", (data: any) => {
-      if (eventHandlers.onAdminDisputeCreated) {
-        eventHandlers.onAdminDisputeCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:dispute:updated", (data: any) => {
-      if (eventHandlers.onAdminDisputeUpdated) {
-        eventHandlers.onAdminDisputeUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:ticket:created", (data: any) => {
-      if (eventHandlers.onAdminTicketCreated) {
-        eventHandlers.onAdminTicketCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:ticket:updated", (data: any) => {
-      if (eventHandlers.onAdminTicketUpdated) {
-        eventHandlers.onAdminTicketUpdated(data);
-      }
-    });
-
-    socketInstance.on("admin:withdrawal:created", (data: any) => {
-      if (eventHandlers.onAdminWithdrawalCreated) {
-        eventHandlers.onAdminWithdrawalCreated(data);
-      }
-    });
-
-    socketInstance.on("admin:withdrawal:updated", (data: any) => {
-      if (eventHandlers.onAdminWithdrawalUpdated) {
-        eventHandlers.onAdminWithdrawalUpdated(data);
-      }
-    });
-
-    socketInstance.on("proposal:new", (data: any) => {
-      if (eventHandlers.onNewProposal) {
-        eventHandlers.onNewProposal(data);
-      }
-    });
-
-    socketInstance.on("contracts:refresh", (data: any) => {
-      if (eventHandlers.onContractsRefresh) {
-        eventHandlers.onContractsRefresh(data);
-      }
-    });
-
-    socketInstance.on("myjobs:refresh", (data: any) => {
-      if (eventHandlers.onMyJobsRefresh) {
-        eventHandlers.onMyJobsRefresh(data);
-      }
-    });
-
-    // Notification handler
-    socketInstance.on("notification:new", (data: any) => {
-      if (eventHandlers.onNotification) {
-        eventHandlers.onNotification(data);
-      }
-    });
-
-    /**
-     * Aceptación de una cotización, en vivo del lado del trabajador.
-     *
-     * Son dos eventos y no uno porque el trabajador necesita ver los dos
-     * momentos: que el cliente arrancó el pago, y que se acreditó. Saber que
-     * alguien está pagando su cotización cambia lo que hace mientras tanto
-     * -- deja de buscar otro trabajo para esa fecha -- y enterarse recién con
-     * el contrato ya creado llega tarde.
-     */
-    socketInstance.on("quote:payment_started", (data: any) => {
-      if (eventHandlers.onQuoteStatus) eventHandlers.onQuoteStatus({ ...data, fase: 'pagando' });
-    });
-
-    socketInstance.on("quote:accepted", (data: any) => {
-      if (eventHandlers.onQuoteStatus) eventHandlers.onQuoteStatus({ ...data, fase: 'aceptada' });
-    });
+    // Todo aviso del servidor se reparte a quienes se anotaron (`suscribirseAEvento`), sea de contratos, trabajos, dinero, mensajes o notificaciones.
+    socketInstance.offAny();
+    socketInstance.onAny((evento: string, datos: unknown) => avisarAOyentes(evento, datos));
   }, [getReconnectDelay]);
 
   // Main connection effect - only depends on user
@@ -466,6 +371,7 @@ export function useSocket() {
         connectionAttempts = 0;
         connectionGaveUp = false;
         isGlobalConnecting = false;
+        yaSeConecto = false;
       }
       return;
     }
@@ -526,6 +432,23 @@ export function useSocket() {
       // Don't disconnect on re-render, only when user is null
     };
   }, [user, setupSocketListeners]);
+
+  // Al volver a la pestaña o recuperar la red, si el tiempo real quedó caído se reconecta solo.
+  useEffect(() => {
+    if (!user) return;
+    const reintentar = () => {
+      if (document.visibilityState === "hidden" || !globalSocket || globalSocket.connected) return;
+      connectionAttempts = 0;
+      connectionGaveUp = false;
+      globalSocket.connect();
+    };
+    window.addEventListener("online", reintentar);
+    document.addEventListener("visibilitychange", reintentar);
+    return () => {
+      window.removeEventListener("online", reintentar);
+      document.removeEventListener("visibilitychange", reintentar);
+    };
+  }, [user]);
 
   // Manual reconnect function
   const reconnect = useCallback(() => {
@@ -621,111 +544,68 @@ export function useSocket() {
     return typing;
   }, [typingUsers]);
 
-  // Register callbacks - these update the global handlers without causing re-renders
-  const registerContractUpdateHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onContractUpdate = handler;
-  }, []);
+  // Cada una devuelve cómo darse de baja: `useEffect(() => registerXHandler(manejador), [...])`.
+  const registerContractUpdateHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('contract:updated', handler), []);
 
-  const registerJobUpdateHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onJobUpdate = handler;
-  }, []);
+  const registerJobUpdateHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('job:updated', handler), []);
 
-  const registerProposalUpdateHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onProposalUpdate = handler;
-  }, []);
+  const registerProposalUpdateHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('proposal:updated', handler), []);
+
+  const registerDashboardRefreshHandler = useCallback((handler: () => void) => suscribirseAEvento('dashboard:refresh', handler), []);
+
+  const registerJobsRefreshHandler = useCallback((handler: (data?: any) => void) => suscribirseAEvento('jobs:refresh', handler), []);
+
+  const registerAdminJobCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:job:created', handler), []);
+
+  const registerAdminJobUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:job:updated', handler), []);
+
+  const registerAdminProposalCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:proposal:created', handler), []);
+
+  const registerAdminContractCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:contract:created', handler), []);
+
+  const registerAdminContractUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:contract:updated', handler), []);
+
+  const registerAdminPaymentCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:payment:created', handler), []);
+
+  const registerAdminPaymentUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:payment:updated', handler), []);
+
+  const registerAdminUserCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:user:created', handler), []);
+
+  const registerAdminUserUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:user:updated', handler), []);
+
+  const registerAdminDisputeCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:dispute:created', handler), []);
+
+  const registerAdminDisputeUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:dispute:updated', handler), []);
+
+  const registerAdminTicketCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:ticket:created', handler), []);
+
+  const registerAdminTicketUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:ticket:updated', handler), []);
+
+  const registerAdminWithdrawalCreatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:withdrawal:created', handler), []);
+
+  const registerAdminWithdrawalUpdatedHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('admin:withdrawal:updated', handler), []);
+
+  const registerNewProposalHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('proposal:new', handler), []);
+
+  const registerContractsRefreshHandler = useCallback((handler: (data?: any) => void) => suscribirseAEvento('contracts:refresh', handler), []);
+
+  const registerMyJobsRefreshHandler = useCallback((handler: (data?: any) => void) => suscribirseAEvento('myjobs:refresh', handler), []);
+
+  const registerNotificationHandler = useCallback((handler: (data: any) => void) => suscribirseAEvento('notification:new', handler), []);
 
   const registerQuoteStatusHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onQuoteStatus = handler;
+    const bajas = [
+      suscribirseAEvento('quote:payment_started', (data) => handler({ ...data, fase: 'pagando' })),
+      suscribirseAEvento('quote:accepted', (data) => handler({ ...data, fase: 'aceptada' })),
+    ];
+    return () => bajas.forEach((baja) => baja());
   }, []);
 
-  const registerDashboardRefreshHandler = useCallback((handler: () => void) => {
-    eventHandlers.onDashboardRefresh = handler;
-  }, []);
-
-  const registerJobsRefreshHandler = useCallback((handler: (data?: any) => void) => {
-    eventHandlers.onJobsRefresh = handler;
-  }, []);
-
-  const registerUnreadUpdateHandler = useCallback((handler: (count: number) => void) => {
-    eventHandlers.onUnreadUpdate = handler;
-  }, []);
-
-  // Admin panel register handlers
-  const registerAdminJobCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminJobCreated = handler;
-  }, []);
-
-  const registerAdminJobUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminJobUpdated = handler;
-  }, []);
-
-  const registerAdminProposalCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminProposalCreated = handler;
-  }, []);
-
-  const registerAdminContractCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminContractCreated = handler;
-  }, []);
-
-  const registerAdminContractUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminContractUpdated = handler;
-  }, []);
-
-  const registerAdminPaymentCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminPaymentCreated = handler;
-  }, []);
-
-  const registerAdminPaymentUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminPaymentUpdated = handler;
-  }, []);
-
-  const registerAdminUserCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminUserCreated = handler;
-  }, []);
-
-  const registerAdminUserUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminUserUpdated = handler;
-  }, []);
-
-  const registerAdminDisputeCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminDisputeCreated = handler;
-  }, []);
-
-  const registerAdminDisputeUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminDisputeUpdated = handler;
-  }, []);
-
-  const registerAdminTicketCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminTicketCreated = handler;
-  }, []);
-
-  const registerAdminTicketUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminTicketUpdated = handler;
-  }, []);
-
-  const registerAdminWithdrawalCreatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminWithdrawalCreated = handler;
-  }, []);
-
-  const registerAdminWithdrawalUpdatedHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onAdminWithdrawalUpdated = handler;
-  }, []);
-
-  const registerNewProposalHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onNewProposal = handler;
-  }, []);
-
-  const registerContractsRefreshHandler = useCallback((handler: (data?: any) => void) => {
-    eventHandlers.onContractsRefresh = handler;
-  }, []);
-
-  const registerMyJobsRefreshHandler = useCallback((handler: (data?: any) => void) => {
-    eventHandlers.onMyJobsRefresh = handler;
-  }, []);
-
-  const registerNotificationHandler = useCallback((handler: (data: any) => void) => {
-    eventHandlers.onNotification = handler;
-  }, []);
+  const registerUnreadUpdateHandler = useCallback(
+    (handler: (count: number) => void) =>
+      suscribirseAEvento('unread:updated', (data: { unreadCount: number; unreadConversations?: number }) => handler(data.unreadConversations ?? data.unreadCount)),
+    [],
+  );
 
   return {
     socket,

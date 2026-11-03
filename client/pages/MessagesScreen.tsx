@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { SkeletonConversationItem, SkeletonMessage } from "../components/ui/Skeleton";
 import { SystemMessageCard } from "../components/chat/SystemMessageCard";
 import QuoteMessage from "../components/chat/QuoteMessage";
@@ -192,6 +192,10 @@ export default function MessagesScreen() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Un mensaje nuevo (de una persona o del sistema: contrato, pago, trabajo), una conversación nueva o la conexión que vuelve: la lista se actualiza sola.
+  const recargarConversaciones = useRecargaJuntada(() => fetchConversations());
+  useEventoEnVivo(['chat:actualizado', 'socket:reconectado'], recargarConversaciones);
 
   const fetchConversations = async () => {
     try {

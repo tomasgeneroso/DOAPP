@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
   Text,
@@ -28,6 +29,10 @@ export default function ProposalsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
+
+  // Una propuesta mía que cambia de estado, una nueva o la conexión que vuelve: la lista se actualiza sola.
+  const recargarPropuestas = useRecargaJuntada(() => fetchProposals());
+  useEventoEnVivo(['proposal:updated', 'proposal:new', 'socket:reconectado'], recargarPropuestas);
 
   const fetchProposals = async () => {
     try {

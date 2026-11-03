@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
   Text,
@@ -31,6 +32,10 @@ export default function ContractsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('as_client');
+
+  // Cualquier cambio de un contrato mío (o volver la conexión) recarga la lista, una sola vez aunque lleguen varios avisos juntos.
+  const recargarContratos = useRecargaJuntada(() => fetchContracts());
+  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'socket:reconectado'], recargarContratos);
 
   const fetchContracts = async () => {
     try {

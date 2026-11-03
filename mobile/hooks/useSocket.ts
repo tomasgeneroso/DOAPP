@@ -260,3 +260,42 @@ export function useChat(conversationId: string | null) {
 }
 
 export default useSocket;
+
+/**
+ * Se anota a avisos del servidor mientras la pantalla está montada. El oyente puede cambiar en cada render sin volver a anotarse.
+ *
+ *   useEventoEnVivo(['balance:updated', 'withdrawal:updated'], recargar);
+ */
+export function useEventoEnVivo(eventos: string | string[], oyente: (datos?: any) => void) {
+  const ultimo = useRef(oyente);
+  useEffect(() => {
+    ultimo.current = oyente;
+  });
+  const clave = Array.isArray(eventos) ? eventos.join('|') : eventos;
+  useEffect(() => {
+    const bajas = clave.split('|').map((evento) => socketService.on(evento, (datos) => ultimo.current(datos)));
+    return () => bajas.forEach((baja) => baja());
+  }, [clave]);
+}
+
+/** Junta varios avisos seguidos en UNA sola recarga (un contrato que cambia toca contrato, trabajo, pago y saldo a la vez). */
+export function useRecargaJuntada(recargar: () => void, esperaMs = 250): () => void {
+  const ultima = useRef(recargar);
+  useEffect(() => {
+    ultima.current = recargar;
+  });
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (temporizador.current) clearTimeout(temporizador.current);
+    },
+    [],
+  );
+  return useCallback(() => {
+    if (temporizador.current) return;
+    temporizador.current = setTimeout(() => {
+      temporizador.current = null;
+      ultima.current();
+    }, esperaMs);
+  }, [esperaMs]);
+}

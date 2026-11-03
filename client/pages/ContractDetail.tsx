@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { useSocket } from "@/hooks/useSocket";
+import { useSocket, useEventoEnVivo } from "@/hooks/useSocket";
 import { api } from "@/lib/api";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { PaymentModal } from "@/components/payments/PaymentModal";
@@ -149,8 +149,14 @@ export default function ContractDetail() {
         loadPayments();
       }
     };
-    registerContractUpdateHandler(handler);
+    return registerContractUpdateHandler(handler);
   }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
+
+  // Volvió la conexión después de un corte: se vuelve a pedir el contrato y sus pagos.
+  useEventoEnVivo('socket:reconectado', () => {
+    loadContract();
+    loadPayments();
+  });
 
   const handleReleaseEscrow = (paymentId: string) => {
     setDialog({

@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
-import { useSocket } from "../../hooks/useSocket";
+import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../../hooks/useSocket";
 import { features } from "../../../shared/featureFlags";
 import {
   LogOut,
@@ -86,12 +86,19 @@ export default function Header() {
   }, [user, fetchUnreadCount]);
 
   // Register real-time unread count updates
-  useEffect(() => {
-    registerUnreadUpdateHandler((count: number) => {
-      console.log("💬 Unread count updated in header:", count);
-      setUnreadCount(count);
-    });
-  }, [registerUnreadUpdateHandler]);
+  useEffect(
+    () =>
+      registerUnreadUpdateHandler((count: number) => {
+        setUnreadCount(count);
+      }),
+    [registerUnreadUpdateHandler],
+  );
+
+  // Un mensaje nuevo (también los de sistema: contrato, pago, trabajo) o una conversación cambiada vuelve a contar los chats sin leer.
+  const recontarChats = useRecargaJuntada(() => {
+    if (user) fetchUnreadCount();
+  });
+  useEventoEnVivo(["chat:actualizado", "socket:reconectado"], recontarChats);
 
   // Cerrar menú cuando se hace clic fuera o con Escape
   useEffect(() => {

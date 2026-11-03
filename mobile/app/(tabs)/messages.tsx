@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
   Text,
@@ -58,6 +59,10 @@ export default function MessagesScreen() {
     }
     fetchConversations();
   }, [isAuthenticated, authLoading]);
+
+  // Un mensaje nuevo (de una persona o del sistema: contrato, pago, trabajo) o una conversación nueva: la lista se actualiza sola.
+  const recargarConversaciones = useRecargaJuntada(() => fetchConversations());
+  useEventoEnVivo(['chat:actualizado', 'socket:reconectado'], recargarConversaciones);
 
   const fetchConversations = async () => {
     try {

@@ -4,7 +4,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import IdBadge from '../../components/admin/IdBadge';
 import { statusDescription, withdrawalStatusDescriptions } from '../../utils/statusDescriptions';
 import { WithdrawalRequest } from '../../types';
-import { useSocket } from '@/hooks/useSocket';
+import { useSocket, useCambiosDeAdministracion } from '@/hooks/useSocket';
 import {
   ArrowDownCircle,
   DollarSign,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Transicion from "../../components/ui/Transicion";
+import { useToast } from "../../components/ui/Toast";
 
 export default function AdminWithdrawalManager() {
   const { t } = useTranslation();
@@ -41,6 +42,14 @@ export default function AdminWithdrawalManager() {
   // Si el servidor frena el movimiento con un código de la guía de errores (p. ej. SALDO-NO-CIERRA-LIBRO), se muestra el enlace a su explicación.
   const [guiaDelError, setGuiaDelError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const toast = useToast();
+  // El aviso de éxito sale abajo a la derecha, a la vista y con la X para cerrarlo (antes era un cuadro arriba de la lista que no se veía al bajar).
+  useEffect(() => {
+    if (!success) return;
+    toast.success(success);
+    setSuccess(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [success]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [urlParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(urlParams.get('search') || '');
@@ -76,9 +85,12 @@ export default function AdminWithdrawalManager() {
   }, []);
 
   useEffect(() => {
-    registerAdminWithdrawalCreatedHandler(handleNewWithdrawal);
-    registerAdminWithdrawalUpdatedHandler(handleWithdrawalUpdated);
+    const bajas = [registerAdminWithdrawalCreatedHandler(handleNewWithdrawal), registerAdminWithdrawalUpdatedHandler(handleWithdrawalUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminWithdrawalCreatedHandler, registerAdminWithdrawalUpdatedHandler, handleNewWithdrawal, handleWithdrawalUpdated]);
+
+  // Un retiro nuevo o que cambió de estado (lo pidió o lo canceló la persona, lo movió otro administrador): la lista se recarga sola.
+  useCambiosDeAdministracion(['withdrawal'], () => loadData());
 
   useEffect(() => {
     // Debounced: the search now costs a query, so it should not fire per keystroke.
@@ -363,15 +375,6 @@ export default function AdminWithdrawalManager() {
       )}
       </Transicion>
 
-      <Transicion mostrar={!!success}>
-      {success && (
-        <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          <p className="text-green-800 dark:text-green-200">{success}</p>
-        </div>
-      )}
-      </Transicion>
-
       {/* Totals cards (clickable filters, same style as the other admin panels) */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -478,11 +481,21 @@ export default function AdminWithdrawalManager() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-gray-900 dark:text-white">{withdrawal.bankingInfo?.accountHolder || '—'}</div>
-                      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{withdrawal.bankingInfo?.cbu || '—'}</div>
+                      <div className="font-mono text-xs text-gray-500 dark:text-gray-400 break-all">
+                        {[withdrawal.bankingInfo?.lemonTag, withdrawal.bankingInfo?.alias, withdrawal.bankingInfo?.cbu].filter(Boolean).join(' · ') || '—'}
+                      </div>
+                      {withdrawal.metadata?.destinoNuevo && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                          Cuenta nueva (todavía no estaba en el perfil)
+                          {withdrawal.metadata.noSeProcesaAntesDe && new Date(withdrawal.metadata.noSeProcesaAntesDe).getTime() > Date.now()
+                            ? ` · no se procesa antes del ${new Date(withdrawal.metadata.noSeProcesaAntesDe).toLocaleString('es-AR')}`
+                            : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{withdrawal.bankingInfo?.bankName || '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap font-bold text-gray-900 dark:text-white">
-                      ${withdrawal.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      ${Number(withdrawal.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
                       {getStatusBadge(withdrawal.status)}

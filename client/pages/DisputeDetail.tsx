@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../hooks/useAuth';
+import { useEventoEnVivo } from '../hooks/useSocket';
 import { getImageUrl } from '../utils/imageUrl';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import ReclamoDirectoPanel from '../components/disputes/ReclamoDirectoPanel';
@@ -92,6 +93,11 @@ const DisputeDetail: React.FC = () => {
     fetchDispute();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Un mensaje, una prueba o la resolución del reclamo: se ve sin recargar.
+  useEventoEnVivo(['dispute:updated', 'socket:reconectado'], (datos?: { disputeId?: string }) => {
+    if (!datos?.disputeId || datos.disputeId === id) fetchDispute();
+  });
 
   const onDrop = async (acceptedFiles: File[]) => {
     setUploadingEvidence(true);

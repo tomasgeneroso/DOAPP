@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
+import { useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { POLITICAS } from "../../shared/constants/policies";
 import {
   Wallet,
@@ -37,9 +38,13 @@ export default function BalancePage() {
     fetchBalanceData();
   }, []);
 
-  const fetchBalanceData = async () => {
+  // Un cobro, una devolución, un pago o un retiro que cambia (lo mueva quien lo mueva): el saldo y los movimientos se recalculan solos, sin tapar la pantalla.
+  const recargarSaldo = useRecargaJuntada(() => fetchBalanceData(true));
+  useEventoEnVivo(['balance:updated', 'withdrawal:updated', 'payment:updated', 'socket:reconectado'], recargarSaldo);
+
+  const fetchBalanceData = async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const token = localStorage.getItem("token");
 
       // Fetch balance
@@ -262,7 +267,7 @@ export default function BalancePage() {
               </div>
               <div className="flex flex-col items-end gap-4">
                 <button
-                  onClick={fetchBalanceData}
+                  onClick={() => fetchBalanceData()}
                   className="p-3 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
                   title={t('balance.refresh', 'Actualizar saldo')}
                 >
@@ -282,9 +287,13 @@ export default function BalancePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.totalRefunds', 'Reembolsos Totales')}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.totalRefundsHistoric', 'Devuelto en total')}</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                      ${summary.totalRefunds.toLocaleString("es-AR")}
+                      ${Number(summary.totalRefunds).toLocaleString("es-AR")}
+                    </p>
+                    {/* No es el saldo: es todo lo que se devolvió desde el principio, aunque ya se haya usado para pagar o retirar. Se confundía con el saldo. */}
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {t('balance.totalRefundsHelp', 'Suma de todo lo que se te devolvió desde el principio, incluso lo que ya usaste. No es tu saldo.')}
                     </p>
                   </div>
                   <TrendingDown className="h-10 w-10 text-green-500 opacity-20" />

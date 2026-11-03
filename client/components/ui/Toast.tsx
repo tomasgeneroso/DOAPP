@@ -105,7 +105,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
         ${color.bg} ${color.border}
         border rounded-lg shadow-lg p-4 max-w-sm w-full
         transform transition-all duration-300 ease-out
-        ${isExiting || !entro ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
+        ${isExiting || !entro ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}
       `}
     >
       <div className="flex items-start gap-3">
@@ -126,6 +126,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
         </div>
         <button
           onClick={handleClose}
+          aria-label="Cerrar aviso"
           className={`flex-shrink-0 ${color.icon} hover:opacity-70 transition-opacity`}
         >
           <X className="h-4 w-4" />
@@ -167,8 +168,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
       {children}
       {/* Toast Container */}
-      {/* Arriba a la derecha, debajo del encabezado: abajo a la derecha está la «guía de inicio» y los avisos la tapaban. */}
-      <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 w-[calc(100vw-2rem)] max-w-sm pointer-events-none [&>*]:pointer-events-auto">
+      {/* Abajo a la derecha, siempre a la vista de quien está mirando la pantalla (arriba quedaban fuera de lo que se ve al bajar la página). Por encima de la
+          guía de inicio y de la barra de staging; cada aviso se cierra con la X. */}
+      <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-[70] flex flex-col gap-2 w-[calc(100vw-2rem)] max-w-sm pointer-events-none [&>*]:pointer-events-auto">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onRemove={() => removeToast(toast.id)} />
         ))}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
   Text,
@@ -66,6 +67,12 @@ export default function ContractDetailScreen() {
   // Rejection
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  // El contrato cambió (la otra parte confirmó, empezó solo, se acreditó el pago…) o volvió la conexión: se vuelve a pedir.
+  const recargarContrato = useRecargaJuntada(() => fetchContract());
+  useEventoEnVivo(['contract:updated', 'socket:reconectado'], (datos?: { contractId?: string; reconexion?: boolean }) => {
+    if (!datos?.contractId || datos.reconexion || String(datos.contractId) === String(id)) recargarContrato();
+  });
 
   const fetchContract = async () => {
     if (!id) return;

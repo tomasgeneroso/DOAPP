@@ -5,7 +5,7 @@ import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUp
 import { getImageUrl } from "../../utils/imageUrl";
 import IdBadge from "../../components/admin/IdBadge";
 import { statusDescription, contractStatusDescriptions, contractPaymentDescriptions } from "../../utils/statusDescriptions";
-import { useSocket } from "../../hooks/useSocket";
+import { useSocket, useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
 
 interface ContractChange {
@@ -306,13 +306,16 @@ export default function AdminContracts() {
 
   // Register socket handlers
   useEffect(() => {
-    registerAdminContractCreatedHandler(handleNewContract);
-    registerAdminContractUpdatedHandler(handleContractUpdated);
+    const bajas = [registerAdminContractCreatedHandler(handleNewContract), registerAdminContractUpdatedHandler(handleContractUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminContractCreatedHandler, registerAdminContractUpdatedHandler, handleNewContract, handleContractUpdated]);
 
   useEffect(() => {
     fetchContracts();
   }, [fetchContracts]);
+
+  // Un contrato o un pago suyo que cambia (el cron lo empieza o termina, Mercado Pago acredita): la lista se recarga sola.
+  useCambiosDeAdministracion(['contract', 'payment'], () => fetchContracts());
 
   const handleSort = (field: SortField) => {
     let newDirection: SortDirection = 'asc';

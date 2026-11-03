@@ -357,11 +357,7 @@ export default function ChatScreen() {
       }
     };
 
-    registerProposalUpdateHandler(handleProposalUpdate);
-
-    return () => {
-      registerProposalUpdateHandler(() => {});
-    };
+    return registerProposalUpdateHandler(handleProposalUpdate);
   }, [registerProposalUpdateHandler]);
 
   useEffect(() => {

@@ -5,7 +5,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo } from "../hooks/useSocket";
 import {
   ArrowLeft,
   Calendar,
@@ -307,10 +307,13 @@ export default function JobDetail() {
 
   // Register socket handlers
   useEffect(() => {
-    registerNewProposalHandler(handleNewProposal);
-    registerJobUpdateHandler(handleJobUpdate);
-    registerJobsRefreshHandler(handleJobsRefresh);
-    registerContractUpdateHandler(handleContractUpdate);
+    const bajas = [
+      registerNewProposalHandler(handleNewProposal),
+      registerJobUpdateHandler(handleJobUpdate),
+      registerJobsRefreshHandler(handleJobsRefresh),
+      registerContractUpdateHandler(handleContractUpdate),
+    ];
+    return () => bajas.forEach((baja) => baja());
   }, [
     registerNewProposalHandler,
     registerJobUpdateHandler,
@@ -321,6 +324,12 @@ export default function JobDetail() {
     handleJobsRefresh,
     handleContractUpdate,
   ]);
+
+  // Volvió la conexión después de un corte: se pide todo de nuevo.
+  useEventoEnVivo('socket:reconectado', () => {
+    setRefreshKey((prev) => prev + 1);
+    setPollKey((k) => k + 1);
+  });
 
   // Fetch job data
   const fetchJob = useCallback(async () => {
@@ -2079,8 +2088,9 @@ export default function JobDetail() {
                           </div>
                         )}
 
-                        {/* Botón de Confirmar - Habilitado 5 minutos antes del fin del trabajo hasta que se confirme */}
-                        {contractData.status === "in_progress" &&
+                        {/* Botón de Confirmar - Habilitado 5 minutos antes del fin del trabajo hasta que se confirme. Sigue visible para la parte que falta cuando la otra ya
+                            confirmó (el contrato pasa a «esperando confirmación»): antes desaparecía justo para quien tenía que cerrarlo. */}
+                        {(contractData.status === "in_progress" || contractData.status === "awaiting_confirmation") &&
                           job.endDate &&
                           (() => {
                             const now = new Date();

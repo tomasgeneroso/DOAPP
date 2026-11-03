@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 import {
   View,
   Text,
@@ -42,6 +43,13 @@ export default function NotificationsScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Una notificación nueva (de cualquier origen: contrato, pago, trabajo, mensaje), leída desde otro lado, o la conexión que vuelve: se actualiza sola.
+  const recargarNotificaciones = useRecargaJuntada(() => {
+    setPage(1);
+    fetchNotifications(1);
+  });
+  useEventoEnVivo(['notification:new', 'notifications:refresh', 'socket:reconectado'], recargarNotificaciones);
 
   const fetchNotifications = async (pageNum = 1, append = false) => {
     try {

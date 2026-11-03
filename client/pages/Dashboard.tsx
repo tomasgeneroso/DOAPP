@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { SkeletonDashboardCard } from "../components/ui/Skeleton";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { usePendingTasks } from "../hooks/usePendingTasks";
@@ -62,7 +62,6 @@ export default function Dashboard() {
   const { modalTasks } = usePendingTasks();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { registerDashboardRefreshHandler, registerContractUpdateHandler, registerProposalUpdateHandler, registerJobUpdateHandler } = useSocket();
   const [stats, setStats] = useState<DashboardStats>({
     totalEarnings: 0,
     totalSpent: 0,
@@ -98,29 +97,17 @@ export default function Dashboard() {
     }
 
     fetchDashboardStats();
-
-    // Register real-time event handlers
-    registerDashboardRefreshHandler(() => {
-      console.log("📊 Dashboard refreshing due to real-time event...");
-      fetchDashboardStats();
-    });
-
-    registerContractUpdateHandler(() => {
-      console.log("📝 Contract update detected, refreshing dashboard...");
-      fetchDashboardStats();
-    });
-
-    registerProposalUpdateHandler(() => {
-      console.log("📄 Proposal update detected, refreshing dashboard...");
-      fetchDashboardStats();
-    });
-
-    registerJobUpdateHandler(() => {
-      console.log("💼 Job update detected, refreshing dashboard...");
-      fetchDashboardStats();
-    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Contratos, propuestas, trabajos y dinero (saldo, pagos, retiros): el panel se recalcula solo, una vez aunque lleguen varios avisos juntos.
+  const recalcularPanel = useRecargaJuntada(() => {
+    if (user) fetchDashboardStats();
+  });
+  useEventoEnVivo(
+    ['dashboard:refresh', 'contract:updated', 'proposal:updated', 'job:updated', 'balance:updated', 'socket:reconectado'],
+    recalcularPanel,
+  );
 
   const fetchDashboardStats = async () => {
     if (!user?.id) {

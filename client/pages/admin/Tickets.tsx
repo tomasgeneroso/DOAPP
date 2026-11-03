@@ -43,8 +43,8 @@ export default function AdminTickets() {
   }, []);
 
   useEffect(() => {
-    registerAdminTicketCreatedHandler(handleNewTicket);
-    registerAdminTicketUpdatedHandler(handleTicketUpdated);
+    const bajas = [registerAdminTicketCreatedHandler(handleNewTicket), registerAdminTicketUpdatedHandler(handleTicketUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminTicketCreatedHandler, registerAdminTicketUpdatedHandler, handleNewTicket, handleTicketUpdated]);
 
   useEffect(() => {

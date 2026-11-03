@@ -4,7 +4,7 @@ import { getImageUrl } from '@/utils/imageUrl';
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { SkeletonProposalCard } from "../components/ui/Skeleton";
 import { FileText, Calendar, DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
 
@@ -37,7 +37,6 @@ interface Proposal {
 export default function ProposalsScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { registerProposalUpdateHandler } = useSocket();
   const [searchParams] = useSearchParams();
   const type = searchParams.get("type") || "sent";
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -46,13 +45,12 @@ export default function ProposalsScreen() {
 
   useEffect(() => {
     fetchProposals();
-
-    // Register real-time event handler
-    registerProposalUpdateHandler((data: any) => {
-      fetchProposals();
-    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Una propuesta que cambia de estado, una nueva o la conexión que vuelve: la lista se recarga sola.
+  const recargarPropuestas = useRecargaJuntada(() => fetchProposals());
+  useEventoEnVivo(['proposal:updated', 'proposal:new', 'socket:reconectado'], recargarPropuestas);
 
   const fetchProposals = async () => {
     try {

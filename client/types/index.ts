@@ -452,9 +452,14 @@ export interface WithdrawalRequest {
     accountHolder: string;
     bankName: string;
     accountType: 'savings' | 'checking';
-    cbu: string;
+    /** Para quien lo pidió llega enmascarado (****1234); administración lo ve entero. Falta en un retiro a Lemon por $lemontag o alias. */
+    cbu?: string;
     alias?: string;
+    /** Solo Lemon. */
+    lemonTag?: string;
   };
+  /** Lo que le sirve a la persona del pedido: la retención, y si va a una cuenta nueva, desde cuándo se puede procesar. */
+  metadata?: { retencion?: number; saldoDebitado?: number; destinoNuevo?: boolean; noSeProcesaAntesDe?: string; requiereDueno?: boolean };
   status: 'pending' | 'approved' | 'processing' | 'completed' | 'rejected' | 'cancelled';
   balanceBeforeWithdrawal: number;
   balanceAfterWithdrawal: number;

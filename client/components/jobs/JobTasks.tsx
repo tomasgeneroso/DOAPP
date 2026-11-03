@@ -114,9 +114,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
     }
   }, [jobId]);
 
-  useEffect(() => {
-    registerJobUpdateHandler(handleJobUpdate);
-  }, [registerJobUpdateHandler, handleJobUpdate]);
+  useEffect(() => registerJobUpdateHandler(handleJobUpdate), [registerJobUpdateHandler, handleJobUpdate]);
 
   // Create/Update task
   const handleSaveTask = async () => {

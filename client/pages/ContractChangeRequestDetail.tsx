@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
+import { useEventoEnVivo } from '@/hooks/useSocket';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import {
   ArrowLeft,
@@ -88,6 +89,11 @@ export default function ContractChangeRequestDetail() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // La otra parte respondió (o se cerró sola a las 48 h): la pantalla se actualiza sin recargar.
+  useEventoEnVivo(['contract:updated', 'socket:reconectado'], (datos?: { changeRequestId?: string; reconexion?: boolean }) => {
+    if (id && (datos?.changeRequestId === id || datos?.reconexion)) loadRequest();
+  });
 
   const loadRequest = async () => {
     try {

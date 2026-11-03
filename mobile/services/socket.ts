@@ -25,6 +25,19 @@ const MAX_RECONNECT_DELAY = 30000;
 let socketInstance: Socket | null = null;
 let connectionAttempts = 0;
 let isConnecting = false;
+let yaSeConecto = false;
+
+/** Avisos que se vuelven a pedir cuando el socket se reconecta: lo que cambió mientras no había conexión no llegó, y las pantallas recargan. */
+const AL_RECONECTAR = [
+  'dashboard:refresh',
+  'contracts:refresh',
+  'myjobs:refresh',
+  'jobs:refresh',
+  'notifications:refresh',
+  'chat:actualizado',
+  'balance:updated',
+  'socket:reconectado',
+];
 
 // Event handler registry
 type EventCallback = (data: any) => void;
@@ -80,6 +93,8 @@ function setupSocketListeners(socket: Socket) {
     console.log('Socket connected');
     connectionAttempts = 0;
     notifyHandlers('connection:status', { connected: true });
+    if (yaSeConecto) AL_RECONECTAR.forEach((evento) => notifyHandlers(evento, { reconexion: true }));
+    yaSeConecto = true;
   });
 
   socket.on('disconnect', (reason) => {
@@ -93,41 +108,10 @@ function setupSocketListeners(socket: Socket) {
     notifyHandlers('connection:status', { connected: false, error: error.message });
   });
 
-  // Chat events
-  socket.on('message:new', (data) => notifyHandlers('message:new', data));
-  socket.on('message:updated', (data) => notifyHandlers('message:updated', data));
-  socket.on('message:read', (data) => notifyHandlers('message:read', data));
-  socket.on('typing:update', (data) => notifyHandlers('typing:update', data));
-  socket.on('user:status', (data) => notifyHandlers('user:status', data));
-  socket.on('conversation:history', (data) => notifyHandlers('conversation:history', data));
-
-  // Job & Contract events
-  socket.on('job:updated', (data) => notifyHandlers('job:updated', data));
-  socket.on('jobs:refresh', (data) => notifyHandlers('jobs:refresh', data));
-  socket.on('contract:updated', (data) => notifyHandlers('contract:updated', data));
-  socket.on('contracts:refresh', (data) => notifyHandlers('contracts:refresh', data));
-  socket.on('proposal:new', (data) => notifyHandlers('proposal:new', data));
-  socket.on('proposal:updated', (data) => notifyHandlers('proposal:updated', data));
-
-  // Dashboard events
-  socket.on('dashboard:refresh', (data) => notifyHandlers('dashboard:refresh', data));
-  socket.on('unread:updated', (data) => notifyHandlers('unread:updated', data));
-
-  // Notification events
-  socket.on('notification:new', (data) => notifyHandlers('notification:new', data));
-
-  // Admin events (for admin users)
-  socket.on('admin:job:created', (data) => notifyHandlers('admin:job:created', data));
-  socket.on('admin:job:updated', (data) => notifyHandlers('admin:job:updated', data));
-  socket.on('admin:contract:created', (data) => notifyHandlers('admin:contract:created', data));
-  socket.on('admin:contract:updated', (data) => notifyHandlers('admin:contract:updated', data));
-  socket.on('admin:user:created', (data) => notifyHandlers('admin:user:created', data));
-  socket.on('admin:dispute:created', (data) => notifyHandlers('admin:dispute:created', data));
-  socket.on('admin:dispute:updated', (data) => notifyHandlers('admin:dispute:updated', data));
-  socket.on('admin:ticket:created', (data) => notifyHandlers('admin:ticket:created', data));
-  socket.on('admin:ticket:updated', (data) => notifyHandlers('admin:ticket:updated', data));
-  socket.on('admin:withdrawal:created', (data) => notifyHandlers('admin:withdrawal:created', data));
-  socket.on('admin:withdrawal:updated', (data) => notifyHandlers('admin:withdrawal:updated', data));
+  // Todo aviso del servidor llega a quienes se anotaron con `on(...)`, sea de chat, contratos, trabajos, dinero o notificaciones.
+  // Antes se reenviaba una lista fija y los avisos nuevos (saldo, retiros, chats, notificaciones de cualquier origen) se perdían.
+  socket.offAny();
+  socket.onAny((evento: string, datos: unknown) => notifyHandlers(evento, datos));
 }
 
 /**
@@ -230,19 +214,23 @@ export function markConversationRead(conversationId: string) {
 /**
  * Disconnect socket
  */
-export function disconnect() {
+export function disconnect(limpiarOyentes = true) {
   if (socketInstance) {
     socketInstance.disconnect();
     socketInstance = null;
   }
-  eventHandlers.clear();
+  // Al cerrar sesión se sueltan todos los oyentes; al reconectar NO: las pantallas abiertas siguen anotadas.
+  if (limpiarOyentes) {
+    eventHandlers.clear();
+    yaSeConecto = false;
+  }
 }
 
 /**
  * Reconnect socket
  */
 export async function reconnect() {
-  disconnect();
+  disconnect(false);
   connectionAttempts = 0;
   return initSocket();
 }

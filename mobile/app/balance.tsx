@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 import {
   View,
   Text,
@@ -69,6 +70,10 @@ export default function BalanceScreen() {
   // Filters
   const [txFilter, setTxFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
+
+  // Un cobro, una devolución, un pago o un retiro que cambia (lo mueva quien lo mueva): el saldo y los movimientos se actualizan solos.
+  const recargarSaldo = useRecargaJuntada(() => fetchData());
+  useEventoEnVivo(['balance:updated', 'withdrawal:updated', 'payment:updated', 'socket:reconectado'], recargarSaldo);
 
   const fetchData = async () => {
     try {

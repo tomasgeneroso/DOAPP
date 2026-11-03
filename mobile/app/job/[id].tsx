@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
   Text,
@@ -113,6 +114,19 @@ export default function JobDetailScreen() {
       setTimeout(() => setCopiedJobCode(false), 3000);
     }
   };
+
+  // El trabajo, una propuesta o un contrato suyo cambió (o volvió la conexión): se vuelve a pedir, una sola vez aunque lleguen varios avisos juntos.
+  const recargarTrabajo = useRecargaJuntada(() => {
+    fetchJob();
+    fetchProposals();
+    fetchContracts();
+  });
+  useEventoEnVivo(
+    ['job:updated', 'jobs:refresh', 'contract:updated', 'proposal:updated', 'proposal:new', 'socket:reconectado'],
+    (datos?: { jobId?: string; reconexion?: boolean }) => {
+      if (!datos?.jobId || datos.reconexion || String(datos.jobId) === String(id)) recargarTrabajo();
+    },
+  );
 
   const fetchJob = async () => {
     if (!id) return;

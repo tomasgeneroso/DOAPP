@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo } from "../hooks/useSocket";
 import {
   ArrowLeft,
   FileText,
@@ -113,13 +113,21 @@ export default function ProposalDetail() {
    * Se filtra por propuesta porque un trabajador puede tener varias abiertas y
    * el evento llega a su usuario, no a esta pantalla.
    */
-  useEffect(() => {
-    registerQuoteStatusHandler((data: any) => {
-      if (!id || data?.proposalId !== id) return;
-      setFaseCotizacion(data.fase);
-      if (data.fase === 'aceptada') loadProposal();
-    });
-  }, [id, registerQuoteStatusHandler]);
+  useEffect(
+    () =>
+      registerQuoteStatusHandler((data: any) => {
+        if (!id || data?.proposalId !== id) return;
+        setFaseCotizacion(data.fase);
+        if (data.fase === 'aceptada') loadProposal();
+      }),
+    [id, registerQuoteStatusHandler],
+  );
+
+  // La propuesta cambió de estado (aprobada, rechazada, retirada) o volvió la conexión: se vuelve a pedir.
+  useEventoEnVivo(['proposal:updated', 'socket:reconectado'], (data: any) => {
+    if (!id || (data?.proposalId && data.proposalId !== id)) return;
+    loadProposal();
+  });
 
   useEffect(() => {
     if (id) {

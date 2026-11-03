@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useDialog from '@/hooks/useDialog';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
+import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 import { WithdrawalRequest } from '../types';
 import {
   ArrowDownCircle,
@@ -24,12 +25,16 @@ import Transicion from "../components/ui/Transicion";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 import { etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem, type CobroPendiente } from "../../shared/pagos/aFavorPendiente";
 import CobrosPendientes from "../components/CobrosPendientes";
+import { useToast } from "../components/ui/Toast";
+import { esLemon } from "../../shared/pagos/destinoDeRetiro";
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
   const { confirm: confirmDialog, dialog } = useDialog();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Los avisos de éxito salen abajo a la derecha, a la vista y con la X para cerrarlos (antes era un cuadro arriba de la página que a veces no se veía).
+  const toast = useToast();
   // `balance` es lo que se puede RETIRAR ahora. Lo que ya está en la cuenta pero Mercado Pago todavía no liberó se muestra aparte.
   const [balance, setBalance] = useState(0);
   const [enLiberacion, setEnLiberacion] = useState(0);
@@ -44,7 +49,15 @@ export default function WithdrawalRequestPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+
+  // A dónde cobrar: la cuenta guardada en el perfil (la que viene del servidor, sin el número entero) o una cuenta nueva que se carga acá.
+  const [cuentaDelPerfil, setCuentaDelPerfil] = useState<{ etiqueta: string; accountHolder: string; bankName: string } | null>(null);
+  const [enfriamientoDelPerfil, setEnfriamientoDelPerfil] = useState<{ motivo?: string; horasFaltantes?: number } | null>(null);
+  const [horasDeEnfriamiento, setHorasDeEnfriamiento] = useState(24);
+  const [modoDeCuenta, setModoDeCuenta] = useState<'perfil' | 'otra'>('otra');
+  const [lemonTag, setLemonTag] = useState('');
+  const [guardarEnPerfil, setGuardarEnPerfil] = useState(true);
+  const primeraCarga = useRef(true);
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -57,6 +70,10 @@ export default function WithdrawalRequestPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // El saldo disponible, lo que está por liberarse y el estado de mis retiros se actualizan solos (un administrador lo aprueba, lo transfiere o lo rechaza).
+  const recargarRetiros = useRecargaJuntada(() => loadData());
+  useEventoEnVivo(['balance:updated', 'withdrawal:updated', 'payment:updated', 'socket:reconectado'], recargarRetiros);
 
   const loadData = async () => {
     try {
@@ -75,6 +92,14 @@ export default function WithdrawalRequestPage() {
         setProximaLiquidacion(balanceData.proximaLiquidacion || null);
         setAFavorDetalle(Array.isArray(balanceData.aFavorPendienteDetalle) ? balanceData.aFavorPendienteDetalle : []);
         setCobros(Array.isArray(balanceData.cobrosPendientes) ? balanceData.cobrosPendientes : []);
+        setCuentaDelPerfil(balanceData.cuentaDelPerfil || null);
+        setEnfriamientoDelPerfil(balanceData.enfriamientoDelPerfil || null);
+        setHorasDeEnfriamiento(Number(balanceData.horasDeEnfriamiento) || 24);
+        // La primera vez se ofrece la cuenta del perfil si hay una; después se respeta lo que la persona eligió.
+        // (Se lee la marca ANTES de bajarla: la función de abajo corre después, y ya la encontraría baja.)
+        const esLaPrimera = primeraCarga.current;
+        primeraCarga.current = false;
+        setModoDeCuenta((actual) => (!balanceData.cuentaDelPerfil ? 'otra' : esLaPrimera ? 'perfil' : actual));
       }
 
       // Load withdrawals
@@ -96,7 +121,6 @@ export default function WithdrawalRequestPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
 
     // Retiro "todo o nada": siempre se retira el saldo completo (mín $1,000 ARS)
     const amountNum = balance;
@@ -106,19 +130,35 @@ export default function WithdrawalRequestPage() {
       return;
     }
 
-    if (!accountHolder.trim()) {
-      setError('El titular de la cuenta es requerido');
+    if (modoDeCuenta === 'perfil' && enfriamientoDelPerfil) {
+      setError(enfriamientoDelPerfil.motivo || 'Cambiaste tu cuenta hace poco: por seguridad el retiro se habilita unas horas después.');
       return;
     }
 
-    if (!bankName.trim()) {
-      setError('El nombre del banco es requerido');
-      return;
-    }
+    if (modoDeCuenta === 'otra') {
+      if (!accountHolder.trim()) {
+        setError('El titular de la cuenta es requerido');
+        return;
+      }
 
-    if (cbu.length !== 22 || !/^\d{22}$/.test(cbu)) {
-      setError('El CBU debe tener exactamente 22 dígitos');
-      return;
+      if (!bankName.trim()) {
+        setError('El nombre del banco es requerido');
+        return;
+      }
+
+      if (esLemon(bankName)) {
+        if (!lemonTag.trim() && !alias.trim() && !cbu) {
+          setError('Para cobrar en Lemon cargá tu $lemontag, tu alias o tu CVU.');
+          return;
+        }
+        if (cbu && cbu.length !== 22) {
+          setError('El CVU debe tener exactamente 22 dígitos');
+          return;
+        }
+      } else if (cbu.length !== 22 || !/^\d{22}$/.test(cbu)) {
+        setError('El CBU debe tener exactamente 22 dígitos');
+        return;
+      }
     }
 
     await enviarRetiro(amountNum, false);
@@ -145,13 +185,20 @@ export default function WithdrawalRequestPage() {
         body: JSON.stringify({
           amount: amountNum,
           aceptaCostoPasarela,
-          bankingInfo: {
-            accountHolder,
-            bankName,
-            accountType,
-            cbu,
-            alias: alias || undefined,
-          },
+          // Sin cuenta en el pedido, el servidor usa la del perfil. Una cuenta nueva se puede guardar en el perfil.
+          ...(modoDeCuenta === 'otra'
+            ? {
+                guardarEnPerfil,
+                bankingInfo: {
+                  accountHolder,
+                  bankName,
+                  accountType,
+                  cbu: cbu || undefined,
+                  alias: alias || undefined,
+                  lemonTag: lemonTag.trim() || undefined,
+                },
+              }
+            : {}),
         }),
       });
 
@@ -170,14 +217,15 @@ export default function WithdrawalRequestPage() {
       }
 
       if (data.success) {
-        // Si supera el tope diario, el servidor aclara que lo aprueba el dueño: se muestra su mensaje en vez del genérico.
-        setSuccess(data.requiereAprobacionDelDueno ? data.message : t('withdrawals.submitSuccess'));
+        // El servidor dice qué pasa con este retiro: lo aprueba un administrador y, si va a una cuenta nueva o supera el tope diario, además espera.
+        toast.success('Solicitud de retiro enviada', data.message || t('withdrawals.submitSuccess'));
         // Reset form
         setAmount('');
         setAccountHolder('');
         setBankName('');
         setCbu('');
         setAlias('');
+        setLemonTag('');
         // Reload data
         await loadData();
       } else {
@@ -214,7 +262,7 @@ export default function WithdrawalRequestPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(t('withdrawals.cancelSuccess'));
+        toast.success(t('withdrawals.cancelSuccess'));
         await loadData();
       } else {
         setError(data.message || 'Error al cancelar solicitud');
@@ -278,11 +326,14 @@ export default function WithdrawalRequestPage() {
 
   const totalWithdrawn = withdrawals
     .filter(w => w.status === 'completed')
-    .reduce((sum, w) => sum + w.amount, 0);
+    .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
 
   const pendingAmount = withdrawals
     .filter(w => ['pending', 'approved', 'processing'].includes(w.status))
-    .reduce((sum, w) => sum + w.amount, 0);
+    .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+
+  // Mientras hay un retiro en curso no se puede pedir otro: ese saldo ya está pedido.
+  const retiroEnCurso = withdrawals.find(w => ['pending', 'approved', 'processing'].includes(w.status));
 
   return (
     <>
@@ -311,15 +362,6 @@ export default function WithdrawalRequestPage() {
       )}
       </Transicion>
 
-      <Transicion mostrar={!!success}>
-      {success && (
-        <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          <p className="text-green-800 dark:text-green-200">{success}</p>
-        </div>
-      )}
-      </Transicion>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Current Balance */}
@@ -333,6 +375,11 @@ export default function WithdrawalRequestPage() {
           <p className="text-3xl font-bold">
             ${balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </p>
+          {retiroEnCurso && (
+            <p className="mt-2 text-xs text-sky-100">
+              Este saldo ya está pedido en un retiro en curso (${Number(retiroEnCurso.metadata?.saldoDebitado || retiroEnCurso.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}): hasta que se complete no se puede pedir otro.
+            </p>
+          )}
           {enLiberacion > 0 && (
             <p className="mt-2 text-xs text-sky-100">
               + ${enLiberacion.toLocaleString('es-AR')} ya están en tu saldo de DOAPP, pero Mercado Pago todavía no liberó ese pago
@@ -397,7 +444,12 @@ export default function WithdrawalRequestPage() {
               {t('withdrawals.newRequest')}
             </h2>
 
-            {balance <= 0 ? (
+            {retiroEnCurso ? (
+              <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-sm text-sky-900 dark:text-sky-100">
+                <p className="font-semibold mb-1">Ya tenés un retiro en curso</p>
+                <p>Cuando se complete o lo canceles vas a poder pedir otro. Lo ves a la derecha, en «Mis solicitudes de retiro».</p>
+              </div>
+            ) : balance <= 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
                   <DollarSign className="w-8 h-8 text-slate-400" />
@@ -430,6 +482,31 @@ export default function WithdrawalRequestPage() {
                 )}
               </div>
 
+              {/* A dónde cobrar */}
+              <fieldset className="space-y-2">
+                <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">¿A qué cuenta querés cobrar?</legend>
+                {cuentaDelPerfil && (
+                  <label className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${modoDeCuenta === 'perfil' ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600'}`}>
+                    <input type="radio" name="modoDeCuenta" className="mt-1" checked={modoDeCuenta === 'perfil'} onChange={() => setModoDeCuenta('perfil')} />
+                    <span className="text-sm text-gray-800 dark:text-gray-100">
+                      <strong>La cuenta de mi perfil</strong>
+                      <span className="block text-gray-600 dark:text-gray-400">{cuentaDelPerfil.accountHolder} · {cuentaDelPerfil.etiqueta}</span>
+                    </span>
+                  </label>
+                )}
+                <label className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${modoDeCuenta === 'otra' ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600'}`}>
+                  <input type="radio" name="modoDeCuenta" className="mt-1" checked={modoDeCuenta === 'otra'} onChange={() => setModoDeCuenta('otra')} />
+                  <span className="text-sm text-gray-800 dark:text-gray-100">
+                    <strong>{cuentaDelPerfil ? 'Otra cuenta' : 'Cargar una cuenta'}</strong>
+                    <span className="block text-gray-600 dark:text-gray-400">Banco, billetera o Lemon.</span>
+                  </span>
+                </label>
+                {modoDeCuenta === 'perfil' && enfriamientoDelPerfil && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">{enfriamientoDelPerfil.motivo}</p>
+                )}
+              </fieldset>
+
+              {modoDeCuenta === 'otra' && (<>
               {/* Account Holder */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -488,7 +565,7 @@ export default function WithdrawalRequestPage() {
               {/* CBU */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('withdrawals.cbu')}
+                  {esLemon(bankName) ? 'CVU (opcional si cargás $lemontag o alias)' : t('withdrawals.cbu')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -500,7 +577,7 @@ export default function WithdrawalRequestPage() {
                     onChange={(e) => setCbu(e.target.value.replace(/\D/g, '').slice(0, 22))}
                     placeholder={t('withdrawals.cbuPlaceholder')}
                     maxLength={22}
-                    required
+                    required={!esLemon(bankName)}
                     className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                   />
                 </div>
@@ -508,6 +585,21 @@ export default function WithdrawalRequestPage() {
                   {cbu.length}/22 dígitos
                 </p>
               </div>
+
+              {/* Lemon se cobra con el $lemontag, el alias o el CVU: alcanza con uno */}
+              {esLemon(bankName) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">$lemontag</label>
+                  <input
+                    type="text"
+                    value={lemonTag}
+                    onChange={(e) => setLemonTag(e.target.value.replace(/\s/g, '').slice(0, 31))}
+                    placeholder="$tunombre"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Para cobrar en Lemon alcanza con uno: tu $lemontag, tu alias o tu CVU.</p>
+                </div>
+              )}
 
               {/* Alias (optional) */}
               <div>
@@ -522,6 +614,17 @@ export default function WithdrawalRequestPage() {
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
+
+              <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" className="mt-1" checked={guardarEnPerfil} onChange={(e) => setGuardarEnPerfil(e.target.checked)} />
+                <span>Guardar esta cuenta en mi perfil para los próximos retiros</span>
+              </label>
+              {cuentaDelPerfil && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Por seguridad, un retiro a una cuenta distinta de la de tu perfil se procesa recién pasadas {horasDeEnfriamiento} horas, y te avisamos para que lo frenes si no fuiste vos.
+                </p>
+              )}
+              </>)}
 
               <Button
                 type="submit"
@@ -582,7 +685,7 @@ export default function WithdrawalRequestPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            ${withdrawal.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            ${Number(withdrawal.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                           </p>
                           {getStatusBadge(withdrawal.status)}
                         </div>
@@ -596,15 +699,39 @@ export default function WithdrawalRequestPage() {
                             <Building2 className="w-4 h-4" />
                             <span>{withdrawal.bankingInfo.bankName}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Hash className="w-4 h-4" />
-                            <span className="font-mono">{withdrawal.bankingInfo.cbu}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Hash className="w-4 h-4 flex-shrink-0" />
+                            <span className="font-mono break-all">
+                              {[
+                                withdrawal.bankingInfo.lemonTag,
+                                withdrawal.bankingInfo.alias,
+                                withdrawal.bankingInfo.cbu && `${esLemon(withdrawal.bankingInfo.bankName) ? 'CVU' : 'CBU'} ${withdrawal.bankingInfo.cbu}`,
+                              ].filter(Boolean).join(' · ') || '—'}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             <span>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')}</span>
                           </div>
                         </div>
+
+                        {['pending', 'approved', 'processing'].includes(withdrawal.status) && (
+                          <div className="mt-3 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3 text-sm text-sky-900 dark:text-sky-100 space-y-1">
+                            <p>
+                              {withdrawal.status === 'pending'
+                                ? 'Un administrador tiene que aprobar el envío del retiro a tu cuenta. Suele hacerlo en 24 a 48 horas hábiles. Gracias por tu paciencia.'
+                                : 'Tu retiro ya fue aprobado: lo estamos transfiriendo a tu cuenta.'}
+                            </p>
+                            {Number(withdrawal.metadata?.retencion) > 0 && (
+                              <p>
+                                De tus ${Number(withdrawal.metadata?.saldoDebitado).toLocaleString('es-AR', { minimumFractionDigits: 2 })} se retienen ${Number(withdrawal.metadata?.retencion).toLocaleString('es-AR', { minimumFractionDigits: 2 })} (la parte de la comisión de una publicación cancelada, T&C 9.1): recibís ${Number(withdrawal.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}.
+                              </p>
+                            )}
+                            {withdrawal.metadata?.destinoNuevo && withdrawal.metadata?.noSeProcesaAntesDe && new Date(withdrawal.metadata.noSeProcesaAntesDe).getTime() > Date.now() && (
+                              <p>Es una cuenta nueva: por seguridad se procesa a partir del {new Date(withdrawal.metadata.noSeProcesaAntesDe).toLocaleString('es-AR')}. Si no fuiste vos, cancelalo.</p>
+                            )}
+                          </div>
+                        )}
 
                         {withdrawal.rejectionReason && (
                           <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">

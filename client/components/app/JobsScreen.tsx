@@ -47,14 +47,16 @@ export const JobsScreen: React.FC = () => {
     fetchJobs();
 
     // Register real-time event handlers
-    registerJobsRefreshHandler(() => {
-      console.log("🔄 Jobs list refreshing due to real-time event...");
-      fetchJobs();
-    });
-
-    registerJobUpdateHandler((data: any) => {
-      fetchJobs();
-    });
+    const bajas = [
+      registerJobsRefreshHandler(() => {
+        console.log("🔄 Jobs list refreshing due to real-time event...");
+        fetchJobs();
+      }),
+      registerJobUpdateHandler(() => {
+        fetchJobs();
+      }),
+    ];
+    return () => bajas.forEach((baja) => baja());
   }, [fetchJobs, registerJobsRefreshHandler, registerJobUpdateHandler]);
 
   // Polling fallback when socket is not connected

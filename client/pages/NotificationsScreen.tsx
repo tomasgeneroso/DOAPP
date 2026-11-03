@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,7 @@ import {
   RefreshCw,
   ExternalLink,
 } from 'lucide-react';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket, useEventoEnVivo } from '../hooks/useSocket';
 
 interface Notification {
   id: string;
@@ -243,15 +243,23 @@ export default function NotificationsScreen() {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Register real-time notification handler
-  useEffect(() => {
-    if (registerNotificationHandler) {
+  // Register real-time notification handler (sin contar dos veces la misma: ver NotificationDropdown)
+  const yaVistas = useRef(new Set<string>());
+  useEffect(
+    () =>
       registerNotificationHandler((notification: any) => {
-        setNotifications(prev => [notification, ...prev]);
+        if (notification?.id) {
+          if (yaVistas.current.has(notification.id)) return;
+          yaVistas.current.add(notification.id);
+        }
+        setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification?.id)]);
         setUnreadCount(prev => prev + 1);
-      });
-    }
-  }, [registerNotificationHandler]);
+      }),
+    [registerNotificationHandler],
+  );
+
+  // Leídas desde otra pestaña, o la conexión volvió después de un corte.
+  useEventoEnVivo(['notifications:refresh', 'socket:reconectado'], () => fetchNotifications());
 
   // Mark single notification as read
   const markAsRead = async (notificationId: string) => {

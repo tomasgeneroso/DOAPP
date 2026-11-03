@@ -74,11 +74,7 @@ export default function Index() {
 
   // Register socket handler for jobs refresh
   useEffect(() => {
-    registerJobsRefreshHandler(handleJobsRefresh);
-    return () => {
-      // Clear handler on unmount
-      registerJobsRefreshHandler(() => {});
-    };
+    return registerJobsRefreshHandler(handleJobsRefresh);
   }, [registerJobsRefreshHandler, handleJobsRefresh]);
 
   // Scroll to anchor when page loads with hash

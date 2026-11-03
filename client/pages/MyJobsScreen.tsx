@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import {
   Briefcase,
   Calendar,
@@ -505,43 +505,15 @@ export default function MyJobsScreen() {
     return () => clearTimeout(timer);
   }, [availabilitySlots, saveToServer]);
 
-  // Register socket handlers for real-time updates
-  useEffect(() => {
-    // Handler for individual job updates
-    registerJobUpdateHandler((data: any) => {
-      const jobId = data.jobId || data.job?.id;
-      setJobs(prev => {
-        const jobExists = prev.some(job => job.id === jobId);
-        if (jobExists) {
-          console.log("🔄 MyJobsScreen: Refreshing jobs list...");
-          fetchMyJobs();
-        }
-        return prev;
-      });
-      // Also refresh proposals in case job status changed
-      fetchMyProposals();
-    });
-
-    // Handler for my jobs refresh
-    registerMyJobsRefreshHandler((data: any) => {
-      console.log("🔄 MyJobsScreen: My jobs refresh triggered via socket");
-      fetchMyJobs();
-      fetchMyProposals();
-    });
-
-    // Also listen to general jobs refresh
-    registerJobsRefreshHandler((data: any) => {
-      console.log("🔄 MyJobsScreen: Jobs refresh triggered via socket");
-      fetchMyJobs();
-      fetchMyProposals();
-    });
-
-    // Handler for new proposals on my jobs
-    registerNewProposalHandler((data: any) => {
-      fetchMyJobs();
-      fetchMyProposals();
-    });
-  }, [fetchMyJobs, fetchMyProposals, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler]);
+  // Un trabajo, una propuesta o un contrato mío que cambia (o volver la conexión) recarga las dos listas, una sola vez aunque lleguen varios avisos juntos.
+  const recargarMisTrabajos = useRecargaJuntada(() => {
+    fetchMyJobs();
+    fetchMyProposals();
+  });
+  useEventoEnVivo(
+    ['job:updated', 'myjobs:refresh', 'jobs:refresh', 'proposal:new', 'proposal:updated', 'contract:updated', 'socket:reconectado'],
+    recargarMisTrabajos,
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {

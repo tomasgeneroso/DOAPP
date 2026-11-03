@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-import { useSocket } from '@/hooks/useSocket';
+import { useSocket, useCambiosDeAdministracion } from '@/hooks/useSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { Wifi, WifiOff, Bell } from 'lucide-react';
 import DisputeSlaBadge from '@/components/admin/DisputeSlaBadge';
@@ -158,9 +158,15 @@ const AdminDisputeManager: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    registerAdminDisputeCreatedHandler(handleNewDispute);
-    registerAdminDisputeUpdatedHandler(handleDisputeUpdated);
+    const bajas = [registerAdminDisputeCreatedHandler(handleNewDispute), registerAdminDisputeUpdatedHandler(handleDisputeUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminDisputeCreatedHandler, registerAdminDisputeUpdatedHandler, handleNewDispute, handleDisputeUpdated]);
+
+  // Un reclamo nuevo o resuelto, aunque lo cambie otra persona o un cron: la lista y los números se recargan solos.
+  useCambiosDeAdministracion(['dispute'], () => {
+    fetchDisputes();
+    fetchStats();
+  });
 
   const getStatusBadge = (status: string) => {
     const styles = {

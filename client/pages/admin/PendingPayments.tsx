@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useCambiosDeAdministracion } from "@/hooks/useSocket";
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
@@ -778,19 +779,25 @@ export default function PendingPayments() {
       }
 
       // Rechazar el pago
-      const response = await fetch(`/api/admin/payments/${rejectModalPaymentId}/reject`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          reason: rejectReason,
-          notes: attachmentUrl ? `Adjunto: ${attachmentUrl}` : undefined,
-        }),
-      });
+      const enviarRechazo = (reconoceQueMercadoPagoYaCobro: boolean) =>
+        fetch(`/api/admin/payments/${rejectModalPaymentId}/reject`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            reason: rejectReason,
+            notes: attachmentUrl ? `Adjunto: ${attachmentUrl}` : undefined,
+            ...(reconoceQueMercadoPagoYaCobro ? { reconoceQueMercadoPagoYaCobro: true } : {}),
+          }),
+        });
 
-      const data = await response.json();
+      let data = await (await enviarRechazo(false)).json();
+      // Mercado Pago ya cobró este pago: rechazarlo en DOAPP no devuelve la plata. Solo se hace si quien rechaza lo reconoce, y queda anotado.
+      if (!data.success && data.code === 'MERCADOPAGO_YA_COBRO' && confirm(`${data.message}\n\n¿Rechazarlo igual? Después vas a tener que devolverle la plata al cliente (reembolso).`)) {
+        data = await (await enviarRechazo(true)).json();
+      }
       if (data.success) {
         // Rechazar + mensaje en un paso: avisar al usuario por chat con el motivo
         if (rejectSendMessage && rejectPayer?.id) {
@@ -896,6 +903,9 @@ export default function PendingPayments() {
       loadPayments();
     }
   };
+
+  // Un pago que llega (Mercado Pago, transferencia), cambia de estado o se devuelve, aunque lo mueva otra persona o un cron: la pestaña abierta se recarga sola.
+  useCambiosDeAdministracion(['payment', 'contract'], () => reloadActive());
 
   // Immediate reload on tab / sub-filter / sort / period changes.
   useEffect(() => {

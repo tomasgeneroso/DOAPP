@@ -18,7 +18,7 @@ import {
   Clock,
   ExternalLink,
 } from 'lucide-react';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket, useEventoEnVivo } from '../hooks/useSocket';
 
 interface Notification {
   id: string;
@@ -218,18 +218,26 @@ export default function NotificationDropdown() {
     }
   }, [isOpen, fetchNotifications]);
 
-  // Register real-time notification handler
-  useEffect(() => {
-    if (registerNotificationHandler) {
+  // Register real-time notification handler. Una notificación puede llegar dos veces (por la sala personal y por un aviso de una ruta): se cuenta una.
+  const yaVistas = useRef(new Set<string>());
+  useEffect(
+    () =>
       registerNotificationHandler((notification: any) => {
-        console.log('New notification received:', notification);
-        setUnreadCount(prev => prev + 1);
-        if (isOpen) {
-          setNotifications(prev => [notification, ...prev.slice(0, 4)]);
+        if (notification?.id) {
+          if (yaVistas.current.has(notification.id)) return;
+          yaVistas.current.add(notification.id);
         }
-      });
-    }
-  }, [registerNotificationHandler, isOpen]);
+        setUnreadCount(prev => prev + 1);
+        setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification?.id)].slice(0, 5));
+      }),
+    [registerNotificationHandler],
+  );
+
+  // Leídas desde otra pestaña, o la conexión volvió después de un corte: se vuelven a contar.
+  useEventoEnVivo(['notifications:refresh', 'socket:reconectado'], () => {
+    fetchUnreadCount();
+    if (isOpen) fetchNotifications();
+  });
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {

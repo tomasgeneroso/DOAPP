@@ -6,7 +6,7 @@ import { puedeReclamar } from "../../shared/pagos/modoDePago";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag, Search, Plus } from "lucide-react";
 
 interface Contract {
@@ -89,24 +89,9 @@ export default function ContractsScreen() {
     fetchContracts(1, true);
   }, [fetchContracts]);
 
-  // Register socket handlers for real-time updates
-  useEffect(() => {
-    // Handler for individual contract updates
-    registerContractUpdateHandler((data: any) => {
-      // Update the specific contract in the list
-      setContracts(prev => prev.map(contract =>
-        contract.id === data.contractId ? { ...contract, ...data.contract } : contract
-      ));
-      // Also refresh the full list to ensure consistency
-      fetchContracts(1, true);
-    });
-
-    // Handler for general contracts refresh
-    registerContractsRefreshHandler((data: any) => {
-      console.log("🔄 ContractsScreen: Contracts refresh triggered via socket");
-      fetchContracts(1, true);
-    });
-  }, [fetchContracts, registerContractUpdateHandler, registerContractsRefreshHandler]);
+  // Cualquier cambio de un contrato mío (o volver la conexión) recarga la lista, una sola vez aunque lleguen varios avisos juntos.
+  const recargarContratos = useRecargaJuntada(() => fetchContracts(1, true));
+  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'socket:reconectado'], recargarContratos);
 
   const handleLoadMore = () => {
     fetchContracts(page + 1, false);

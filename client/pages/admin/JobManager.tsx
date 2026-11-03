@@ -20,7 +20,7 @@ const safeDateTime = (value: any): string => {
   if (isNaN(d.getTime())) return '-';
   return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
 };
-import { useSocket } from "../../hooks/useSocket";
+import { useSocket, useCambiosDeAdministracion } from "../../hooks/useSocket";
 
 interface PaymentProof {
   id: string;
@@ -151,8 +151,8 @@ export default function AdminJobManager() {
 
   // Register socket handlers
   useEffect(() => {
-    registerAdminJobCreatedHandler(handleNewJob);
-    registerAdminJobUpdatedHandler(handleJobUpdated);
+    const bajas = [registerAdminJobCreatedHandler(handleNewJob), registerAdminJobUpdatedHandler(handleJobUpdated)];
+    return () => bajas.forEach((baja) => baja());
   }, [registerAdminJobCreatedHandler, registerAdminJobUpdatedHandler, handleNewJob, handleJobUpdated]);
 
   useEffect(() => {
@@ -160,6 +160,12 @@ export default function AdminJobManager() {
     fetchStats();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
+
+  // Una publicación que se paga, se aprueba o se cancela (la cambie quien la cambie): la lista y los números se recargan solos.
+  useCambiosDeAdministracion(['job'], () => {
+    fetchJobs();
+    fetchStats();
+  });
 
   const fetchJobs = async () => {
     try {
