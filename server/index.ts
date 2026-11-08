@@ -47,6 +47,7 @@ import { startAuditoriaNocturna } from "./jobs/auditoriaNocturna.js";
 import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
 import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
+import { startVencerElProDeLanzamientoJob } from "./jobs/vencerElProDeLanzamiento.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startCicloDelContratoJob } from "./jobs/cicloDelContrato.js";
 import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
@@ -546,6 +547,7 @@ startReclamoDirectoJob();
 
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();
+startVencerElProDeLanzamientoJob();
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();

@@ -6,6 +6,7 @@ import { User } from "../models/sql/User.model.js";
 import { COOKIE_DE_VINCULO, leerVinculo, leerVinculoDeApp } from "../services/vincularCuentaSocial.js";
 import { config } from "./env.js";
 import { otorgarContratosLibres } from "../services/exencionDeComision.js";
+import { enmascararCorreo } from "../../shared/seguridad/datosPersonales.js";
 
 // Configurar Google OAuth solo si las credenciales están disponibles
 if (config.googleClientId && config.googleClientSecret) {
@@ -56,7 +57,7 @@ if (config.googleClientId && config.googleClientSecret) {
               user.isVerified = true;
               // Solo estos tres campos: una cuenta vieja con otro dato que no pasa las validaciones de hoy no puede impedir entrar.
               await user.save({ fields: ['googleId', 'avatar', 'isVerified'] });
-              console.log(`✅ Cuenta Google vinculada con usuario existente: ${email}`);
+              console.log(`✅ Cuenta Google vinculada con usuario existente: ${enmascararCorreo(email)}`);
               return done(null, user);
             }
           }

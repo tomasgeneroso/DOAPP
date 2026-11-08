@@ -53,13 +53,13 @@ export function startResetReferralDiscountsJob() {
         : `Tu comisión es la estándar, del ${COMMISSION_RATES.free}% (${COMMISSION_RATES.pro}% con la membresía PRO).`;
       const textoPro = enBeta
         ? ''
-        : ` La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes) baja la comisión al ${COMMISSION_RATES.pro}% y suma un contrato libre de comisión por mes, promoción del perfil y prioridad en las búsquedas.`;
+        : ` La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes más IVA) baja la comisión al ${COMMISSION_RATES.pro}% y suma un contrato libre de comisión por mes, promoción del perfil y prioridad en las búsquedas.`;
       const bloquePro = enBeta
         ? ''
         : `
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; margin: 20px 0; color: white;">
                   <h3 style="margin-top: 0;">¿Querés pagar menos comisión y tener más visibilidad?</h3>
-                  <p>La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes, cobrada en pesos al cambio del día) incluye:</p>
+                  <p>La membresía PRO (€${MEMBERSHIP_PRICES_EUR.pro}/mes más IVA, cobrada en pesos al cambio del día) incluye:</p>
                   <ul>
                     ${beneficiosPro().map((b) => `<li>${b}</li>`).join('\n                    ')}
                   </ul>
@@ -133,7 +133,7 @@ export function startResetReferralDiscountsJob() {
           }
 
           resetCount++;
-          console.log(`🔄 [CRON] Reseteado descuento para usuario ${user.name} (${user.email})`);
+          console.log(`🔄 [CRON] Reseteado descuento para usuario ${user.id}`);
         } catch (error) {
           console.error(`❌ [CRON] Error reseteando descuento para usuario ${user.id}:`, error);
         }

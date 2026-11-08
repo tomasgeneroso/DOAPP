@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES, PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.js';
-import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS, precioConIva } from '../../shared/constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../../shared/pricing/minimums.js';
 import { termsEs } from '../../shared/legal/terms.es.js';
 import { termsEn } from '../../shared/legal/terms.en.js';
@@ -30,8 +30,9 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
   { key: 's7p12', valores: [POLITICAS.DIAS_LIBERACION_PAGO], que: 'dias que la pasarela tarda en liberar un pago (saldo pendiente)' },
   {
     key: 's7p13',
-    valores: [POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, POLITICAS.CONTRATOS_LIBRES_POR_MES, POLITICAS.MESES_DE_CONTRATOS_LIBRES],
-    que: 'contratos libres de comision de lanzamiento',
+    // La clausula dice «el primer periodo mensual» de PRO sin costo: por eso hay un test aparte que fija MESES_DE_PRO_DE_LANZAMIENTO en 1.
+    valores: [POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO],
+    que: 'beneficio de lanzamiento (contrato libre unico y PRO sin costo)',
   },
   {
     key: 's7p14',
@@ -46,7 +47,7 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
     ],
     que: 'premio por referidos',
   },
-  { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`, `${COMMISSION_RATES.pro}%`, MEMBERSHIP_PROMO_DAYS, POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES], que: 'precio y beneficios de la membresia' },
+  { key: 's8p1', valores: [`€${MEMBERSHIP_PRICES_EUR.pro}`, `${COMMISSION_RATES.pro}%`, MEMBERSHIP_PROMO_DAYS], que: 'precio y beneficios de la membresia' },
   { key: 's9p2', valores: [POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES], que: 'horas para cancelar con devolucion' },
   {
     key: 's9p3',
@@ -198,6 +199,25 @@ describe('los textos de la app dicen lo mismo que los terminos', () => {
   it('el email de confirmacion pendiente usa la constante, no un literal', () => {
     const src = leer('server/services/email.ts');
     expect(src).toMatch(/POLITICAS\.AUTO_CONFIRMACION_HORAS/);
+  });
+});
+
+describe('la suscripcion PRO paga IVA (regla del dueño, 2026-11-06)', () => {
+  it('precioConIva suma el 21% sobre el neto, en pesos enteros, y neto + IVA es siempre el total', () => {
+    expect(precioConIva(10500)).toEqual({ neto: 10500, iva: 2205, total: 12705, alicuotaIva: 21 });
+    expect(precioConIva(10499.6)).toMatchObject({ neto: 10500 });
+    for (const n of [0, 1, 7, 12345, 99999]) {
+      const p = precioConIva(n);
+      expect({ n, suma: p.neto + p.iva }).toEqual({ n, suma: p.total });
+    }
+    expect(precioConIva(Number.NaN).total).toBe(0); // un dato roto no cobra un importe raro
+  });
+
+  it('los terminos lo dicen en los dos idiomas: la cuota es SIN IVA y el IVA se suma', () => {
+    expect(termsEs.s8p1).toMatch(/más IVA del 21%/);
+    expect(termsEn.s8p1).toMatch(/plus 21% VAT/);
+    expect(termsEs.planProMonth).toMatch(/\+ IVA/);
+    expect(termsEn.planProMonth).toMatch(/\+ VAT/);
   });
 });
 

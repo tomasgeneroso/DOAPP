@@ -96,7 +96,7 @@ export interface User {
   referralCode?: string;
   freeContractsRemaining?: number;
   /** Los contratos libres de comisión que puede usar ahora: el del mes (primeras cuentas, hasta `hasta`) y los de premios. `freeContractsRemaining` es el total. */
-  contratosLibres?: { mensual: number; bono: number; total: number; hasta: string | null };
+  contratosLibres?: { membresia: number; bono: number; total: number };
   totalReferrals?: number;
   membershipType?: 'free' | 'pro' | 'super_pro';
   membershipTier?: 'free' | 'pro' | 'super_pro';

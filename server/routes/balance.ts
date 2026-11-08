@@ -178,6 +178,84 @@ router.get("/transactions", protect, async (req: AuthRequest, res: Response): Pr
 });
 
 /**
+ * Cuánto gastó la persona en la plataforma: lo que PAGÓ y ya está acreditado (publicaciones, contratos, aumentos de presupuesto,
+ * cotizaciones, órdenes al terminar y membresía), en pesos. Sale de los pagos y no de los contratos: el tablero sumaba solo contratos
+ * COMPLETADOS (`totalPrice`), así que quien ya había pagado un trabajo todavía en curso veía «$0 gastado».
+ *
+ * Cuentan los pagos en que la plata ya entró (verificado, en custodia, esperando confirmación, en disputa, completado). No cuentan los
+ * pendientes de comprobar, fallidos, cancelados ni devueltos, ni lo que no es un gasto suyo (la liberación al trabajador y los reembolsos).
+ * Un pago en otra moneda cuenta por su equivalente en pesos si lo tiene; si no, no se inventa un tipo de cambio.
+ * GET /api/balance/gastado
+ */
+const ESTADOS_DE_PAGO_ACREDITADO = ['verified', 'held_escrow', 'confirmed_for_payout', 'awaiting_confirmation', 'disputed', 'completed', 'approved'];
+const TIPOS_QUE_NO_SON_UN_GASTO = ['escrow_release', 'refund'];
+
+/** Cómo se le dice a la persona cada tipo y estado de pago (nunca el valor de la base, que sale en inglés). */
+const ETIQUETA_DEL_TIPO: Record<string, string> = {
+  contract_payment: 'Pago de contrato',
+  escrow_deposit: 'Pago de contrato',
+  contract: 'Pago de contrato',
+  job_publication: 'Publicación de trabajo',
+  budget_increase: 'Aumento de presupuesto',
+  quote_payment: 'Pago de cotización',
+  on_completion: 'Pago al terminar el trabajo',
+  membership: 'Membresía PRO',
+};
+const ETIQUETA_DEL_ESTADO: Record<string, string> = {
+  verified: 'Acreditado',
+  approved: 'Acreditado',
+  held_escrow: 'En custodia hasta que se confirme el trabajo',
+  confirmed_for_payout: 'Listo para pagarle al trabajador',
+  awaiting_confirmation: 'Esperando confirmación',
+  disputed: 'En reclamo',
+  completed: 'Completado',
+};
+
+router.get("/gastado", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const pagos = (await Payment.findAll({
+      where: {
+        payerId: req.user.id,
+        status: { [Op.in]: ESTADOS_DE_PAGO_ACREDITADO },
+        paymentType: { [Op.notIn]: TIPOS_QUE_NO_SON_UN_GASTO },
+      } as any,
+      attributes: ['id', 'amount', 'currency', 'amountArs', 'status', 'paymentType', 'description', 'contractId', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+      raw: true,
+    })) as unknown as Array<{
+      id: string; amount: string | number; currency: string; amountArs: string | number | null;
+      status: string; paymentType: string; description: string | null; contractId: string | null; createdAt: Date;
+    }>;
+
+    let total = 0;
+    let sinEquivalente = 0;
+    const detalle: Array<Record<string, unknown>> = [];
+    for (const p of pagos) {
+      let enPesos: number | null = null;
+      if (String(p.currency).toUpperCase() === 'ARS') enPesos = Number(p.amount) || 0;
+      else if (p.amountArs !== null && p.amountArs !== undefined) enPesos = Number(p.amountArs) || 0;
+      if (enPesos === null) sinEquivalente += 1;
+      else total += enPesos;
+      if (detalle.length < 100) {
+        detalle.push({
+          id: p.id,
+          fecha: p.createdAt,
+          concepto: ETIQUETA_DEL_TIPO[p.paymentType] || 'Pago',
+          descripcion: p.description || null,
+          estado: ETIQUETA_DEL_ESTADO[p.status] || 'Acreditado',
+          montoEnPesos: enPesos,
+          contractId: p.contractId,
+        });
+      }
+    }
+    res.json({ success: true, totalGastado: Math.round(total * 100) / 100, pagos: pagos.length, pagosSinEquivalenteEnPesos: sinEquivalente, detalle });
+  } catch (error: any) {
+    console.error("Error calculando lo gastado:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al calcular lo gastado" });
+  }
+});
+
+/**
  * Get balance summary stats
  * GET /api/balance/summary
  */

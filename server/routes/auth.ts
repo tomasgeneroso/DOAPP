@@ -75,13 +75,30 @@ const generateToken = (id: string): string => {
   return jwt.sign({ id }, config.jwtSecret as Secret, options);
 };
 
-// @route   GET /api/auth/check-availability
-// @desc    Chequeo en vivo de disponibilidad de email/username para el registro
-// @access  Public (rate-limited por el apiLimiter global)
-router.get("/check-availability", async (req: Request, res: Response): Promise<void> => {
+/**
+ * Deja la sesión del ingreso social en una cookie httpOnly (la página no la puede leer). Antes también viajaba en la dirección de retorno
+ * (`/auth/callback?token=<sesión>`), y una dirección queda escrita en los registros de nginx y de Cloudflare, en el historial del navegador y en lo que mida
+ * cualquier script de un tercero: quien la leyera podía entrar como esa persona. Mismos atributos que la cookie del ingreso con correo.
+ */
+function guardarSesionEnCookie(res: Response, token: string): void {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
+  });
+}
+
+/** A dónde vuelve la persona después de Google, Facebook o X: la pantalla de retorno, sin ningún dato de la sesión en la dirección. */
+function direccionDeRetornoSocial(necesitaCompletarElRegistro: boolean): string {
+  return `${config.clientUrl}/auth/callback${necesitaCompletarElRegistro ? '?needsDni=true' : ''}`;
+}
+
+/** ¿Están libres este correo y este usuario? Lo comparten el POST (el dato viaja en el cuerpo) y el GET viejo (en la dirección). */
+async function comprobarDisponibilidad(emailEntrada: unknown, usernameEntrada: unknown, res: Response): Promise<void> {
   try {
-    const email = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : undefined;
-    const username = typeof req.query.username === 'string' ? req.query.username.trim().toLowerCase() : undefined;
+    const email = typeof emailEntrada === 'string' ? emailEntrada.trim().toLowerCase() : undefined;
+    const username = typeof usernameEntrada === 'string' ? usernameEntrada.trim().toLowerCase() : undefined;
 
     const result: { emailAvailable?: boolean; usernameAvailable?: boolean } = {};
     if (email) {
@@ -96,6 +113,21 @@ router.get("/check-availability", async (req: Request, res: Response): Promise<v
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
+}
+
+// @route   POST /api/auth/check-availability
+// @desc    Chequeo en vivo de disponibilidad de email/username para el registro. El correo va en el CUERPO: en la dirección
+//          quedaba en los registros de nginx y de Cloudflare por cada correo que alguien empezó a escribir.
+// @access  Public (rate-limited por el apiLimiter global)
+router.post("/check-availability", async (req: Request, res: Response): Promise<void> => {
+  await comprobarDisponibilidad(req.body?.email, req.body?.username, res);
+});
+
+// @route   GET /api/auth/check-availability
+// @desc    Lo usan las pestañas abiertas antes del cambio a POST. Se puede borrar en la próxima versión: ninguna pantalla lo llama.
+// @access  Public
+router.get("/check-availability", async (req: Request, res: Response): Promise<void> => {
+  await comprobarDisponibilidad(req.query.email, req.query.username, res);
 });
 
 // @route   POST /api/auth/register
@@ -401,6 +433,17 @@ router.post(
           success: false,
           message: "Email o contraseña incorrectos",
           field: "password"
+        });
+        return;
+      }
+
+      // Una cuenta unificada con otra (la misma persona con dos documentos) no inicia sesión: se entra con la principal. Va DESPUÉS de comprobar la
+      // contraseña: antes, el mensaje le diría a cualquiera qué correos tienen cuenta.
+      if ((user as any).mergedIntoId) {
+        res.status(403).json({
+          success: false,
+          code: 'CUENTA_UNIFICADA',
+          message: "Esta cuenta se unificó con otra tuya. Iniciá sesión con tu cuenta principal.",
         });
         return;
       }
@@ -1231,21 +1274,9 @@ router.get(
       return;
     }
 
-    const token = generateToken((user.id as unknown as string));
-
-    // Set token in httpOnly cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: config.nodeEnv === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
-    });
-
-    // Check if user needs to complete registration (no DNI)
-    const needsDni = !user.dni;
-
-    // Redirigir con el token en la URL para el frontend
-    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
+    // La sesión viaja en una cookie httpOnly, NO en la dirección (queda en los registros del servidor y de Cloudflare).
+    guardarSesionEnCookie(res, generateToken((user.id as unknown as string)));
+    res.redirect(direccionDeRetornoSocial(!user.dni));
   }
 );
 
@@ -1284,12 +1315,9 @@ router.get(
   }),
   (req: Request, res: Response) => {
     const user = req.user as any;
-    const token = generateToken((user.id as unknown as string));
-
-    // Check if user needs to complete registration (no DNI)
-    const needsDni = !user.dni;
-
-    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
+    // Igual que Google y X: la sesión va en una cookie httpOnly, no en la dirección.
+    guardarSesionEnCookie(res, generateToken((user.id as unknown as string)));
+    res.redirect(direccionDeRetornoSocial(!user.dni));
   }
 );
 
@@ -1524,26 +1552,9 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Generate JWT token
-    const token = generateToken(user.id as string);
-    console.log('🐦 Twitter login successful for user:', user.id);
-    console.log('🐦 Generated token (first 20 chars):', token.substring(0, 20) + '...');
-
-    // Set token in httpOnly cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: config.nodeEnv === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
-
-    // Check if user needs to complete registration (no DNI)
-    const needsDni = !user.dni;
-
-    // Redirect to frontend with token
-    const redirectUrl = `${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`;
-    console.log('🐦 Redirecting to:', redirectUrl.substring(0, 80) + '...');
-    res.redirect(redirectUrl);
+    // La sesión va en una cookie httpOnly, no en la dirección ni en el registro (antes se escribían los primeros caracteres del token).
+    guardarSesionEnCookie(res, generateToken(user.id as string));
+    res.redirect(direccionDeRetornoSocial(!user.dni));
   } catch (error: any) {
     console.error('Twitter OAuth callback error:', error);
     res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);

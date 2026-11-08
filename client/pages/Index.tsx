@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
+import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
 import type { Job, User as UserType } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
 import { useAdvertisements } from "../hooks/useAdvertisements";
@@ -716,7 +717,8 @@ export default function Index() {
                       {job.status === 'open' ? `✓ ${t('jobs.status.open')}` :
                        job.status === 'draft' ? `📝 ${t('jobs.status.draft')}` :
                        job.status === 'pending_payment' ? `⏳ ${t('jobs.status.pending_payment')}` :
-                       job.status}
+                       // Cualquier otro estado (en curso, completado, en revisión, pausado…) en español: antes salía el valor de la base («in_progress»).
+                       estadoDePublicacion(job).etiqueta}
                     </span>
                   </div>
                 </Link>

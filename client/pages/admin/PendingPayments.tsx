@@ -341,7 +341,12 @@ export default function PendingPayments() {
     }
   };
 
+  // La pestaña de «Pagos a la App» que está abierta AHORA (se actualiza en cada render): lo que llega de otra no se muestra.
+  const filtroAbiertoRef = useRef(appSubFilter);
+  filtroAbiertoRef.current = appSubFilter;
+
   const loadVerificationPayments = async () => {
+    const filtroUsado = appSubFilter;
     try {
       setVerificationLoading(true);
       const token = localStorage.getItem("token");
@@ -386,7 +391,9 @@ export default function PendingPayments() {
       );
 
       const data = await response.json();
-      if (data.success) {
+      // Una respuesta de una pestaña que ya no es la abierta no pisa la lista (un pedido con el filtro viejo que llega tarde mostraba los «pendientes» donde el
+      // administrador acababa de abrir «Verificado»).
+      if (data.success && filtroUsado === filtroAbiertoRef.current) {
         setVerificationPayments(data.data || []);
       }
     } catch (error) {
@@ -635,11 +642,22 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
-        alert("✅ Comprobante verificado. El pago salió de 'Pendiente' y ahora aparece en la pestaña 'Verificado' (siguiente paso: verificar el escrow).");
+        // El pago queda «Verificado» solo si es de un contrato (falta verificar la garantía). Uno de publicación o de membresía queda «Completado»:
+        // no tiene garantía que verificar, y antes la pantalla igual saltaba a «Verificado» (vacía) y decía que estaba ahí.
+        const quedoVerificado = data.newStatus === 'verified';
+        const duplicado = data.comprobanteDuplicado
+          ? `\n\n⚠️ Comprobante duplicado: el número de operación «${data.comprobanteDuplicado.referencia}» ya figuraba en ${data.comprobanteDuplicado.otrosPagos.length === 1 ? 'otro pago' : `${data.comprobanteDuplicado.otrosPagos.length} pagos`}. Se aprobó igual, pero quedó marcado.`
+          : '';
+        alert(
+          (quedoVerificado
+            ? "✅ Comprobante verificado. El pago salió de 'Pendiente' y ahora aparece en la pestaña 'Verificado' (siguiente paso: verificar el escrow)."
+            : "✅ Comprobante verificado. Este pago no tiene garantía que verificar: quedó 'Completado' (lo ves en la pestaña 'Todos'). Ya no figura en 'Pendiente'.") + duplicado
+        );
         setApproveModalPaymentId(null);
-        // Move to the "Verificado" sub-filter so the admin sees the result and can
-        // continue the flow (the effect on appSubFilter reloads the list).
-        setAppSubFilter("verified");
+        // Va a la pestaña donde quedó el pago; si ya estaba en esa, el efecto de la pestaña no se dispara y la lista se recarga a mano.
+        const destino = quedoVerificado ? "verified" : "all";
+        if (destino === appSubFilter) loadVerificationPayments();
+        else setAppSubFilter(destino);
       } else {
         alert(data.message || "Error al aprobar el pago");
       }
@@ -773,8 +791,11 @@ export default function PendingPayments() {
         });
 
         const uploadData = await uploadResponse.json();
-        if (uploadData.success) {
-          attachmentUrl = uploadData.fileUrl;
+        if (uploadData.success && uploadData.url) {
+          // La ruta devuelve `url` (antes se leía `fileUrl`, que no existe: el adjunto del rechazo nunca se guardaba).
+          attachmentUrl = uploadData.url;
+        } else {
+          throw new Error(uploadData.message || "No se pudo subir el adjunto del rechazo");
         }
       }
 
@@ -815,9 +836,9 @@ export default function PendingPayments() {
       } else {
         alert(data.message || "Error al rechazar el pago");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error rejecting payment:", error);
-      alert("Error al rechazar el pago");
+      alert(error?.message || "Error al rechazar el pago");
     } finally {
       setRejectUploading(false);
     }
@@ -856,7 +877,13 @@ export default function PendingPayments() {
 
   // Duplicate operation-number detection (keyed on the reference, not the amount).
   // Re-query when the search term settles, so the server does the filtering.
+  // No corre al montar: la carga inicial ya la hace el efecto de pestañas, y este pedido llegaba con el filtro del primer render, tarde, encima de la pestaña elegida.
+  const buscadorYaMontado = useRef(false);
   useEffect(() => {
+    if (!buscadorYaMontado.current) {
+      buscadorYaMontado.current = true;
+      return;
+    }
     const t = setTimeout(() => { loadVerificationPayments(); }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1792,20 +1819,35 @@ export default function PendingPayments() {
                             </div>
                           </td>
                           <td className="px-4 py-4">
-                            {payment.proofs && payment.proofs.length > 0 ? (
-                              <button
-                                onClick={() => openProofViewer(
-                                  payment.proofs![0].fileUrl,
-                                  `Comprobante · ${payment.proofs![0].clientName || ''}`,
-                                  payment.proofs![0].clientId,
-                                  payment.proofs![0].clientName,
-                                  payment.id,
+                            {(payment.proofs && payment.proofs.length > 0) || (payment.adminProofs && payment.adminProofs.length > 0) ? (
+                              <div className="flex flex-col items-start gap-1">
+                                <button
+                                  onClick={() => {
+                                    // El recibo del cliente primero; si no subió ninguno, el comprobante que cargó la administración al verificar.
+                                    const recibo = payment.proofs?.[0] ?? payment.adminProofs?.[0];
+                                    openProofViewer(
+                                      recibo.fileUrl,
+                                      `Comprobante · ${recibo.clientName || payment.payer?.name || ''}`,
+                                      recibo.clientId || payment.payer?.id,
+                                      recibo.clientName || payment.payer?.name,
+                                      payment.id,
+                                    );
+                                  }}
+                                  className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                                >
+                                  <Receipt className="h-4 w-4" />
+                                  Ver
+                                  {(!payment.proofs || payment.proofs.length === 0) && <span className="text-xs text-gray-500 dark:text-gray-400">(de administración)</span>}
+                                </button>
+                                {payment.comprobanteDuplicado && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300"
+                                    title={`El número de operación «${payment.comprobanteDuplicado.referencia}» también figura en ${payment.comprobanteDuplicado.otrosPagos.length === 1 ? 'otro pago' : `${payment.comprobanteDuplicado.otrosPagos.length} pagos más`}: ${payment.comprobanteDuplicado.otrosPagos.slice(0, 3).map((o: { paymentId: string; estado: string | null }) => `${o.paymentId.slice(0, 8)}${o.estado ? ` (${o.estado})` : ''}`).join(', ')}`}
+                                  >
+                                    ⚠️ Comprobante duplicado
+                                  </span>
                                 )}
-                                className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
-                              >
-                                <Receipt className="h-4 w-4" />
-                                Ver
-                              </button>
+                              </div>
                             ) : payment.isMercadoPago ? (
                               <span className="text-xs text-blue-500 dark:text-blue-400">
                                 MercadoPago
@@ -1827,7 +1869,7 @@ export default function PendingPayments() {
                                   {/* Mostrar si hay adjunto */}
                                   {payment.adminNotes.includes('Adjunto:') && (
                                     <a
-                                      href={payment.adminNotes.match(/Adjunto: (https?:\/\/[^\s]+)/)?.[1] || '#'}
+                                      href={(() => { const adjunto = payment.adminNotes.match(/Adjunto: (\S+)/)?.[1]; return adjunto ? getImageUrl(adjunto) : '#'; })()}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 mt-1"
@@ -3203,7 +3245,7 @@ export default function PendingPayments() {
                           </li>
                         ))}
                       </ul>
-                      <p className="mt-1 italic">Verificá que no se esté reutilizando un mismo comprobante para dos trabajos distintos.</p>
+                      <p className="mt-1 italic">Verificá que no se esté reutilizando un mismo comprobante para dos trabajos distintos. Si es correcto, podés aprobarlo igual: queda marcado como «Comprobante duplicado» para que se vea después.</p>
                     </div>
                   )}
                 </div>

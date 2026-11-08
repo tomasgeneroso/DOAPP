@@ -1,7 +1,53 @@
 import { Router, Response } from 'express';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
+import { pendientesDelAdmin } from '../../services/pendientesDeAdmin.js';
 
 const router = Router();
+
+/**
+ * GET /api/admin/hubs/pendientes
+ * Lo que el administrador tiene que hacer, de lo más urgente a lo menos y por tipo (retiros, publicaciones, disputas…). Cada rol ve solo lo suyo.
+ *
+ * Va ANTES de la protección general de abajo y con su propia autorización: esa deja afuera a `super_admin`, y abrirle de paso las rutas
+ * financieras de este archivo no es el objetivo. La lista que cada rol recibe ya sale filtrada por el servicio.
+ */
+router.get('/pendientes', protect, authorize('owner', 'super_admin', 'admin', 'support'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const resultado = await pendientesDelAdmin(String(req.user.adminRole));
+    res.json({ success: true, ...resultado });
+  } catch (error: any) {
+    console.error('[admin/hubs/pendientes]', error);
+    res.status(500).json({ success: false, message: 'No se pudieron leer los pendientes.' });
+  }
+});
+
+/**
+ * POST /api/admin/hubs/identidad-a-revisar/unir
+ * Une dos cuentas de la MISMA persona (doble ciudadanía o cuenta duplicada): `secundariaId` queda unificada con `principalId` (ver `services/unionDeCuentas.ts`).
+ * Solo owner, super_admin y admin (soporte puede revisar casos, no unir). Va ANTES de la protección general de abajo por lo mismo que `/pendientes`:
+ * esa deja afuera a `super_admin`. Si no se pueden unir (hay saldo, contratos o trabajos sin resolver) responde 409 con los motivos, uno por línea.
+ */
+router.post('/identidad-a-revisar/unir', protect, authorize('owner', 'super_admin', 'admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { unirCuentas, ErrorDeUnion } = await import('../../services/unionDeCuentas.js');
+    try {
+      const resultado = await unirCuentas({
+        secundariaId: String(req.body?.secundariaId ?? ''),
+        principalId: String(req.body?.principalId ?? ''),
+        adminId: String(req.user.id),
+        nota: req.body?.nota,
+        confirmarMismaPersona: req.body?.confirmarMismaPersona === true,
+      });
+      res.json({ success: true, ...resultado });
+    } catch (e: any) {
+      if (e instanceof ErrorDeUnion) { res.status(e.estado).json({ success: false, message: e.message, motivos: e.motivos }); return; }
+      throw e;
+    }
+  } catch (error: any) {
+    console.error('[admin/hubs/identidad-a-revisar/unir]', error);
+    res.status(500).json({ success: false, message: 'No se pudieron unir las cuentas.' });
+  }
+});
 
 // Protección: solo admin/owner
 router.use(protect, authorize('admin', 'owner', 'support'));
@@ -255,7 +301,11 @@ router.post('/identidad-a-revisar/:userId/revisar', async (req: AuthRequest, res
   try {
     const { marcarConflictoRevisado, ErrorDeRevision } = await import('../../services/identidadAReviser.js');
     try {
-      await marcarConflictoRevisado(String(req.params.userId), String(req.user.id), req.body?.nota);
+      // `tipo` y `otraCuentaId` distinguen un DNI repetido de una posible cuenta duplicada (misma persona con otro documento).
+      await marcarConflictoRevisado(String(req.params.userId), String(req.user.id), req.body?.nota, {
+        tipo: req.body?.tipo === 'misma_persona' ? 'misma_persona' : 'dni_repetido',
+        otraCuentaId: typeof req.body?.otraCuentaId === 'string' ? req.body.otraCuentaId : undefined,
+      });
     } catch (e: any) {
       if (e instanceof ErrorDeRevision) { res.status(e.estado).json({ success: false, message: e.message }); return; }
       throw e;

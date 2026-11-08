@@ -3,6 +3,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
+import BannerDeCookies from "./components/BannerDeCookies";
 import { SeoDeRuta } from "./components/SeoDeRuta";
 import { RastreadorDeRuta } from "./utils/rutaAnterior";
 import { OnboardingProvider } from "./hooks/useOnboarding";
@@ -169,6 +170,7 @@ export default function App() {
             */}
             <BrowserRouter>
               <GoogleAnalytics />
+              <BannerDeCookies />
               <SeoDeRuta />
               <RastreadorDeRuta />
               <OnboardingProvider>

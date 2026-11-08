@@ -111,7 +111,9 @@ router.get('/oauth/callback', async (req: Request, res: Response): Promise<void>
 
     // Redirect to success page
     const redirectUrl = returnUrl || '/perfil/pagos';
-    res.redirect(`${process.env.CLIENT_URL}${redirectUrl}?mp_linked=true&mp_email=${encodeURIComponent(result.email || '')}`);
+    // Sin el correo de la cuenta de Mercado Pago en la dirección: queda en el historial, en los registros de nginx y en la analítica.
+    // La pantalla que lo necesite lo pide al servidor con la sesión iniciada.
+    res.redirect(`${process.env.CLIENT_URL}${redirectUrl}?mp_linked=true`);
   } catch (error: any) {
     console.error('Error in MercadoPago OAuth callback:', error);
     res.redirect(`${process.env.CLIENT_URL}/perfil/pagos?mp_error=${encodeURIComponent(error.message)}`);

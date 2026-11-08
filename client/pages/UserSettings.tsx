@@ -1449,8 +1449,8 @@ export default function UserSettings() {
                             piso: MINIMUM_COMMISSION_EUR,
                             precio: MEMBERSHIP_PRICES_EUR.pro,
                             usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,
-                            cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES,
-                            meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES,
+                            cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
+                            meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,
                           }),
                         },
                         {

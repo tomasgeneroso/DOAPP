@@ -169,7 +169,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                       <span className="text-gray-600 dark:text-gray-400">ARS/mes</span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      €{pricing.pro.priceEUR} EUR ≈ ${pricing.pro.priceARS?.toLocaleString('es-AR')} ARS
+                      €{pricing.pro.priceEUR} EUR + IVA ≈ ${pricing.pro.priceARS?.toLocaleString('es-AR')} ARS (IVA incluido)
                     </p>
                     {/* Con qué cotización se hizo esa conversión y de dónde salió. */}
                     <OrigenDeLaCotizacion cotizacion={cotizacion} moneda="EUR" className="mt-1 text-center" />

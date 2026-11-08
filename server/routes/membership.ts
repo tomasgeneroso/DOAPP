@@ -4,7 +4,7 @@ import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService, { MembershipError } from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
-import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing.js";
+import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS, precioConIva, type PrecioDeMembresia } from "../../shared/constants/membershipPricing.js";
 import { areMembershipsAvailable } from "../services/platformPhase.js";
 import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 import { POLITICAS } from "../../shared/constants/policies.js";
@@ -15,8 +15,12 @@ import { body, validationResult } from "express-validator";
 // SUPER PRO ya no se vende ni se muestra: 'super_pro' sobrevive sólo como
 // identificador interno (enum de base, tipos, tier efectivo durante la beta).
 const PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.pro;
-async function getProPriceARS(): Promise<number> {
-  return Math.round(await currencyExchange.convertEURtoARS(PRO_PRICE_EUR));
+/**
+ * Lo que cuesta PRO hoy en pesos: los €7 convertidos (SIN IVA) más el IVA. `total` es lo que se le cobra a la persona; el neto es lo que entra como ingreso
+ * (`Membership.priceARS`). La suscripción paga IVA (regla del dueño, 2026-11-06), igual que la comisión y el costo de procesamiento.
+ */
+async function getProPrecio(): Promise<PrecioDeMembresia> {
+  return precioConIva(await currencyExchange.convertEURtoARS(PRO_PRICE_EUR));
 }
 
 /** Por qué no se puede comprar hoy. Es lo que dicen los Términos (8.1). */
@@ -168,7 +172,7 @@ router.post(
  */
 router.get("/pricing", async (req, res) => {
   try {
-    const proPriceARS = await getProPriceARS();
+    const precioPro = await getProPrecio();
     // Durante la beta la membresía no está a la venta (Términos 8.1). Se
     // habilita sola al pasar a la fase estable.
     const disponibles = await areMembershipsAvailable();
@@ -198,15 +202,20 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.free,
           benefits: [
-            `${POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato libre de comisión por mes durante ${POLITICAS.MESES_DE_CONTRATOS_LIBRES} meses (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas)`,
+            `${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión, una sola vez, y PRO gratis por ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas verificadas)`,
             `Comisión fija del ${COMMISSION_RATES.free}%`,
             '3 códigos de invitación',
           ],
         },
         pro: {
           name: 'PRO Mensual',
-          price: proPriceARS,
-          priceARS: proPriceARS,
+          // `price` y `priceARS` son lo que se COBRA (con IVA): las apps publicadas antes solo leen estos dos y así muestran el importe real.
+          price: precioPro.total,
+          priceARS: precioPro.total,
+          // El desglose: los €7 son sin IVA y el IVA se suma (regla del dueño, 2026-11-06).
+          netARS: precioPro.neto,
+          ivaARS: precioPro.iva,
+          ivaRate: precioPro.alicuotaIva,
           priceEUR: PRO_PRICE_EUR,
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.pro,
@@ -265,7 +274,8 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
     // ========================================
     // Crear preferencia de pago con MercadoPago
     // ========================================
-    const finalPrice = await getProPriceARS(); // PRO en euros, cobrado en ARS al cambio del día
+    const precio = await getProPrecio();
+    const finalPrice = precio.total; // PRO en euros, cobrado en ARS al cambio del día, MÁS IVA
 
     const mercadopagoService = (await import('../services/mercadopago.js')).default;
 
@@ -300,6 +310,8 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
       platformFee: 0,
       platformFeePercentage: 0,
       isEscrow: false,
+      // Lo cobrado = neto + IVA: el desglose queda en el pago para declarar el IVA y facturar.
+      metadata: { neto: precio.neto, iva: precio.iva, alicuotaIva: precio.alicuotaIva },
     });
 
     console.log('✅ Preferencia MercadoPago creada para upgrade a PRO:', mpPayment.paymentId);
@@ -385,9 +397,10 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
     }
 
     // ========================================
-    // PRO en euros (MEMBERSHIP_PRICES_EUR.pro), cobrado en ARS al cambio del día.
+    // PRO en euros (MEMBERSHIP_PRICES_EUR.pro), cobrado en ARS al cambio del día, MÁS IVA.
     // ========================================
-    const finalPrice = await getProPriceARS();
+    const precio = await getProPrecio();
+    const finalPrice = precio.total;
     const description = 'Membresía DOAPP PRO - Mensual';
     const membershipPlan = 'PRO';
 
@@ -440,6 +453,8 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       platformFee: 0,
       platformFeePercentage: 0,
       isEscrow: false,
+      // Lo cobrado = neto + IVA: el desglose queda en el pago para declarar el IVA y facturar.
+      metadata: { neto: precio.neto, iva: precio.iva, alicuotaIva: precio.alicuotaIva },
     });
 
     console.log('✅ Registro de pago creado:', payment.id);
@@ -517,7 +532,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
-      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyUsedAt', 'freeMonthlyProUsedAt']
+      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyProUsedAt']
     });
 
     if (!user) {

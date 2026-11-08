@@ -201,7 +201,7 @@ export default function MembershipScreen() {
             <View style={styles.planInfo}>
               <Text style={[styles.planName, { color: themeColors.text.primary }]}>PRO</Text>
               <Text style={[styles.planPrice, { color: colors.primary[600] }]}>
-                {pricing?.pro.priceARS ? formatARS(pricing.pro.priceARS) : '...'}/mes
+                {pricing?.pro.priceARS ? formatARS(pricing.pro.priceARS) : '...'}/mes con IVA
               </Text>
             </View>
             {currentPlan === 'pro' ? (

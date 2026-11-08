@@ -120,7 +120,7 @@ class MembershipService {
         user.isPremiumVerified = false; // Activar después de KYC
         user.currentCommissionRate = COMMISSION_RATES.pro; // la tasa reducida de PRO
         await user.save();
-        console.log('✅ Usuario actualizado a PRO:', user.email);
+        console.log('✅ Usuario actualizado a PRO:', user.id);
       }
 
       return membership;

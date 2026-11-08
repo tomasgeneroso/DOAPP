@@ -2,7 +2,7 @@ import { QueryTypes, Op, literal, type Transaction } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { User } from '../models/sql/User.model.js';
-import * as fase from './platformPhase.js';
+import { Notification } from '../models/sql/Notification.model.js';
 import { calculateCommission, type CommissionResult } from './commissionService.js';
 
 /**
@@ -12,21 +12,23 @@ import { calculateCommission, type CommissionResult } from './commissionService.
  * IVA); lo único que se exime es la COMISIÓN de DOAPP. Antes, con uno de estos contratos el servidor publicaba el trabajo sin cobrar
  * nada y lo marcaba como pagado: el costo del trabajo no se cobraba nunca.
  *
- * Hay TRES cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago). Los dos mensuales se SUMAN
- * (regla del dueño, 2026-10-26): quien cumple las dos condiciones tiene dos contratos libres por mes, cada uno mientras dure lo suyo.
+ * Hay DOS cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago):
  *
- *  - `mensual`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario para las primeras `POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que completaron su
- *    registro (`users.is_early_user`), durante `MESES_DE_CONTRATOS_LIBRES` meses, con cualquier plan. El mes que no se usa se pierde (no hay cron que lo reponga: se
- *    calcula con la fecha del último uso, `users.free_monthly_used_at`). Va primero porque vence a fin de mes.
- *  - `pro`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga. Mismo criterio (se pierde
- *    a fin de mes; `users.free_monthly_pro_used_at`). Aparte del anterior: una cuenta de las primeras con PRO tiene los dos.
- *  - `bono`: el contador `users.free_contracts_remaining`, que suman los premios de referidos. No vence.
+ *  - `pro`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga. El mes que no se usa se
+ *    pierde (no hay cron que lo reponga: se calcula con la fecha del último uso, `users.free_monthly_pro_used_at`). Va primero porque vence a fin de mes.
+ *  - `bono`: el contador `users.free_contracts_remaining`. No vence. Lo suman el contrato libre de LANZAMIENTO (abajo) y los premios de referidos.
+ *
+ * EL BENEFICIO DE LANZAMIENTO (regla del dueño, 2026-11-06; reemplaza al «1 contrato libre por mes durante 12 meses para las primeras 1.000 cuentas»):
+ * las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` PERSONAS VERIFICADAS tienen UN contrato libre de comisión (una sola vez: después pagan comisión) y
+ * `MESES_DE_PRO_DE_LANZAMIENTO` mes de PRO gratis. Las siguientes no tienen ninguno de los dos. «Verificada» es el registro completo con el documento aprobado por Didit:
+ * un administrador no puede aprobar una identidad a mano (ver `routes/admin/users.ts`), así que no hay otro camino. Se otorga UNA vez por persona: si otra cuenta con la
+ * misma clave de persona ya lo recibió (`shared/identidad/clavePersona.ts`), no se da otra vez; la unión de cuentas anula lo que tuviera la secundaria.
  *
  * En los demás contratos de PRO la comisión no es cero: es la de PRO (`COMMISSION_RATES.pro`), que calcula `calculateCommission`.
  *
  * Donde la comisión ya es cero por otra razón (la beta, el plan familia, una invitación) no se gasta ningún cupo: no habría nada que eximir.
  */
-export type CupoDeExencion = 'mensual' | 'pro' | 'bono';
+export type CupoDeExencion = 'pro' | 'bono';
 
 /** Lo que hace falta saber de una cuenta para decidir si le queda el contrato libre del mes. */
 export interface CuentaParaExencion {
@@ -34,8 +36,7 @@ export interface CuentaParaExencion {
   freeContractsRemaining?: number | null;
   isEarlyUser?: boolean | null;
   createdAt?: Date | string | null;
-  freeMonthlyUsedAt?: Date | string | null;
-  /** Cuándo gastó el contrato libre del mes de la membresía PRO (es aparte del de las primeras cuentas). */
+  /** Cuándo gastó el contrato libre del mes de la membresía PRO. */
   freeMonthlyProUsedAt?: Date | string | null;
   /** Para saber si tiene la membresía PRO vigente. */
   membershipTier?: string | null;
@@ -57,34 +58,6 @@ export function inicioDelMes(ahora: Date = new Date()): Date {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - HORAS_ARGENTINA * 3_600_000);
 }
 
-/**
- * Desde cuándo se cobra comisión en la plataforma (el fin de la beta). Si no se puede leer, el año cuenta desde el alta: es el error que no le quita
- * nada a nadie.
- */
-function inicioDelCobro(): Date {
-  try {
-    return fase.fechasDeFase().liveStartsAt;
-  } catch {
-    return new Date(0);
-  }
-}
-
-/**
- * El año del beneficio: arranca al empezar a cobrarse comisión (fin de la beta) o, si la cuenta se creó después, el día del alta; dura
- * `MESES_DE_CONTRATOS_LIBRES` meses. Durante la beta la comisión es cero y no se gastaría nada, así que no corre el reloj.
- */
-export function ventanaDelBeneficio(
-  cuenta: Pick<CuentaParaExencion, 'createdAt'>,
-  cobroDesde: Date = inicioDelCobro(),
-): { desde: Date; hasta: Date } | null {
-  const alta = cuenta.createdAt ? new Date(cuenta.createdAt) : null;
-  if (!alta || Number.isNaN(alta.getTime())) return null;
-  const desde = new Date(Math.max(alta.getTime(), cobroDesde.getTime()));
-  const hasta = new Date(desde.getTime());
-  hasta.setUTCMonth(hasta.getUTCMonth() + POLITICAS.MESES_DE_CONTRATOS_LIBRES);
-  return { desde, hasta };
-}
-
 /** ¿Tiene la membresía PRO (o la SUPER PRO heredada) vigente? (`has_membership` y no vencida). */
 export function tieneProVigente(cuenta: CuentaParaExencion, ahora: Date = new Date()): boolean {
   if (!['pro', 'super_pro'].includes(String(cuenta.membershipTier))) return false;
@@ -92,22 +65,10 @@ export function tieneProVigente(cuenta: CuentaParaExencion, ahora: Date = new Da
   return !cuenta.membershipExpiresAt || new Date(cuenta.membershipExpiresAt).getTime() > ahora.getTime();
 }
 
-/** ¿Está dentro del año del beneficio de las primeras cuentas? */
-function dentroDelAnioDeLasPrimeras(cuenta: CuentaParaExencion, ahora: Date, cobroDesde: Date): boolean {
-  if (!cuenta.isEarlyUser) return false;
-  const ventana = ventanaDelBeneficio(cuenta, cobroDesde);
-  return !!ventana && ahora.getTime() >= ventana.desde.getTime() && ahora.getTime() < ventana.hasta.getTime();
-}
-
 const noGastadoEsteMes = (usadoEn: Date | string | null | undefined, ahora: Date): boolean => {
   const usado = usadoEn ? new Date(usadoEn) : null;
   return !usado || usado.getTime() < inicioDelMes(ahora).getTime();
 };
-
-/** ¿Le queda a la cuenta el contrato libre de este mes de las primeras cuentas? (Solo mira; gastarlo es `reclamarCupoMensual`.) */
-export function cupoMensualDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date(), cobroDesde: Date = inicioDelCobro()): boolean {
-  return dentroDelAnioDeLasPrimeras(cuenta, ahora, cobroDesde) && noGastadoEsteMes(cuenta.freeMonthlyUsedAt, ahora);
-}
 
 /** ¿Le queda el contrato libre de este mes de la membresía PRO? (Solo mira; gastarlo es `reclamarCupoDeLaMembresia`.) */
 export function cupoDeLaMembresiaDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date()): boolean {
@@ -115,24 +76,18 @@ export function cupoDeLaMembresiaDisponible(cuenta: CuentaParaExencion, ahora: D
 }
 
 export interface ContratosLibresDisponibles {
-  /** El del mes de las primeras cuentas: 1 si todavía no lo usó este mes y está dentro del año del beneficio. */
-  mensual: number;
-  /** El del mes de la membresía PRO: 1 si tiene PRO vigente y todavía no lo usó este mes. Se suma al anterior. */
+  /** El del mes de la membresía PRO: 1 si tiene PRO vigente y todavía no lo usó este mes. */
   membresia: number;
-  /** Los del contador (premios de referidos). */
+  /** Los del contador: el contrato libre de lanzamiento (si todavía no lo usó) y los premios de referidos. */
   bono: number;
   total: number;
-  /** Cuándo termina el año del beneficio (ISO), o null si la cuenta no está entre las primeras. */
-  hasta: string | null;
 }
 
-/** Lo que se le muestra a la persona: cuántos contratos libres de comisión puede usar ahora y hasta cuándo dura el beneficio mensual. */
+/** Lo que se le muestra a la persona: cuántos contratos libres de comisión puede usar ahora. */
 export function contratosLibresDisponibles(cuenta: CuentaParaExencion, ahora: Date = new Date()): ContratosLibresDisponibles {
-  const mensual = cupoMensualDisponible(cuenta, ahora) ? POLITICAS.CONTRATOS_LIBRES_POR_MES : 0;
   const membresia = cupoDeLaMembresiaDisponible(cuenta, ahora) ? POLITICAS.CONTRATOS_LIBRES_POR_MES : 0;
   const bono = Math.max(0, Number(cuenta.freeContractsRemaining) || 0);
-  const ventana = cuenta.isEarlyUser ? ventanaDelBeneficio(cuenta) : null;
-  return { mensual, membresia, bono, total: mensual + membresia + bono, hasta: ventana ? ventana.hasta.toISOString() : null };
+  return { membresia, bono, total: membresia + bono };
 }
 
 export async function comisionDePublicacion(
@@ -151,52 +106,20 @@ export async function comisionDePublicacion(
   // Beta, plan familia o invitación: la comisión ya es cero y no hay nada que eximir.
   if (normal.commission === 0 && !normal.isFreeContract) return { comision: normal, gastar: null };
 
-  // Los contratos libres del mes van primero (el de las primeras cuentas y después el de la membresía): se pierden a fin de mes, el contador de premios no.
-  if (cupoMensualDisponible(user)) {
-    return { comision: await calculateCommission(userId, precio, { isFreeContract: true }), gastar: 'mensual' };
-  }
+  // El contrato libre del mes de la membresía va primero (se pierde a fin de mes); el contador (lanzamiento y premios) no vence.
   if (cupoDeLaMembresiaDisponible(user)) {
     return { comision: await calculateCommission(userId, precio, { isFreeContract: true }), gastar: 'pro' };
   }
 
-  // Contador de premios: calculateCommission ya lo aplica (comisión 0, isFreeContract).
+  // Contador: calculateCommission ya lo aplica (comisión 0, isFreeContract).
   if (normal.isFreeContract) return { comision: normal, gastar: 'bono' };
 
   return { comision: normal, gastar: null };
 }
 
 /**
- * Gasta el contrato libre del mes de UNA vez y de forma atómica (un UPDATE condicional: dos pagos simultáneos no gastan el mismo). Devuelve false si
- * ya no estaba disponible (se usó un instante antes, o la cuenta no está entre las primeras / fuera del año del beneficio).
- */
-export async function reclamarCupoMensual(userId: string, ahora: Date = new Date(), transaction?: Transaction): Promise<boolean> {
-  const filas = (await sequelize.query(
-    `UPDATE users
-        SET free_monthly_used_at = CAST(:ahora AS timestamptz)
-      WHERE id = :id
-        -- las primeras cuentas, dentro de su año
-        AND is_early_user = true
-        AND GREATEST(created_at, CAST(:cobro AS timestamptz)) <= CAST(:ahora AS timestamptz)
-        AND CAST(:ahora AS timestamptz) < GREATEST(created_at, CAST(:cobro AS timestamptz)) + make_interval(months => :meses)
-        AND (free_monthly_used_at IS NULL OR free_monthly_used_at < CAST(:inicioDelMes AS timestamptz))
-    RETURNING id`,
-    {
-      replacements: {
-        id: userId,
-        ahora: ahora.toISOString(),
-        cobro: inicioDelCobro().toISOString(),
-        meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES,
-        inicioDelMes: inicioDelMes(ahora).toISOString(),
-      },
-      type: QueryTypes.SELECT,
-      transaction,
-    },
-  )) as Array<{ id: string }>;
-  return filas.length > 0;
-}
-
-/**
- * Gasta el contrato libre del mes de la membresía PRO, igual que `reclamarCupoMensual` (un UPDATE condicional atómico). Es un cupo aparte: no toca el de las primeras cuentas.
+ * Gasta el contrato libre del mes de la membresía PRO de UNA vez y de forma atómica (un UPDATE condicional: dos pagos simultáneos no gastan el mismo). Devuelve false si
+ * ya no estaba disponible (se usó un instante antes, o la cuenta ya no tiene PRO vigente).
  */
 export async function reclamarCupoDeLaMembresia(userId: string, ahora: Date = new Date(), transaction?: Transaction): Promise<boolean> {
   const filas = (await sequelize.query(
@@ -220,24 +143,12 @@ export async function devolverCupoDeLaMembresia(userId: string, ahora: Date = ne
   );
 }
 
-/** Devuelve el contrato libre del mes de las primeras cuentas (si el pago no llegó a hacerse). Solo deshace el gasto de ESTE mes. */
-export async function devolverCupoMensual(userId: string, ahora: Date = new Date()): Promise<void> {
-  await sequelize.query(
-    'UPDATE users SET free_monthly_used_at = NULL WHERE id = :id AND free_monthly_used_at >= CAST(:inicioDelMes AS timestamptz)',
-    { replacements: { id: userId, inicioDelMes: inicioDelMes(ahora).toISOString() } },
-  );
-}
-
 /**
  * Gasta el cupo y lo anota en el trabajo. Llamar una sola vez por trabajo (`comisionDePublicacion` ya devuelve null si se gastó). Devuelve false si
  * el contrato libre del mes se usó un instante antes en otro pago: quien llama no debe seguir con la comisión en cero.
  */
 export async function gastarCupoDeExencion(user: any, job: any, cupo: CupoDeExencion): Promise<boolean> {
-  if (cupo === 'mensual') {
-    if (!(await reclamarCupoMensual(String(user.id)))) return false;
-    // Para que este mismo objeto no lo vea libre otra vez, sin marcarlo como cambiado (ya está escrito).
-    user.set('freeMonthlyUsedAt', new Date(), { raw: true });
-  } else if (cupo === 'pro') {
+  if (cupo === 'pro') {
     if (!(await reclamarCupoDeLaMembresia(String(user.id)))) return false;
     user.set('freeMonthlyProUsedAt', new Date(), { raw: true });
   } else {
@@ -251,10 +162,7 @@ export async function gastarCupoDeExencion(user: any, job: any, cupo: CupoDeExen
 
 /** Deshace `gastarCupoDeExencion` cuando el pago que lo motivó no se completó. */
 export async function devolverCupoDeExencion(user: any, job: any, cupo: CupoDeExencion): Promise<void> {
-  if (cupo === 'mensual') {
-    await devolverCupoMensual(String(user.id));
-    user.set('freeMonthlyUsedAt', null, { raw: true });
-  } else if (cupo === 'pro') {
+  if (cupo === 'pro') {
     await devolverCupoDeLaMembresia(String(user.id));
     user.set('freeMonthlyProUsedAt', null, { raw: true });
   } else {
@@ -266,11 +174,10 @@ export async function devolverCupoDeExencion(user: any, job: any, cupo: CupoDeEx
 }
 
 /**
- * Reclama un contrato libre para crear un contrato (rutas viejas con `useFreeContract`): el del mes primero y, si no, uno del contador. Atómico.
+ * Reclama un contrato libre para crear un contrato (rutas viejas con `useFreeContract`): el del mes de la membresía primero y, si no, uno del contador. Atómico.
  * Devuelve qué cupo se gastó, o null si no había.
  */
 export async function reclamarContratoLibre(userId: string): Promise<CupoDeExencion | null> {
-  if (await reclamarCupoMensual(userId)) return 'mensual';
   if (await reclamarCupoDeLaMembresia(userId)) return 'pro';
   const [reclamados] = await User.update(
     { freeContractsRemaining: literal('"free_contracts_remaining" - 1') } as never,
@@ -281,10 +188,6 @@ export async function reclamarContratoLibre(userId: string): Promise<CupoDeExenc
 
 /** Devuelve lo que gastó `reclamarContratoLibre` si el contrato no llegó a crearse. */
 export async function devolverContratoLibre(userId: string, cupo: CupoDeExencion): Promise<void> {
-  if (cupo === 'mensual') {
-    await devolverCupoMensual(userId);
-    return;
-  }
   if (cupo === 'pro') {
     await devolverCupoDeLaMembresia(userId);
     return;
@@ -293,51 +196,98 @@ export async function devolverContratoLibre(userId: string, cupo: CupoDeExencion
 }
 
 /**
- * Marca a una cuenta como una de las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` si todavía hay lugar. Cuenta recién cuando el registro está COMPLETO
- * (`registration_pending = false`): una cuenta que se creó en el paso 1 y se abandonó no ocupa uno de los lugares. Idempotente (una cuenta ya marcada
- * no se marca dos veces) y exacta bajo registros simultáneos: un candado de la base serializa el conteo. NUNCA tira error: si falla, la cuenta queda
- * creada sin el beneficio y se avisa en el log (un alta no se frena por esto).
+ * Le da a una cuenta el BENEFICIO DE LANZAMIENTO si todavía hay lugar: un contrato libre de comisión (una sola vez) y un mes de PRO. Cuenta recién cuando la persona está
+ * VERIFICADA (`dni_verified`: el registro completo con el documento aprobado por Didit): una cuenta que se creó en el paso 1 y se abandonó, o que no verificó, no ocupa uno de
+ * los lugares.
+ *
+ * Idempotente (una cuenta que ya lo recibió no lo recibe dos veces) y exacta bajo verificaciones simultáneas: un candado de la base serializa el conteo. No se da si
+ * OTRA cuenta con la misma clave de persona ya lo recibió (una persona, un beneficio: la misma persona con dos documentos no cobra dos veces). Si la cuenta ya tiene PRO
+ * pago, no se le toca la membresía. NUNCA tira error: si falla, la cuenta queda como estaba y se avisa en el log (una verificación no se frena por esto).
+ *
+ * (El nombre se conserva: lo llaman los lugares donde antes se marcaba a las primeras cuentas.)
  */
-export async function otorgarContratosLibres(userId: string): Promise<{ otorgado: boolean; numero?: number }> {
+export async function otorgarContratosLibres(userId: string, ahora: Date = new Date()): Promise<{ otorgado: boolean; numero?: number }> {
   try {
-    return await sequelize.transaction(async (t) => {
+    const resultado = await sequelize.transaction(async (t) => {
       await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:clave))', { replacements: { clave: 'contratos-libres-de-comision' }, transaction: t });
+      const proVigente = `(membership_tier IN ('pro', 'super_pro') AND has_membership = true AND (membership_expires_at IS NULL OR membership_expires_at > CAST(:ahora AS timestamptz)))`;
       const filas = (await sequelize.query(
         `UPDATE users
             SET is_early_user = true,
-                early_user_number = (SELECT COALESCE(MAX(early_user_number), 0) + 1 FROM users)
-          WHERE id = :id AND is_early_user = false AND registration_pending = false
-            AND (SELECT COUNT(*) FROM users WHERE is_early_user = true) < :tope
+                early_user_number = (SELECT COALESCE(MAX(early_user_number), 0) + 1 FROM users),
+                launch_benefit_granted_at = CAST(:ahora AS timestamptz),
+                free_contracts_remaining = COALESCE(free_contracts_remaining, 0) + :contratos,
+                membership_tier = CASE WHEN ${proVigente} THEN membership_tier ELSE 'pro' END,
+                has_membership = CASE WHEN ${proVigente} THEN has_membership ELSE true END,
+                membership_expires_at = CASE WHEN ${proVigente} THEN membership_expires_at ELSE CAST(:ahora AS timestamptz) + make_interval(months => :mesesDePro) END
+          WHERE id = :id
+            AND launch_benefit_granted_at IS NULL
+            AND registration_pending = false
+            AND dni_verified = true
+            AND merged_into_id IS NULL
+            -- El lugar lo ocupa quien RECIBIÓ el beneficio (no quien quedó marcado «primera» por la regla anterior al registrarse sin verificar).
+            AND (SELECT COUNT(*) FROM users WHERE launch_benefit_granted_at IS NOT NULL AND merged_into_id IS NULL) < :tope
+            AND NOT EXISTS (
+              SELECT 1 FROM users otra
+               WHERE users.identity_key IS NOT NULL AND otra.identity_key = users.identity_key
+                 AND otra.id <> users.id AND otra.merged_into_id IS NULL AND otra.launch_benefit_granted_at IS NOT NULL
+            )
         RETURNING early_user_number`,
         {
-          replacements: { id: userId, tope: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES },
+          replacements: {
+            id: userId,
+            ahora: ahora.toISOString(),
+            contratos: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
+            mesesDePro: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,
+            tope: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,
+          },
           type: QueryTypes.SELECT,
           transaction: t,
         },
       )) as Array<{ early_user_number: number }>;
       return filas.length > 0 ? { otorgado: true, numero: Number(filas[0].early_user_number) } : { otorgado: false };
     });
+
+    if (resultado.otorgado) {
+      // El aviso es secundario: el beneficio ya quedó guardado.
+      try {
+        await Notification.create({
+          recipientId: userId,
+          type: 'success',
+          category: 'user',
+          title: `¡Sos una de las primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas verificadas!`,
+          message: `Tenés ${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión (se usa una sola vez; después pagás la comisión de siempre) y la membresía PRO gratis por ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes.`,
+          relatedModel: 'User',
+          relatedId: userId,
+          read: false,
+        } as never);
+      } catch (e) {
+        console.error('[beneficio de lanzamiento] no se pudo avisar a la persona:', (e as Error).message);
+      }
+    }
+    return resultado;
   } catch (e) {
-    console.error('[contratos libres] no se pudieron otorgar a', userId, (e as Error).message);
+    console.error('[beneficio de lanzamiento] no se pudo otorgar a', userId, (e as Error).message);
     return { otorgado: false };
   }
 }
 
 export interface ResultadoDeLaAsignacion {
-  /** Cuentas que entran en el reparto (las más antiguas con el registro completo que todavía no estaban marcadas, hasta completar el tope). */
+  /** Cuentas verificadas que reciben el beneficio ahora (hasta completar el tope). */
   cuentas: number;
-  /** Cuentas ya marcadas que conservan el cupo de 6 de la regla anterior (no se tocan). */
-  conCupoDeLaReglaAnterior: number;
+  /** Cuentas que estaban marcadas como «primeras» por la regla anterior (al registrarse) pero NO están verificadas: pierden la marca hasta que se verifiquen. */
+  desmarcadas: number;
   aplicado: boolean;
 }
 
 /**
- * Marca como «primeras cuentas» a las que YA existían cuando se fijó la regla: las más antiguas con el registro completo que todavía no están marcadas,
- * hasta completar `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES`. Quedan con el contrato libre del mes (la regla no entrega contratos sueltos); no toca el
- * contador de premios ni lo que cada cuenta ya tenía.
+ * Pone al día a las cuentas que YA existían con la regla del 2026-11-06 (beneficio de lanzamiento para las primeras personas VERIFICADAS):
+ *  - las marcadas como «primeras» por la regla anterior (al registrarse) que NO están verificadas pierden la marca (la reciben al verificarse);
+ *  - las verificadas que todavía no recibieron el beneficio lo reciben, de la más antigua a la más nueva, hasta completar `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES`.
+ * Las marcadas por la regla anterior que SÍ están verificadas reciben ahora el contrato único y el mes de PRO (el cupo mensual de 12 meses ya no existe).
  *
- * Por defecto solo muestra qué haría (vista previa / dry-run). Con `aplicar` lo escribe, en una sola transacción y con el mismo candado que
- * `otorgarContratosLibres`, así que es seguro correrlo mientras hay altas. Correrlo de nuevo no hace nada: las cuentas ya marcadas no se tocan.
+ * Por defecto solo muestra qué haría (vista previa / dry-run). Con `aplicar` lo escribe, cuenta por cuenta con las mismas reglas y el mismo candado que
+ * `otorgarContratosLibres` (una persona con dos cuentas no cobra dos veces), así que es seguro correrlo mientras hay altas. Correrlo de nuevo no hace nada.
  */
 export async function asignarContratosLibresAExistentes(
   opciones: { aplicar: boolean },
@@ -345,57 +295,40 @@ export async function asignarContratosLibresAExistentes(
 ): Promise<ResultadoDeLaAsignacion> {
   const tope = POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES;
 
-  const trabajo = async (t: Transaction | undefined): Promise<ResultadoDeLaAsignacion> => {
-    const [{ marcadas, ultimo, conCupoViejo }] = (await sequelize.query(
-      `SELECT COUNT(*)::int AS marcadas,
-              COALESCE(MAX(early_user_number), 0)::int AS ultimo,
-              COUNT(*) FILTER (WHERE free_contracts_remaining >= 6)::int AS "conCupoViejo"
-         FROM users WHERE is_early_user = true`,
-      { type: QueryTypes.SELECT, transaction: t },
-    )) as Array<{ marcadas: number; ultimo: number; conCupoViejo: number }>;
-    const lugares = Math.max(0, tope - marcadas);
-    escribir(`Ya marcadas: ${marcadas} de ${tope}. Lugares libres: ${lugares}. Beneficio: ${POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato libre por mes durante ${POLITICAS.MESES_DE_CONTRATOS_LIBRES} meses.`);
-    if (conCupoViejo > 0) {
-      escribir(`Atención: ${conCupoViejo} cuenta(s) ya marcada(s) tienen 6 o más contratos en el contador (el cupo de la regla anterior, «6 para las primeras 2000»). No se tocan.`);
-    }
+  const [{ conBeneficio }] = (await sequelize.query(`SELECT COUNT(*)::int AS "conBeneficio" FROM users WHERE launch_benefit_granted_at IS NOT NULL`, { type: QueryTypes.SELECT })) as Array<{ conBeneficio: number }>;
+  const [{ marcadasSinVerificar }] = (await sequelize.query(
+    `SELECT COUNT(*)::int AS "marcadasSinVerificar" FROM users WHERE is_early_user = true AND launch_benefit_granted_at IS NULL AND dni_verified = false`,
+    { type: QueryTypes.SELECT },
+  )) as Array<{ marcadasSinVerificar: number }>;
 
-    const candidatas = (await sequelize.query(
-      `SELECT u.id, u.email, u.created_at AS "creadaEl"
-         FROM users u
-        WHERE u.is_early_user = false AND u.registration_pending = false
-        ORDER BY u.created_at ASC, u.id ASC
-        LIMIT :lugares`,
-      { replacements: { lugares }, type: QueryTypes.SELECT, transaction: t },
-    )) as Array<{ id: string; email: string | null; creadaEl: Date }>;
+  const candidatas = (await sequelize.query(
+    `SELECT u.id, u.created_at AS "creadaEl"
+       FROM users u
+      WHERE u.launch_benefit_granted_at IS NULL AND u.dni_verified = true AND u.registration_pending = false AND u.merged_into_id IS NULL
+      ORDER BY u.created_at ASC, u.id ASC
+      LIMIT :lugares`,
+    { replacements: { lugares: Math.max(0, tope - conBeneficio) }, type: QueryTypes.SELECT },
+  )) as Array<{ id: string; creadaEl: Date }>;
 
-    const filas = candidatas.map((c, i) => ({ ...c, numero: ultimo + i + 1 }));
-    escribir(`Entran ${filas.length} cuentas.`);
-    for (const f of filas.slice(0, 10)) {
-      const correo = f.email ? `${f.email.slice(0, 3)}***` : '(sin correo)';
-      escribir(`   #${f.numero} ${correo} · creada el ${new Date(f.creadaEl).toLocaleDateString('es-AR')}`);
-    }
-    if (filas.length > 10) escribir(`   … y ${filas.length - 10} más`);
-
-    if (opciones.aplicar) {
-      for (const f of filas) {
-        await sequelize.query('UPDATE users SET is_early_user = true, early_user_number = :numero WHERE id = :id AND is_early_user = false', {
-          replacements: { id: f.id, numero: f.numero },
-          transaction: t,
-        });
-      }
-    }
-    return { cuentas: filas.length, conCupoDeLaReglaAnterior: conCupoViejo, aplicado: opciones.aplicar };
-  };
+  escribir(`Ya con el beneficio de lanzamiento: ${conBeneficio} de ${tope}. Lugares libres: ${Math.max(0, tope - conBeneficio)}.`);
+  escribir(`Beneficio: ${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión (una sola vez) y ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes de PRO.`);
+  escribir(`Marcadas como «primeras» por la regla anterior pero sin verificar (pierden la marca hasta verificarse): ${marcadasSinVerificar}.`);
+  escribir(`Cuentas verificadas que entran ahora: ${candidatas.length}.`);
 
   if (!opciones.aplicar) {
-    const r = await trabajo(undefined);
     escribir('\n(solo vista previa: falta --aplicar)');
-    return r;
+    return { cuentas: candidatas.length, desmarcadas: marcadasSinVerificar, aplicado: false };
   }
-  const r = await sequelize.transaction(async (t) => {
-    await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:clave))', { replacements: { clave: 'contratos-libres-de-comision' }, transaction: t });
-    return trabajo(t);
-  });
-  escribir('\nHecho.');
-  return r;
+
+  await sequelize.query(
+    `UPDATE users SET is_early_user = false, early_user_number = NULL
+      WHERE is_early_user = true AND launch_benefit_granted_at IS NULL AND dni_verified = false`,
+  );
+  let otorgadas = 0;
+  for (const c of candidatas) {
+    // La misma regla que al verificarse: una persona con dos cuentas no recibe dos veces y el tope se respeta aunque haya altas a la vez.
+    if ((await otorgarContratosLibres(c.id)).otorgado) otorgadas += 1;
+  }
+  escribir(`\nHecho: ${otorgadas} cuenta(s) con el beneficio.`);
+  return { cuentas: otorgadas, desmarcadas: marcadasSinVerificar, aplicado: true };
 }

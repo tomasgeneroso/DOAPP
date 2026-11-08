@@ -116,6 +116,16 @@ export const protect = async (
       // Desde acá las consultas de este pedido van como este usuario (Row Level Security: ve solo sus filas de las tablas de dinero).
       entrarComoUsuario(String((req.user as any).id), (req.user as any).adminRole || (req.user as any).role);
 
+      // Una cuenta unificada con otra (la misma persona con dos documentos) no opera: la sesión que quedara abierta se cierra sola y se entra con la principal.
+      if ((req.user as any).mergedIntoId) {
+        res.status(403).json({
+          success: false,
+          code: 'CUENTA_UNIFICADA',
+          message: "Esta cuenta se unificó con otra tuya. Iniciá sesión con tu cuenta principal.",
+        });
+        return;
+      }
+
       // Una cuenta baneada no opera: sólo ve su estado, cierra sesión y apela.
       if (estaBaneadoAhora(req.user as any) && !rutaPermitidaConBaneo(req)) {
         res.status(403).json({

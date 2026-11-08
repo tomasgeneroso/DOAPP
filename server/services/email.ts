@@ -6,6 +6,7 @@ import { config } from "../config/env";
 import { User } from "../models/sql/User.model.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { DOMINIO, CORREOS, esDelDominio } from "../../shared/constants/contacto.js";
+import { enmascararCorreo } from "../../shared/seguridad/datosPersonales.js";
 
 interface EmailOptions {
   to: string;
@@ -234,7 +235,7 @@ class EmailService {
       };
 
       await sgMail.send(msg);
-      console.log(`✅ Email sent via SendGrid to ${options.to}`);
+      console.log(`✅ Email sent via SendGrid to ${enmascararCorreo(options.to)}`);
       return true;
     } catch (error: any) {
       console.error("SendGrid error:", error.response?.body || error);
@@ -257,7 +258,7 @@ class EmailService {
       };
 
       await this.mailgunClient.messages.create(config.mailgunDomain, messageData);
-      console.log(`✅ Email sent via Mailgun to ${options.to}`);
+      console.log(`✅ Email sent via Mailgun to ${enmascararCorreo(options.to)}`);
       return true;
     } catch (error) {
       console.error("Mailgun error:", error);
@@ -284,7 +285,7 @@ class EmailService {
       };
 
       const info = await this.smtpTransporter.sendMail(mailOptions);
-      console.log(`✅ Email sent via SMTP to ${options.to}`);
+      console.log(`✅ Email sent via SMTP to ${enmascararCorreo(options.to)}`);
       console.log(`📧 Message ID: ${info.messageId}`);
       return true;
     } catch (error: any) {
@@ -307,7 +308,7 @@ class EmailService {
 
       // Log different error types appropriately
       if (isTransientError) {
-        console.warn(`⚠️  SMTP DNS/Network error (email not sent to ${options.to}):`, errorMessage);
+        console.warn(`⚠️  SMTP DNS/Network error (email not sent to ${enmascararCorreo(options.to)}):`, errorMessage);
         console.warn("   This is likely a temporary network issue. Email will be retried on next action.");
       } else {
         console.error("❌ SMTP error:", errorMessage);

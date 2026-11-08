@@ -168,7 +168,7 @@ export default function AdminSearch() {
                       </div>
                     </div>
                     <button
-                      onClick={() => navigate(`/admin/users?search=${encodeURIComponent(u.email)}`)}
+                      onClick={() => navigate('/admin/users', { state: { search: u.email } })}
                       className="ml-4 p-2 text-sky-600 hover:text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors"
                       title="Ver usuario"
                     >

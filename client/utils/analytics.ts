@@ -1,7 +1,13 @@
 /**
  * Google Analytics Utility
  * Provides analytics tracking for client-side events
+ *
+ * Privacidad (auditoría del 2026-11-06): a Google solo se le entrega la RUTA de cada pantalla (sin `?token=`, `?email=` ni `#…`:
+ * `direccionSinDatos`), el referrer sin query y los textos libres sin correos ni teléfonos. Ningún evento llama a `window.gtag`
+ * directo: todo sale por `gtagSeguro`, que es el único que limpia. `tests/datosPersonalesAfuera.test.ts` lo vigila.
  */
+import { direccionSinDatos, parametrosSinDatos, referrerSinDatos, ubicacionParaAnalitica } from "../../shared/seguridad/datosPersonales";
+import { leerEleccionDeCookies } from "./consentimientoDeCookies";
 
 declare global {
   interface Window {
@@ -9,6 +15,22 @@ declare global {
     dataLayer?: any[];
   }
 }
+
+/** Único punto por donde sale un comando hacia Google: los eventos pasan con el texto libre limpio. */
+function gtagSeguro(comando: string, ...resto: any[]) {
+  if (!window.gtag) return;
+  // Sin consentimiento no sale nada, ni siquiera a la cola de Google: `index.html` deja un `gtag` que solo encola, y lo encolado antes de aceptar se
+  // enviaría completo en cuanto cargue el script. Solo se mide a quien aceptó en el cartel de cookies (`BannerDeCookies`).
+  if (leerEleccionDeCookies() !== "aceptado") return;
+  if (comando === "event" && resto[1] && typeof resto[1] === "object") {
+    window.gtag("event", resto[0], parametrosSinDatos(resto[1]));
+    return;
+  }
+  window.gtag(comando, ...resto);
+}
+
+/** Última pantalla contada: es el referrer de la siguiente (ya limpia). `null` = todavía no se contó ninguna. */
+let ultimaRuta: string | null = null;
 
 /**
  * Initialize Google Analytics
@@ -20,10 +42,7 @@ export function initGA(measurementId: string) {
 
   // Check if already initialized
   if (window.gtag) {
-    window.gtag("config", measurementId, {
-      page_path: window.location.pathname,
-      send_page_view: true,
-    });
+    configurarAnalitica(measurementId);
     return;
   }
 
@@ -39,11 +58,28 @@ export function initGA(measurementId: string) {
   script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
   document.head.appendChild(script);
 
-  window.gtag("js", new Date());
-  window.gtag("config", measurementId, {
-    page_path: window.location.pathname,
-    send_page_view: true,
+  gtagSeguro("js", new Date());
+  configurarAnalitica(measurementId);
+}
+
+/**
+ * Configura Google y cuenta la primera visita.
+ *
+ * `send_page_view: false`: con `true` Google arma la visita solo, leyendo `document.location` y `document.referrer`, que traen la
+ * query entera (`/reset-password?token=…`, `/auth/callback?token=<sesión>`) y el referrer sin limpiar. La visita la cuenta
+ * `trackPageView`, con la ruta limpia. El `set` previo hace que TAMBIÉN las mediciones automáticas (scroll, clics, sesión) usen la
+ * dirección limpia y no la del documento.
+ */
+export function configurarAnalitica(measurementId: string, rutaActual: string = window.location.pathname) {
+  if (!window.gtag || !measurementId) return;
+  ultimaRuta = null;
+  // La primera visita conserva los parámetros de campaña (`utm_*`, `gclid`): sin ellos Google no sabría qué anuncio trajo a la persona.
+  gtagSeguro("set", {
+    page_location: ubicacionParaAnalitica(window.location),
+    page_referrer: referrerSinDatos(document.referrer),
   });
+  gtagSeguro("config", measurementId, { send_page_view: false });
+  trackPageView(rutaActual);
 }
 
 /**
@@ -52,8 +88,15 @@ export function initGA(measurementId: string) {
 export function trackPageView(url: string, title?: string) {
   if (!window.gtag) return;
 
-  window.gtag("event", "page_view", {
-    page_path: url,
+  const ruta = direccionSinDatos(url);
+  // La primera visita trae el referrer del documento (sin query); las siguientes, la pantalla anterior, ya limpia.
+  const referrer = ultimaRuta === null ? referrerSinDatos(document.referrer) : window.location.origin + ultimaRuta;
+  // Solo la primera visita trae la campaña: es la que Google usa para atribuir la sesión. Las pantallas siguientes, solo la ruta.
+  const ubicacion = ultimaRuta === null ? ubicacionParaAnalitica(window.location) : window.location.origin + ruta;
+  ultimaRuta = ruta;
+  gtagSeguro("set", { page_location: ubicacion, page_referrer: referrer });
+  gtagSeguro("event", "page_view", {
+    page_path: ruta,
     page_title: title || document.title,
   });
 }
@@ -67,9 +110,7 @@ export function trackEvent(
   label?: string,
   value?: number
 ) {
-  if (!window.gtag) return;
-
-  window.gtag("event", action, {
+  gtagSeguro("event", action, {
     event_category: category,
     event_label: label,
     value: value,
@@ -84,8 +125,11 @@ export function identifyUser(userId: string) {
 
   const measurementId = import.meta.env.VITE_GOOGLE_ANALYTICS_ID;
   if (measurementId) {
-    window.gtag("config", measurementId, {
+    // Solo el id interno de la cuenta, nunca el correo ni el nombre. `send_page_view: false`: otro `config` con el valor por defecto
+    // mandaría una visita más, armada por Google con la dirección completa.
+    gtagSeguro("config", measurementId, {
       user_id: userId,
+      send_page_view: false,
     });
   }
 }
@@ -94,9 +138,7 @@ export function identifyUser(userId: string) {
  * Track conversion
  */
 export function trackConversion(transactionId: string, value: number) {
-  if (!window.gtag) return;
-
-  window.gtag("event", "purchase", {
+  gtagSeguro("event", "purchase", {
     transaction_id: transactionId,
     value: value,
     currency: "USD",
@@ -121,7 +163,7 @@ export const analytics = {
   jobView: (jobId: string, jobData?: { category?: string; price?: number; location?: string }) => {
     trackEvent("view_item", "job", jobId);
     if (jobData) {
-      window.gtag?.("event", "view_item", {
+      gtagSeguro("event", "view_item", {
         items: [{
           item_id: jobId,
           item_name: "Job Posting",
@@ -136,7 +178,7 @@ export const analytics = {
   jobCreate: (jobData?: { category?: string; price?: number; urgency?: string }) => {
     trackEvent("create_job", "job");
     if (jobData) {
-      window.gtag?.("event", "create_job", {
+      gtagSeguro("event", "create_job", {
         category: jobData.category,
         value: jobData.price,
         urgency: jobData.urgency,
@@ -147,7 +189,7 @@ export const analytics = {
   jobSearch: (query: string, filters?: { category?: string; location?: string; minPrice?: number; maxPrice?: number }) => {
     trackEvent("search", "job", query);
     if (filters) {
-      window.gtag?.("event", "search", {
+      gtagSeguro("event", "search", {
         search_term: query,
         category: filters.category,
         location: filters.location,
@@ -158,7 +200,7 @@ export const analytics = {
 
   jobPublish: (jobId: string, price: number, category: string) => {
     trackEvent("job_publish", "job", jobId, price);
-    window.gtag?.("event", "job_publish", {
+    gtagSeguro("event", "job_publish", {
       job_id: jobId,
       value: price,
       category: category,
@@ -168,7 +210,7 @@ export const analytics = {
   // Proposal events
   proposalCreate: (jobId: string, proposalAmount: number) => {
     trackEvent("create_proposal", "proposal", jobId, proposalAmount);
-    window.gtag?.("event", "add_to_cart", {
+    gtagSeguro("event", "add_to_cart", {
       value: proposalAmount,
       currency: "ARS",
       items: [{
@@ -181,7 +223,7 @@ export const analytics = {
 
   proposalAccept: (proposalId: string, amount: number) => {
     trackEvent("accept_proposal", "proposal", proposalId, amount);
-    window.gtag?.("event", "accept_proposal", {
+    gtagSeguro("event", "accept_proposal", {
       proposal_id: proposalId,
       value: amount,
     });
@@ -190,7 +232,7 @@ export const analytics = {
   // Contract events
   contractCreate: (contractId: string, amount: number, category?: string) => {
     trackEvent("create_contract", "contract", contractId, amount);
-    window.gtag?.("event", "begin_checkout", {
+    gtagSeguro("event", "begin_checkout", {
       value: amount,
       currency: "ARS",
       items: [{
@@ -208,7 +250,7 @@ export const analytics = {
 
   contractComplete: (contractId: string, amount: number, rating?: number) => {
     trackEvent("complete_contract", "contract", contractId, amount);
-    window.gtag?.("event", "contract_complete", {
+    gtagSeguro("event", "contract_complete", {
       contract_id: contractId,
       value: amount,
       rating: rating,
@@ -218,7 +260,7 @@ export const analytics = {
   // Payment events
   paymentInitiate: (amount: number, paymentMethod: string, paymentType: string) => {
     trackEvent("begin_checkout", "payment", `${paymentMethod}_${paymentType}`, amount);
-    window.gtag?.("event", "begin_checkout", {
+    gtagSeguro("event", "begin_checkout", {
       value: amount,
       currency: "ARS",
       payment_method: paymentMethod,
@@ -229,7 +271,7 @@ export const analytics = {
   paymentSuccess: (amount: number, transactionId: string, paymentMethod: string, paymentType: string) => {
     trackEvent("purchase", "payment", transactionId, amount);
     trackConversion(transactionId, amount);
-    window.gtag?.("event", "purchase", {
+    gtagSeguro("event", "purchase", {
       transaction_id: transactionId,
       value: amount,
       currency: "ARS",
@@ -245,7 +287,7 @@ export const analytics = {
   // Membership events
   membershipView: (tier: string, price: number) => {
     trackEvent("view_membership", "membership", tier, price);
-    window.gtag?.("event", "view_item", {
+    gtagSeguro("event", "view_item", {
       items: [{
         item_id: tier,
         item_name: `Membership ${tier}`,
@@ -257,7 +299,7 @@ export const analytics = {
 
   membershipPurchase: (tier: string, price: number, transactionId: string) => {
     trackEvent("purchase_membership", "membership", tier, price);
-    window.gtag?.("event", "purchase", {
+    gtagSeguro("event", "purchase", {
       transaction_id: transactionId,
       value: price,
       currency: "EUR",
@@ -290,7 +332,7 @@ export const analytics = {
   // Balance & Withdrawal events
   withdrawalRequest: (amount: number, method: string) => {
     trackEvent("withdrawal_request", "balance", method, amount);
-    window.gtag?.("event", "withdrawal_request", {
+    gtagSeguro("event", "withdrawal_request", {
       value: amount,
       currency: "ARS",
       method: method,
@@ -321,7 +363,7 @@ export const analytics = {
   // Dispute events
   disputeCreate: (contractId: string, category: string) => {
     trackEvent("dispute_create", "dispute", category);
-    window.gtag?.("event", "dispute_create", {
+    gtagSeguro("event", "dispute_create", {
       contract_id: contractId,
       category: category,
     });
@@ -353,7 +395,7 @@ export const analytics = {
   // Error tracking
   error: (error: string, page?: string, severity?: 'low' | 'medium' | 'high') => {
     trackEvent("error", "error", error);
-    window.gtag?.("event", "exception", {
+    gtagSeguro("event", "exception", {
       description: error,
       fatal: severity === 'high',
       page: page,
@@ -367,7 +409,7 @@ export const analytics = {
 
   // Navigation click tracking
   navClick: (destination: string, location: 'header' | 'footer' | 'sidebar' | 'mobile_tab') => {
-    window.gtag?.("event", "nav_click", {
+    gtagSeguro("event", "nav_click", {
       destination,
       nav_location: location,
     });
@@ -375,7 +417,7 @@ export const analytics = {
 
   // Clipboard copy tracking
   clipboardCopy: (content_type: string, content_value?: string) => {
-    window.gtag?.("event", "clipboard_copy", {
+    gtagSeguro("event", "clipboard_copy", {
       content_type,
       content_value,
     });
@@ -383,7 +425,7 @@ export const analytics = {
 
   // Filter / search interaction tracking
   filterApply: (filter_name: string, filter_value: string, context?: string) => {
-    window.gtag?.("event", "filter_apply", {
+    gtagSeguro("event", "filter_apply", {
       filter_name,
       filter_value,
       context,
@@ -392,7 +434,7 @@ export const analytics = {
 
   // Scroll depth milestone tracking (25 / 50 / 75 / 100)
   scrollDepth: (percent: 25 | 50 | 75 | 100, page_path?: string) => {
-    window.gtag?.("event", "scroll_depth", {
+    gtagSeguro("event", "scroll_depth", {
       percent_scrolled: percent,
       page_path: page_path || window.location.pathname,
     });

@@ -90,14 +90,14 @@ export default function AuthHero({ className = "" }: { className?: string }) {
     },
     {
       icono: Gift,
-      titulo: t("authHero.betaTitle", "Las primeras {{usuarios}} cuentas:", { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES }),
-      resaltado: t("authHero.betaHighlight", "{{cantidad}} contrato sin comisión por mes durante {{meses}} meses", {
-        cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES,
-        meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES,
+      titulo: t("authHero.betaTitle", "Las primeras {{usuarios}} cuentas verificadas:", { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES }),
+      resaltado: t("authHero.betaHighlight", "{{cantidad}} contrato sin comisión y PRO gratis por {{meses}} mes", {
+        cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
+        meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,
       }),
       cuerpo: t(
         "authHero.betaBody",
-        "Durante la beta DOAPP no cobra comisión a nadie. Pagás el trabajo y el costo de procesamiento del pago, nada más.",
+        "Es un solo contrato: después pagás la comisión de siempre, que paga el cliente. En ese primer contrato pagás el trabajo y el costo de procesamiento del pago, nada más.",
       ),
     },
   ];

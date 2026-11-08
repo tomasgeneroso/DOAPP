@@ -40,21 +40,23 @@ export const POLITICAS = {
   INVITACIONES_POR_INFLUENCER: 5,
 
   /**
-   * Contratos LIBRES DE COMISIÓN de lanzamiento. Las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` cuentas que completan su registro tienen
-   * `CONTRATOS_LIBRES_POR_MES` contrato libre de comisión por mes calendario, durante `MESES_DE_CONTRATOS_LIBRES` meses, para usar como Cliente: en ese
-   * contrato DOAPP no cobra su comisión; el trabajo y el costo del medio de pago se pagan igual (T&C 7.10). El mes que no se usa se pierde (no se
-   * acumula). El año arranca cuando empieza a cobrarse comisión (el fin de la beta) o, si la cuenta se crea después, el día del alta: durante la beta la
-   * comisión ya es cero y no se gastaría nada.
+   * BENEFICIO DE LANZAMIENTO (regla del dueño, 2026-11-06; reemplaza al «1 contrato libre por mes durante 12 meses para las primeras 1.000 cuentas»).
+   * Las primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` PERSONAS VERIFICADAS (registro completo con el documento aprobado por Didit; un administrador no
+   * aprueba identidades a mano) tienen `CONTRATOS_LIBRES_DE_LANZAMIENTO` contrato libre de comisión —UNA sola vez: después de ese primero pagan la comisión
+   * de siempre— y `MESES_DE_PRO_DE_LANZAMIENTO` mes de la membresía PRO gratis. Las siguientes no tienen ninguno de los dos. En el contrato libre DOAPP no cobra su
+   * comisión; el trabajo y el costo del medio de pago se pagan igual (T&C 7.10). Se otorga UNA vez por persona: la misma persona con dos documentos no cobra dos veces.
    *
-   * Regla del dueño del 2026-10-24 (segunda versión el mismo día; la primera era «6 contratos para las primeras 2000 cuentas»). Reemplaza al «3
-   * contratos para los primeros 1000» que figuraba en pantallas y comentarios pero nunca se aplicó como tope. Desde el 2026-10-25 también lo tiene quien
-   * tenga PRO activo (T&C 8.1). Los dos SE SUMAN (regla del dueño, 2026-10-26): una cuenta de las primeras con PRO tiene dos contratos libres por mes, cada uno mientras dure lo suyo.
-   *
-   * El tope se cuenta con `users.is_early_user` (ver `otorgarContratosLibres`, services/exencionDeComision.ts).
+   * El tope se cuenta con `users.launch_benefit_granted_at` (ver `otorgarContratosLibres`, services/exencionDeComision.ts).
+   */
+  CONTRATOS_LIBRES_DE_LANZAMIENTO: 1,
+  MESES_DE_PRO_DE_LANZAMIENTO: 1,
+  PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES: 2000,
+
+  /**
+   * Contrato libre de comisión por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga: se suma a lo que tenga en el contador. El mes
+   * que no se usa se pierde (no se acumula).
    */
   CONTRATOS_LIBRES_POR_MES: 1,
-  MESES_DE_CONTRATOS_LIBRES: 12,
-  PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES: 1000,
 
   /**
    * Días que la pasarela de pagos tarda en liberar un pago a la Plataforma. Hasta entonces, una devolución al Cliente que sale de ese pago figura como

@@ -8,6 +8,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   super_admin: [
     "users:read",
+    "users:verify",
     "users:update",
     "users:ban",
     "users:unban",
@@ -33,6 +34,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   admin: [
     "users:read",
+    // Aprobar la identidad a mano (solo si Didit falla o hay un problema, con motivo escrito) o revocar una verificación mala.
+    // Antes la ruta pedía `users:write`, un permiso que ningún rol tiene salvo el dueño: nadie del equipo podía usarla.
+    "users:verify",
     "users:ban",
     "users:unban",
     "contracts:read",

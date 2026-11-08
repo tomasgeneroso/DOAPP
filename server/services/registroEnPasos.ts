@@ -158,8 +158,6 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
 
   const name = `${nombres} ${apellidos}`;
   await user.update({ name, username, dni, phone: phone || user.phone || null, email, registrationPending: false, termsAcceptedAt: user.termsAcceptedAt ?? ahora });
-  // Recién con el registro completo la cuenta cuenta para las primeras (las que se abandonan en el paso 1 no ocupan un lugar).
-  await otorgarContratosLibres(String(user.id));
 
   // Contra el documento: lo corregido tiene que seguir siendo de la misma persona.
   let verificada = !!user.dniVerified;
@@ -177,6 +175,8 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
       try { await aplicarIdentidadDeDidit(user, user.kycData); } catch (e: any) { console.warn('[registro] no se pudo completar la identidad:', e?.message); }
     }
   }
+  // Recién con el registro completo Y la identidad verificada la cuenta cuenta para las primeras 2.000 personas (las que se abandonan en el paso 1, o quedan en revisión, no ocupan un lugar).
+  if (verificada) await otorgarContratosLibres(String(user.id));
   return { ok: true, verificada, enRevision };
 }
 

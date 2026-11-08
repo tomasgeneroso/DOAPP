@@ -96,10 +96,10 @@ export default function CookiesPolicy() {
                 </p>
 
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  {t('cookies.s2_3Title', '2.3 Cookies de Rendimiento y Análisis')}
+                  {t('cookies.s2_3Title', '2.3 Cookies de Rendimiento y Análisis (solo si las aceptás)')}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  {t('cookies.s2_3p', 'Estas cookies recopilan información sobre cómo los visitantes utilizan la plataforma. La información es anónima y se utiliza para mejorar el funcionamiento del sitio.')}
+                  {t('cookies.s2_3p', 'Estas cookies recopilan información sobre cómo los visitantes utilizan la plataforma, con Google Analytics. Solo se activan si las aceptás en el cartel de cookies: sin tu permiso no se carga nada de Google. Google recibe tu dirección de internet y la pantalla que mirás (nunca tu nombre ni tu correo), y la información se utiliza para mejorar el funcionamiento del sitio.')}
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>{t('cookies.s2_3li1', 'Páginas más visitadas')}</li>
@@ -264,7 +264,7 @@ export default function CookiesPolicy() {
 
               <div className="mt-12 p-6 bg-sky-50 dark:bg-sky-900/20 border-l-4 border-sky-500 rounded-r-lg">
                 <p className="text-sm text-sky-900 dark:text-sky-100">
-                  <Trans i18nKey="cookies.control" components={{ b: <strong /> }} defaults="<b>Tu control:</b> Al utilizar DOAPP, aceptas el uso de cookies según se describe en esta política. Puedes gestionar tus preferencias de cookies en cualquier momento a través de la configuración de tu navegador." />
+                  <Trans i18nKey="cookies.control" components={{ b: <strong /> }} defaults="<b>Tu control:</b> Las cookies estrictamente necesarias se usan siempre, porque sin ellas DOAPP no funciona. La analítica solo se activa si la aceptás en el cartel de cookies, y podés cambiar tu elección cuando quieras en «Preferencias de cookies», al pie de cualquier pantalla, o desde la configuración de tu navegador." />
                 </p>
               </div>
             </div>

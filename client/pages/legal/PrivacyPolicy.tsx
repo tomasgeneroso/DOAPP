@@ -127,6 +127,7 @@ export default function PrivacyPolicy() {
                   <li><Trans i18nKey="privacy.s3li3" components={{ b: <strong /> }} defaults="<b>Cumplimiento legal:</b> Cuando sea requerido por ley o para proteger nuestros derechos" /></li>
                   <li><Trans i18nKey="privacy.s3li4" components={{ b: <strong /> }} defaults="<b>Transferencias empresariales:</b> En caso de fusión, venta o reorganización" /></li>
                   <li><Trans i18nKey="privacy.s3li6" components={{ b: <strong /> }} defaults="<b>Matrícula profesional:</b> el número que declarás puede verse en tu perfil y en tus propuestas. Los archivos de la matrícula solo los ve el personal autorizado de administración y, una vez que ambas partes están vinculadas en un contrato, el usuario contratante, para que pueda verificarla" /></li>
+                  <li><Trans i18nKey="privacy.s3li7" components={{ b: <strong /> }} defaults="<b>Mapas y búsqueda de direcciones:</b> cuando escribís una dirección o abrís un mapa, tu navegador o la app consulta a OpenStreetMap (un servicio abierto de terceros: Nominatim y sus mapas) para sugerir lugares y dibujar el mapa. Ese servicio recibe tu dirección de internet (IP), el texto de la dirección o las coordenadas que consultás y la zona del mapa que mirás, y se rige por su propia política de privacidad. No le enviamos tu nombre, tu correo ni ningún dato de tu cuenta" /></li>
                 </ul>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mt-6 mb-2">
                   {t('privacy.s3intlTitle', 'Transferencia internacional de datos')}
@@ -182,7 +183,7 @@ export default function PrivacyPolicy() {
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>{t('privacy.s6li1', 'Mantener tu sesión iniciada')}</li>
                   <li>{t('privacy.s6li2', 'Recordar tus preferencias (idioma, tema)')}</li>
-                  <li>{t('privacy.s6li3', 'Analizar el uso de la plataforma')}</li>
+                  <li>{t('privacy.s6li3', 'Analizar el uso de la plataforma con Google Analytics, solo si lo aceptás en el cartel de cookies')}</li>
                   <li>{t('privacy.s6li4', 'Mejorar el rendimiento del sitio')}</li>
                 </ul>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">

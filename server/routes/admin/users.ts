@@ -16,6 +16,8 @@ import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { limpiarCampos, valoresAnteriores } from "../../utils/limpiarCampos.js";
 import { isDiditConfigured, getDiditMedia } from "../../services/didit.js";
+import { permisoParaAprobarAMano, RAZON_MINIMA_DE_APROBACION } from "../../services/aprobacionManualDeIdentidad.js";
+import { otorgarContratosLibres } from "../../services/exencionDeComision.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -645,19 +647,72 @@ router.delete(
 // @access  Admin+
 router.post(
   "/:id/verify",
-  requirePermission("users:write"),
+  requirePermission("users:verify", "users:write"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { verified } = req.body;
 
-      // Identity is now verified automatically via KYC (Didit) — admins can no
-      // longer APPROVE identity manually. Revoking a bad verification is still
-      // allowed as a safety valve. The DNI photo is kept as a backup regardless.
+      // La identidad la verifica Didit. Un administrador puede aprobarla A MANO solo si Didit falla o hay un problema (Didit sin configurar, intentos
+      // agotados o verificación en revisión), con un motivo escrito y dejando rastro. Revocar una verificación mala sigue siendo siempre posible.
       if (verified) {
-        res.status(400).json({
-          success: false,
-          message: "La identidad se verifica automáticamente por KYC (Didit). No se aprueba manualmente.",
+        const aprobada = await User.findByPk(req.params.id, {
+          attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] },
         });
+        if (!aprobada) {
+          res.status(404).json({ success: false, message: "Usuario no encontrado" });
+          return;
+        }
+        const permiso = permisoParaAprobarAMano(aprobada as any);
+        if (!permiso.permitido) {
+          res.status(409).json({ success: false, code: "IDENTIDAD_APROBACION_MANUAL_NO_PERMITIDA", message: permiso.descripcion });
+          return;
+        }
+        const razon = String(req.body?.razon ?? "").trim().replace(/\s+/g, " ");
+        if (razon.length < RAZON_MINIMA_DE_APROBACION) {
+          res.status(400).json({
+            success: false,
+            code: "IDENTIDAD_APROBACION_SIN_MOTIVO",
+            message: `Escribí el motivo de la aprobación manual (al menos ${RAZON_MINIMA_DE_APROBACION} caracteres): qué documento viste y por qué no alcanzó Didit.`,
+          });
+          return;
+        }
+        // Nadie aprueba su propia identidad: otra persona del equipo la mira (el dueño, único que puede, queda anotado).
+        if (String(aprobada.id) === String(req.user!.id) && req.user!.adminRole !== "owner") {
+          res.status(403).json({ success: false, code: "IDENTIDAD_APROBACION_PROPIA", message: "No podés aprobar tu propia identidad: lo hace otra persona del equipo." });
+          return;
+        }
+
+        const quien = await User.findByPk(req.user!.id, { attributes: ["id", "name"] });
+        const legalPrevia = (aprobada as any).legalInfo || {};
+        const antes = { kycStatus: aprobada.kycStatus ?? null, dniVerified: !!aprobada.dniVerified, verificationLevel: (aprobada as any).verificationLevel ?? null };
+        await aprobada.update({
+          dniVerified: true,
+          kycStatus: "Approved",
+          kycVerifiedAt: new Date(),
+          verificationLevel: "document",
+          legalInfo: { ...legalPrevia, adminVerifiedBy: String(req.user!.id), adminVerifiedByName: quien?.name ?? null, adminVerifiedAt: new Date().toISOString() },
+        } as any);
+
+        await logAudit({
+          req,
+          action: "approve_user_identity_manual",
+          category: "user",
+          severity: "high",
+          description: `Identidad aprobada a mano para ${aprobada.email} por ${quien?.name} (${permiso.motivo}): ${razon}`,
+          targetModel: "User",
+          targetId: aprobada.id,
+          targetIdentifier: aprobada.email,
+          metadata: { motivo: permiso.motivo, razon, antes },
+        });
+
+        // Quedar verificada es lo que da el beneficio de lanzamiento (primeras 2.000 personas): idempotente y sin efecto si ya se dio o no corresponde.
+        try {
+          await otorgarContratosLibres(String(aprobada.id));
+        } catch (e: any) {
+          console.error("No se pudo evaluar el beneficio de lanzamiento tras la aprobación manual:", e?.message);
+        }
+
+        res.json({ success: true, message: "Identidad aprobada a mano", data: { dniVerified: true, kycStatus: "Approved", verificationLevel: "document" } });
         return;
       }
 
@@ -736,6 +791,8 @@ router.get(
         success: true,
         data: {
           user: datosDelUsuario,
+          // Si un administrador puede aprobar esta identidad a mano (solo si Didit falla o hay un problema) y por qué: la pantalla lo muestra, el servidor lo vuelve a decidir al aprobar.
+          aprobacionManual: { ...permisoParaAprobarAMano(user as any), razonMinima: RAZON_MINIMA_DE_APROBACION },
           jobs: jobs.map((j: any) => ({ id: j.id, title: j.title, status: j.status, price: j.price, createdAt: j.createdAt })),
           contracts: contracts.map((c: any) => ({ id: c.id, status: c.status, price: c.price, createdAt: c.createdAt })),
         },

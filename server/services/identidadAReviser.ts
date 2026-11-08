@@ -16,7 +16,17 @@ import { logEvento } from '../utils/auditLog.js';
 export const ACCION_CONFLICTO_DE_DNI = 'KYC_DNI_EN_USO';
 export const ACCION_CONFLICTO_REVISADO = 'KYC_DNI_EN_USO_REVISADO';
 
+/**
+ * Por qué una cuenta está en la lista:
+ *  - `dni_repetido`: verificó un DNI que ya usa otra cuenta.
+ *  - `misma_persona`: el nombre y la fecha de nacimiento de su documento coinciden con los de otra cuenta (la misma persona con otro documento: doble
+ *    ciudadanía, o una cuenta duplicada). La clave de persona está en `shared/identidad/clavePersona.ts`; lo registra `services/identidadDePersona.ts`.
+ */
+export type TipoDeCaso = 'dni_repetido' | 'misma_persona';
+export const ACCION_POSIBLE_DUPLICADA = 'IDENTIDAD_POSIBLE_DUPLICADA';
+
 export interface ConflictoDeDni {
+  tipo: TipoDeCaso;
   userId: string;
   nombre: string;
   email: string;
@@ -64,7 +74,7 @@ export async function avisarConflictoDeDni(userId: string, nombre: string): Prom
   }
 }
 
-export async function listarConflictosDeDni(opciones: { incluirRevisados?: boolean } = {}): Promise<ConflictoDeDni[]> {
+async function listarConflictosPorDni(opciones: { incluirRevisados?: boolean } = {}): Promise<ConflictoDeDni[]> {
   const eventos = await AuditLog.findAll({ where: { action: ACCION_CONFLICTO_DE_DNI, targetId: { [Op.ne]: null } }, order: [['createdAt', 'DESC']], limit: 1000 });
 
   // El más reciente de cada cuenta.
@@ -75,7 +85,8 @@ export async function listarConflictosDeDni(opciones: { incluirRevisados?: boole
   const ids = [...ultimoPorCuenta.keys()];
   const revisiones = await AuditLog.findAll({ where: { action: ACCION_CONFLICTO_REVISADO, targetId: { [Op.in]: ids } }, order: [['createdAt', 'DESC']] });
   const ultimaRevision = new Map<string, any>();
-  for (const r of revisiones as any[]) if (!ultimaRevision.has(String(r.targetId))) ultimaRevision.set(String(r.targetId), r);
+  // Las revisiones de «misma persona» son de otro asunto: revisar un caso no puede dar por revisado el otro.
+  for (const r of revisiones as any[]) if (meta(r).tipo !== 'misma_persona' && !ultimaRevision.has(String(r.targetId))) ultimaRevision.set(String(r.targetId), r);
 
   const usuarios = await User.findAll({ where: { id: { [Op.in]: ids } }, attributes: ['id', 'name', 'email', 'dni', 'dniVerified'] });
   const porId = new Map<string, any>((usuarios as any[]).map((u) => [String(u.id), u]));
@@ -97,6 +108,7 @@ export async function listarConflictosDeDni(opciones: { incluirRevisados?: boole
     if (revisado && !opciones.incluirRevisados) continue;
     const otra = m.otraCuenta ? ajenoPorId.get(String(m.otraCuenta)) : null;
     salida.push({
+      tipo: 'dni_repetido',
       userId,
       nombre: u.name,
       email: u.email,
@@ -117,6 +129,70 @@ export async function listarConflictosDeDni(opciones: { incluirRevisados?: boole
   return salida;
 }
 
+/**
+ * Las cuentas cuyo documento dice lo mismo que otra (nombre y fecha de nacimiento) pero que NO comparten el número de documento: la misma persona con otro
+ * documento (doble ciudadanía) o una cuenta duplicada. El registro no se frenó: quedó el aviso `IDENTIDAD_POSIBLE_DUPLICADA` y acá está la lista de trabajo.
+ * Un caso sale de la lista cuando se revisa, cuando una de las dos cuentas se unificó con la otra o cuando ya no coinciden.
+ */
+async function listarPosiblesDuplicados(opciones: { incluirRevisados?: boolean } = {}): Promise<ConflictoDeDni[]> {
+  const eventos = await AuditLog.findAll({ where: { action: ACCION_POSIBLE_DUPLICADA, targetId: { [Op.ne]: null } }, order: [['createdAt', 'DESC']], limit: 1000 });
+  if (eventos.length === 0) return [];
+
+  // Un caso por pareja de cuentas (A-B es lo mismo que B-A): se queda el aviso más reciente.
+  const porPareja = new Map<string, any>();
+  for (const ev of eventos as any[]) {
+    const otra = meta(ev).otraCuenta ? String(meta(ev).otraCuenta) : null;
+    if (!otra) continue;
+    const clave = [String(ev.targetId), otra].sort().join('|');
+    if (!porPareja.has(clave)) porPareja.set(clave, ev);
+  }
+
+  const ids = new Set<string>();
+  for (const ev of porPareja.values()) {
+    ids.add(String(ev.targetId));
+    ids.add(String(meta(ev).otraCuenta));
+  }
+  const usuarios = await User.findAll({ where: { id: { [Op.in]: [...ids] } }, attributes: ['id', 'name', 'email', 'dni', 'dniVerified', 'identityKey', 'mergedIntoId'] });
+  const porId = new Map<string, any>((usuarios as any[]).map((u) => [String(u.id), u]));
+
+  const revisiones = await AuditLog.findAll({ where: { action: ACCION_CONFLICTO_REVISADO, targetId: { [Op.in]: [...ids] } }, order: [['createdAt', 'DESC']] });
+
+  const salida: ConflictoDeDni[] = [];
+  for (const ev of porPareja.values()) {
+    const u = porId.get(String(ev.targetId));
+    const otra = porId.get(String(meta(ev).otraCuenta));
+    if (!u || !otra) continue;
+    if (u.mergedIntoId || otra.mergedIntoId) continue; // ya se unificaron
+    if (!u.identityKey || u.identityKey !== otra.identityKey) continue; // ya no coinciden
+
+    const rev = (revisiones as any[]).find((r) => meta(r).tipo === 'misma_persona' && String(r.targetId) === String(u.id) && String(meta(r).otraCuenta) === String(otra.id) && new Date(r.createdAt).getTime() >= new Date(ev.createdAt).getTime());
+    if (rev && !opciones.incluirRevisados) continue;
+    salida.push({
+      tipo: 'misma_persona',
+      userId: String(u.id),
+      nombre: u.name,
+      email: u.email,
+      dniDeLaCuenta: u.dni ? String(u.dni) : null,
+      dniDeDidit: null,
+      dniVerificado: !!u.dniVerified,
+      otraCuenta: { id: String(otra.id), nombre: otra.name, email: otra.email, dniVerificado: !!otra.dniVerified },
+      otraSigueConEseDni: false,
+      detectadoEl: new Date(ev.createdAt).toISOString(),
+      estado: rev ? 'revisado' : 'pendiente',
+      revisadoEl: rev ? new Date(rev.createdAt).toISOString() : undefined,
+      revisadoPor: rev ? (rev.performedBy ? String(rev.performedBy) : null) : undefined,
+      nota: rev ? meta(rev).nota ?? null : undefined,
+    });
+  }
+  return salida;
+}
+
+/** La lista de trabajo completa: DNI repetido y posibles cuentas duplicadas. Primero lo pendiente y lo más nuevo. */
+export async function listarConflictosDeDni(opciones: { incluirRevisados?: boolean } = {}): Promise<ConflictoDeDni[]> {
+  const [porDni, porPersona] = await Promise.all([listarConflictosPorDni(opciones), listarPosiblesDuplicados(opciones)]);
+  return [...porDni, ...porPersona].sort((a, b) => (a.estado === b.estado ? b.detectadoEl.localeCompare(a.detectadoEl) : a.estado === 'pendiente' ? -1 : 1));
+}
+
 export async function contarConflictosDeDni(): Promise<number> {
   return (await listarConflictosDeDni()).length;
 }
@@ -128,13 +204,16 @@ export class ErrorDeRevision extends Error {
 }
 
 /** Una persona de administración da por revisado el choque. La nota es obligatoria: queda escrito qué se resolvió y por qué. */
-export async function marcarConflictoRevisado(userId: string, adminId: string, nota: unknown): Promise<void> {
+export async function marcarConflictoRevisado(userId: string, adminId: string, nota: unknown, opciones: { tipo?: TipoDeCaso; otraCuentaId?: string } = {}): Promise<void> {
   const texto = typeof nota === 'string' ? nota.trim() : '';
   if (texto.length < 10) throw new ErrorDeRevision('Escribí qué se resolvió (al menos 10 caracteres): queda en el registro.', 400);
   if (texto.length > 1000) throw new ErrorDeRevision('La nota es demasiado larga (máximo 1000 caracteres).', 400);
 
-  const pendiente = (await listarConflictosDeDni()).find((c) => c.userId === String(userId));
-  if (!pendiente) throw new ErrorDeRevision('Esa cuenta no tiene un DNI repetido pendiente de revisión.', 404);
+  const tipo: TipoDeCaso = opciones.tipo === 'misma_persona' ? 'misma_persona' : 'dni_repetido';
+  const pendiente = (await listarConflictosDeDni()).find(
+    (c) => c.userId === String(userId) && c.tipo === tipo && (!opciones.otraCuentaId || c.otraCuenta?.id === String(opciones.otraCuentaId)),
+  );
+  if (!pendiente) throw new ErrorDeRevision(tipo === 'misma_persona' ? 'Esa cuenta no tiene una posible duplicada pendiente de revisión.' : 'Esa cuenta no tiene un DNI repetido pendiente de revisión.', 404);
 
   await logEvento({
     action: ACCION_CONFLICTO_REVISADO,
@@ -142,9 +221,9 @@ export async function marcarConflictoRevisado(userId: string, adminId: string, n
     performedBy: adminId,
     category: 'user',
     severity: 'medium',
-    description: `Un administrador revisó el DNI repetido de la cuenta ${userId}.`,
+    description: tipo === 'misma_persona' ? `Un administrador revisó la posible cuenta duplicada ${userId}.` : `Un administrador revisó el DNI repetido de la cuenta ${userId}.`,
     targetModel: 'User',
     targetId: String(userId),
-    metadata: { nota: texto, dniDeDidit: pendiente.dniDeDidit, otraCuenta: pendiente.otraCuenta?.id ?? null },
+    metadata: { nota: texto, tipo, dniDeDidit: pendiente.dniDeDidit, otraCuenta: pendiente.otraCuenta?.id ?? null },
   });
 }

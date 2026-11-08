@@ -1,32 +1,46 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { trackPageView } from '../utils/analytics';
+import { configurarAnalitica, trackPageView } from '../utils/analytics';
+import { useEleccionDeCookies } from '../utils/consentimientoDeCookies';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GOOGLE_ANALYTICS_ID;
 
 /**
  * Google Analytics component that initializes GA and tracks page views
  * Must be placed inside BrowserRouter
+ *
+ * Google se carga SOLO si la persona aceptó la analítica en el cartel de cookies (`BannerDeCookies`): sin respuesta, o con un rechazo, no se descarga el
+ * script ni se le manda nada a Google. Si aceptó y después cambia de idea («Preferencias de cookies»), se apaga con la bandera que Google define para eso.
  */
 export function GoogleAnalytics() {
   const location = useLocation();
+  const aceptada = useEleccionDeCookies() === 'aceptado';
   const initialized = useRef(false);
+  /** Google ya está configurado: antes de eso una visita se perdería o se mandaría dos veces. */
+  const listo = useRef(false);
+  /** La pantalla de ahora: la primera visita se cuenta cuando Google termina de cargar, no cuando se montó el componente. */
+  const rutaActual = useRef(location.pathname);
+  rutaActual.current = location.pathname;
 
   // Initialize GA on mount - load gtag.js script
   useEffect(() => {
     if (!GA_MEASUREMENT_ID) return;
+    // La bandera de Google para no medir: se baja solo con consentimiento y se levanta si lo retira (también si el script ya estaba cargado).
+    (window as unknown as Record<string, unknown>)[`ga-disable-${GA_MEASUREMENT_ID}`] = !aceptada;
+    if (!aceptada) return;
     if (initialized.current) return;
+
+    // Configura Google y cuenta la primera visita. Solo viaja la ruta: ver `configurarAnalitica` (sin la query, que trae tokens).
+    const configurar = () => {
+      configurarAnalitica(GA_MEASUREMENT_ID, rutaActual.current);
+      listo.current = true;
+    };
 
     // Check if gtag script already exists
     const existingScript = document.querySelector(`script[src*="googletagmanager.com/gtag"]`);
     if (existingScript) {
       initialized.current = true;
-      if (window.gtag) {
-        window.gtag('config', GA_MEASUREMENT_ID, {
-          page_path: window.location.pathname,
-          send_page_view: true,
-        });
-      }
+      configurar();
       return;
     }
 
@@ -38,14 +52,7 @@ export function GoogleAnalytics() {
       const script = document.createElement('script');
       script.async = true;
       script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-      script.onload = () => {
-        if (window.gtag) {
-          window.gtag('config', GA_MEASUREMENT_ID, {
-            page_path: window.location.pathname,
-            send_page_view: true,
-          });
-        }
-      };
+      script.onload = configurar;
       document.head.appendChild(script);
     };
 
@@ -55,14 +62,15 @@ export function GoogleAnalytics() {
     if (ric) ric(loadGa, { timeout: 4000 });
     else setTimeout(loadGa, 2500);
     initialized.current = true;
-  }, []);
+  }, [aceptada]);
 
   // Track page views on route change
+  // Solo la ruta, nunca `location.search`: ahí viajan `?token=` (sesión, recuperar contraseña, verificar correo) y `?email=`.
   useEffect(() => {
-    if (GA_MEASUREMENT_ID && window.gtag) {
-      trackPageView(location.pathname + location.search, document.title);
+    if (GA_MEASUREMENT_ID && aceptada && listo.current) {
+      trackPageView(location.pathname, document.title);
     }
-  }, [location]);
+  }, [location, aceptada]);
 
   return null;
 }

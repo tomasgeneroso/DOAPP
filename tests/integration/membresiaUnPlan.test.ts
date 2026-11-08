@@ -75,7 +75,10 @@ import membershipService from '../../server/services/membershipService.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR, MEMBERSHIP_PROMO_DAYS } from '../../shared/constants/membershipPricing.js';
 import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 
-const PRECIO_ARS = MEMBERSHIP_PRICES_EUR.pro * TIPO_EUR;
+// La suscripción paga IVA (regla del dueño, 2026-11-06): los €7 son el neto y lo que se cobra es neto + 21%.
+const NETO_ARS = MEMBERSHIP_PRICES_EUR.pro * TIPO_EUR;
+const IVA_ARS = Math.round(NETO_ARS * 0.21);
+const PRECIO_ARS = NETO_ARS + IVA_ARS;
 const PLAN_VIEJO_ACEPTADO = ['quarterly', 'super_pro'];
 let contadorIdMp = 7_000_000;
 
@@ -213,6 +216,19 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       expect(Number(pago.platformFee)).toBe(0);
     });
 
+    it('la suscripción paga IVA: se cobra neto + 21%, y el desglose queda en el pago para declarar y facturar', async () => {
+      expect(IVA_ARS).toBeGreaterThan(0);
+      expect(PRECIO_ARS).toBe(NETO_ARS + Math.round(NETO_ARS * 0.21));
+      const r = await crearPago('libre', { plan: 'monthly' });
+      expect(r.status).toBe(200);
+      const enviado: any = mockCrearPago.mock.calls[0][0];
+      expect(enviado.amount).toBe(NETO_ARS + IVA_ARS); // a Mercado Pago le llega el total con IVA
+      expect(enviado.amount).toBeGreaterThan(NETO_ARS); // nunca el neto a secas
+      const pago: any = await Payment.findOne({ where: { payerId: usuarios.libre.id } });
+      expect(pago.metadata).toEqual({ neto: NETO_ARS, iva: IVA_ARS, alicuotaIva: 21 });
+      expect(pago.metadata.neto + pago.metadata.iva).toBe(Number(pago.amount));
+    });
+
     it('quien ya tiene una membresía activa (PRO o heredada) no compra otra', async () => {
       for (const clave of ['pro', 'heredada']) {
         const r = await crearPago(clave, { plan: 'monthly' });
@@ -280,7 +296,10 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
     it('trae PRO con el precio en euros de la constante y su comisión reducida', async () => {
       const r = await request(app).get('/api/membership/pricing');
       expect(r.body.pricing.pro.priceEUR).toBe(MEMBERSHIP_PRICES_EUR.pro);
+      // `priceARS` es lo que se cobra (con IVA); el desglose viene aparte para que la pantalla lo muestre antes de pagar.
       expect(r.body.pricing.pro.priceARS).toBe(PRECIO_ARS);
+      expect(r.body.pricing.pro.price).toBe(PRECIO_ARS);
+      expect(r.body.pricing.pro).toMatchObject({ netARS: NETO_ARS, ivaARS: IVA_ARS, ivaRate: 21 });
       expect(r.body.pricing.pro.commissionRate).toBe(COMMISSION_RATES.pro);
       expect(r.body.pricing.free.commissionRate).toBe(COMMISSION_RATES.free);
       // los beneficios que se ofrecen son los de la lista única (T&C 8.1)
@@ -351,7 +370,7 @@ describe('una sola membresía paga, y no se vende en la beta', () => {
       const m: any = await Membership.findOne({ where: { userId: usuarios.compra.id } });
       expect(m.plan).toBe('PRO');
       expect(Number(m.priceEUR)).toBe(MEMBERSHIP_PRICES_EUR.pro);
-      expect(Number(m.priceARS)).toBe(PRECIO_ARS);
+      expect(Number(m.priceARS)).toBe(NETO_ARS); // el ingreso es el NETO: el IVA no es de DOAPP, se gira
       expect(Number(m.exchangeRateAtPurchase)).toBe(TIPO_EUR);
       expect(Number(m.priceUSD)).toBe(0); // legacy: ya no se cotiza en dólares
       // sin comisión por plan: la tasa del registro es la de la tabla, no 2 ni 3

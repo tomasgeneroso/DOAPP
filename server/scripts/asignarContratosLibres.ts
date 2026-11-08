@@ -1,7 +1,8 @@
 /**
- * Marca como «primeras cuentas» (POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES) a las que ya existían: las más antiguas con el registro completo.
- * Quedan con el contrato libre de comisión del mes durante un año (POLITICAS.CONTRATOS_LIBRES_POR_MES). Las cuentas nuevas se marcan solas al completar
- * el registro.
+ * Da el BENEFICIO DE LANZAMIENTO (POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO contrato libre de comisión, una sola vez, y POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO mes de PRO)
+ * a las cuentas que ya existían: las más antiguas con la identidad VERIFICADA, hasta POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES. A las que la regla anterior
+ * había marcado como «primeras» al registrarse pero NO están verificadas les quita la marca (la reciben al verificarse). Las cuentas nuevas lo reciben solas
+ * al verificarse.
  *
  * Por defecto solo muestra qué haría (vista previa). Con --aplicar lo escribe. Correrlo dos veces no duplica nada.
  *

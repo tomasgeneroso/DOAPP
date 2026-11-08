@@ -13,6 +13,8 @@
  * inside a 24h customer-service window).
  */
 
+import { enmascararTelefono } from '../../shared/seguridad/datosPersonales.js';
+
 const GRAPH_VERSION = 'v21.0';
 
 /**
@@ -65,8 +67,14 @@ export async function sendWhatsAppCode(phone: string, code: string): Promise<Wha
 
   const status = getWhatsAppStatus();
   if (!status.ready) {
-    // Log the code so the flow stays testable instead of dead-ending on a 502.
-    console.warn(`[whatsapp] canal no listo (${status.reason}) — código para ${to}: ${code}`);
+    // Fuera de producción el código se escribe para que el flujo siga siendo probable sin credenciales (en vez de morir en un 502),
+    // con el teléfono enmascarado. En producción no se escribe NUNCA ni el código ni el número: un registro con códigos vigentes
+    // es una puerta a la cuenta de quien los pidió.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[whatsapp] canal no listo (${status.reason}) — código para ${enmascararTelefono(to)}: ${code}`);
+    } else {
+      console.warn(`[whatsapp] canal no listo (${status.reason})`);
+    }
     return { sent: false, dev: true };
   }
 

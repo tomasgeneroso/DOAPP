@@ -3,6 +3,7 @@ import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Globe } fr
 import { useTranslation } from "react-i18next";
 import { features } from "../../../shared/featureFlags";
 import { useAuth } from "../../hooks/useAuth";
+import { guardarEleccionDeCookies } from "../../utils/consentimientoDeCookies";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -162,6 +163,15 @@ export default function Footer() {
                 >
                   {t('footer.cookies')}
                 </Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => guardarEleccionDeCookies(null)}
+                  className="text-left text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
+                >
+                  {t('footer.cookiePreferences', 'Preferencias de cookies')}
+                </button>
               </li>
               <li>
                 <Link

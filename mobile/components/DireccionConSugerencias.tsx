@@ -83,8 +83,8 @@ export default function DireccionConSugerencias({
     onSelect(i.s);
     setPista(null);
     if (onCodigoPostal && i.s.lat !== undefined && i.s.lon !== undefined) {
-      // OpenStreetMap pide identificar la aplicación en cada consulta.
-      const cp = await buscarCodigoPostal(i.s.lat, i.s.lon, { userAgent: 'DOAPP-app/2.0 (soporte@doapparg.com)' });
+      // OpenStreetMap pide identificar la aplicación en cada consulta: el nombre alcanza, sin un correo adentro (igual que `DireccionDelTrabajo`).
+      const cp = await buscarCodigoPostal(i.s.lat, i.s.lon, { userAgent: 'DoApp/2.0 (app movil)' });
       if (cp) onCodigoPostal(cp);
     }
   };

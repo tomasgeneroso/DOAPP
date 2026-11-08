@@ -278,9 +278,15 @@ export default function LoginScreen() {
       setEmailStatus('checking');
       const timeout = setTimeout(async () => {
         try {
-          const response = await fetch(`/api/auth/check-availability?email=${encodeURIComponent(emailValue)}`);
+          // El correo va en el cuerpo, no en la dirección (quedaba en el historial y en los registros del servidor).
+          const response = await fetch('/api/auth/check-availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailValue }),
+          });
           const data = await response.json();
-          setEmailStatus(data.emailAvailable ? 'available' : 'taken');
+          // Sin una respuesta válida (el servidor no entendió el pedido) no se afirma que el correo esté tomado.
+          setEmailStatus(typeof data?.emailAvailable !== 'boolean' ? 'idle' : data.emailAvailable ? 'available' : 'taken');
         } catch {
           setEmailStatus('idle');
         }
@@ -509,7 +515,7 @@ export default function LoginScreen() {
           {/* Mensaje de bienvenida para nuevos usuarios */}
           <div className="mb-4 sm:mb-6 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 p-3 sm:p-4 text-center shadow-md">
             <p className="text-xs sm:text-sm font-semibold text-white">
-              {t('auth.promoFirst1000', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_POR_MES, meses: POLITICAS.MESES_DE_CONTRATOS_LIBRES })}
+              {t('auth.promoFirst1000', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}
             </p>
           </div>
 

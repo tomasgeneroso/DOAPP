@@ -136,9 +136,14 @@ export default function Dashboard() {
       });
       const jobsData = await jobsRes.json();
 
-      if (contractsData.success && proposalsData.success) {
+      // Lo gastado sale de los pagos reales (`/api/balance/gastado`): antes se sumaban solo los contratos COMPLETADOS y daba $0 con un trabajo
+      // ya pagado todavía en curso. Si ese pedido falla, se cae a la cuenta vieja en vez de dejar el tablero en cero.
+      const gastadoData = await fetch("/api/balance/gastado", { credentials: 'include' }).then((r) => r.json()).catch(() => null);
+
+      // Los contratos alcanzan para armar el tablero: un pedido de propuestas caído deja las propuestas en cero, no todo el tablero.
+      if (contractsData.success) {
         const contracts = contractsData.contracts || [];
-        const proposals = proposalsData.proposals || [];
+        const proposals = proposalsData?.success ? proposalsData.proposals || [] : [];
         const jobs = jobsData.jobs || [];
 
         // Calcular estadísticas usando PostgreSQL (id) solo
@@ -192,7 +197,7 @@ export default function Dashboard() {
 
         setStats({
           totalEarnings: earnings,
-          totalSpent: spent,
+          totalSpent: gastadoData?.success ? Number(gastadoData.totalGastado) || 0 : spent,
           activeContracts: active,
           completedContracts: completed,
           rejectedProposals: rejected,

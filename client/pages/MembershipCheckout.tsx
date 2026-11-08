@@ -114,7 +114,11 @@ export default function MembershipCheckout() {
   // las constantes compartidas, no se escriben a mano aca.
   const proPlan = {
     name: t('membership.planMonthlyName', 'PRO'),
+    // `priceARS` es lo que se cobra (neto + IVA). El desglose viene del servidor: la suscripción paga IVA (los €7 son sin IVA).
     priceARS: pricing?.pro?.priceARS || 0,
+    netARS: pricing?.pro?.netARS || 0,
+    ivaARS: pricing?.pro?.ivaARS || 0,
+    ivaRate: pricing?.pro?.ivaRate || 21,
     period: 'por mes',
     benefits: [
       { icon: Crown, title: `${POLITICAS.CONTRATOS_LIBRES_POR_MES} contrato libre de comisión por mes`, description: 'El mes que no lo usás no se acumula. Se pagan igual el trabajo y el costo de procesamiento' },
@@ -163,11 +167,11 @@ export default function MembershipCheckout() {
             </div>
             <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
               €{MEMBERSHIP_PRICES_EUR.pro}
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400"> / {proPlan.period}</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400"> + IVA / {proPlan.period}</span>
             </p>
             {proPlan.priceARS > 0 && (
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                ≈ ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
+                ≈ ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS con IVA incluido
               </p>
             )}
             <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-sky-600 dark:text-sky-400">
@@ -251,15 +255,23 @@ export default function MembershipCheckout() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
-                      ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      ${Math.round(proPlan.netARS || proPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('membership.withoutVat', 'sin IVA')}</p>
                   </div>
                 </div>
 
+                {proPlan.ivaARS > 0 && (
+                  <div className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
+                    <p>{t('membership.vatLine', 'IVA {{ivaRate}}%', { ivaRate: proPlan.ivaRate })}</p>
+                    <p className="font-semibold">${Math.round(proPlan.ivaARS).toLocaleString('es-AR')} ARS</p>
+                  </div>
+                )}
+
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                   <div className="flex justify-between items-center">
-                    <p className="font-bold text-gray-900 dark:text-white">{t('common.total', 'Total')}</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{t('membership.totalWithVat', 'Total con IVA')}</p>
                     <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
                       ${Math.round(proPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>

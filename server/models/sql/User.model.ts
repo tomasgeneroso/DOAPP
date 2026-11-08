@@ -644,8 +644,8 @@ export class User extends Model {
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;
 
-  // Contador de contratos libres de comisión que suman los PREMIOS (referidos). El beneficio mensual de las primeras cuentas no pasa por acá: ver
-  // `isEarlyUser` / `freeMonthlyUsedAt` y services/exencionDeComision.ts. Antes toda cuenta nacía con 3.
+  // Contador de contratos libres de comisión: lo suman el contrato libre del beneficio de lanzamiento (una sola vez, `launchBenefitGrantedAt`) y los PREMIOS
+  // (referidos). El contrato libre del mes de la membresía PRO no pasa por acá (`freeMonthlyProUsedAt`). Ver services/exencionDeComision.ts. Antes toda cuenta nacía con 3.
   @Default(0)
   @AllowNull(false)
   @Column(DataType.INTEGER)
@@ -739,13 +739,36 @@ export class User extends Model {
   @Column(DataType.INTEGER)
   earlyUserNumber?: number;
 
-  // Última vez que gastó el contrato libre de comisión del mes (primeras cuentas, POLITICAS.CONTRATOS_LIBRES_POR_MES). El mes que no se usa no se acumula.
+  // HEREDADO: era la última vez que gastó el contrato libre «del mes» de las primeras cuentas (regla anterior al 2026-11-06). Ya no se lee ni se escribe: el beneficio
+  // de lanzamiento es un contrato libre único en `freeContractsRemaining`. La columna se conserva por el historial.
   @Column(DataType.DATE)
   freeMonthlyUsedAt?: Date | null;
 
-  // Lo mismo para el contrato libre del mes de la membresía PRO (regla del dueño, 2026-10-26: se suma al de las primeras cuentas).
+  // Última vez que gastó el contrato libre del mes de la membresía PRO (POLITICAS.CONTRATOS_LIBRES_POR_MES). El mes que no se usa no se acumula.
   @Column(DataType.DATE)
   freeMonthlyProUsedAt?: Date | null;
+
+  /**
+   * Huella (HMAC) de «primer apellido + primer nombre + fecha de nacimiento» leídos del documento verificado: lo que comparten todos los documentos de una
+   * persona (DNI y pasaporte argentinos, DNI y pasaporte italianos). NO es única: una coincidencia avisa a administración, no frena nada
+   * (`services/identidadDePersona.ts`, `shared/identidad/clavePersona.ts`).
+   */
+  @Column({ type: DataType.STRING(64), field: 'identity_key' })
+  identityKey?: string | null;
+
+  /** Si la cuenta se unificó con otra (la misma persona con dos documentos): a cuál. Una cuenta unificada no inicia sesión (`services/unionDeCuentas.ts`). */
+  @Column({ type: DataType.UUID, field: 'merged_into_id' })
+  mergedIntoId?: string | null;
+
+  @Column({ type: DataType.DATE, field: 'merged_at' })
+  mergedAt?: Date | null;
+
+  @Column({ type: DataType.UUID, field: 'merged_by' })
+  mergedBy?: string | null;
+
+  /** Cuándo se le dio el beneficio de lanzamiento (contrato libre de comisión y mes de PRO de las primeras cuentas verificadas). Una sola vez. */
+  @Column({ type: DataType.DATE, field: 'launch_benefit_granted_at' })
+  launchBenefitGrantedAt?: Date | null;
 
   @Default(3)
   @AllowNull(false)

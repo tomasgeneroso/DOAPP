@@ -111,6 +111,12 @@ export default function MembershipCheckoutScreen() {
             ${Number(price).toLocaleString('es-AR')} ARS
           </Text>
           <Text style={[styles.periodText, { color: themeColors.text.secondary }]}>{planInfo.period}</Text>
+          {/* La suscripción paga IVA: el total ya lo incluye y se dice cuánto es cada parte (el servidor manda el desglose). */}
+          {pricing?.pro?.ivaARS > 0 && (
+            <Text style={[styles.periodText, { color: themeColors.text.secondary }]}>
+              {`IVA ${pricing.pro.ivaRate ?? 21}% incluido: $${Number(pricing.pro.netARS).toLocaleString('es-AR')} + $${Number(pricing.pro.ivaARS).toLocaleString('es-AR')}`}
+            </Text>
+          )}
         </View>
 
         {/* Benefits */}

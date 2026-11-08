@@ -43,6 +43,7 @@ export const PRIVACY_KEYS: string[] = [
   "s3li3",
   "s3li4",
   "s3li6",
+  "s3li7",
   "s3intlTitle",
   "s3intl",
   "s4Title",

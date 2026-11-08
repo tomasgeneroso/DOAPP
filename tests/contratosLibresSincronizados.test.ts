@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { POLITICAS } from '../shared/constants/policies.js';
 
 /**
- * Contratos libres de comisión: una sola regla (las primeras 1000 cuentas tienen 1 por mes durante 12 meses), escrita en UN lugar (`POLITICAS`).
+ * Contratos libres de comisión: una sola regla (las primeras 2000 personas verificadas tienen 1 contrato libre, una vez, y 1 mes de PRO), escrita en UN lugar (`POLITICAS`).
  *
  * Antes la promesa vivía en cinco lugares con números distintos: «3 para los primeros 1000» en pantallas y mensajes, 1 en `markEarlyUser` (que nadie
  * llamaba), 3 como valor por defecto de TODA cuenta, 3 cada mes para PRO por un cron, y un cupo mensual de 1 (PRO) o 2 (SUPER PRO) que contradecía que la
@@ -24,11 +24,15 @@ function archivos(dir: string, extensiones: string[], acc: string[] = []): strin
 }
 
 describe('contratos libres de comisión: una sola regla', () => {
-  it('las constantes son 1 contrato por mes, durante 12 meses, para las primeras 1000 cuentas', () => {
+  it('las constantes son 1 contrato libre UNA vez y 1 mes de PRO, para las primeras 2000 personas verificadas', () => {
     expect((POLITICAS as Record<string, unknown>).CONTRATOS_LIBRES_DE_COMISION).toBeUndefined(); // la regla de las «6 para 2000» ya no existe
+    expect((POLITICAS as Record<string, unknown>).MESES_DE_CONTRATOS_LIBRES).toBeUndefined(); // ni el «1 por mes durante 12 meses» (regla del 2026-11-06)
+    expect(POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO).toBe(1);
+    // Los términos (7.13) dicen «el primer período mensual»: si se cambia el mes, hay que cambiar el texto de los dos idiomas.
+    expect(POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO).toBe(1);
+    expect(POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES).toBe(2000);
+    // El contrato libre por mes es de la membresía PRO, no del lanzamiento.
     expect(POLITICAS.CONTRATOS_LIBRES_POR_MES).toBe(1);
-    expect(POLITICAS.MESES_DE_CONTRATOS_LIBRES).toBe(12);
-    expect(POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES).toBe(1000);
   });
 
   it('una cuenta nueva nace sin contratos libres en el contador (la marca de primera cuenta la da `otorgarContratosLibres`)', () => {
@@ -57,7 +61,7 @@ describe('contratos libres de comisión: una sola regla', () => {
 
   it('los textos que cuentan la regla la toman de la constante, no de un literal', () => {
     for (const ruta of ['server/routes/membership.ts', 'server/routes/referrals.ts', 'client/components/auth/AuthHero.tsx', 'client/components/MembershipOfferModal.tsx']) {
-      expect([ruta, /POLITICAS\.(CONTRATOS_LIBRES_POR_MES|MESES_DE_CONTRATOS_LIBRES|PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES)/.test(leer(ruta))]).toEqual([ruta, true]);
+      expect([ruta, /POLITICAS\.(CONTRATOS_LIBRES_POR_MES|CONTRATOS_LIBRES_DE_LANZAMIENTO|MESES_DE_PRO_DE_LANZAMIENTO|PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES)/.test(leer(ruta))]).toEqual([ruta, true]);
     }
   });
 });

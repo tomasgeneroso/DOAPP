@@ -213,7 +213,7 @@ export interface User {
   referralCode?: string;
   freeContractsRemaining?: number;
   /** Los contratos libres de comisión que puede usar ahora: el del mes (primeras cuentas, hasta `hasta`) y los de premios. `freeContractsRemaining` es el total. */
-  contratosLibres?: { mensual: number; bono: number; total: number; hasta: string | null };
+  contratosLibres?: { membresia: number; bono: number; total: number };
   totalReferrals?: number;
   membershipTier?: 'free' | 'pro' | 'super_pro';
   hasMembership?: boolean;
@@ -505,7 +505,14 @@ export interface MembershipTier {
   name: string;
   price?: number;
   priceEUR?: number;
+  /** Lo que se cobra (neto + IVA). */
   priceARS?: number;
+  /** La cuota sin IVA. */
+  netARS?: number;
+  /** El IVA de la cuota. */
+  ivaARS?: number;
+  /** Alícuota del IVA, en porcentaje. */
+  ivaRate?: number;
   currency: string;
   exchangeRate?: number;
   benefits: string[];

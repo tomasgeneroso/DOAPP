@@ -13,6 +13,7 @@ import { isValidUUID } from "../../utils/sanitizer.js";
 import { logAudit } from "../../utils/auditLog.js";
 import { bloqueoPorAprobacionPropia, esAprobacionPropiaDelDueno } from "../../services/aprobacionDePagos.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
+import { referenciasRepetidas, describirReferenciaRepetida, type ReferenciaRepetida } from "../../services/comprobanteDuplicado.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -468,8 +469,17 @@ router.get("/:paymentId/proofs", protect, requireRole('admin', 'super_admin', 'o
       include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
       order: [['sequence', 'ASC'], ['uploadedAt', 'ASC']],
     });
+    // «Comprobante duplicado»: el mismo número de operación en otro pago. Se calcula al leer (ver services/comprobanteDuplicado.ts).
+    // Un comprobante a la vez: así cada uno lleva SU marca aunque el pago tenga dos números distintos.
+    const marcaDe = new Map<string, ReferenciaRepetida>();
+    for (const p of proofs as any[]) {
+      if (p.kind === 'note' || !p.bankReference) continue;
+      const m = (await referenciasRepetidas([{ paymentId, bankReference: p.bankReference }])).get(paymentId);
+      if (m) marcaDe.set(String(p.id), m);
+    }
 
     const map = (p: any) => ({
+      comprobanteDuplicado: marcaDe.get(String(p.id)) ?? null,
       id: p.id,
       kind: p.kind || 'client_receipt',
       fileUrl: p.fileUrl,
@@ -821,11 +831,43 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       };
     }));
 
+    // El comprobante que sube la administración al verificar (kind 'admin_verification') se guarda aparte del recibo del cliente y NO activo, para no pisarlo.
+    // La lista solo traía los activos, así que un pago verificado con el comprobante de la administración se veía como «Sin comprobante» y parecía que no se había guardado.
+    const idsDeLaPagina = payments.map((p) => String(p.id));
+    const delAdmin: any[] = idsDeLaPagina.length
+      ? await PaymentProof.findAll({
+          where: { paymentId: { [Op.in]: idsDeLaPagina }, kind: 'admin_verification' } as any,
+          attributes: ['id', 'paymentId', 'fileUrl', 'fileType', 'fileName', 'status', 'bankReference', 'senderBankName', 'uploadedAt'],
+          order: [['uploadedAt', 'ASC']],
+        })
+      : [];
+    const delAdminPorPago = new Map<string, any[]>();
+    for (const c of delAdmin) {
+      const k = String(c.paymentId);
+      delAdminPorPago.set(k, [...(delAdminPorPago.get(k) ?? []), c.toJSON()]);
+    }
+    // «Comprobante duplicado»: el mismo número de operación en otro pago. Se deja pasar pero se marca (services/comprobanteDuplicado.ts).
+    const repetidas = await referenciasRepetidas(
+      payments.flatMap((p: any) => {
+        const referencias = [...(p.proofs ?? []), ...(delAdminPorPago.get(String(p.id)) ?? [])];
+        return referencias.map((r: any) => ({ paymentId: String(p.id), bankReference: r.bankReference }));
+      }),
+    );
+    const conComprobantes = paymentsWithJobs.map((row: any) => {
+      const adminProofs = delAdminPorPago.get(String(row.id)) ?? [];
+      return {
+        ...row,
+        adminProofs,
+        hasProof: Boolean(row.hasProof) || adminProofs.length > 0,
+        comprobanteDuplicado: repetidas.get(String(row.id)) ?? null,
+      };
+    });
+
     const total = await Payment.count({ where });
 
     res.json({
       success: true,
-      data: paymentsWithJobs,
+      data: conComprobantes,
       pagination: {
         total,
         limit: parseInt(limit as string),
@@ -1095,6 +1137,13 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     }
     await payment.reload();
 
+    // «Comprobante duplicado»: si el número de operación ya figura en OTRO pago, se deja pasar (regla del dueño) pero queda marcado: en la nota del comprobante,
+    // en la auditoría y en la lista de pagos. Se mira ANTES de guardar el comprobante nuevo para no contarse a sí mismo.
+    const referenciaAprobada = String(bankReference || '').trim();
+    const repetida = referenciaAprobada
+      ? (await referenciasRepetidas([{ paymentId, bankReference: referenciaAprobada }]).catch(() => new Map<string, ReferenciaRepetida>())).get(paymentId) ?? null
+      : null;
+
     // If admin uploaded a proof directly, store it as the ADMIN VERIFICATION proof
     // (kind='admin_verification', isActive=false) so it never replaces the client's
     // receipt in active-proof queries — both are kept and shown separately.
@@ -1122,6 +1171,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
           bankReference ? `Referencia: ${bankReference}` : null,
           transferAmount ? `Monto: $${transferAmount}` : null,
           transferDate ? `Fecha: ${transferDate}` : null,
+          repetida ? `⚠ ${describirReferenciaRepetida(repetida)}` : null,
           notes || null
         ].filter(Boolean).join(' | ') || null,
         isActive: false,
@@ -1164,7 +1214,10 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       req, action: 'payment.approve', category: 'payment', severity: 'high',
       description: `Aprobó/verificó el pago ${paymentId} (nuevo estado: ${newStatus})`,
       targetModel: 'Payment', targetId: paymentId,
-      metadata: { newStatus, bankReference: bankReference || null, amount: Number(payment.amount) || null, aprobacionPropiaDelDueno: esAprobacionPropiaDelDueno(payment, req.user) },
+      metadata: {
+        newStatus, bankReference: bankReference || null, amount: Number(payment.amount) || null, aprobacionPropiaDelDueno: esAprobacionPropiaDelDueno(payment, req.user),
+        comprobanteDuplicado: repetida ? { referencia: repetida.referencia, otrosPagos: repetida.otrosPagos.map((o) => o.paymentId) } : false,
+      },
     });
 
     console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} approved with status: ${newStatus}`);
@@ -1305,6 +1358,11 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     res.json({
       success: true,
       message: "Pago aprobado exitosamente",
+      // En qué estado quedó (un pago de publicación, de membresía o un aumento ya cobrado por Mercado Pago pasa directo a «completed»; los de contrato
+      // quedan «verified» a la espera de la garantía): la pantalla elige la pestaña según esto, no según lo que supone.
+      newStatus,
+      // Si el número de operación ya figuraba en otro pago: se aprobó igual, pero quedó marcado como comprobante duplicado.
+      comprobanteDuplicado: repetida,
       data: {
         payment: payment.toJSON(),
         proof: proof?.toJSON()

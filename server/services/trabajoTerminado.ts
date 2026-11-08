@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { Job } from '../models/sql/Job.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { conSistema } from '../db/contextoRls.js';
@@ -19,6 +19,40 @@ export async function completarTrabajoSiTerminaron(jobId: string): Promise<boole
   // Es una decisión del sistema sobre TODOS los contratos del trabajo: con la seguridad por filas, quien confirma (el trabajador) solo vería el suyo y el trabajo
   // se daría por terminado mientras otro trabajador sigue en curso.
   return conSistema(() => completar(jobId));
+}
+
+/**
+ * Barrido: cierra los trabajos «en curso» cuyos contratos YA terminaron todos.
+ *
+ * `completarTrabajoSiTerminaron` solo corre en el momento en que un contrato termina. Un trabajo cuyo contrato terminó ANTES de esa corrección (o cuando el aviso
+ * falló) se quedaba «en curso» para siempre aunque nadie tuviera nada pendiente: pasó en producción con un trabajo del 22/10. Este barrido (lo llama el cron del
+ * ciclo del contrato, cada 5 minutos) lo cierra solo, con la misma regla de arriba. Idempotente: un trabajo ya cerrado no se toca.
+ * Devuelve cuántos cerró.
+ */
+export async function completarTrabajosYaTerminados(limite = 200): Promise<number> {
+  return conSistema(async () => {
+    const candidatos: any[] = await Job.findAll({
+      where: {
+        status: 'in_progress',
+        // Tiene al menos un contrato terminado y ninguno vigente sin terminar (la regla fina la vuelve a decidir `completar`).
+        [Op.and]: [
+          literal(`EXISTS (SELECT 1 FROM contracts c WHERE c.job_id = "Job"."id" AND c.status = 'completed')`),
+          literal(`NOT EXISTS (SELECT 1 FROM contracts c WHERE c.job_id = "Job"."id" AND c.status NOT IN ('completed', 'cancelled', 'rejected'))`),
+        ],
+      } as any,
+      attributes: ['id'],
+      limit: limite,
+    });
+    let cerrados = 0;
+    for (const j of candidatos) {
+      try {
+        if (await completar(String(j.id))) cerrados++;
+      } catch (e: any) {
+        console.error(`[trabajoTerminado] no se pudo cerrar el trabajo ${j.id}:`, e?.message);
+      }
+    }
+    return cerrados;
+  });
 }
 
 async function completar(jobId: string): Promise<boolean> {

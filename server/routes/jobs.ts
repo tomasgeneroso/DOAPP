@@ -373,7 +373,7 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
     // This ensures user sees notifications as soon as they check their jobs
     const expiredCount = await checkAndProcessUserExpiredJobs(req.user.id);
     if (expiredCount > 0) {
-      console.log(`⚠️ Processed ${expiredCount} expired jobs for user ${req.user.email}`);
+      console.log(`⚠️ Processed ${expiredCount} expired jobs for user ${req.user.id}`);
     }
 
     const jobs = await Job.findAll({
@@ -381,7 +381,7 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
       order: [['createdAt', 'DESC']]
     });
 
-    console.log(`✅ Found ${jobs.length} jobs for user ${req.user.email}`);
+    console.log(`✅ Found ${jobs.length} jobs for user ${req.user.id}`);
 
     // Get proposal counts for all jobs
     const jobIds = jobs.map(j => j.id);

@@ -68,6 +68,13 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'influencer_invites.batch_id', sql: `CREATE INDEX IF NOT EXISTS influencer_invites_batch_id ON influencer_invites (batch_id)` },
   { label: 'users.commission_free_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS commission_free_until TIMESTAMPTZ` },
   { label: 'users.influencer_invite_id', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS influencer_invite_id UUID` },
+  // --- identidad de la persona y unión de cuentas (ver migración 20261106120000) ---
+  { label: 'users.identity_key', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS identity_key VARCHAR(64)` },
+  { label: 'users.merged_into_id', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS merged_into_id UUID REFERENCES users(id)` },
+  { label: 'users.merged_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS merged_at TIMESTAMPTZ` },
+  { label: 'users.merged_by', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS merged_by UUID` },
+  { label: 'users.launch_benefit_granted_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS launch_benefit_granted_at TIMESTAMPTZ` },
+  { label: 'users.identity_key index', sql: `CREATE INDEX IF NOT EXISTS users_identity_key ON users (identity_key) WHERE identity_key IS NOT NULL` },
   // --- matrícula profesional encriptada (ver migración 20261012100000) ---
   { label: 'users.license_number text', sql: `ALTER TABLE users ALTER COLUMN license_number TYPE TEXT` },
   { label: 'users.license_document_back_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document_back_url TEXT` },

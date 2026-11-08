@@ -150,6 +150,15 @@ export function hash(text: string): string {
 }
 
 /**
+ * Firma (HMAC-SHA256) un texto con la clave del servidor: sirve para COMPARAR sin guardar el texto. Se usa para la clave de persona («PEREZ|MARIA|1990-05-15»):
+ * en la base queda esta huella y no el nombre ni la fecha de nacimiento. Con un hash simple, quien se llevara la base podría probar nombres y fechas hasta dar con
+ * el mismo valor; con la clave del servidor no. Sin `ENCRYPTION_KEY` usa la de reserva (solo para desarrollo, igual que el resto de este archivo).
+ */
+export function huellaDePersona(texto: string): string {
+  return crypto.createHmac('sha256', getEncryptionKey()).update(texto).digest('hex');
+}
+
+/**
  * Encripta CBU bancario específicamente
  * Valida el formato antes de encriptar
  * @param cbu - El CBU a encriptar (22 dígitos)

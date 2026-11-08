@@ -104,7 +104,7 @@ export default function JobPayment() {
   // Free contracts info (display only — the server decides the amount)
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
   // Si lo que se gasta es el contrato libre del MES (primeras cuentas) o uno de los premios de referidos.
-  const contratoDelMes = (user?.contratosLibres?.mensual ?? 0) > 0;
+  const contratoDelMes = (user?.contratosLibres?.membresia ?? 0) > 0;
   const premiosDespues = user?.contratosLibres?.bono ?? 0;
 
   const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
@@ -532,8 +532,8 @@ export default function JobPayment() {
                         <p className="mt-1 text-xs">
                           {contratoDelMes ? (
                             <>
-                              Usás tu contrato libre de comisión de este mes; el próximo lo tenés desde el 1.º del mes que viene
-                              {premiosDespues > 0 ? ` y te quedan ${premiosDespues} de premios` : ''}.
+                              Usás el contrato libre de comisión de tu membresía PRO de este mes; el próximo lo tenés desde el 1.º del mes que viene mientras sigas con PRO
+                              {premiosDespues > 0 ? ` y te quedan ${premiosDespues} del beneficio de lanzamiento o de premios` : ''}.
                             </>
                           ) : (
                             <>

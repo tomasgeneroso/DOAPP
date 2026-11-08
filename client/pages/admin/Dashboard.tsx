@@ -1,4 +1,5 @@
 import MercadoPagoPorLiquidar from "../../components/admin/MercadoPagoPorLiquidar";
+import PendientesDelAdmin from "../../components/admin/PendientesDelAdmin";
 import { useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
@@ -7,8 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminApi } from "@/lib/adminApi";
 import type { AnalyticsOverview } from "@/types/admin";
 import { Users, FileText, TicketIcon, TrendingUp, Plus, AlertTriangle, DollarSign, CreditCard, Wallet, BarChart3, Crown, Star } from "lucide-react";
-import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../../shared/constants/membershipPricing";
-import { MINIMUM_COMMISSION_EUR } from "../../../shared/pricing/minimums";
+import { MEMBERSHIP_PRICES_EUR } from "../../../shared/constants/membershipPricing";
 import {
   PieChart,
   Pie,
@@ -125,6 +125,9 @@ export default function AdminDashboard() {
         </p>
       </div>
 
+      {/* Lo primero: qué hay que hacer, de lo más urgente a lo menos y por tipo (retiros, publicaciones, disputas…) */}
+      <PendientesDelAdmin />
+
       {/* Lo que Mercado Pago todavía tiene que liquidar (neto, por fecha de liberación) */}
       {["owner", "super_admin", "admin"].includes(String((user as any)?.adminRole || "")) && <MercadoPagoPorLiquidar />}
 
@@ -227,51 +230,13 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Gráfico de tasas de comisión */}
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                  {t('admin.dashboard.commissionStructure', 'Comisión por plan (igual para todos)')}
-                </h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={[
-                      { tipo: t('admin.dashboard.freeContracts', 'contratos gratuitos'), comision: 0, label: '0%' },
-                      { tipo: 'FREE', comision: COMMISSION_RATES.free, label: `${COMMISSION_RATES.free}%` },
-                      { tipo: 'PRO', comision: COMMISSION_RATES.pro, label: `${COMMISSION_RATES.pro}%` },
-                    ]}
-                    margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="tipo" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} domain={[0, COMMISSION_RATES.free + 4]} unit="%" />
-                    <Tooltip
-                      formatter={(value: number) => [`${value}%`, t('admin.dashboard.commission', 'Comisión')]}
-                      contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
-                      labelStyle={{ color: '#f3f4f6' }}
-                    />
-                    <Bar dataKey="comision" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#9ca3af', fontSize: 12, formatter: (value: any) => value > 0 ? `${value}%` : '0%' } as any}>
-                      <Cell fill="#22c55e" />
-                      <Cell fill="#8b5cf6" />
-                      <Cell fill="#0ea5e9" />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />{t('admin.dashboard.freeContracts', 'contratos gratuitos')} — 0%</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-500" />FREE — {COMMISSION_RATES.free}%</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-sky-500" />PRO — {COMMISSION_RATES.pro}%</span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                  {t(
-                    'admin.dashboard.commissionSameNote',
-                    'La comisión la paga el cliente: {{comision}}% en el plan gratuito y {{comisionPro}}% con PRO, con un piso de EUR {{piso}}. Durante la beta es 0% hasta la fecha de cierre.',
-                    { comision: COMMISSION_RATES.free, comisionPro: COMMISSION_RATES.pro, piso: MINIMUM_COMMISSION_EUR },
-                  )}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                  {t('admin.dashboard.minAmountFamilyPlan', 'Mínimo $1.000 ARS · Plan Familia y publicaciones libres de comisión: 0%')}
-                </p>
-              </div>
+              {/* Solo comisiones de contratos: nada de planes ni membresías (esos ingresos están en su propia tarjeta, abajo). */}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t(
+                  'admin.dashboard.commissionOnlyNote',
+                  'Suma la comisión de los contratos completados (la paga el cliente). No incluye membresías ni publicidad: esos ingresos figuran en sus propias tarjetas.',
+                )}
+              </p>
             </div>
 
             {/* Ingresos por Membresías - Versión mejorada con gráficos */}

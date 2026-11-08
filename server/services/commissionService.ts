@@ -13,8 +13,9 @@
  * - Beta: 0% para todos, hasta la fecha de cierre (`isBetaPhase`).
  * - Plan Familia: 0%.
  * - Invitación de un creador de contenido (T&C 7.11): 0% hasta `commissionFreeUntil`.
- * - Contrato libre de comisión (`isFreeContract`, o `freeContractsRemaining` > 0 con CUALQUIER plan): 0%. El contador es el de los premios de referidos.
- *   El contrato libre del MES de las primeras cuentas (`POLITICAS.CONTRATOS_LIBRES_POR_MES`) no se evalúa acá: lo reclama quien cobra
+ * - Contrato libre de comisión (`isFreeContract`, o `freeContractsRemaining` > 0 con CUALQUIER plan): 0%. El contador lo suman el contrato libre del beneficio de
+ *   lanzamiento (una sola vez, primeras `PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES` personas verificadas) y los premios de referidos.
+ *   El contrato libre del MES de la membresía PRO (`POLITICAS.CONTRATOS_LIBRES_POR_MES`) no se evalúa acá: lo reclama quien cobra
  *   (`services/exencionDeComision.ts`) y pasa `isFreeContract`, así se gasta exactamente una vez.
  * - Premio de referidos (tercer referido): `POLITICAS.COMISION_PREMIO_DE_REFERIDOS` % hasta `referralDiscountExpiresAt`.
  *

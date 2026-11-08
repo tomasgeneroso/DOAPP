@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import IdBadge from "../../components/admin/IdBadge";
 import KycMediaViewer from "../../components/admin/KycMediaViewer";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { getImageUrl } from "@/utils/imageUrl";
 import { useSocket } from "@/hooks/useSocket";
@@ -15,11 +15,14 @@ export default function AdminUsers() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  // El buscador de administración manda el correo por el estado de la navegación y no por la dirección (`?search=`): la dirección
+  // queda en el historial, en los registros del servidor y en la analítica. `?search=` se sigue entendiendo por los enlaces ya guardados.
+  const ubicacion = useLocation();
   const { user: currentUser, token } = useAuth();
   const { isConnected, registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler } = useSocket();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState(searchParams.get('search') || "");
+  const [search, setSearch] = useState((ubicacion.state as { search?: string } | null)?.search || searchParams.get('search') || "");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
@@ -42,6 +45,8 @@ export default function AdminUsers() {
 
   // Verification modal
   const [verifyModal, setVerifyModal] = useState<AdminUser | null>(null);
+  // Motivo escrito de una aprobación manual de identidad (solo si Didit falla o hay un problema).
+  const [razonManual, setRazonManual] = useState('');
   const [verifyDetail, setVerifyDetail] = useState<any>(null);
   const [verifyDetailLoading, setVerifyDetailLoading] = useState(false);
   const [verifyDetailError, setVerifyDetailError] = useState<string | null>(null);
@@ -224,6 +229,7 @@ export default function AdminUsers() {
   const openVerifyModal = async (user: AdminUser) => {
     setVerifyModal(user);
     setVerifyDetail(null);
+    setRazonManual('');
     setVerifyDetailError(null);
     setVerifyDetailLoading(true);
     setVerifyChatOpen(false);
@@ -411,14 +417,14 @@ export default function AdminUsers() {
     setVerifyChatSending(false);
   };
 
-  const handleVerifyUser = async (verified: boolean) => {
+  const handleVerifyUser = async (verified: boolean, razon?: string) => {
     if (!verifyModal) return;
     setVerifyLoading(true);
     try {
       const res = await fetch(`/api/admin/users/${verifyModal.id}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ verified }),
+        body: JSON.stringify({ verified, ...(razon ? { razon } : {}) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -433,6 +439,7 @@ export default function AdminUsers() {
         }
         setVerifyModal(null);
         setVerifyDetail(null);
+        setRazonManual('');
       } else {
         alert(data.message || 'Error al verificar usuario');
       }
@@ -1315,17 +1322,39 @@ export default function AdminUsers() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700 shrink-0">
-              <button onClick={() => { setVerifyModal(null); setVerifyDetail(null); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <div className="flex flex-col sm:flex-row gap-3 p-5 border-t border-gray-200 dark:border-gray-700 shrink-0">
+              <button onClick={() => { setVerifyModal(null); setVerifyDetail(null); }} className="w-full sm:w-auto sm:flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cerrar
               </button>
               {verifyDetail?.user.dniVerified ? (
                 <div className="flex-1 flex items-center justify-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
                   <ShieldCheck className="h-4 w-4" /> Identidad verificada (KYC)
                 </div>
+              ) : verifyDetail?.aprobacionManual?.permitido ? (
+                <div className="flex-1 space-y-2">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <strong>Didit no pudo resolver esta cuenta.</strong> {verifyDetail.aprobacionManual.descripcion} Podés aprobarla a mano mirando el documento. Queda anotado quién, cuándo y por qué.
+                  </p>
+                  <textarea
+                    value={razonManual}
+                    onChange={e => setRazonManual(e.target.value)}
+                    rows={2}
+                    placeholder="Motivo: qué documento viste y por qué no alcanzó Didit (mínimo 15 caracteres)"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => handleVerifyUser(true, razonManual.trim())}
+                    disabled={verifyLoading || razonManual.trim().length < (verifyDetail.aprobacionManual.razonMinima ?? 15)}
+                    className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                  >
+                    {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                    Aprobar identidad a mano
+                  </button>
+                </div>
               ) : (
                 <div className="flex-1 text-center text-xs text-gray-500 dark:text-gray-400 self-center">
-                  La identidad se verifica automáticamente por KYC (Didit).<br />El DNI se guarda solo como respaldo.
+                  La identidad se verifica automáticamente por KYC (Didit).<br />
+                  {verifyDetail?.aprobacionManual?.descripcion ?? 'El DNI se guarda solo como respaldo.'}
                 </div>
               )}
             </div>

@@ -6,6 +6,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
 import fcmService from '../services/fcm.js';
 import { Op } from 'sequelize';
+import { enmascararCorreo } from '../../shared/seguridad/datosPersonales.js';
 
 /**
  * Cron job to send confirmation reminders when job end date has passed
@@ -116,7 +117,7 @@ export function startConfirmationReminderJob() {
               data: { type: 'confirmation_reminder', contractId },
             });
 
-            console.log(`✅ [CRON] Confirmation reminder sent to client ${client.email} for contract ${contractId}`);
+            console.log(`✅ [CRON] Confirmation reminder sent to client ${enmascararCorreo(client.email)} for contract ${contractId}`);
           }
 
           // Send to doer if not confirmed
@@ -154,7 +155,7 @@ export function startConfirmationReminderJob() {
               data: { type: 'confirmation_reminder', contractId },
             });
 
-            console.log(`✅ [CRON] Confirmation reminder sent to doer ${doer.email} for contract ${contractId}`);
+            console.log(`✅ [CRON] Confirmation reminder sent to doer ${enmascararCorreo(doer.email)} for contract ${contractId}`);
           }
 
           // Mark reminder as sent

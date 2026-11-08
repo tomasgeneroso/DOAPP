@@ -1054,7 +1054,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
       console.log(`📊 Plan: ${plan}`);
 
-      // Cotización del día: la membresía se fija en euros y se cobra en pesos.
+      // Cotización del día: la membresía se fija en euros y se cobra en pesos. `priceARS` es el NETO (sin IVA): es el ingreso de DOAPP y lo que suman los paneles;
+      // lo que pagó la persona (neto + IVA) está en `payment.amount`, con el desglose en `payment.metadata` (regla del dueño, 2026-11-06: la suscripción paga IVA).
       const exchangeRate = await currencyExchange.getEURtoARSRate();
       const priceARS = await currencyExchange.convertEURtoARS(priceEUR);
 

@@ -14,7 +14,11 @@
  *
  * El precio esta en euros por la misma razon que el resto: un precio fijado en
  * pesos se licua solo y nadie se acuerda de revisarlo.
+ *
+ * Los euros son SIN IVA: la suscripcion paga IVA aparte (`precioConIva`).
  */
+
+import { IVA } from '../pricing/processingCost.js';
 
 export const MEMBERSHIP_PRICES_EUR = {
   pro: 7,
@@ -36,6 +40,29 @@ export const MEMBERSHIP_PRICES_EUR = {
 export const MEMBERSHIP_PROMO_DAYS = 3;
 
 export type MembershipPlanKey = keyof typeof MEMBERSHIP_PRICES_EUR;
+
+/** Lo que cuesta PRO en pesos, con el IVA a la vista. Todo en pesos enteros: es lo que se cobra y lo que se factura. */
+export interface PrecioDeMembresia {
+  /** La cuota sin IVA (los €7 convertidos al cambio del día): es el ingreso de DOAPP. */
+  neto: number;
+  /** El IVA de la cuota. DOAPP es responsable inscripto: lo cobra y lo gira. */
+  iva: number;
+  /** Lo que se le cobra a la persona: neto + IVA. */
+  total: number;
+  /** La alícuota, en porcentaje (21). */
+  alicuotaIva: number;
+}
+
+/**
+ * La suscripción PRO paga IVA (regla del dueño, 2026-11-06): los €7 son el precio SIN IVA y el IVA se suma, igual que la comisión y el costo de procesamiento
+ * (`shared/pricing/processingCost.ts`). Quien paga ve el desglose antes de confirmar. `Membership.priceARS` guarda el NETO (es lo que entra como ingreso y lo que
+ * suman los paneles de ingresos); `Payment.amount` guarda el TOTAL cobrado.
+ */
+export function precioConIva(netoEnPesos: number): PrecioDeMembresia {
+  const neto = Math.round(Number(netoEnPesos) || 0);
+  const iva = Math.round(neto * IVA);
+  return { neto, iva, total: neto + iva, alicuotaIva: Math.round(IVA * 100) };
+}
 
 /**
  * La comision, por plan. La paga el CLIENTE (T&C 7.3): el plan gratuito paga 10% y quien tiene PRO paga 3% en los contratos que contrata (ademas del contrato

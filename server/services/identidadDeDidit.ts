@@ -6,6 +6,8 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { compararIdentidad, type IdentidadDelDocumento } from '../../shared/identidad/coincidencia.js';
 import { avisarConflictoDeDni, yaSeRegistroElConflicto } from './identidadAReviser.js';
+import { registrarClaveDePersona } from './identidadDePersona.js';
+import { otorgarContratosLibres } from './exencionDeComision.js';
 import { cuilCoincideConDni, cuilValido, dniValido, formatearCuil, normalizarDni, primerCuilValido, soloDigitos } from '../../shared/identidad/documentos.js';
 
 /**
@@ -137,6 +139,12 @@ export interface ResultadoDeAplicar {
 /** Aplica lo leído a la cuenta. Idempotente: llamarlo de nuevo con lo mismo no cambia nada. */
 export async function aplicarIdentidadDeDidit(user: any, decision: any): Promise<ResultadoDeAplicar> {
   const r: ResultadoDeAplicar = { dniCompletado: false, dniCorregido: false, cuilCompletado: false, dniEnUsoPorOtraCuenta: false };
+  // La clave de persona (apellido + nombre + fecha de nacimiento) se guarda ANTES del filtro de abajo: un pasaporte o un DNI italiano no tienen forma de DNI
+  // argentino y por eso no dejaban ninguna clave. Una coincidencia con otra cuenta deja una alerta; no cambia el estado de la verificación.
+  await registrarClaveDePersona(user, decision);
+  // Quedar verificada es lo que da el beneficio de lanzamiento (contrato libre de comisión y mes de PRO de las primeras 2.000 personas). Va DESPUÉS de la clave de persona:
+  // si otra cuenta con la misma clave ya lo recibió, no se da de nuevo. Idempotente, y no hace nada si la cuenta no está verificada con el registro completo.
+  await otorgarContratosLibres(String(user.id));
   const { dni, cuil } = extraerIdentidad(decision);
   if (!dni && !cuil) return r;
 

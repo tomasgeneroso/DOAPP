@@ -81,7 +81,7 @@ export const betaPost = {
   keyTakeaways: [
     `Durante la beta DoApp no cobra ninguna comisión: si el trabajo vale ${pesos(TRABAJO)}, el trabajador recibe ${pesos(enBeta.workerReceives)} y el cliente paga ese precio más el costo de procesamiento del pago.`,
     'Todas las cuentas tienen las funciones de la membresía PRO sin costo mientras dure la beta.',
-    `La beta termina el 31 de diciembre de 2026. A partir del 1 de enero de 2027 se cobra una comisión del ${COMISION}%, a cargo del cliente y la misma para todos los planes, y la membresía PRO pasa a ser paga (€${PRECIO_PRO} por mes).`,
+    `La beta termina el 31 de diciembre de 2026. A partir del 1 de enero de 2027 se cobra una comisión del ${COMISION}%, a cargo del cliente y la misma para todos los planes, y la membresía PRO pasa a ser paga (€${PRECIO_PRO} por mes más IVA).`,
     'El dinero del trabajo va íntegro al trabajador, no a la plataforma: ni la comisión ni el costo de procesamiento se le descuentan.',
     'Los contratos hechos durante la beta conservan sus condiciones: al terminar la beta no se les aplica comisión de forma retroactiva.',
   ],
@@ -103,11 +103,11 @@ export const betaPost = {
     },
     {
       question: '¿Qué pasa exactamente el 1 de enero de 2027?',
-      answer: `Empieza a cobrarse la comisión del ${COMISION}% sobre el precio de cada contrato nuevo, a cargo del cliente, con un piso de EUR ${PISO} y con IVA del 21% sobre esa comisión. La membresía PRO pasa a estar a la venta: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día, con renovación mensual. Nadie queda suscripto automáticamente: si no contratás un plan, tu cuenta queda en FREE.`,
+      answer: `Empieza a cobrarse la comisión del ${COMISION}% sobre el precio de cada contrato nuevo, a cargo del cliente, con un piso de EUR ${PISO} y con IVA del 21% sobre esa comisión. La membresía PRO pasa a estar a la venta: €${PRECIO_PRO} por mes más IVA, cobrados en pesos al cambio del día, con renovación mensual. Nadie queda suscripto automáticamente: si no contratás un plan, tu cuenta queda en FREE.`,
     },
     {
       question: '¿La membresía PRO baja la comisión?',
-      answer: `Sí, cuando termina la beta: con la membresía PRO la comisión es del ${COMISION_PRO}% en vez del ${COMISION}%, y además tenés un contrato libre de comisión por mes (el que no usás no se acumula). La comisión la paga el cliente. La membresía PRO (€${PRECIO_PRO} por mes) suma promoción del perfil, insignia, prioridad en las búsquedas, estadísticas y prioridad en soporte.`,
+      answer: `Sí, cuando termina la beta: con la membresía PRO la comisión es del ${COMISION_PRO}% en vez del ${COMISION}%, y además tenés un contrato libre de comisión por mes (el que no usás no se acumula). La comisión la paga el cliente. La membresía PRO (€${PRECIO_PRO} por mes más IVA) suma promoción del perfil, insignia, prioridad en las búsquedas, estadísticas y prioridad en soporte.`,
     },
     {
       question: '¿Los contratos que hice durante la beta van a pagar comisión después?',
@@ -174,7 +174,7 @@ Al terminar la beta, tu cuenta vuelve al plan que tengas contratado. Si nunca co
 Tres cosas, y ninguna más:
 
 1. **Empieza a cobrarse la comisión**: ${COMISION}% sobre el precio del trabajo, a cargo del cliente, con IVA sobre la comisión.
-2. **La membresía PRO pasa a ser paga**: €${PRECIO_PRO} por mes, cobrados en pesos al cambio del día. Baja la comisión al ${COMISION_PRO}% (en vez del ${COMISION}%) y suma un contrato libre de comisión por mes, además de visibilidad y estadísticas.
+2. **La membresía PRO pasa a ser paga**: €${PRECIO_PRO} por mes más IVA, cobrados en pesos al cambio del día. Baja la comisión al ${COMISION_PRO}% (en vez del ${COMISION}%) y suma un contrato libre de comisión por mes, además de visibilidad y estadísticas.
 3. **El aviso de beta desaparece** y en su lugar avisamos que la plataforma pasó a su versión estable.
 
 ## ¿Y qué NO cambia?
