@@ -41,8 +41,23 @@ import {
   Sparkles,
   Calculator,
   Scale,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import Transicion from "@/components/ui/Transicion";
+import { aplicarOrden, moverGrupo, moverUnLugar, leerOrdenGuardado, guardarOrden } from "../../../shared/admin/ordenDelMenu";
+
+/** El almacenamiento del navegador, o null si está bloqueado (ventana privada, permisos): el orden entonces vale solo para esta sesión. */
+const almacenDelNavegador = (): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
 
 interface NavGroup {
   label: string;
@@ -67,6 +82,19 @@ export default function AdminLayout() {
   const { isDark, toggleTheme } = useTheme();
   const { isConnected, reconnect } = useSocket();
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['hubs', 'general', 'operations', 'padrones', 'finance', 'support']);
+
+  /**
+   * Orden de los GRUPOS del menú (Hubs, General, Operaciones, Padrones, Finanzas…), a gusto de cada administrador: se arrastran los grupos, no los elementos de adentro.
+   * Se guarda en este navegador, por persona (shared/admin/ordenDelMenu.ts). Sin nada guardado queda el orden de siempre.
+   */
+  const [ordenGuardado, setOrdenGuardado] = useState<string[] | null>(() => leerOrdenGuardado(almacenDelNavegador(), user?.id));
+  const [ordenando, setOrdenando] = useState(false);
+  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [sobreEste, setSobreEste] = useState<string | null>(null);
+  const [avisoDeOrden, setAvisoDeOrden] = useState('');
+  useEffect(() => {
+    setOrdenGuardado(leerOrdenGuardado(almacenDelNavegador(), user?.id));
+  }, [user?.id]);
 
   /**
    * Contracargos que vencen pronto, para el contador de la barra lateral.
@@ -198,8 +226,8 @@ export default function AdminLayout() {
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
         // «A revisar» (un DNI que Didit leyó y ya usa otra cuenta) y «Baneadas» son una sola entrada con pestañas; el contador es de lo que hay para revisar.
         { path: "/admin/identidades", icon: IdCard, label: t('admin.sidebar.identities', 'Identidades'), roles: ["owner", "super_admin", "admin"], badge: identidadesPendientes > 0 ? String(identidadesPendientes) : undefined },
-        { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
-        { path: "/admin/jobs/board", icon: Activity, label: t('admin.sidebar.jobBoard', 'Panel de publicaciones'), roles: ["owner", "super_admin", "admin", "support"] },
+        // Un solo lugar para las publicaciones: vista general (estado final, contrato y pago de cada una), para atender y moderación. Antes eran dos entradas.
+        { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publicaciones'), roles: ["owner", "super_admin", "admin", "marketing", "support"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/content-agent", icon: Sparkles, label: "Agente de contenido", roles: ["owner", "super_admin", "admin", "marketing"] },
@@ -230,7 +258,7 @@ export default function AdminLayout() {
         // Va primero en Finanzas y con contador: es lo único de esta sección
         // que vence. Un pago por verificar espera; un contracargo, no.
         { path: "/admin/chargebacks", icon: AlertTriangle, label: t('admin.sidebar.chargebacks', 'Contracargos'), roles: ["owner", "super_admin", "admin"], badge: urgentes > 0 ? String(urgentes) : undefined },
-        { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pagos'), roles: ["owner", "super_admin", "admin"] },
         // Solo aparece con el modulo de pago al terminar encendido. Con el
         // apagado la lista esta siempre vacia y el item seria ruido.
         ...(pagoAlTerminarActivo
@@ -288,6 +316,21 @@ export default function AdminLayout() {
       items: group.items.filter(item => item.roles.includes(user.adminRole!))
     }))
     .filter(group => group.items.length > 0);
+
+  // Los grupos en el orden de la persona (los que no conoce todavía van al final, en el orden de siempre).
+  const ordenDeGrupos = aplicarOrden(visibleGroups.map(g => g.label), ordenGuardado);
+  const gruposEnOrden = ordenDeGrupos.map(k => visibleGroups.find(g => g.label === k)!).filter(Boolean);
+
+  const cambiarOrden = (nuevo: string[], quien?: string) => {
+    setOrdenGuardado(nuevo);
+    guardarOrden(almacenDelNavegador(), user?.id, nuevo);
+    if (quien) setAvisoDeOrden(`${groupLabels[quien] ?? quien}: lugar ${nuevo.indexOf(quien) + 1} de ${nuevo.length}`);
+  };
+  const restablecerOrden = () => {
+    setOrdenGuardado(null);
+    guardarOrden(almacenDelNavegador(), user?.id, null);
+    setAvisoDeOrden('Orden restablecido');
+  };
 
   const isActivePath = (path: string) => {
     if (path === "/admin") {
@@ -375,11 +418,87 @@ export default function AdminLayout() {
             </button>
           </div>
 
+          {/* Ordenar el menú: se arrastran los grupos grandes (no los elementos de adentro). */}
+          <div className="mb-2 px-2">
+            <button
+              type="button"
+              onClick={() => { setOrdenando(v => !v); setAvisoDeOrden(''); }}
+              aria-pressed={ordenando}
+              className={`w-full flex items-center justify-center gap-2 px-2 py-1.5 text-xs font-medium rounded-lg border transition ${
+                ordenando
+                  ? 'border-sky-400 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                  : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              {ordenando ? 'Listo' : 'Ordenar menú'}
+            </button>
+            <Transicion mostrar={ordenando}>
+              <div className="mt-2 rounded-lg bg-slate-50 dark:bg-slate-700/40 p-2 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                <p>Arrastrá cada grupo a donde quieras, o usá las flechas. Se guarda en este navegador.</p>
+                {ordenGuardado && (
+                  <button type="button" onClick={restablecerOrden} className="text-sky-600 dark:text-sky-400 hover:underline">
+                    Restablecer el orden de siempre
+                  </button>
+                )}
+              </div>
+            </Transicion>
+            <p className="sr-only" role="status" aria-live="polite">{avisoDeOrden}</p>
+          </div>
+
           {/* Grouped Navigation */}
           <nav className="space-y-2">
-            {visibleGroups.map((group) => (
-              <div key={group.label}>
+            {gruposEnOrden.map((group, posicion) => (
+              <div
+                key={group.label}
+                draggable={ordenando}
+                onDragStart={(e) => {
+                  if (!ordenando) return;
+                  setArrastrando(group.label);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', group.label);
+                }}
+                onDragOver={(e) => {
+                  if (!ordenando || !arrastrando || arrastrando === group.label) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (sobreEste !== group.label) setSobreEste(group.label);
+                }}
+                onDrop={(e) => {
+                  if (!ordenando || !arrastrando) return;
+                  e.preventDefault();
+                  cambiarOrden(moverGrupo(ordenDeGrupos, arrastrando, group.label), arrastrando);
+                  setArrastrando(null);
+                  setSobreEste(null);
+                }}
+                onDragEnd={() => { setArrastrando(null); setSobreEste(null); }}
+                className={`rounded-lg transition ${ordenando ? 'border border-dashed border-slate-300 dark:border-slate-600 p-0.5 cursor-grab' : ''} ${arrastrando === group.label ? 'opacity-40' : ''} ${sobreEste === group.label ? 'ring-2 ring-sky-400' : ''}`}
+              >
                 {/* Group Header */}
+                {ordenando ? (
+                  <div className="flex items-center gap-1 px-1 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    <GripVertical className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                    <span className="flex-1 truncate">{groupLabels[group.label]}</span>
+                    <button
+                      type="button"
+                      onClick={() => cambiarOrden(moverUnLugar(ordenDeGrupos, group.label, -1), group.label)}
+                      disabled={posicion === 0}
+                      aria-label={`Subir el grupo ${groupLabels[group.label]}`}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cambiarOrden(moverUnLugar(ordenDeGrupos, group.label, 1), group.label)}
+                      disabled={posicion === gruposEnOrden.length - 1}
+                      aria-label={`Bajar el grupo ${groupLabels[group.label]}`}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
                 <button
                   onClick={() => toggleGroup(group.label)}
                   className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider hover:text-slate-700 dark:hover:text-slate-300 transition"
@@ -391,9 +510,10 @@ export default function AdminLayout() {
                     <ChevronRight className="h-3.5 w-3.5" />
                   )}
                 </button>
+                )}
 
-                {/* Group Items */}
-                {expandedGroups.includes(group.label) && (
+                {/* Group Items: mientras se ordena solo se ven los encabezados, para que arrastrar sea fácil */}
+                {!ordenando && expandedGroups.includes(group.label) && (
                   <div className="mt-1 space-y-0.5">
                     {group.items.map((item) => (
                       <Link

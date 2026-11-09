@@ -20,6 +20,7 @@ import { logMoneyEvent } from "../../utils/auditLog.js";
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 import { pagableDesde } from "../../services/liberacionDeSaldo.js";
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
+import { respaldadosPorLaPublicacion } from "../../services/pagosAlTrabajador.js";
 import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = express.Router();
@@ -184,7 +185,15 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       attributes: ['contractId']
     });
 
-    const confirmedContractIds = confirmedPayments.map(p => p.contractId).filter(Boolean) as string[];
+    // Además de los contratos con un pago propio «confirmado para pagar», los terminados cuyo dinero ya estaba en DOAPP por el pago de la PUBLICACIÓN del trabajo
+    // (el flujo normal: se paga al publicar y el contrato nace sin pago propio). Antes esos no aparecían en ninguna lista (services/pagosAlTrabajador.ts).
+    const respaldadosPorPublicacion = await respaldadosPorLaPublicacion();
+    const confirmedContractIds = [
+      ...new Set([
+        ...(confirmedPayments.map(p => p.contractId).filter(Boolean) as string[]),
+        ...respaldadosPorPublicacion.map(r => r.contratoId),
+      ]),
+    ];
 
     // If no confirmed payments, return empty result early (prevents UUID error)
     if (confirmedContractIds.length === 0) {
@@ -231,7 +240,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         {
           model: Job,
           as: 'job',
-          attributes: ['id', 'title', 'maxWorkers', 'selectedWorkers', 'workerAllocations']
+          attributes: ['id', 'title', 'maxWorkers', 'selectedWorkers', 'workerAllocations', 'publicationPaymentId']
         }
       ],
       order: [[actualSortBy, sortOrder as string]]
@@ -305,19 +314,25 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       if (workers.length === 0) continue;
 
       // Get the Payment record for this contract to check commission verification
-      const paymentRecord = await Payment.findOne({
-        where: { contractId: firstContract.id },
-        attributes: ['id', 'status', 'amount', 'platformFee', 'approvedAt', 'createdAt', 'moneyReleaseDate'],
-        include: [
-          {
-            model: PaymentProof,
-            as: 'proofs',
-            where: { isActive: true },
-            required: false,
-            attributes: ['id', 'fileUrl', 'status', 'uploadedAt']
-          }
-        ]
-      });
+      const buscarElPago = (where: Record<string, unknown>) =>
+        Payment.findOne({
+          where: where as any,
+          attributes: ['id', 'status', 'amount', 'platformFee', 'approvedAt', 'createdAt', 'moneyReleaseDate'],
+          include: [
+            {
+              model: PaymentProof,
+              as: 'proofs',
+              where: { isActive: true },
+              required: false,
+              attributes: ['id', 'fileUrl', 'status', 'uploadedAt']
+            }
+          ]
+        });
+      let paymentRecord = await buscarElPago({ contractId: firstContract.id });
+      // Sin pago propio: el que respalda al contrato es el de la publicación del trabajo.
+      if (!paymentRecord && (job as any)?.publicationPaymentId) {
+        paymentRecord = await buscarElPago({ id: (job as any).publicationPaymentId });
+      }
 
       // Commission is verified if Payment status is 'held_escrow', 'confirmed_for_payout', 'completed', or 'awaiting_confirmation'
       const commissionVerifiedStatuses = ['held_escrow', 'confirmed_for_payout', 'completed', 'awaiting_confirmation', 'released'];
@@ -885,7 +900,9 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
      * con justificación, y queda asentada con severidad alta.
      */
     const pagoConfirmado = await Payment.findOne({ where: { contractId, status: 'confirmed_for_payout' }, attributes: ['id'] });
-    if (!pagoConfirmado) {
+    // Si no tiene un pago propio confirmado pero su dinero ya estaba en DOAPP por el pago de la publicación del trabajo, eso es el pago del cliente confirmado.
+    const respaldoDePublicacion = pagoConfirmado ? null : (await respaldadosPorLaPublicacion(contractId))[0] ?? null;
+    if (!pagoConfirmado && !respaldoDePublicacion) {
       const { forzarSinPago, justificacionSinPago } = req.body as { forzarSinPago?: boolean; justificacionSinPago?: string };
       const rolDelAdmin = String((req.user as any)?.adminRole || '');
       const puedeForzar = ['owner', 'super_admin'].includes(rolDelAdmin);
@@ -964,7 +981,9 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
      * nada que retener. Se puede forzar con justificacion, y queda asentado con
      * severidad alta: cada excepcion tiene que poder reconstruirse.
      */
-    const pagoDelCliente = await Payment.findOne({ where: { contractId }, attributes: ['approvedAt', 'createdAt', 'moneyReleaseDate'], order: [['createdAt', 'ASC']] }).catch(() => null);
+    const pagoDelCliente =
+      (await Payment.findOne({ where: { contractId }, attributes: ['approvedAt', 'createdAt', 'moneyReleaseDate'], order: [['createdAt', 'ASC']] }).catch(() => null)) ??
+      (respaldoDePublicacion ? respaldoDePublicacion.pago : null);
     // Con la fecha REAL de liberación de Mercado Pago, igual que el listado: antes este chequeo la ignoraba y dejaba pagar antes de que la plata existiera.
     const desde = pagableDesde(contract as any, (pagoDelCliente as any)?.approvedAt || (pagoDelCliente as any)?.createdAt, (pagoDelCliente as any)?.moneyReleaseDate);
     const { forzar, justificacion } = req.body as { forzar?: boolean; justificacion?: string };
@@ -1184,6 +1203,30 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
             paymentId: String(paymentToUpdate.id),
             metadata: { archivo: proofOfPayment ? 'recibido' : 'sin archivo' },
           }).catch(() => undefined);
+        }
+      }
+    } else if (respaldoDePublicacion) {
+      // El contrato lo respaldaba el pago de la publicación: ese pago no cambia de estado (puede respaldar otros usos), pero el comprobante de la transferencia al
+      // trabajador queda como evidencia en él.
+      if (proofOfPayment) {
+        try {
+          await PaymentProof.create({
+            paymentId: respaldoDePublicacion.pagoId,
+            userId: adminId,
+            fileUrl: String(proofOfPayment),
+            fileName: 'comprobante-de-pago-al-trabajador',
+            fileSize: 0,
+            kind: 'note',
+            uploadedByRole: 'admin',
+            status: 'approved',
+            uploadedAt: new Date(),
+            verifiedBy: adminId,
+            verifiedAt: new Date(),
+            isActive: false,
+            notes: `Comprobante de pago al trabajador - ${job?.title || 'Contrato'}`,
+          } as any);
+        } catch (error: any) {
+          console.error(`[mark-paid] No se pudo guardar el comprobante en el pago de la publicación: ${error.message}`);
         }
       }
     } else {

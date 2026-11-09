@@ -43,14 +43,14 @@ router.get(
         if (/^[0-9a-f-]{4,}$/i.test(searchStr)) {
           // UUID fragment: match job ID, clientId, or resolve via related contract
           const contractsForSearch = await Contract.findAll({
-            where: { [Op.or]: [literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
+            where: { [Op.or]: [literal(`CAST("Contract"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
             attributes: ['jobId'],
             limit: 10,
           }).catch(() => []);
 
           const conditions: any[] = [
-            literal(`CAST("jobs"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
-            literal(`CAST("jobs"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Job"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Job"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
           ];
           const contractJobIds = contractsForSearch.map(c => c.jobId).filter(Boolean);
           if (contractJobIds.length > 0) {
@@ -319,6 +319,32 @@ router.get(
     } catch (error: any) {
       console.error('Error armando el panel de publicaciones:', error);
       res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+/**
+ * GET /api/admin/jobs/panel?q=&estado=&limite=
+ * El panel de publicaciones: UNA fila por publicación con su ESTADO FINAL, su CONTRATO y su PAGO, buscable por cualquier id vinculado (trabajador, cliente, pago,
+ * contrato, publicación, retiro, propuesta, movimiento, disputa, ticket), por un pedazo de id, por el título o por el nombre o correo de una persona.
+ * Qué dice cada rótulo: shared/admin/resumenDePublicacion.ts. Cómo se llega de un id a una publicación: services/vinculosDeId.ts.
+ */
+router.get(
+  '/panel',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { panelDePublicaciones } = await import('../../services/panelDePublicaciones.js');
+      const r = await panelDePublicaciones({
+        q: typeof req.query.q === 'string' ? req.query.q : undefined,
+        estado: typeof req.query.estado === 'string' ? req.query.estado : undefined,
+        limite: Number(req.query.limite) || undefined,
+      });
+      res.json({ success: true, data: r.filas, resumen: r.resumen, total: r.total, buscado: r.buscado });
+    } catch (error: any) {
+      console.error('Error armando el panel de publicaciones (vista general):', error);
+      res.status(500).json({ success: false, message: error.message || 'Error al armar el panel de publicaciones' });
     }
   },
 );

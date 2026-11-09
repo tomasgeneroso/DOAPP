@@ -34,6 +34,7 @@ import {
   contratosLibresDisponibles,
   cupoDeLaMembresiaDisponible,
   devolverCupoDeExencion,
+  enElPeriodoSinCostoDelLanzamiento,
   gastarCupoDeExencion,
   inicioDelMes,
   otorgarContratosLibres,
@@ -295,17 +296,17 @@ describe('comisionDePublicacion y cupos libres de comisión', () => {
         await otorgarContratosLibres(a.id);
         const t1 = await trabajo(a.id);
         const r1 = await comisionDePublicacion(await leer(a.id), t1, 1_000_000);
-        // Con PRO vigente primero va el contrato libre de PRO del mes; después el del lanzamiento: dos libres el primer mes.
-        expect([r1.comision.commission, r1.gastar]).toEqual([0, 'pro']);
-        await gastarCupoDeExencion(await leer(a.id), t1, 'pro');
+        // Opción B del dueño (2026-11-09): en el mes de PRO sin costo del lanzamiento NO hay contrato libre mensual; el primer mes es UN solo contrato libre, el del lanzamiento.
+        expect([r1.comision.commission, r1.gastar]).toEqual([0, 'bono']);
+        await gastarCupoDeExencion(await leer(a.id), t1, 'bono');
         const t2 = await trabajo(a.id);
         const r2 = await comisionDePublicacion(await leer(a.id), t2, 1_000_000);
-        expect([r2.comision.commission, r2.gastar]).toEqual([0, 'bono']);
-        await gastarCupoDeExencion(await leer(a.id), t2, 'bono');
+        expect(r2.gastar).toBeNull();
+        expect(r2.comision.rate).toBe(COMMISSION_RATES.pro); // todavía tiene el mes de PRO: paga la comisión reducida de PRO
         const t3 = await trabajo(a.id);
         const r3 = await comisionDePublicacion(await leer(a.id), t3, 1_000_000);
         expect(r3.gastar).toBeNull();
-        expect(r3.comision.rate).toBe(COMMISSION_RATES.pro); // todavía tiene el mes de PRO
+        expect(r3.comision.rate).toBe(COMMISSION_RATES.pro);
 
         // Se termina el mes de PRO gratis: vuelve a su plan y paga la comisión general.
         await sequelize.query(`UPDATE users SET membership_expires_at = :d WHERE id = :id`, { replacements: { d: new Date(Date.now() - DIA), id: a.id } });
@@ -477,5 +478,101 @@ describe('comisionDePublicacion y cupos libres de comisión', () => {
         expect(otraVez.cuentas).toBe(0); // el tope ya está completo
       });
     });
+  });
+});
+
+/**
+ * Opción B del dueño (2026-11-09): el mes de PRO SIN COSTO del beneficio de lanzamiento NO suma el contrato libre mensual de la membresía.
+ *
+ * Antes la persona verificada tenía DOS contratos libres de comisión el primer mes (el del lanzamiento y el del mes de PRO); el beneficio prometido es UNO. La regla solo
+ * protege el mes sin costo: una membresía PAGADA tiene su contrato del mes, con o sin beneficio de lanzamiento.
+ */
+describe('el mes de PRO sin costo del lanzamiento no suma un segundo contrato libre', () => {
+  const usuarios: string[] = [];
+  const trabajos: string[] = [];
+  const cuenta = async (over: Record<string, unknown> = {}) => {
+    const u: any = await crearUsuario({ role: 'client', freeContractsRemaining: 0, dniVerified: true, registrationPending: false, ...over });
+    usuarios.push(u.id);
+    return u;
+  };
+  const trabajo = async (clientId: string) => {
+    const t: any = await crearTrabajo(clientId, { status: 'pending_payment', price: 100000 });
+    trabajos.push(t.id);
+    return t;
+  };
+  const sumarMeses = (d: Date, n: number) => {
+    const r = new Date(d);
+    r.setMonth(r.getMonth() + n);
+    return r;
+  };
+
+  afterAll(async () => {
+    try {
+      await Membership.destroy({ where: { userId: usuarios }, force: true });
+      await Notification.destroy({ where: { recipientId: usuarios }, force: true });
+      await Job.destroy({ where: { id: trabajos }, force: true });
+      await User.destroy({ where: { id: usuarios }, force: true });
+    } catch { /* la limpieza no puede hacer fallar el test */ }
+  });
+
+  it('enElPeriodoSinCostoDelLanzamiento reconoce el mes del beneficio y no una membresía pagada', () => {
+    const hoy = new Date();
+    expect(enElPeriodoSinCostoDelLanzamiento({ id: 1, launchBenefitGrantedAt: hoy, membershipExpiresAt: sumarMeses(hoy, 1) })).toBe(true);
+    // el mes de la base y el de JavaScript difieren unos días (31 de enero + 1 mes): el margen lo cubre
+    expect(enElPeriodoSinCostoDelLanzamiento({ id: 1, launchBenefitGrantedAt: hoy, membershipExpiresAt: new Date(sumarMeses(hoy, 1).getTime() + 3 * DIA) })).toBe(true);
+    // una membresía pagada vence mucho después
+    expect(enElPeriodoSinCostoDelLanzamiento({ id: 1, launchBenefitGrantedAt: hoy, membershipExpiresAt: sumarMeses(hoy, 3) })).toBe(false);
+    // sin beneficio de lanzamiento, o sin vencimiento: no es ese período
+    expect(enElPeriodoSinCostoDelLanzamiento({ id: 1, membershipExpiresAt: sumarMeses(hoy, 1) })).toBe(false);
+    expect(enElPeriodoSinCostoDelLanzamiento({ id: 1, launchBenefitGrantedAt: hoy, membershipExpiresAt: null })).toBe(false);
+  });
+
+  it('en el mes sin costo hay UN solo contrato libre (el del lanzamiento); una PRO pagada tiene el del mes', () => {
+    const hoy = new Date();
+    const delLanzamiento = { id: 1, membershipTier: 'pro', hasMembership: true, launchBenefitGrantedAt: hoy, membershipExpiresAt: sumarMeses(hoy, 1), freeContractsRemaining: 1 };
+    expect(contratosLibresDisponibles(delLanzamiento)).toEqual({ membresia: 0, bono: 1, total: 1 });
+    expect(cupoDeLaMembresiaDisponible(delLanzamiento)).toBe(false);
+
+    // la misma persona, pero pagando la membresía (vence 3 meses después): tiene el del mes Y el del lanzamiento sin gastar
+    const pagando = { ...delLanzamiento, membershipExpiresAt: sumarMeses(hoy, 3) };
+    expect(contratosLibresDisponibles(pagando)).toEqual({ membresia: 1, bono: 1, total: 2 });
+
+    // una PRO de siempre (sin beneficio de lanzamiento) conserva el suyo
+    expect(contratosLibresDisponibles({ id: 2, membershipTier: 'pro', hasMembership: true, membershipExpiresAt: sumarMeses(hoy, 1), freeContractsRemaining: 0 })).toEqual({ membresia: 1, bono: 0, total: 1 });
+  });
+
+  it('una persona verificada recibe el beneficio y tiene UN solo contrato libre: el del mes de PRO no se puede reclamar', async () => {
+    const u = await cuenta();
+    await otorgarContratosLibres(u.id);
+    const r: any = await User.findByPk(u.id);
+    expect(r.launchBenefitGrantedAt).toBeTruthy();
+    expect(r.membershipTier).toBe('pro'); // el mes de PRO sin costo sí lo tiene
+    expect(contratosLibresDisponibles(r)).toEqual({ membresia: 0, bono: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, total: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO });
+    // el servidor tampoco lo entrega aunque se lo pida directo
+    expect(await reclamarCupoDeLaMembresia(u.id)).toBe(false);
+    expect(await reclamarContratoLibre(u.id)).toBe('bono');
+    // y gastado ese, no queda ninguno: el siguiente paga la comisión de PRO
+    expect(await reclamarContratoLibre(u.id)).toBeNull();
+  });
+
+  it('publicar: el primer trabajo usa el contrato del lanzamiento y el segundo paga comisión (antes el primer mes eran dos libres)', async () => {
+    const u = await cuenta();
+    await otorgarContratosLibres(u.id);
+    const c1 = await comisionDePublicacion((await User.findByPk(u.id)) as any, await trabajo(u.id), 100000);
+    expect(c1.gastar).toBe('bono');
+    expect(c1.comision.commission).toBe(0);
+    await User.update({ freeContractsRemaining: 0 } as never, { where: { id: u.id } });
+    const c2 = await comisionDePublicacion((await User.findByPk(u.id)) as any, await trabajo(u.id), 100000);
+    expect(c2.gastar).toBeNull();
+    expect(c2.comision.commission).toBeGreaterThan(0);
+  });
+
+  it('si paga la membresía (vence después del mes sin costo), el contrato del mes vuelve a existir', async () => {
+    const u = await cuenta();
+    await otorgarContratosLibres(u.id);
+    await User.update({ membershipExpiresAt: sumarMeses(new Date(), 3) } as never, { where: { id: u.id } });
+    const r: any = await User.findByPk(u.id);
+    expect(cupoDeLaMembresiaDisponible(r)).toBe(true);
+    expect(await reclamarCupoDeLaMembresia(u.id)).toBe(true);
   });
 });

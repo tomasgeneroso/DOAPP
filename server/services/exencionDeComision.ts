@@ -14,7 +14,8 @@ import { calculateCommission, type CommissionResult } from './commissionService.
  *
  * Hay DOS cupos, y se gasta UNO por trabajo (queda anotado en `job.commissionFreeApplied`, no cada vez que se abre la pantalla de pago):
  *
- *  - `pro`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga. El mes que no se usa se
+ *  - `pro`: `CONTRATOS_LIBRES_POR_MES` contrato libre por mes calendario de quien tiene la membresía PRO vigente (T&C 8.1), mientras la tenga. NO existe durante el
+ *    mes de PRO SIN COSTO del beneficio de lanzamiento (regla del dueño, 2026-11-09, opción B): ese mes la persona tiene UN solo contrato libre, el del lanzamiento. El mes que no se usa se
  *    pierde (no hay cron que lo reponga: se calcula con la fecha del último uso, `users.free_monthly_pro_used_at`). Va primero porque vence a fin de mes.
  *  - `bono`: el contador `users.free_contracts_remaining`. No vence. Lo suman el contrato libre de LANZAMIENTO (abajo) y los premios de referidos.
  *
@@ -38,6 +39,8 @@ export interface CuentaParaExencion {
   createdAt?: Date | string | null;
   /** Cuándo gastó el contrato libre del mes de la membresía PRO. */
   freeMonthlyProUsedAt?: Date | string | null;
+  /** Cuándo recibió el beneficio de lanzamiento (para saber si está en su mes de PRO sin costo). */
+  launchBenefitGrantedAt?: Date | string | null;
   /** Para saber si tiene la membresía PRO vigente. */
   membershipTier?: string | null;
   hasMembership?: boolean | null;
@@ -65,6 +68,19 @@ export function tieneProVigente(cuenta: CuentaParaExencion, ahora: Date = new Da
   return !cuenta.membershipExpiresAt || new Date(cuenta.membershipExpiresAt).getTime() > ahora.getTime();
 }
 
+/**
+ * ¿Está en el mes de PRO SIN COSTO que da el beneficio de lanzamiento (y no pagó una membresía)? Lo es si recibió el beneficio y su PRO vence cuando termina ese mes. Una
+ * membresía pagada vence más tarde (y no se puede comprar otra mientras hay una vigente), así que no se confunde. Se deja un margen de unos días porque el mes de la base y
+ * el de JavaScript no miden igual (31 de enero + 1 mes).
+ */
+export function enElPeriodoSinCostoDelLanzamiento(cuenta: CuentaParaExencion): boolean {
+  if (!cuenta.launchBenefitGrantedAt || !cuenta.membershipExpiresAt) return false;
+  const fin = new Date(cuenta.launchBenefitGrantedAt);
+  fin.setMonth(fin.getMonth() + POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO);
+  return new Date(cuenta.membershipExpiresAt).getTime() <= fin.getTime() + MARGEN_DEL_MES_DE_LANZAMIENTO_MS;
+}
+const MARGEN_DEL_MES_DE_LANZAMIENTO_MS = 4 * 86_400_000;
+
 const noGastadoEsteMes = (usadoEn: Date | string | null | undefined, ahora: Date): boolean => {
   const usado = usadoEn ? new Date(usadoEn) : null;
   return !usado || usado.getTime() < inicioDelMes(ahora).getTime();
@@ -72,7 +88,8 @@ const noGastadoEsteMes = (usadoEn: Date | string | null | undefined, ahora: Date
 
 /** ¿Le queda el contrato libre de este mes de la membresía PRO? (Solo mira; gastarlo es `reclamarCupoDeLaMembresia`.) */
 export function cupoDeLaMembresiaDisponible(cuenta: CuentaParaExencion, ahora: Date = new Date()): boolean {
-  return tieneProVigente(cuenta, ahora) && noGastadoEsteMes(cuenta.freeMonthlyProUsedAt, ahora);
+  // En el mes de PRO sin costo del lanzamiento no hay contrato libre mensual: la persona tiene UNO solo, el del lanzamiento (opción B del dueño, 2026-11-09).
+  return tieneProVigente(cuenta, ahora) && !enElPeriodoSinCostoDelLanzamiento(cuenta) && noGastadoEsteMes(cuenta.freeMonthlyProUsedAt, ahora);
 }
 
 export interface ContratosLibresDisponibles {
@@ -129,8 +146,17 @@ export async function reclamarCupoDeLaMembresia(userId: string, ahora: Date = ne
         AND membership_tier IN ('pro', 'super_pro') AND has_membership = true
         AND (membership_expires_at IS NULL OR membership_expires_at > CAST(:ahora AS timestamptz))
         AND (free_monthly_pro_used_at IS NULL OR free_monthly_pro_used_at < CAST(:inicioDelMes AS timestamptz))
+        -- el mismo criterio que enElPeriodoSinCostoDelLanzamiento: en el mes de PRO sin costo del lanzamiento no hay contrato libre mensual
+        AND NOT (
+          launch_benefit_granted_at IS NOT NULL AND membership_expires_at IS NOT NULL
+          AND membership_expires_at <= launch_benefit_granted_at + make_interval(months => :mesesDePro) + interval '4 days'
+        )
     RETURNING id`,
-    { replacements: { id: userId, ahora: ahora.toISOString(), inicioDelMes: inicioDelMes(ahora).toISOString() }, type: QueryTypes.SELECT, transaction },
+    {
+      replacements: { id: userId, ahora: ahora.toISOString(), inicioDelMes: inicioDelMes(ahora).toISOString(), mesesDePro: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO },
+      type: QueryTypes.SELECT,
+      transaction,
+    },
   )) as Array<{ id: string }>;
   return filas.length > 0;
 }

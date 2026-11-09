@@ -98,7 +98,7 @@ describe('GET /api/membership/analytics', () => {
     try {
       const res = await request(app).get('/api/membership/analytics').set('Authorization', `Bearer ${freeToken}`);
       expect(res.status).toBe(403);
-      expect(res.body.code).toBe('SUPER_PRO_REQUIRED');
+      expect(res.body.code).toBe('PRO_REQUIRED'); // el Centro Profesional es parte de la membresía PRO (2026-11-09; antes pedía SUPER PRO)
     } finally {
       await setPlatformPhase(original);
       __resetPhaseCache();

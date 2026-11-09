@@ -106,8 +106,8 @@ router.get(
           const contracts = await Contract.findAll({
             where: {
               [Op.or]: [
-                literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
-                literal(`CAST("contracts"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+                literal(`CAST("Contract"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+                literal(`CAST("Contract"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
               ],
             },
             attributes: ['clientId', 'doerId'],
@@ -120,7 +120,7 @@ router.get(
 
           // Find jobs matching this ID fragment
           const jobs = await Job.findAll({
-            where: { [Op.or]: [literal(`CAST("jobs"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
+            where: { [Op.or]: [literal(`CAST("Job"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
             attributes: ['clientId'],
             limit: 10,
           }).catch(() => []);

@@ -124,7 +124,7 @@ export default function ProUsageDashboard() {
       </div>
 
       {/* Centro Profesional CTA (cuentas con el panel completo) */}
-      {user?.membershipTier === 'super_pro' && (
+      {(user?.membershipTier === 'super_pro' || user?.membershipTier === 'pro') && (
         <button
           onClick={() => navigate('/pro/finanzas')}
           className="w-full text-left bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 rounded-lg p-5 mb-6 text-white hover:opacity-95 transition-opacity flex items-center justify-between"

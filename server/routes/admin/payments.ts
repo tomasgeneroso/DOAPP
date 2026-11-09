@@ -7,6 +7,7 @@ import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
+import { Proposal } from "../../models/sql/Proposal.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
@@ -14,6 +15,7 @@ import { logAudit } from "../../utils/auditLog.js";
 import { bloqueoPorAprobacionPropia, esAprobacionPropiaDelDueno } from "../../services/aprobacionDePagos.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import { referenciasRepetidas, describirReferenciaRepetida, type ReferenciaRepetida } from "../../services/comprobanteDuplicado.js";
+import { contratosDeUnPago, vincularPagoAlContrato } from "../../services/vinculoDePagos.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -853,6 +855,40 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
         return referencias.map((r: any) => ({ paymentId: String(p.id), bankReference: r.bankReference }));
       }),
     );
+    // Enlaces para ir al trabajo y al contrato de cada pago. Un pago de contrato trae su contrato; uno de publicación, su trabajo; una cotización pagada que
+    // todavía no se vinculó solo recuerda su propuesta: de ahí salen el trabajo y, si es uno solo, el contrato (marcado «sin vincular»).
+    const propuestaIds = [...new Set((payments as any[]).filter((p) => !p.contractId && p.metadata?.proposalId).map((p) => String(p.metadata.proposalId)))];
+    const propuestas: any[] = propuestaIds.length ? await Proposal.findAll({ where: { id: { [Op.in]: propuestaIds } } as any, attributes: ['id', 'jobId', 'freelancerId'] }) : [];
+    const propuestaPorId = new Map<string, any>(propuestas.map((p) => [String(p.id), p]));
+    const trabajosDePropuestas: any[] = propuestas.length ? await Job.findAll({ where: { id: { [Op.in]: [...new Set(propuestas.map((p) => String(p.jobId)))] } } as any, attributes: ['id', 'title'] }) : [];
+    const trabajoPorId = new Map<string, any>(trabajosDePropuestas.map((j) => [String(j.id), j]));
+    const contratosDePropuestas: any[] = propuestas.length
+      ? await Contract.findAll({ where: { jobId: { [Op.in]: [...trabajoPorId.keys()] } } as any, attributes: ['id', 'jobId', 'doerId', 'clientId', 'status'] })
+      : [];
+
+    const enlacesDe = (row: any, original: any) => {
+      let trabajo: { id: string; title: string | null } | null = null;
+      let contrato: { id: string; sinVincular: boolean } | null = null;
+      if (row.contract?.id) {
+        contrato = { id: String(row.contract.id), sinVincular: false };
+        if (row.contract.job?.id) trabajo = { id: String(row.contract.job.id), title: row.contract.job.title ?? null };
+      }
+      if (!trabajo && row.job?.id) trabajo = { id: String(row.job.id), title: row.job.title ?? null };
+      if (!contrato && !original.contractId && original.metadata?.proposalId) {
+        const prop = propuestaPorId.get(String(original.metadata.proposalId));
+        if (prop) {
+          const t = trabajoPorId.get(String(prop.jobId));
+          if (!trabajo && t) trabajo = { id: String(t.id), title: t.title ?? null };
+          const candidatos = contratosDePropuestas.filter(
+            (c) => String(c.jobId) === String(prop.jobId) && String(c.doerId) === String(prop.freelancerId) && String(c.clientId) === String(original.payerId) && !['cancelled', 'rejected'].includes(String(c.status)),
+          );
+          if (candidatos.length === 1) contrato = { id: String(candidatos[0].id), sinVincular: true };
+        }
+      }
+      return { trabajo, contrato };
+    };
+    const originalPorId = new Map<string, any>((payments as any[]).map((p) => [String(p.id), p]));
+
     const conComprobantes = paymentsWithJobs.map((row: any) => {
       const adminProofs = delAdminPorPago.get(String(row.id)) ?? [];
       return {
@@ -860,6 +896,7 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
         adminProofs,
         hasProof: Boolean(row.hasProof) || adminProofs.length > 0,
         comprobanteDuplicado: repetidas.get(String(row.id)) ?? null,
+        enlaces: enlacesDe(row, originalPorId.get(String(row.id)) ?? row),
       };
     });
 
@@ -1136,6 +1173,29 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       return;
     }
     await payment.reload();
+
+    // Un pago de contrato SIN contrato (una cotización pagada antes de que se apruebe el contrato) se vincula acá si le corresponde UN solo contrato, por su propuesta.
+    // Antes el vínculo solo se hacía al aprobar el CONTRATO y solo si el pago seguía «pendiente de verificación»: si el administrador aprobaba primero el pago,
+    // quedaba suelto para siempre (el contrato no aparecía al buscarlo por su pago y el cobro del trabajador no tenía de dónde salir). Si hay dudas (ningún
+    // contrato o varios) no se toca nada: queda el vínculo manual en «Gestión de contratos».
+    if (['contract_payment', 'escrow_deposit'].includes(String(payment.paymentType)) && !payment.contractId) {
+      try {
+        const porPropuesta = (await contratosDeUnPago(payment as any)).filter((c) => c.via === 'propuesta');
+        if (porPropuesta.length === 1) {
+          const vinculo = await vincularPagoAlContrato(String(payment.id), porPropuesta[0].contratoId);
+          if (vinculo.ok) {
+            await payment.reload();
+            void logAudit({
+              req, action: 'payment.link_contract', category: 'payment', severity: 'medium',
+              description: `Al aprobar el pago ${paymentId} se vinculó solo al contrato ${vinculo.contratoId} (su propuesta lo identifica).`,
+              targetModel: 'Payment', targetId: paymentId, metadata: { contratoId: vinculo.contratoId, via: 'propuesta', automatico: true },
+            });
+          }
+        }
+      } catch (e: any) {
+        console.error('[approve] no se pudo vincular el pago al contrato (no fatal):', e?.message);
+      }
+    }
 
     // «Comprobante duplicado»: si el número de operación ya figura en OTRO pago, se deja pasar (regla del dueño) pero queda marcado: en la nota del comprobante,
     // en la auditoría y en la lista de pagos. Se mira ANTES de guardar el comprobante nuevo para no contarse a sí mismo.

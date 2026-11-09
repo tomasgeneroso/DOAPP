@@ -112,8 +112,9 @@ const AdminWithdrawalManager = lazy(() => import("./pages/admin/AdminWithdrawalM
 const FinancialTransactions = lazy(() => import("./pages/admin/FinancialTransactions"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
-const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
-const AdminJobBoard = lazy(() => import("./pages/admin/JobBoard"));
+// «Publicaciones»: un solo lugar con tres vistas (general, para atender y moderación). Ver pages/admin/AdminPublicaciones.tsx.
+const AdminPublicaciones = lazy(() => import("./pages/admin/AdminPublicaciones"));
+const AdminCancelacionesDeContrato = lazy(() => import("./pages/admin/CancelacionesDeContrato"));
 const AdminChargebacks = lazy(() => import("./pages/admin/Chargebacks"));
 const AdminUsuariosMarcados = lazy(() => import("./pages/admin/UsuariosMarcados"));
 /** El historial de un usuario ahora es una pestaña de su ficha; la dirección vieja sigue llevando ahí. */
@@ -724,6 +725,7 @@ export default function App() {
               <Route path="settings" element={<AdminSettings />} />
               <Route path="contracts" element={<AdminContracts />} />
               <Route path="contracts/create" element={<AdminCreateContract />} />
+              <Route path="contracts/cancelaciones" element={<AdminCancelacionesDeContrato />} />
               <Route path="disputes" element={<AdminDisputeManager />} />
               <Route path="disputes/create" element={<AdminCreateDispute />} />
               <Route path="disputes/:id" element={<AdminDisputeDetail />} />
@@ -745,8 +747,8 @@ export default function App() {
               <Route path="blog" element={<AdminBlogManager />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
-              <Route path="jobs" element={<AdminJobManager />} />
-              <Route path="jobs/board" element={<AdminJobBoard />} />
+              <Route path="jobs" element={<AdminPublicaciones />} />
+              <Route path="jobs/board" element={<Navigate to="/admin/jobs?vista=atender" replace />} />
               <Route path="jobs/:jobId/expediente" element={<AdminExpedienteDePublicacion />} />
               <Route path="chargebacks" element={<AdminChargebacks />} />
               <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />

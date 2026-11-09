@@ -2286,7 +2286,7 @@
       "resolveQuestionsProblems": "Resolver consultas y problemas",
       "manageWithdrawals": "Gestionar Retiros",
       "approveProcessWithdrawals": "Aprobar y procesar retiros",
-      "pendingPayments": "Pagos Pendientes",
+      "pendingPayments": "Pagos",
       "verifyApprovPaymentProofs": "Verificar y aprobar comprobantes de pago",
       "financialTransactions": "Movimientos Financieros",
       "viewTransactionsCommissions": "Ver transacciones y comisiones",
@@ -2309,7 +2309,7 @@
       "users": "Usuarios",
       "publications": "Publicaciones",
       "contracts": "Contratos",
-      "pendingPayments": "Pagos pendientes",
+      "pendingPayments": "Pagos",
       "withdrawals": "Retiros",
       "transactions": "Transacciones",
       "familyCodes": "Códigos familia",
@@ -2581,7 +2581,7 @@
       "realTime": "Tiempo real",
       "disconnected": "Sin conexión",
       "createContract": "Crear contrato",
-      "searchPlaceholder": "Buscar por ID, título, cliente o profesional...",
+      "searchPlaceholder": "Buscar por ID de contrato, trabajo, pago o persona, o por título y nombre...",
       "allStatuses": "Todos los estados",
       "allPayments": "Todos los pagos",
       "paymentStatuses": {
@@ -2776,7 +2776,7 @@
       "paymentViaMercadoPago": "Pago vía MercadoPago",
       "noReceiptAttached": "Sin comprobante adjunto",
       "goToPendingPayments": "Para aprobar o rechazar pagos, andá a",
-      "pendingPayments": "Pagos pendientes",
+      "pendingPayments": "Pagos",
       "inSidebar": "en la barra lateral"
     },
     "jobs": {

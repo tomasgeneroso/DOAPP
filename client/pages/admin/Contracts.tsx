@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit, Receipt, ExternalLink } from "lucide-react";
 import { getImageUrl } from "../../utils/imageUrl";
@@ -36,6 +36,15 @@ interface PaymentInfo {
   proofs?: PaymentProofInfo[];
 }
 
+/** Un pago de contrato que parece de este contrato pero no tiene `contract_id` (cotización pagada que quedó suelta). */
+interface PagoSinVincular {
+  id: string;
+  status: string;
+  amount: number;
+  paymentType: string;
+  createdAt: string | null;
+}
+
 interface Contract {
   id: string;
   title?: string;
@@ -69,6 +78,9 @@ interface Contract {
   priceModifications?: any[];
   extensions?: any[];
   payment?: PaymentInfo;
+  /** El pago de la publicación del trabajo, cuando el contrato no tiene un pago propio. */
+  pagoDePublicacion?: { id: string; status: string; amount: number; paymentType?: string } | null;
+  pagosSinVincular?: PagoSinVincular[];
 }
 
 type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'payment';
@@ -78,7 +90,9 @@ export default function AdminContracts() {
   const { t } = useTranslation();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  // «Ir al contrato» desde otra pantalla (Pagos) llega con ?search=<id>: la búsqueda arranca con ese id.
+  const [parametros] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => parametros.get("search") || parametros.get("id") || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -94,6 +108,11 @@ export default function AdminContracts() {
   const [linkedDisputeId, setLinkedDisputeId] = useState("");
   const [contractDisputes, setContractDisputes] = useState<any[]>([]);
   const [loadingDisputes, setLoadingDisputes] = useState(false);
+  // Vincular a mano un pago suelto a un contrato (lleva un motivo escrito).
+  const [vincular, setVincular] = useState<{ contrato: Contract; pago: PagoSinVincular } | null>(null);
+  const [motivoDelVinculo, setMotivoDelVinculo] = useState("");
+  const [vinculando, setVinculando] = useState(false);
+  const [errorDelVinculo, setErrorDelVinculo] = useState<string | null>(null);
 
   const { registerAdminContractCreatedHandler, registerAdminContractUpdatedHandler, isConnected } = useSocket();
   const { user } = useAuth();
@@ -158,11 +177,11 @@ export default function AdminContracts() {
     return changes.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
   };
 
-  const isUUID = (s: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim());
+  // Lo que parece un pedazo de id (hexadecimal y guiones, 4 o más) se busca en el SERVIDOR: encuentra el contrato por su id, el de su trabajo, el del cliente, el
+  // del trabajador o el de SU PAGO. Antes solo se buscaba ahí un UUID completo y de un contrato; el texto (nombres, títulos) se filtra acá.
+  const pareceUnIdParcial = (s: string) => /^[0-9a-f-]{4,36}$/i.test(s.trim());
 
-  // Only use UUID search from backend; text search is client-side
-  const [backendSearchId, setBackendSearchId] = useState("");
+  const [backendSearchId, setBackendSearchId] = useState(() => (pareceUnIdParcial(parametros.get("search") || parametros.get("id") || "") ? (parametros.get("search") || parametros.get("id") || "").trim() : ""));
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -191,14 +210,39 @@ export default function AdminContracts() {
     }
   }, [statusFilter, paymentFilter, backendSearchId]);
 
-  // When searchQuery is a complete UUID, trigger backend search
+  // Cuando lo escrito parece un id, se busca en el servidor (esperando un momento a que termine de escribir).
   useEffect(() => {
-    if (isUUID(searchQuery)) {
-      setBackendSearchId(searchQuery.trim());
-    } else if (searchQuery === "") {
-      setBackendSearchId("");
-    }
+    const t = setTimeout(() => {
+      if (pareceUnIdParcial(searchQuery)) setBackendSearchId(searchQuery.trim());
+      else setBackendSearchId("");
+    }, 300);
+    return () => clearTimeout(t);
   }, [searchQuery]);
+
+  const confirmarVinculo = async () => {
+    if (!vincular) return;
+    setVinculando(true);
+    setErrorDelVinculo(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/contracts/${vincular.contrato.id}/link-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ paymentId: vincular.pago.id, motivo: motivoDelVinculo.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setVincular(null);
+        setNewContractAlert(data.message || "Pago vinculado al contrato.");
+        fetchContracts();
+      } else {
+        setErrorDelVinculo(data.message || "No se pudo vincular el pago.");
+      }
+    } catch {
+      setErrorDelVinculo("Error de red al vincular el pago.");
+    }
+    setVinculando(false);
+  };
 
   const fetchContractDisputes = async (contractId: string) => {
     setLoadingDisputes(true);
@@ -437,6 +481,10 @@ export default function AdminContracts() {
       jobId.toLowerCase().includes(q) ||
       clientId.toLowerCase().includes(q) ||
       doerId.toLowerCase().includes(q) ||
+      // el id de su pago (propio, el de la publicación del trabajo o una cotización pagada suelta)
+      (contract.payment?.id || '').toLowerCase().includes(q) ||
+      (contract.pagoDePublicacion?.id || '').toLowerCase().includes(q) ||
+      (contract.pagosSinVincular || []).some((p) => p.id.toLowerCase().includes(q)) ||
       contract.client?.name?.toLowerCase().includes(q) ||
       contract.client?.email?.toLowerCase().includes(q) ||
       contract.doer?.name?.toLowerCase().includes(q) ||
@@ -491,13 +539,22 @@ export default function AdminContracts() {
               </>
             )}
           </div>
-          <Link
-            to="/admin/contracts/create"
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
-          >
-            <Plus className="h-5 w-5" />
-            {t('admin.contracts.createContract', 'Create Contract')}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/admin/contracts/cancelaciones"
+              className="flex items-center gap-2 px-4 py-2 border border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/20 rounded-lg transition"
+            >
+              <XCircle className="h-5 w-5" />
+              Pedidos de cancelación
+            </Link>
+            <Link
+              to="/admin/contracts/create"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
+            >
+              <Plus className="h-5 w-5" />
+              {t('admin.contracts.createContract', 'Create Contract')}
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -509,7 +566,7 @@ export default function AdminContracts() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder={t('admin.contracts.searchPlaceholder', 'Search by ID, title, client or doer...')}
+              placeholder={t('admin.contracts.searchPlaceholder', 'Buscar por ID de contrato, trabajo, pago o persona, o por título y nombre...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
@@ -784,6 +841,33 @@ export default function AdminContracts() {
                             {t('admin.contracts.viewTransaction', 'Ver transacción')}
                           </Link>
                         )}
+                        {/* Sin pago propio: puede estar respaldado por el pago de la publicación del trabajo (así se paga «primero se paga, después se elige»). */}
+                        {!contract.payment && contract.pagoDePublicacion && (
+                          <Link
+                            to={`/admin/pending-payments?search=${contract.pagoDePublicacion.id}`}
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                            title="Este contrato no tiene un pago propio: lo respalda el pago con que se publicó el trabajo."
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Pago de la publicación · {contract.pagoDePublicacion.id.slice(0, 8)}
+                          </Link>
+                        )}
+                        {/* Cotización pagada que quedó suelta: el pago existe, pero no está vinculado a este contrato. Se puede vincular a mano, con un motivo. */}
+                        {(contract.pagosSinVincular || []).map((pago) => (
+                          <div key={pago.id} className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-2 text-xs text-amber-800 dark:text-amber-200">
+                            <p className="font-semibold">Pago sin vincular</p>
+                            <p className="font-mono">{pago.id.slice(0, 8)} · {pago.status} · ${Number(pago.amount || 0).toLocaleString('es-AR')}</p>
+                            {user?.adminRole && ['owner', 'super_admin', 'admin'].includes(user.adminRole) && (
+                              <button
+                                type="button"
+                                onClick={() => { setVincular({ contrato: contract, pago }); setMotivoDelVinculo(""); setErrorDelVinculo(null); }}
+                                className="mt-1 inline-flex items-center gap-1 rounded bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-700"
+                              >
+                                Vincular a este contrato
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -818,6 +902,52 @@ export default function AdminContracts() {
           </table>
         </div>
       </div>
+
+      {/* Vincular un pago suelto a un contrato */}
+      {vincular && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !vinculando && setVincular(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-vincular" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 id="titulo-vincular" className="text-lg font-semibold text-gray-900 dark:text-white">Vincular el pago al contrato</h3>
+              <button onClick={() => setVincular(null)} disabled={vinculando} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+              <p>
+                Pago <span className="font-mono">{vincular.pago.id}</span> ({vincular.pago.status}, ${Number(vincular.pago.amount || 0).toLocaleString('es-AR')}) →
+                contrato <span className="font-mono">{vincular.contrato.id}</span> de «{vincular.contrato.job?.title || vincular.contrato.title || 'Contrato'}».
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Esto no mueve plata ni cambia estados: solo hace que ese pago cuente como el de este contrato, para poder seguir desde «Pagos» (verificar la garantía y confirmar para pagar al trabajador). Queda anotado quién, cuándo y por qué.
+              </p>
+              <label className="block">
+                <span className="mb-1 block font-medium">Motivo (al menos 15 caracteres)</span>
+                <textarea
+                  value={motivoDelVinculo}
+                  onChange={(e) => setMotivoDelVinculo(e.target.value)}
+                  rows={3}
+                  placeholder="Cómo comprobaste que este pago es de este contrato (cotización aceptada, monto, comprobante...)"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-gray-900 focus:ring-2 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
+              </label>
+              {errorDelVinculo && <p role="alert" className="rounded-md bg-red-50 p-2 text-red-700 dark:bg-red-900/20 dark:text-red-300">{errorDelVinculo}</p>}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+              <button onClick={() => setVincular(null)} disabled={vinculando} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarVinculo}
+                disabled={vinculando || motivoDelVinculo.trim().length < 15}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {vinculando ? "Vinculando..." : "Vincular"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Changes Modal */}
       {selectedContractChanges && (

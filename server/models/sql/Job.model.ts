@@ -790,6 +790,23 @@ export class Job extends Model {
     avisarQueCambioElMuro();
   }
 
+  /**
+   * El pago de la publicación pasa a saber de qué trabajo es. Un trabajo guarda UN solo puntero a su pago de publicación, y un aumento de presupuesto lo reusa: sin
+   * este vínculo del lado del pago, el pago original quedaba inalcanzable. Solo toca pagos que todavía no tienen trabajo, y solo si el puntero cambió.
+   */
+  @AfterSave
+  static async vincularElPagoDeLaPublicacion(trabajo: Job, opciones?: { transaction?: unknown }): Promise<void> {
+    try {
+      const pagoId = trabajo.publicationPaymentId;
+      if (!pagoId || !trabajo.changed('publicationPaymentId')) return;
+      const Pago = Job.sequelize?.models.Payment;
+      if (!Pago) return;
+      await Pago.update({ jobId: trabajo.id } as never, { where: { id: pagoId, jobId: null } as never, transaction: opciones?.transaction as never, hooks: false });
+    } catch {
+      /* un vínculo que no se pudo hacer se completa en la próxima corrida: nunca frena el guardado del trabajo */
+    }
+  }
+
   @AfterBulkUpdate
   @AfterBulkDestroy
   static vaciarMuroEnCacheEnMasa(): void {

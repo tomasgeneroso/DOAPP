@@ -155,7 +155,8 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
       // list it points at report different numbers.
       Payment.count({ where: { status: { [Op.notIn]: RESOLVED_PAYMENT_STATUSES } } }),
       WithdrawalRequest.count({ where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } }),
-      Payment.count({ where: { status: 'confirmed_for_payout' } }),
+      // Con un pago propio «confirmado para pagar» más los contratos que respalda el pago de la publicación (services/pagosAlTrabajador.ts): el mismo número que la lista.
+      (async () => (await Payment.count({ where: { status: 'confirmed_for_payout' } })) + (await (await import('../../services/pagosAlTrabajador.js')).respaldadosPorLaPublicacion()).length)(),
       Dispute ? Dispute.count({ where: { status: { [Op.in]: ['open', 'in_review', 'awaiting_info'] } } }) : Promise.resolve(0),
       Payment.sum('amount', { where: { status: 'completed' } }),
       Payment.sum('amount', { where: { status: 'completed', createdAt: { [Op.gte]: startOfToday } } }),

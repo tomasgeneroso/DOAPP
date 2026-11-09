@@ -69,28 +69,28 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
     const jobs = await Job.findAll({
       where: {
         [Op.or]: [
-          uuidLike('"jobs"."id"', searchStr),
+          uuidLike('"Job"."id"', searchStr),
           ...(isFullUUID ? [{ publicationPaymentId: searchStr }] : []),
         ],
       },
       include: [{ model: User, as: 'client', attributes: ['id', 'name', 'email'] }],
       limit: 5,
-    }).catch(() => []);
+    }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
     if (jobs.length > 0) results.job = jobs[0];
 
     // ── CONTRACT ─────────────────────────────────────────
     const contracts = await Contract.findAll({
       where: {
         [Op.or]: [
-          uuidLike('"contracts"."id"', searchStr),
-          uuidLike('"contracts"."job_id"', searchStr),
-          uuidLike('"contracts"."client_id"', searchStr),
-          uuidLike('"contracts"."doer_id"', searchStr),
+          uuidLike('"Contract"."id"', searchStr),
+          uuidLike('"Contract"."job_id"', searchStr),
+          uuidLike('"Contract"."client_id"', searchStr),
+          uuidLike('"Contract"."doer_id"', searchStr),
         ],
       },
       include: contractIncludes,
       limit: 10,
-    }).catch(() => []);
+    }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
     contracts.forEach(c => addUnique(results.contracts, c));
 
     // If we found a job, also get its contracts
@@ -99,7 +99,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         where: { jobId: results.job.id },
         include: contractIncludes,
         limit: 10,
-      }).catch(() => []);
+      }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
       byJob.forEach(c => addUnique(results.contracts, c));
     }
 
@@ -107,14 +107,14 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
     const payments = await Payment.findAll({
       where: {
         [Op.or]: [
-          uuidLike('"payments"."id"', searchStr),
-          uuidLike('"payments"."contract_id"', searchStr),
-          uuidLike('"payments"."payer_id"', searchStr),
+          uuidLike('"Payment"."id"', searchStr),
+          uuidLike('"Payment"."contract_id"', searchStr),
+          uuidLike('"Payment"."payer_id"', searchStr),
         ],
       },
       include: paymentIncludes,
       limit: 10,
-    }).catch(() => []);
+    }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
     payments.forEach(p => addUnique(results.payments, p));
 
     // Payments for found contracts
@@ -123,30 +123,31 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         where: { contractId: c.id },
         include: paymentIncludes,
         limit: 5,
-      }).catch(() => []);
+      }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
       cp.forEach(p => addUnique(results.payments, p));
     }
 
     // ── WITHDRAWAL ────────────────────────────────────────
     const withdrawals = await WithdrawalRequest.findAll({
-      where: { [Op.or]: [uuidLike('"withdrawal_requests"."id"', searchStr)] },
-      include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+      where: { [Op.or]: [uuidLike('"WithdrawalRequest"."id"', searchStr)] },
+      // `as: 'user'`: un retiro tiene dos relaciones con User (quien lo pide y quien lo procesa) y sin alias Sequelize no sabe cuál usar.
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
       limit: 5,
-    }).catch(() => []);
+    }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
     if (withdrawals.length > 0) results.withdrawal = withdrawals[0];
 
     // ── USER ──────────────────────────────────────────────
     const users = await User.findAll({
       where: {
         [Op.or]: [
-          uuidLike('"users"."id"', searchStr),
+          uuidLike('"User"."id"', searchStr),
           { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
           { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
         ],
       },
-      attributes: ['id', 'name', 'email', 'membershipTier', 'balance', 'createdAt'],
+      attributes: ['id', 'name', 'email', 'membershipTier', 'balanceArs', 'createdAt'],
       limit: 5,
-    }).catch(() => []);
+    }).catch((e: any) => { console.error('[búsqueda global] una de las búsquedas falló:', e?.message); return []; });
     results.users = users;
 
     const found = results.job || results.contracts.length > 0 || results.payments.length > 0 || results.withdrawal || results.users.length > 0;

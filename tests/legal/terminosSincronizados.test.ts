@@ -238,3 +238,42 @@ describe('las politicas son coherentes entre si', () => {
     expect(POLITICAS.DIAS_PARA_DISPUTAR * 24).toBeGreaterThan(POLITICAS.AUTO_CONFIRMACION_HORAS);
   });
 });
+
+describe('el IVA y el costo de la pasarela se dicen UNA vez y valen siempre (regla del dueño, 2026-11-09)', () => {
+  for (const [nombre, dic] of [['es', termsEs], ['en', termsEn]] as const) {
+    describe(nombre, () => {
+      it('hay una cláusula 7.16 que suma SIEMPRE la comisión, el IVA y el costo de procesamiento al precio, y dice que ninguna exención los alcanza', () => {
+        const t = dic.s7p16;
+        expect(t).toBeTruthy();
+        expect(t).toMatch(/7\.16/);
+        expect(t).toMatch(/IVA|VAT/);
+        expect(t).toMatch(/procesamiento|processing/i);
+        expect(t).toMatch(/siempre|always/i);
+        // las promociones y exenciones que existen, nombradas una vez
+        expect(t).toMatch(/lanzamiento|launch/i);
+        expect(t).toMatch(/invitaciones|invitations/i);
+        expect(t).toMatch(/Plan Familia|Family Plan/);
+        expect(t).toMatch(/membres[ií]a|membership/i);
+      });
+
+      it('está en el cuerpo del documento, después de la 7.15 (la web y la app recorren TERMS_BODY_KEYS)', () => {
+        const i = TERMS_BODY_KEYS.indexOf('s7p16');
+        expect(i).toBeGreaterThan(TERMS_BODY_KEYS.indexOf('s7p15'));
+        expect(i).toBeLessThan(TERMS_BODY_KEYS.indexOf('s8Title'));
+      });
+
+      it('las cláusulas de exención no repiten la lista de lo que se abona igual: remiten a la 7.16', () => {
+        for (const k of ['s7p11', 's7p13', 's7p14', 's7p15', 's8p1']) {
+          expect(dic[k]).toMatch(/7\.16/);
+        }
+        const cuerpo = TERMS_BODY_KEYS.map((k) => dic[k] || '').join('\n');
+        // la enumeración que se repetía en cinco lugares
+        expect(cuerpo).not.toMatch(/se abonan igual el precio|the job price, the payment processing cost (\(section 7\.10\) )?and (applicable )?taxes are still paid/);
+      });
+
+      it('7.3 también remite a la 7.16 (el IVA y el costo de procesamiento no son parte de la comisión)', () => {
+        expect(dic.s7p3).toMatch(/7\.16/);
+      });
+    });
+  }
+});

@@ -14,6 +14,8 @@ import type { AuthRequest } from "../../types/index.js";
 import { Op, literal } from "sequelize";
 import { calculateCommission } from "../../services/commissionService.js";
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { idsDeContratosPorPago, pagosSinVincularPorContrato, vincularPagoAlContrato } from "../../services/vinculoDePagos.js";
+import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -55,15 +57,19 @@ router.get(
         ];
       }
 
-      // Cross-table search: by contract ID, job ID, client ID, or doer ID (partial or full)
+      // Cross-table search: by contract ID, job ID, client ID, doer ID OR PAYMENT ID (partial or full)
       if (search && !userId) {
-        const searchStr = search as string;
+        const searchStr = String(search).trim();
         if (/^[0-9a-f-]{4,}$/i.test(searchStr)) {
+          // Por un pago: el contrato que ese pago respalda, por las tres vías (contract_id, pago de la publicación del trabajo, cotización pagada
+          // que todavía no se vinculó). Antes un id de pago no encontraba nada: la búsqueda solo miraba ids de contrato, trabajo, cliente y trabajador.
+          const idsPorPago = await idsDeContratosPorPago(searchStr);
           where[Op.or] = [
-            literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
-            literal(`CAST("contracts"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
-            literal(`CAST("contracts"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
-            literal(`CAST("contracts"."doer_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Contract"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Contract"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Contract"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("Contract"."doer_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            ...(idsPorPago.length ? [{ id: { [Op.in]: idsPorPago } }] : []),
           ];
         }
         // Text search handled client-side (names, titles)
@@ -78,7 +84,7 @@ router.get(
           include: [
             { model: User, as: "client", attributes: ["id", "name", "email"] },
             { model: User, as: "doer", attributes: ["id", "name", "email"] },
-            { model: Job, as: "job", attributes: ["id", "title"] },
+            { model: Job, as: "job", attributes: ["id", "title", "publicationPaymentId"] },
           ],
           order,
           offset,
@@ -109,10 +115,24 @@ router.get(
         paymentsByContractId.set(payment.contractId!, payment);
       }
 
+      // Un contrato SIN pago propio puede estar respaldado por el pago de la publicación del trabajo, o tener una cotización pagada que quedó suelta
+      // (sin `contract_id`). Se muestran las dos cosas para que no parezca que no tiene pago (ver services/vinculoDePagos.ts).
+      const idsDePublicacion = [...new Set(contractsRaw.filter((c: any) => !paymentsByContractId.has(c.id) && c.job?.publicationPaymentId).map((c: any) => String(c.job.publicationPaymentId)))];
+      const publicaciones: any[] = idsDePublicacion.length
+        ? await Payment.findAll({ where: { id: { [Op.in]: idsDePublicacion } }, attributes: ["id", "status", "amount", "paymentType"] })
+        : [];
+      const publicacionPorId = new Map<string, any>(publicaciones.map((p) => [String(p.id), p.toJSON()]));
+      const sueltosPorContrato = await pagosSinVincularPorContrato(
+        contractsRaw.filter((c: any) => !paymentsByContractId.has(c.id)).map((c: any) => ({ id: c.id, jobId: c.jobId, doerId: c.doerId, clientId: c.clientId, status: c.status })),
+      );
+
       // Attach payments to contracts
       const contracts = contractsRaw.map(contract => {
-        const contractJson = contract.toJSON();
+        const contractJson: any = contract.toJSON();
         contractJson.payment = paymentsByContractId.get(contract.id) || null;
+        const idPub = (contract as any).job?.publicationPaymentId;
+        contractJson.pagoDePublicacion = !contractJson.payment && idPub ? publicacionPorId.get(String(idPub)) ?? null : null;
+        contractJson.pagosSinVincular = sueltosPorContrato.get(String(contract.id)) ?? [];
         return contractJson;
       });
 
@@ -131,6 +151,71 @@ router.get(
         success: false,
         message: error.message || "Error del servidor",
       });
+    }
+  }
+);
+
+/**
+ * Vincular a mano un pago suelto a un contrato.
+ * POST /api/admin/contracts/:id/link-payment   { paymentId, motivo }
+ *
+ * Una cotización pagada queda con `contract_id` vacío hasta que se aprueba el contrato; si un administrador aprobó el pago ANTES, el vínculo no se
+ * hacía nunca (ver services/vinculoDePagos.ts) y el contrato no aparecía al buscarlo por su pago ni tenía pago «propio» del cual cobrar el trabajador.
+ * Esto no mueve dinero ni cambia estados: solo deja que el pago cuente como el del contrato. Pide un motivo escrito y queda anotado con severidad alta.
+ * Quien es parte del pago (lo pagó o lo cobra) no lo vincula: lo hace otra persona del equipo (salvo el dueño).
+ */
+router.post(
+  "/:id/link-payment",
+  requireRole("admin", "super_admin", "owner"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const contratoId = String(req.params.id);
+      const { paymentId, motivo } = (req.body || {}) as { paymentId?: string; motivo?: string };
+      if (!isValidUUID(contratoId) || !paymentId || !isValidUUID(String(paymentId))) {
+        res.status(400).json({ success: false, code: "VINCULO_ID_INVALIDO", message: "Hacen falta el id completo del contrato y el id completo del pago." });
+        return;
+      }
+      const razon = String(motivo ?? "").trim().replace(/\s+/g, " ");
+      if (razon.length < 15) {
+        res.status(400).json({ success: false, code: "VINCULO_SIN_MOTIVO", message: "Escribí el motivo del vínculo (al menos 15 caracteres): cómo comprobaste que ese pago es de este contrato." });
+        return;
+      }
+
+      const pago: any = await Payment.findByPk(String(paymentId), { attributes: ["id", "payerId", "recipientId", "status", "amount"] });
+      if (!pago) {
+        res.status(404).json({ success: false, code: "VINCULO_PAGO_NO_ENCONTRADO", message: "No existe ese pago." });
+        return;
+      }
+      const bloqueoPropio = bloqueoPorAprobacionPropia(pago, req.user);
+      if (bloqueoPropio) {
+        res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+        return;
+      }
+
+      const r = await vincularPagoAlContrato(String(paymentId), contratoId);
+      if (r.ok === false) {
+        res.status(r.status).json({ success: false, code: r.code, message: r.message });
+        return;
+      }
+
+      void logAudit({
+        req,
+        action: "payment.link_contract",
+        category: "payment",
+        severity: "high",
+        description: `Vinculó el pago ${r.pagoId} al contrato ${r.contratoId}: ${razon}`,
+        targetModel: "Payment",
+        targetId: r.pagoId,
+        metadata: { contratoId: r.contratoId, motivo: razon, estadoDelPago: pago.status, monto: Number(pago.amount) || null },
+      });
+
+      res.json({
+        success: true,
+        message: "Pago vinculado al contrato. Seguí desde «Pagos»: verificar la garantía y confirmar para pagar al trabajador.",
+        data: { paymentId: r.pagoId, contractId: r.contratoId },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
     }
   }
 );

@@ -11,6 +11,7 @@ import {
   ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
   Star, Award, ShieldCheck, BadgeCheck, Download, Target,
 } from "lucide-react";
+import { BienvenidaAlCentro, GuiaDeLaPestana } from "../components/profesional/GuiaDelCentro";
 
 interface Analytics {
   year: number;
@@ -558,7 +559,9 @@ export default function FinancePanel() {
   const [forbidden, setForbidden] = useState(false);
   const [tab, setTab] = useState<"finanzas" | "impuestos" | "reputacion" | "profesional" | "crecimiento">("finanzas");
 
-  const isSuperPro = user?.membershipTier === "super_pro";
+  // El Centro Profesional es parte de la membresía PRO (el único plan pago). Antes solo miraba «super_pro», un nivel que ya no se vende: en la beta todos aparecen
+  // como super_pro, pero después un miembro PRO no habría podido abrirlo. El servidor decide de verdad (services/centroProfesional.ts); esto solo evita un pedido inútil.
+  const isSuperPro = user?.membershipTier === "super_pro" || user?.membershipTier === "pro";
 
   useEffect(() => {
     if (!isSuperPro) { setLoading(false); setForbidden(true); return; }
@@ -606,7 +609,7 @@ export default function FinancePanel() {
     );
   }
 
-  // Upsell for non-SUPER PRO users
+  // Upsell for users without PRO
   if (forbidden || !data) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
@@ -614,14 +617,14 @@ export default function FinancePanel() {
           <Crown className="h-8 w-8 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-          {t("finance.exclusiveTitle", "Centro Profesional — exclusivo SUPER PRO")}
+          {t("finance.exclusiveTitle", "Centro Profesional — parte de la membresía PRO")}
         </h1>
         <p className="text-slate-600 dark:text-slate-400 mb-6">
           {t("finance.exclusiveDesc", "Llevá tu actividad como un profesional: facturación, impuestos, clientes y proyecciones, explicados en simple.")}
         </p>
         <Link to="/settings?tab=membership" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all">
           <Sparkles className="h-5 w-5" />
-          {t("finance.upgrade", "Pasarme a SUPER PRO")}
+          {t("finance.upgrade", "Ver la membresía PRO")}
         </Link>
       </div>
     );
@@ -639,12 +642,15 @@ export default function FinancePanel() {
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="h-6 w-6 text-yellow-300" />
           <h1 className="text-2xl font-bold">{t("finance.title", "Centro Profesional · Finanzas")}</h1>
-          <span className="text-xs bg-yellow-400 text-purple-900 px-2 py-0.5 rounded-full font-bold">SUPER PRO</span>
+          <span className="text-xs bg-yellow-400 text-purple-900 px-2 py-0.5 rounded-full font-bold">PRO</span>
         </div>
         <p className="text-white/80 text-sm">
           {t("finance.subtitle", "Tu actividad del año {{year}} en números, explicada en simple.", { year: data.year })}
         </p>
       </div>
+
+      {/* Qué es el Centro Profesional y los primeros pasos (se cierra y se recuerda) */}
+      <BienvenidaAlCentro usuarioId={user?.id} alIr={(p) => setTab(p)} />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5">
@@ -666,6 +672,8 @@ export default function FinancePanel() {
           </button>
         ))}
       </div>
+
+      <GuiaDeLaPestana pestana={tab} usuarioId={user?.id} />
 
       {tab === "finanzas" && (
         <>

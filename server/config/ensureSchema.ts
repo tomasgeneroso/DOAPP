@@ -89,6 +89,9 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // Lo que se le cobro al cliente por procesamiento (sin IVA). Sin esta columna
   // el precio del trabajo no se puede reconstruir desde el pago.
   { label: 'payments.processing_charge', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS processing_charge NUMERIC(12,2)` },
+  // De qué TRABAJO es el pago (migración 20261109120000): lo completa el modelo al guardar; permite buscar todo lo de una publicación por cualquier id.
+  { label: 'payments.job_id', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS job_id UUID` },
+  { label: 'payments.job_id index', sql: `CREATE INDEX IF NOT EXISTS payments_job_id ON payments (job_id) WHERE job_id IS NOT NULL` },
   // Parte de un aumento de precio reservada del saldo a favor hasta que se
   // acredita el pago del resto. Se escribia sin columna: se perdia.
   { label: 'jobs.pending_balance_deduction', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pending_balance_deduction NUMERIC(12,2) NOT NULL DEFAULT 0` },

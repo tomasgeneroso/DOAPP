@@ -223,7 +223,7 @@ export const CATALOGO_DE_PROBLEMAS = {
       'Un administrador es el trabajador de un contrato y quiso confirmar su propio cobro (o la verificación del pago de su contrato).',
     ],
     queHacer: [
-      { texto: 'Pedile a otra persona del equipo (o al dueño) que apruebe el pago desde Pagos pendientes, comprobando en el banco que el dinero entró.', ruta: '/admin/pending-payments' },
+      { texto: 'Pedile a otra persona del equipo (o al dueño) que apruebe el pago desde Pagos, comprobando en el banco que el dinero entró.', ruta: '/admin/pending-payments' },
       { texto: 'Si es una prueba y no hay dinero real, no lo apruebes: dejalo pendiente o rechazalo.' },
       { texto: 'Para ver los pagos que ya se aprobaron a mano por quien pagó, mirá el invariante 7 de la auditoría de saldos.', ruta: '/admin/auditoria-saldos' },
     ],

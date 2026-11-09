@@ -1,5 +1,6 @@
 import { Op, type WhereOptions } from 'sequelize';
 import { Payment, RESOLVED_PAYMENT_STATUSES } from '../models/sql/Payment.model.js';
+import { respaldadosPorLaPublicacion } from './pagosAlTrabajador.js';
 import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
@@ -125,7 +126,13 @@ function fuentes(ahora: Date): Fuente[] {
       titulo: 'Pagos a trabajadores por transferir',
       unidad: { uno: 'pago', varios: 'pagos' },
       ruta: '/admin/pending-payments',
-      leer: () => contar(Payment, { status: 'confirmed_for_payout' }, 'updatedAt'),
+      // Los pagos con un pago propio «confirmado para pagar» MÁS los contratos terminados que respalda el pago de la publicación (services/pagosAlTrabajador.ts):
+      // el mismo criterio que la lista de «Pagos a trabajadores», o el número y la lista dirían cosas distintas.
+      leer: async () => {
+        const propios = await contar(Payment, { status: 'confirmed_for_payout' }, 'updatedAt');
+        const porPublicacion = await respaldadosPorLaPublicacion();
+        return { cantidad: propios.cantidad + porPublicacion.length, masViejaDesde: propios.masViejaDesde };
+      },
     },
     {
       clave: 'publicaciones',

@@ -10,7 +10,9 @@ import {
   Default,
   Index,
   AllowNull,
+  BeforeSave,
 } from 'sequelize-typescript';
+import { conSistema } from '../../db/contextoRls.js';
 import { User } from './User.model.js';
 import { Contract } from './Contract.model.js';
 import { PaymentProof } from './PaymentProof.model.js';
@@ -122,6 +124,14 @@ export class Payment extends Model {
 
   @BelongsTo(() => Contract)
   contract?: Contract;
+
+  /**
+   * De qué TRABAJO es este pago. Lo completa solo `vincularConElTrabajo` al guardar (desde el contrato, la propuesta o la metadata) y el propio trabajo al fijar su pago
+   * de publicación (`Job.vincularElPagoDeLaPublicacion`). Sin esto un pago llegaba al trabajo por un puntero débil que además se pisaba (migración 20261109120000).
+   */
+  @Index
+  @Column(DataType.UUID)
+  jobId?: string;
 
   @Column(DataType.UUID)
   quoteId?: string;
@@ -456,6 +466,41 @@ export class Payment extends Model {
 
   @Column(DataType.JSONB)
   metadata?: Record<string, any>;
+
+  /**
+   * Antes de guardar, si el pago todavía no tiene trabajo, se lo busca por lo que SÍ sabe de él: su contrato, la propuesta de una cotización pagada o el `jobId` de la
+   * metadata. Un fallo acá nunca puede impedir guardar un pago: sin trabajo queda como estaba (y la búsqueda sigue encontrándolo por los otros punteros).
+   */
+  @BeforeSave
+  static async vincularConElTrabajo(pago: Payment, opciones?: { transaction?: unknown }): Promise<void> {
+    try {
+      if (pago.jobId) return;
+      const modelos = Payment.sequelize?.models;
+      if (!modelos) return;
+      const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const transaction = opciones?.transaction as never;
+      let jobId: string | null = null;
+      await conSistema(async () => {
+        if (pago.contractId && modelos.Contract) {
+          const contrato: any = await modelos.Contract.findByPk(pago.contractId, { attributes: ['id', 'jobId'], transaction });
+          jobId = contrato?.jobId ? String(contrato.jobId) : null;
+        }
+        const propuestaId = pago.metadata?.proposalId;
+        if (!jobId && propuestaId && UUID.test(String(propuestaId)) && modelos.Proposal) {
+          const propuesta: any = await modelos.Proposal.findByPk(String(propuestaId), { attributes: ['id', 'jobId'], transaction });
+          jobId = propuesta?.jobId ? String(propuesta.jobId) : null;
+        }
+        const deLaMetadata = pago.metadata?.jobId;
+        if (!jobId && deLaMetadata && UUID.test(String(deLaMetadata)) && modelos.Job) {
+          const trabajo: any = await modelos.Job.findByPk(String(deLaMetadata), { attributes: ['id'], transaction });
+          jobId = trabajo?.id ? String(trabajo.id) : null;
+        }
+      });
+      if (jobId) pago.jobId = jobId;
+    } catch {
+      /* el vínculo es una ayuda para buscar: nunca puede frenar el guardado de un pago */
+    }
+  }
 
   // ============================================
   // METHODS

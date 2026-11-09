@@ -39,6 +39,7 @@ import {
   FileImage,
   MessageSquare,
   X,
+  Briefcase,
 } from "lucide-react";
 
 interface WorkerPaymentInfo {
@@ -1885,15 +1886,37 @@ export default function PendingPayments() {
                             </td>
                           )}
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              {payment.contract?.id && (
-                                <button
-                                  onClick={() => window.location.href = `/admin/contracts?id=${payment.contract.id}`}
-                                  className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
-                                  title="Ver contrato"
+                            <div className="flex flex-wrap items-center gap-1.5 max-w-[9.5rem]">
+                              {/* Ir al trabajo y al contrato de este pago (el de una publicación solo tiene trabajo; una cotización pagada sin vincular, trabajo y contrato «sin vincular»). */}
+                              {payment.enlaces?.trabajo?.id && (
+                                <Link
+                                  to={`/jobs/${payment.enlaces.trabajo.id}`}
+                                  className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded"
+                                  title={`Ver el trabajo${payment.enlaces.trabajo.title ? `: ${payment.enlaces.trabajo.title}` : ''}`}
+                                  aria-label="Ver el trabajo"
                                 >
-                                  <Eye className="h-4 w-4" />
-                                </button>
+                                  <Briefcase className="h-4 w-4" />
+                                </Link>
+                              )}
+                              {payment.enlaces?.contrato?.id && (
+                                <>
+                                  <Link
+                                    to={`/contracts/${payment.enlaces.contrato.id}`}
+                                    className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
+                                    title="Ver el contrato"
+                                    aria-label="Ver el contrato"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Link>
+                                  <Link
+                                    to={`/admin/contracts?search=${payment.enlaces.contrato.id}`}
+                                    className={`p-1.5 rounded ${payment.enlaces.contrato.sinVincular ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                    title={payment.enlaces.contrato.sinVincular ? 'Este pago no está vinculado al contrato: abrilo en Gestión de contratos para vincularlo' : 'Abrir en Gestión de contratos'}
+                                    aria-label={payment.enlaces.contrato.sinVincular ? 'Pago sin vincular: abrir en Gestión de contratos' : 'Abrir en Gestión de contratos'}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Link>
+                                </>
                               )}
                               {/* Timeline / proceso del pago */}
                               <button

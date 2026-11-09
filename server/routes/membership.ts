@@ -1,6 +1,6 @@
 import { noEsAnteriorAHoy } from '../../shared/fechas/limites.js';
+import { puedeUsarElCentroProfesional, MENSAJE_CENTRO_PROFESIONAL } from "../services/centroProfesional.js";
 import { Router, Response } from "express";
-import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService, { MembershipError } from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
@@ -532,7 +532,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
-      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyProUsedAt']
+      attributes: ['membershipTier', 'hasMembership', 'freeContractsRemaining', 'membershipExpiresAt', 'isEarlyUser', 'createdAt', 'freeMonthlyProUsedAt', 'launchBenefitGrantedAt']
     });
 
     if (!user) {
@@ -574,21 +574,16 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 
 /**
  * GET /api/membership/analytics
- * Panel financiero/fiscal del nivel interno 'super_pro' (adaptado a Argentina).
- * Ese nivel ya no se vende: durante la beta lo tienen todos (getEffectiveTier) y
- * después sólo las cuentas heredadas y el owner.
+ * Centro Profesional: panel financiero/fiscal (adaptado a Argentina), parte de la membresía PRO.
+ * Durante la beta lo tienen todos y el owner siempre; después, quien tiene PRO vigente (services/centroProfesional.ts).
  * Agrega la facturación del usuario como trabajador (contratos completados como `doer`).
  * Query: ?year=YYYY (default año actual), ?limit=<tope anual monotributo> (opcional).
  */
 router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Gating: nivel interno 'super_pro' (el código 'SUPER_PRO_REQUIRED' lo leen los clientes)
-    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
-      res.status(403).json({
-        success: false,
-        code: 'SUPER_PRO_REQUIRED',
-        message: 'El panel financiero no está disponible para tu plan actual',
-      });
+    // El Centro Profesional es parte de la membresía PRO (services/centroProfesional.ts).
+    if (!(await puedeUsarElCentroProfesional(req.user))) {
+      res.status(403).json({ success: false, code: 'PRO_REQUIRED', message: MENSAJE_CENTRO_PROFESIONAL });
       return;
     }
 
@@ -923,11 +918,11 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
 
 /**
  * GET /api/membership/analytics/export.csv?year=YYYY
- * Exporta la facturación del año como CSV (para el contador). Nivel interno 'super_pro'.
+ * Exporta la facturación del año como CSV (para el contador). Parte de la membresía PRO (Centro Profesional).
  */
 router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
+    if (!(await puedeUsarElCentroProfesional(req.user))) {
       res.status(403).json({ success: false, message: 'La exportación no está disponible para tu plan actual' });
       return;
     }
@@ -987,11 +982,11 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
 
 /**
  * GET /api/membership/analytics/export.pdf?year=YYYY
- * Resumen anual de facturación en PDF (para el contador). Nivel interno 'super_pro'.
+ * Resumen anual de facturación en PDF (para el contador). Parte de la membresía PRO (Centro Profesional).
  */
 router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
+    if (!(await puedeUsarElCentroProfesional(req.user))) {
       res.status(403).json({ success: false, message: 'La exportación no está disponible para tu plan actual' });
       return;
     }
