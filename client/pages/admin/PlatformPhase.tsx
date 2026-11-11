@@ -55,20 +55,27 @@ export default function PlatformPhase() {
   const [formFiscal, setFormFiscal] = useState({ tasaProcesamiento: "", iibbRetencion: "", iibbPropia: "" });
   const [formFechas, setFormFechas] = useState({ betaEndsAt: "", liveStartsAt: "" });
 
+  /** Por qué no se pudo cargar (null = bien). Antes una respuesta que nunca llegaba dejaba el indicador de carga para siempre, sin decir qué fallaba. */
+  const [falla, setFalla] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
+    setFalla(null);
+    // Un tope de espera: si el servidor no contesta en 20 s se dice y se deja reintentar, en vez de girar sin fin.
+    const control = new AbortController();
+    const tope = window.setTimeout(() => control.abort(), 20000);
+    const pedir = (ruta: string) => fetch(ruta, { headers: { Authorization: `Bearer ${token}` }, signal: control.signal });
     try {
-      const [rFase, rFiscal] = await Promise.all([
-        fetch("/api/admin/platform/phase", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/admin/platform/fiscal", { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      const d = await rFase.json();
-      if (d.success) {
+      const [rFase, rFiscal] = await Promise.all([pedir("/api/admin/platform/phase"), pedir("/api/admin/platform/fiscal")]);
+      const d = await rFase.json().catch(() => null);
+      if (d?.success) {
         setInfo(d.data);
         setFormFechas({
           betaEndsAt: aLocalInput(d.data.betaEndsAt),
           liveStartsAt: aLocalInput(d.data.liveStartsAt || d.data.betaEndsAt),
         });
+      } else {
+        setFalla(`El servidor respondió ${rFase.status}${d?.message ? `: ${d.message}` : ""}.`);
       }
       const f = await rFiscal.json().catch(() => ({ success: false }));
       if (f.success) {
@@ -82,7 +89,10 @@ export default function PlatformPhase() {
           iibbPropia: f.data.iibbPropia ?? "",
         });
       }
+    } catch (e: any) {
+      setFalla(e?.name === "AbortError" ? "El servidor tardó más de 20 segundos en contestar." : `No se pudo conectar con el servidor${e?.message ? ` (${e.message})` : ""}.`);
     } finally {
+      window.clearTimeout(tope);
       setLoading(false);
     }
   }, [token]);
@@ -140,7 +150,17 @@ export default function PlatformPhase() {
   if (loading) {
     return <div className="p-8 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-sky-500" /></div>;
   }
-  if (!info) return <div className="p-8 text-slate-500">No se pudo cargar la fase.</div>;
+  if (!info) {
+    return (
+      <div className="p-8 max-w-xl space-y-3">
+        <p className="font-medium text-slate-900 dark:text-white">No se pudo cargar la fase de la plataforma.</p>
+        {falla && <p className="text-sm text-slate-600 dark:text-slate-400" role="alert">{falla}</p>}
+        <button onClick={() => void load()} className="px-4 py-2 text-sm rounded-lg bg-sky-500 hover:bg-sky-600 text-white">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   const endsAt = formatBetaEnd(info.betaEndsAt);
 

@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -24,6 +25,7 @@ import {
   ArrowDown,
   Receipt,
   ExternalLink,
+  FileText,
   Briefcase
 } from "lucide-react";
 import {
@@ -46,6 +48,8 @@ import {
 
 interface Transaction {
   id: string;
+  /** El contrato al que pertenece el pago (si tiene uno): para ir a gestionarlo. */
+  contractId?: string | null;
   date: string;
   type: string;
   status: string;
@@ -96,6 +100,24 @@ interface Transaction {
   hasProof?: boolean;
   // Associated job (for job_publication payments) — enables linking to the publication
   jobId?: string;
+}
+
+/**
+ * A dónde se va a GESTIONAR una transacción de esta lista (regla del dueño, 2026-11-11: «desde transacciones financieras debo poder ir a la transacción para, por ejemplo,
+ * aceptar el pago»). Un retiro se resuelve en «Retiros»; un pago, en «Pagos» (que busca por el id en TODAS las pestañas); uno pendiente de verificar es lo urgente.
+ */
+function rutaDeGestion(tx: { id: string; type: string; status: string }): { to: string; texto: string; ayuda: string; urgente: boolean } {
+  if (tx.type === 'withdrawal') {
+    const pendiente = ['pending', 'approved', 'processing'].includes(tx.status);
+    return { to: `/admin/withdrawals?search=${tx.id}`, texto: pendiente ? 'Resolver el retiro' : 'Ver el retiro', ayuda: 'Abre «Retiros» con este retiro a la vista: aprobar, subir el comprobante y completarlo.', urgente: pendiente };
+  }
+  const porAprobar = tx.status === 'pending_verification';
+  return {
+    to: `/admin/pending-payments?search=${tx.id}`,
+    texto: porAprobar ? 'Aprobar el pago' : 'Ver en Pagos',
+    ayuda: 'Abre «Pagos» con este pago a la vista: aprobarlo, verificar la garantía, devolverlo o ver su comprobante.',
+    urgente: porAprobar,
+  };
 }
 
 type ChartType = 'escrow' | 'recent' | 'commissions' | 'total' | null;
@@ -185,6 +207,9 @@ export default function FinancialTransactions() {
       console.error("Error loading stats:", error);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'withdrawal'], () => { void loadTransactions(); void loadStats(); });
 
   const handleExportXLSX = async () => {
     setExporting(true);
@@ -1402,7 +1427,6 @@ export default function FinancialTransactions() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex items-center gap-2">
-                      {/* View details link only - no approve/reject actions */}
                       <button
                         onClick={() => setSelectedTransaction(transaction)}
                         className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
@@ -1410,6 +1434,24 @@ export default function FinancialTransactions() {
                       >
                         <ArrowRight className="w-5 h-5" />
                       </button>
+                      {/* Ir a donde se gestiona: aprobar el pago, resolver el retiro, abrir el contrato (regla del dueño, 2026-11-11). */}
+                      {(() => {
+                        const g = rutaDeGestion(transaction);
+                        return (
+                          <Link
+                            to={g.to}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                              g.urgente
+                                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                : 'border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                            title={g.ayuda}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                            {g.texto}
+                          </Link>
+                        );
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -1641,9 +1683,31 @@ export default function FinancialTransactions() {
                 )}
               </div>
 
-              {/* Quick navigation: publication + pending payment */}
-              {(selectedTransaction.jobId || selectedTransaction.status === 'pending_verification') && (
+              {/* Accesos: a donde se gestiona (siempre), a la publicación y al contrato */}
+              {(
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex flex-wrap gap-2">
+                  {(() => {
+                    const g = rutaDeGestion(selectedTransaction);
+                    return (
+                      <Link
+                        to={g.to}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-colors ${g.urgente ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        title={g.ayuda}
+                      >
+                        <ExternalLink className="h-4 w-4" aria-hidden />
+                        {g.texto}
+                      </Link>
+                    );
+                  })()}
+                  {selectedTransaction.contractId && (
+                    <Link
+                      to={`/admin/contracts?search=${selectedTransaction.contractId}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <FileText className="h-4 w-4" aria-hidden />
+                      Gestionar el contrato
+                    </Link>
+                  )}
                   {selectedTransaction.jobId && (
                     <Link
                       to={`/jobs/${selectedTransaction.jobId}`}
@@ -1651,15 +1715,6 @@ export default function FinancialTransactions() {
                     >
                       <Briefcase className="h-4 w-4" />
                       {t('admin.financial.viewPublication', 'Ver publicación')}
-                    </Link>
-                  )}
-                  {selectedTransaction.status === 'pending_verification' && (
-                    <Link
-                      to={`/admin/pending-payments?search=${selectedTransaction.id}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                    >
-                      <Clock className="h-4 w-4" />
-                      {t('admin.financial.viewInPendingPayments', 'Ver en pagos pendientes')}
                     </Link>
                   )}
                 </div>

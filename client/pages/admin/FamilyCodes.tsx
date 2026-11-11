@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from 'react';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
@@ -106,6 +107,9 @@ export default function FamilyCodes() {
       console.error('Error fetching stats:', error);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['code'], () => { void fetchCodes(); void fetchStats(); });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

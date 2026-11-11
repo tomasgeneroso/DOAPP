@@ -56,7 +56,10 @@ export default function AdminWithdrawalManager() {
 
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRequest | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  /** La referencia o número de operación de la transferencia (texto). */
   const [proofOfTransfer, setProofOfTransfer] = useState('');
+  /** El comprobante de la transferencia que el administrador hizo a mano desde Mercado Pago (imagen o PDF). */
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
@@ -197,8 +200,9 @@ export default function AdminWithdrawalManager() {
   const handleComplete = async (id: string) => {
     if (!confirm(t('admin.withdrawals.confirmComplete', 'Mark as completed? This will deduct the user balance.'))) return;
 
-    if (!proofOfTransfer.trim()) {
-      setError(t('admin.withdrawals.proofRequired', 'You must enter the transfer proof'));
+    // El comprobante es lo que prueba que la plata salió: un archivo (lo normal: la captura o el PDF de Mercado Pago) o, al menos, el número de operación.
+    if (!proofFile && !proofOfTransfer.trim()) {
+      setError(t('admin.withdrawals.proofRequiredFile', 'Subí el comprobante de la transferencia (o escribí el número de operación).'));
       return;
     }
 
@@ -208,13 +212,29 @@ export default function AdminWithdrawalManager() {
 
     try {
       const token = localStorage.getItem('token');
+
+      // 1) Se sube el comprobante. Si falla, no se completa el retiro: el descuento del saldo no se hace sin el respaldo.
+      let comprobante = proofOfTransfer.trim();
+      if (proofFile) {
+        const fd = new FormData();
+        fd.append('file', proofFile);
+        const subida = await fetch('/api/admin/payments/upload-proof', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        const datosSubida = await subida.json().catch(() => null);
+        if (!datosSubida?.success || !datosSubida.url) {
+          setError(datosSubida?.message || 'No se pudo subir el comprobante. El retiro NO se completó.');
+          return;
+        }
+        comprobante = datosSubida.url;
+      }
+
       const response = await fetch(`/api/admin/withdrawals/${id}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ proofOfTransfer }),
+        // Con archivo, el número de operación (si lo escribieron) queda en las notas del retiro.
+        body: JSON.stringify({ proofOfTransfer: comprobante, ...(proofFile && proofOfTransfer.trim() ? { adminNotes: `Operación: ${proofOfTransfer.trim()}` } : {}) }),
       });
 
       const data = await response.json();
@@ -223,6 +243,7 @@ export default function AdminWithdrawalManager() {
         setSuccess(t('admin.withdrawals.completedSuccess', 'Withdrawal completed successfully'));
         await loadData();
         setProofOfTransfer('');
+        setProofFile(null);
         setShowDetailsModal(false);
       } else {
         setError(data.message || t('admin.withdrawals.errorCompleting', 'Error completing'));
@@ -505,9 +526,15 @@ export default function AdminWithdrawalManager() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {proof ? (
-                        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title="Confirmación de transferencia">
-                          <CheckCircle className="w-4 h-4" /> {proof}
-                        </span>
+                        String(proof).startsWith('/uploads/') ? (
+                          <a href={String(proof)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:underline dark:text-green-400" title="Ver el comprobante de la transferencia">
+                            <CheckCircle className="w-4 h-4" /> Ver comprobante
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title="Confirmación de transferencia">
+                            <CheckCircle className="w-4 h-4" /> {proof}
+                          </span>
+                        )
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -583,12 +610,26 @@ export default function AdminWithdrawalManager() {
                 </div>
               </div>
 
-              {selectedWithdrawal.status === 'processing' && (
+              {(selectedWithdrawal.status === 'processing' || selectedWithdrawal.status === 'approved') && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('admin.withdrawals.transferProof', 'Transfer Proof')}
+                  <p className="mb-3 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-900/20 dark:text-sky-100">
+                    Primero hacé la transferencia a mano desde Mercado Pago a la cuenta de la persona. Después subí acá el comprobante y marcá el retiro como completado: recién ahí se descuenta el saldo.
+                  </p>
+                  <label htmlFor="retiro-comprobante-archivo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t('admin.withdrawals.transferProofFile', 'Comprobante de la transferencia (imagen o PDF)')}
                   </label>
                   <input
+                    id="retiro-comprobante-archivo"
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,application/pdf"
+                    onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-700 dark:file:bg-sky-900/30 dark:file:text-sky-300"
+                  />
+                  <label htmlFor="retiro-comprobante-numero" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mt-3 mb-2">
+                    Número de operación <span className="font-normal text-gray-500">(opcional si subís el archivo)</span>
+                  </label>
+                  <input
+                    id="retiro-comprobante-numero"
                     type="text"
                     value={proofOfTransfer}
                     onChange={(e) => setProofOfTransfer(e.target.value)}
@@ -598,7 +639,7 @@ export default function AdminWithdrawalManager() {
                   <Button
                     variant="primary"
                     onClick={() => handleComplete(selectedWithdrawal.id)}
-                    disabled={processing === selectedWithdrawal.id}
+                    disabled={processing === selectedWithdrawal.id || (!proofFile && !proofOfTransfer.trim())}
                     className="mt-2 w-full"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
@@ -639,6 +680,7 @@ export default function AdminWithdrawalManager() {
                   setShowDetailsModal(false);
                   setSelectedWithdrawal(null);
                   setProofOfTransfer('');
+                  setProofFile(null);
                   setRejectionReason('');
                 }}
                 className="w-full"

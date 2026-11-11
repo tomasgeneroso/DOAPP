@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { IdCard, Loader2, RefreshCw, CheckCircle2, Link2, X } from "lucide-react";
@@ -74,6 +75,9 @@ export default function IdentidadARevisar() {
       setCargando(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user'], () => { void cargar(); });
 
   useEffect(() => {
     void cargar();

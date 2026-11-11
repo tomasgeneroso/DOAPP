@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -87,6 +88,9 @@ export default function OrdenesDePago() {
       setCargando(false);
     }
   }, [token]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment'], () => { void traer(); });
 
   useEffect(() => {
     void traer();

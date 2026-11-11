@@ -1,52 +1,185 @@
 # ============================================
-# DOAPP - Staging deploy (manual)
+# DOAPP - Staging deploy (con paridad con producción)
 # ============================================
-# Deploys the current branch to a STAGING copy that mirrors production, so
-# changes can be verified on a real server before touching the live site.
+# Despliega la rama elegida a una copia de STAGING que recorre EXACTAMENTE el mismo camino que producción (.github/workflows/ci-cd.yml): las mismas puertas antes
+# de tocar el servidor, los mismos comandos de instalación, build y migraciones, la misma forma de reiniciar y de comprobar que levantó, y el mismo rollback.
+# Lo único que cambia es lo que TIENE que cambiar: carpeta, nombre en PM2, puerto, base de datos y claves de prueba.
 #
-# ⚠️ ONE-TIME SETUP REQUIRED (see .github/STAGING.md) before this can run:
-#   - a staging dir on the VPS: /var/www/doapp-staging (git clone of the repo)
-#   - a staging database (e.g. doapp_staging) + STAGING_DATABASE_URL in its .env
-#   - a PM2 app "doapp-staging" on port 3002 (ecosystem.staging.config.cjs)
-#   - an nginx vhost for staging.doapparg.com -> /var/www/doapp-staging/dist/spa
+# Paridad no es copiar secretos ni datos: staging usa claves de prueba (Mercado Pago TEST-) y su propia base. La vigila
+# `tests/paridadDeStaging.test.ts` (falla si este archivo y ci-cd.yml se separan) y `server/scripts/paridadDeEntornos.ts` (variables, commit y migraciones).
 #
-# Until then this workflow simply won't be triggered (it's manual-only).
+# ⚠️ Preparación de una sola vez en el servidor: ver .github/STAGING.md. Si staging no está preparado, el deploy lo avisa y termina sin fallar.
 # ============================================
 
 name: Deploy to Staging
 
 on:
-  workflow_dispatch: {}            # manual "Run workflow" button only
+  workflow_dispatch: {}            # botón «Run workflow» (se elige la rama)
   push:
-    branches: [staging]            # or auto-deploy a dedicated 'staging' branch
+    branches: [staging]            # o una rama `staging` que se despliega sola
 
 # Permisos mínimos del GITHUB_TOKEN: ningún job de este workflow necesita escribir en el repositorio.
 # Sin este bloque el token tiene los permisos por defecto del repositorio (a menudo de escritura).
 permissions:
   contents: read
 
+# Un deploy de staging a la vez: dos pisándose dejan la carpeta a medio construir.
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
 env:
   NODE_VERSION: '20'
 
 jobs:
-  # Reuse the same gates as production before touching staging.
+  # ============================================
+  # Las MISMAS puertas que producción (lint del servidor, tipos, hooks de React, secretos en el código)
+  # ============================================
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps
-      - name: TypeScript check (server)
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run ESLint (server)
+        run: npx eslint server/routes server/middleware server/services --ext .ts --max-warnings 50 || true
+
+      # GATE: errores de tipos del servidor BLOQUEAN el deploy (igual que en producción).
+      - name: TypeScript check (server) — blocks deploy on errors
         run: npx tsc --noEmit --project tsconfig.server.json
 
+      # GATE: violaciones del orden de hooks de React bloquean el deploy (esta clase ya dejó producción en blanco).
+      - name: Guard against React hook-order bugs
+        run: |
+          npx eslint client -f json > /tmp/eslint-report.json 2>/dev/null || true
+          count=$(node -e "try{const r=require('/tmp/eslint-report.json');let n=0;for(const f of r)for(const m of f.messages)if(m.ruleId==='react-hooks/rules-of-hooks'&&m.severity===2)n++;console.log(n)}catch(e){console.log(0)}")
+          echo "react-hooks/rules-of-hooks violations: $count"
+          if [ "$count" -gt 0 ]; then
+            echo "❌ Hook-order violation — this class white-screened prod before. Fix before deploy."
+            npx eslint client 2>&1 | grep -B1 -A3 "rules-of-hooks" || true
+            exit 1
+          fi
+          echo "✅ No hook-order violations"
+
+      - name: Check for critical security issues
+        run: |
+          echo "🔍 Checking for hardcoded secrets..."
+          # Require 20+ chars after sk- to avoid false positives (e.g. "task-claim" contains "sk-c")
+          if grep -rn --include="*.ts" -E "sk-[a-zA-Z0-9]{20,}" server/ | grep -v "process\.env" | grep -v "\.env"; then
+            echo "⚠️  Possible API key found in server code"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found"
+
+      # Las pruebas de la lógica (sin base de datos). Es un INFORME, como las migraciones: staging es donde se encuentran los problemas antes de producción,
+      # no un portón más. Cuando estén estables, se saca `continue-on-error` y pasa a ser puerta también en ci-cd.yml.
+      - name: Unit tests (report)
+        continue-on-error: true
+        run: npm test -- --ci
+
+  # ============================================
+  # Las migraciones corren limpias desde cero (detecta desvíos de columnas antes de que lleguen al servidor)
+  # ============================================
+  migrations:
+    name: Migrations (from scratch)
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: doapp_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Apply all migrations from scratch (report)
+        continue-on-error: true
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/doapp_ci
+        run: |
+          echo "🗄️  Applying $(ls migrations/*.cjs | wc -l) migrations on a fresh DB..."
+          NODE_ENV=test npx sequelize-cli db:migrate
+          echo "✅ All migrations applied cleanly (schema is fully migration-based)"
+
+      - name: Check the newest migration is reversible
+        continue-on-error: true
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/doapp_ci
+        run: |
+          echo "↩️  Testing rollback of the latest migration..."
+          NODE_ENV=test npx sequelize-cli db:migrate:undo
+          NODE_ENV=test npx sequelize-cli db:migrate
+          echo "✅ Rollback + re-apply OK"
+
+  # ============================================
+  # El build compila (el servidor vuelve a construir en su carpeta, igual que en producción)
+  # ============================================
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build frontend
+        run: npm run build:client
+        env:
+          VITE_API_URL: https://staging.doapparg.com/api
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "dist/public" ] && [ ! -d "dist" ]; then
+            echo "❌ Build output not found"
+            exit 1
+          fi
+          echo "✅ Build output verified"
+
+  # ============================================
+  # Deploy a staging: el mismo guion que producción, con su carpeta, su proceso de PM2 y su puerto
+  # ============================================
   deploy-staging:
     name: Deploy to Staging VPS
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [build, migrations]
     steps:
       - name: Deploy via SSH
         env:
@@ -61,14 +194,41 @@ jobs:
           # que se la pase. Sin esto `origin/${GITHUB_REF_NAME:-master}` caía siempre en master y staging
           # desplegaba master aunque se hubiera disparado desde otra rama.
           envs: GITHUB_REF_NAME
+          # Mismo tiempo máximo que producción: npm install, build, migraciones, reinicio y la espera de que levante no entran en los 10 minutos por defecto.
           command_timeout: 25m
+          debug: true
           script: |
             set -e
+
+            if [ ! -d /var/www/doapp-staging/.git ]; then
+              echo "⚠️  Staging no está preparado en este servidor (falta /var/www/doapp-staging). Seguí .github/STAGING.md una sola vez y volvé a correr este deploy."
+              exit 0
+            fi
             cd /var/www/doapp-staging
 
+            echo "📋 Current commit before deploy:"
+            git rev-parse --short HEAD
+            ANTERIOR="$(git rev-parse HEAD)"
+
+            # Si el deploy falla después de mover el código, se vuelve al commit anterior en vez de dejar
+            # staging caído con el código nuevo roto. Las migraciones NO se deshacen (son aditivas y
+            # una migración ya aplicada puede tener datos nuevos): el código anterior tiene que convivir con ellas.
+            volver_atras() {
+              echo "↩️  Rollback automático al commit anterior: $ANTERIOR"
+              git reset --hard "$ANTERIOR" || return 1
+              npm install --legacy-peer-deps || true
+              npm run build:client || true
+              pm2 stop doapp-staging 2>/dev/null || true
+              pm2 delete doapp-staging 2>/dev/null || true
+              pm2 start ecosystem.staging.config.cjs || true
+              echo "↩️  Rollback terminado. Revisá por qué falló el commit nuevo."
+            }
+
             echo "📥 Pulling latest code onto staging..."
-            git fetch origin
-            git reset --hard "origin/${GITHUB_REF_NAME:-master}"
+            git fetch origin && git reset --hard "origin/${GITHUB_REF_NAME:-master}"
+
+            # Desde acá el código nuevo está en el servidor: cualquier fallo (npm install, build, migraciones, arranque) tiene que deshacerlo.
+            trap 'volver_atras' ERR
 
             echo "📦 Installing dependencies..."
             npm install --legacy-peer-deps
@@ -76,36 +236,60 @@ jobs:
             echo "🔨 Building frontend..."
             npm run build:client
 
-            echo "🗄️  Running migrations on the STAGING database..."
+            echo "🗄️  Running database migrations (STAGING database)..."
             NODE_ENV=production npx sequelize-cli db:migrate
             echo "✅ Migrations completed"
 
-            echo "🔄 Restarting staging app (port 3002)..."
-            pm2 startOrReload ecosystem.staging.config.cjs
+            echo "🔄 Restarting application..."
+            pm2 stop doapp-staging 2>/dev/null || true
+            pm2 delete doapp-staging 2>/dev/null || true
+            pm2 start ecosystem.staging.config.cjs
 
-            echo "⏳ Waiting for staging server..."
+            echo "⏳ Waiting for server to start (max 3 min)..."
             started=false
             for i in $(seq 1 18); do
               sleep 10
               if curl -sf http://localhost:3002/api/health > /dev/null 2>&1; then
-                echo "✅ Staging server responding after ~${i}0s"
+                echo "✅ Server responding after ~${i}0s"
                 started=true
                 break
               fi
               echo "  Not ready yet ($i/18)..."
             done
             if [ "$started" = "false" ]; then
-              echo "❌ Staging server did not start"
+              echo "❌ Server did not start within 3 minutes"
               pm2 logs doapp-staging --lines 50 --nostream || true
+              volver_atras || true
               exit 1
             fi
 
-            echo "🌐 Frontend smoke test..."
+            echo "⏳ Confirming stability for 60s..."
+            for j in 1 2 3 4 5 6; do
+              sleep 10
+              if ! curl -sf http://localhost:3002/api/health > /dev/null 2>&1; then
+                echo "❌ Server crashed during stability check (attempt $j)"
+                pm2 status
+                pm2 logs doapp-staging --lines 30 --nostream || true
+                volver_atras || true
+                exit 1
+              fi
+              echo "  Stable ($j/6)"
+            done
+            echo "✅ Server is stable"
+
+            echo "🌐 Frontend smoke test (nginx serves the built app)..."
             if curl -sf http://localhost/ -H 'Host: staging.doapparg.com' 2>/dev/null | grep -q 'id="root"'; then
-              echo "✅ Staging frontend served OK"
+              echo "✅ Frontend HTML served OK (app root found)"
             else
-              echo "⚠️  Staging frontend check inconclusive — verify the nginx vhost"
+              echo "⚠️  Frontend smoke test did not find the app root — check the staging nginx vhost / build output"
             fi
 
-            echo "✅ Staging deploy completed! Commit:"
+            echo "📋 PM2 status:"
+            pm2 status
+
+            echo "⚖️  Paridad con producción (solo nombres de variables, commit y migraciones; nunca valores):"
+            trap - ERR
+            npx tsx server/scripts/paridadDeEntornos.ts || echo "⚠️  Hay diferencias con producción: leé la lista de arriba y corregilas."
+
+            echo "✅ Deploy completed! New commit:"
             git rev-parse --short HEAD

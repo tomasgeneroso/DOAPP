@@ -42,6 +42,7 @@ export { PaymentAction } from './PaymentAction.model.js';
 // ============================================
 export { ContractChangeRequest } from './ContractChangeRequest.model.js';
 export { ContractCancellationRequest } from './ContractCancellationRequest.model.js';
+export { RefundRequest } from './RefundRequest.model.js';
 export type { CancellationRequestStatus, CancellationRequestPriority } from './ContractCancellationRequest.model.js';
 
 // ============================================

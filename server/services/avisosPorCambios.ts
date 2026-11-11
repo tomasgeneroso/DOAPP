@@ -21,11 +21,18 @@ import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
 import { Dispute } from '../models/sql/Dispute.model.js';
 import { ContractCancellationRequest } from '../models/sql/ContractCancellationRequest.model.js';
 import { ContractChangeRequest } from '../models/sql/ContractChangeRequest.model.js';
+import { RefundRequest } from '../models/sql/RefundRequest.model.js';
 import { Quote } from '../models/sql/Quote.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import { Conversation } from '../models/sql/Conversation.model.js';
 import { User } from '../models/sql/User.model.js';
+import { Ticket } from '../models/sql/Ticket.model.js';
+import { AuditLog } from '../models/sql/AuditLog.model.js';
+import { BannedIdentity } from '../models/sql/BannedIdentity.model.js';
+import { FamilyCode } from '../models/sql/FamilyCode.model.js';
+import { InfluencerInvite } from '../models/sql/InfluencerInvite.model.js';
+import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { engancharFuente, SALA_DE_ADMINISTRACION, type Aviso, type Fuente } from './avisosEnVivo.js';
 
 type Fila = Record<string, any>;
@@ -131,6 +138,17 @@ const RETIROS: Fuente = {
   ],
 };
 
+/** Pedido de reembolso de un pago por transferencia: el cliente ve cómo va en su lista de pagos y el equipo ve aparecer el pedido en «Pedidos de reembolso». */
+const PEDIDOS_DE_REEMBOLSO: Fuente = {
+  modelo: RefundRequest as never,
+  columnas: ['id', 'paymentId', 'requestedBy', 'status'],
+  avisos: (r: Fila) => [
+    { usuarios: [r.requestedBy], evento: 'payment:updated', datos: { paymentId: String(r.paymentId), status: r.status }, clave: String(r.paymentId) },
+    { usuarios: [r.requestedBy], evento: 'dashboard:refresh' },
+    delAdministrador('refund', r.id),
+  ],
+};
+
 /** Reclamos, pedidos de cancelación y pedidos de cambio de un contrato: las dos partes los ven aparecer y resolverse al instante. */
 const cuelgaDelContrato = (modelo: unknown, tipo: string, evento: string): Fuente => ({
   modelo: modelo as never,
@@ -144,6 +162,36 @@ const cuelgaDelContrato = (modelo: unknown, tipo: string, evento: string): Fuent
     ];
   },
 });
+
+/**
+ * Todo el panel de administración se actualiza en vivo (regla del dueño, 2026-11-09). Estas son las fuentes que SOLO le avisan a administración (sala `admins`,
+ * evento `admin:cambio`): lo que una persona del equipo mira en una pantalla y que no pasa por ningún contrato (tickets, auditoría, identidades baneadas, códigos,
+ * artículos). Cada pantalla escucha con `useCambiosDeAdministracion` y los tipos de abajo (tests/administracionEnVivo.test.ts verifica que ninguna se olvide).
+ */
+const soloParaAdministracion = (modelo: unknown, tipo: string, columnas: string[] = ['id']): Fuente => ({
+  modelo: modelo as never,
+  columnas,
+  avisos: (f: Fila) => [delAdministrador(tipo, f.id)],
+});
+
+/**
+ * Las personas: SOLO cuando cambia algo que mira administración (verificación de identidad, baneo, rol, plan, registro, unión de cuentas). Un usuario se guarda por cada
+ * ingreso, cada vista de perfil y cada notificación: avisar siempre haría recargar las pantallas del equipo sin que nada hubiera cambiado. Para saber si cambió se recuerda
+ * la «huella» de lo que importa (en memoria; si el proceso se reinicia, el primer guardado de cada persona avisa una vez).
+ */
+const huellaDeUsuarios = new Map<string, string>();
+const TOPE_DE_HUELLAS = 5000;
+const USUARIOS: Fuente = {
+  modelo: User as never,
+  columnas: ['id', 'kycStatus', 'dniVerified', 'isBanned', 'adminRole', 'membershipTier', 'registrationPending', 'mergedIntoId', 'identityKey'],
+  avisos: (u: Fila, esNueva: boolean) => {
+    const huella = JSON.stringify([u.kycStatus, u.dniVerified, u.isBanned, u.adminRole, u.membershipTier, u.registrationPending, u.mergedIntoId, u.identityKey]);
+    const previa = huellaDeUsuarios.get(String(u.id));
+    if (huellaDeUsuarios.size >= TOPE_DE_HUELLAS) huellaDeUsuarios.clear();
+    huellaDeUsuarios.set(String(u.id), huella);
+    return esNueva || previa !== huella ? [delAdministrador('user', u.id)] : [];
+  },
+};
 
 const NOTIFICACIONES: Fuente = {
   modelo: Notification as never,
@@ -202,12 +250,21 @@ export function instalarAvisosPorCambios(): void {
     PAGOS,
     ASIENTOS_DE_SALDO,
     RETIROS,
+    PEDIDOS_DE_REEMBOLSO,
     cuelgaDelContrato(Dispute, 'dispute', 'dispute:updated'),
     cuelgaDelContrato(ContractCancellationRequest, 'cancellation', 'contract:updated'),
     cuelgaDelContrato(ContractChangeRequest, 'changeRequest', 'contract:updated'),
     NOTIFICACIONES,
     MENSAJES,
     CONVERSACIONES,
+    // Solo administración
+    soloParaAdministracion(Ticket, 'ticket', ['id', 'status']),
+    soloParaAdministracion(AuditLog, 'audit'),
+    soloParaAdministracion(BannedIdentity, 'user'),
+    soloParaAdministracion(FamilyCode, 'code'),
+    soloParaAdministracion(InfluencerInvite, 'code'),
+    soloParaAdministracion(BlogPost, 'blog'),
+    USUARIOS,
   ]) {
     engancharFuente(fuente);
   }

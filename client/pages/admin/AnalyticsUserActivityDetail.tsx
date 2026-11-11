@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
@@ -166,6 +167,9 @@ export default function AnalyticsUserActivityDetail() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user', 'audit'], () => { void loadData(); }, 5000);
 
   if (loading) {
     return (

@@ -150,6 +150,31 @@ describe('los archivos públicos dicen la comisión y el plan vigentes', () => {
   });
 });
 
+/**
+ * Lo estático no sabe en qué fase está la plataforma (la fase y la fecha de cierre se cambian desde /admin/platform). Un texto fijo que dice «sin comisión durante la beta» o
+ * «hasta el 31 de diciembre de 2026» queda mal el día que la fase o la fecha cambian, y nadie lo ve (2026-11-09: el dueño lo encontró). Los archivos estáticos dicen la política
+ * (que sí es estable) y mandan a la plataforma para el estado vigente; las pantallas muestran la fase real con `usePlatformPhase`.
+ */
+describe('los textos estáticos no afirman una fase ni una fecha que se cambia desde el panel', () => {
+  it.each(['index.html', 'public/llms.txt'])('%s: sin la fecha de cierre de la beta fija ni la política vieja de las 1000 cuentas', (archivo) => {
+    const texto = leer(archivo);
+    for (const viejo of [/31 de diciembre de 2026/, /hasta el 31\/12\/2026/, /primeras 1000 cuentas/i, /por mes durante un a[ñn]o/i, /Durante la beta, hasta/i, /fase beta hasta/i]) {
+      expect({ archivo, patron: String(viejo), aparece: viejo.test(texto) }).toEqual({ archivo, patron: String(viejo), aparece: false });
+    }
+    // y dicen la política vigente del lanzamiento
+    expect(texto).toMatch(/primeras 2\.000 personas verificadas/);
+  });
+
+  it('la descripción de la portada no promete «sin comisión durante la beta» (sale de la fase real, no de un texto fijo)', () => {
+    expect(sinComentarios(leer('client/pages/Index.tsx'))).not.toMatch(/Sin comisión durante la beta/);
+  });
+
+  it('la imagen para redes no dice «Comisión desde 1%» ni el dominio anterior', () => {
+    expect(leer('public/og-image.svg')).not.toMatch(/Comisión desde 1%/);
+    expect(leer('public/og-image.svg')).not.toMatch(/doapparg\.site/);
+  });
+});
+
 describe('el servidor calcula y describe la comisión vigente', () => {
   it('commissionService no escribe tasas a mano en lo que le muestra al usuario', () => {
     const f = leer('server/services/commissionService.ts');

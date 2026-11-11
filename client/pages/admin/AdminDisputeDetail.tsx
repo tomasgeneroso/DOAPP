@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import React, { useState, useEffect } from 'react';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -113,6 +114,9 @@ const AdminDisputeDetail: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['dispute'], () => { void fetchDispute(); });
 
   useEffect(() => {
     fetchDispute();

@@ -464,6 +464,8 @@ router.get(
 
         return {
           id: payment.id,
+          // Para ir a gestionar el contrato desde la lista (el `include` del contrato no trae su id).
+          contractId: payment.contractId ?? null,
           date: payment.createdAt,
           type: payment.paymentType,
           status: payment.status,

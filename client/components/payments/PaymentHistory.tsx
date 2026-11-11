@@ -2,7 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { paymentApi, Payment } from "@/lib/paymentApi";
-import { ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, XCircle, ChevronRight } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, XCircle, ChevronRight, Loader2 } from "lucide-react";
+import { useEventoEnVivo, useRecargaJuntada } from "../../hooks/useSocket";
+import Transicion from "../ui/Transicion";
+import PedirReembolso from "./PedirReembolso";
 
 interface PaymentHistoryProps {
   type?: "all" | "sent" | "received";
@@ -15,6 +18,9 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
+  const [pidiendo, setPidiendo] = useState<Payment | null>(null);
+  const [retirando, setRetirando] = useState<string | null>(null);
+  const [errorDeReembolso, setErrorDeReembolso] = useState<string | null>(null);
 
   const getPaymentLink = (payment: Payment): string | null => {
     const contractId = payment.contract?.id || (typeof payment.contractId === 'string' ? payment.contractId : payment.contractId?.id);
@@ -26,22 +32,40 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
     return null;
   };
 
-  const loadPayments = useCallback(async () => {
+  // `silencioso`: recarga por un aviso en vivo, sin tapar la lista con el indicador de carga.
+  const loadPayments = useCallback(async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const result = await paymentApi.getMyPayments(type, page, 10);
       setPayments(result.data);
       setPagination(result.pagination);
     } catch (error) {
       console.error("Error loading payments:", error);
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }, [type, page]);
 
   useEffect(() => {
     loadPayments();
   }, [loadPayments]);
+
+  // Un pago o un pedido de reembolso que cambia (lo aprueba el equipo, entra la plata) se ve al instante.
+  const recargaEnVivo = useRecargaJuntada(() => void loadPayments(true));
+  useEventoEnVivo(["payment:updated", "balance:updated", "socket:reconectado"], recargaEnVivo);
+
+  const retirarPedido = async (id: string) => {
+    setRetirando(id);
+    setErrorDeReembolso(null);
+    try {
+      await paymentApi.retirarPedidoDeReembolso(id);
+      await loadPayments(true);
+    } catch (e: any) {
+      setErrorDeReembolso(e?.message || "No pudimos retirar el pedido. Probá de nuevo.");
+    } finally {
+      setRetirando(null);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -189,10 +213,34 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                   {link && <ChevronRight className="h-5 w-5 text-gray-400 dark:text-slate-500" />}
                 </div>
               </div>
+              <FilaDeReembolso
+                pago={payment}
+                retirando={retirando === payment.reembolso?.solicitud?.id}
+                onPedir={() => {
+                  setErrorDeReembolso(null);
+                  setPidiendo(payment);
+                }}
+                onRetirar={(id) => void retirarPedido(id)}
+              />
             </div>
           );
         })}
       </div>
+
+      <Transicion mostrar={!!errorDeReembolso}>
+        {errorDeReembolso && (
+          <p className="mt-3 text-sm text-rose-700 dark:text-rose-300" role="alert">
+            {errorDeReembolso}
+          </p>
+        )}
+      </Transicion>
+
+      <PedirReembolso
+        abierto={!!pidiendo}
+        onCerrar={() => setPidiendo(null)}
+        onListo={() => void loadPayments(true)}
+        pago={pidiendo ? { id: pidiendo.id, amount: Number(pidiendo.amount) || 0, description: pidiendo.description, restante: pidiendo.reembolso?.restante ?? (Number(pidiendo.amount) || 0) } : null}
+      />
 
       {/* Pagination */}
       {pagination && pagination.pages > 1 && (
@@ -217,5 +265,56 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Debajo de un pago por transferencia: cómo va el pedido de reembolso, o el botón para pedirlo. Aparece y se va con transición (se actualiza en vivo cuando lo resuelve el equipo).
+ * Los clics no suben a la tarjeta, que lleva al contrato o al trabajo.
+ */
+function FilaDeReembolso({ pago, retirando, onPedir, onRetirar }: { pago: Payment; retirando: boolean; onPedir: () => void; onRetirar: (id: string) => void }) {
+  const r = pago.reembolso;
+  const s = r?.solicitud ?? null;
+  const hayFila = !!r && (s?.status === "pending" || s?.status === "approved" || s?.status === "rejected" || r.puede);
+  const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
+  return (
+    <Transicion mostrar={hayFila}>
+      {r && (
+        <div className="mt-3 border-t border-gray-100 dark:border-slate-700 pt-3 text-sm" onClick={parar}>
+          {s?.status === "pending" ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-amber-900 dark:text-amber-200">
+              <span>Pediste el reembolso. Lo está revisando una persona del equipo; te avisamos acá.</span>
+              <button
+                onClick={() => onRetirar(s.id)}
+                disabled={retirando}
+                className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2 disabled:opacity-60"
+              >
+                {retirando && <Loader2 className="h-3 w-3 animate-spin" />}
+                Retirar pedido
+              </button>
+            </div>
+          ) : s?.status === "approved" ? (
+            <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 text-green-900 dark:text-green-200">
+              {s.destination === "banco" ? "Te devolvimos la plata: la transferimos a tu banco." : "Te devolvimos la plata: ya está en tu saldo."}
+              {s.resolutionNote ? ` ${s.resolutionNote}` : ""}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {s?.status === "rejected" ? (
+                <span className="text-rose-700 dark:text-rose-300">Tu pedido no se aprobó{s.resolutionNote ? `: ${s.resolutionNote}` : "."}</span>
+              ) : (
+                <span className="text-gray-600 dark:text-slate-400">¿Pagaste de más o te equivocaste? Podés pedir que te devolvamos la plata.</span>
+              )}
+              {r.puede && (
+                <button onClick={onPedir} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20">
+                  {s?.status === "rejected" ? "Pedir de nuevo" : "Pedir reembolso"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Transicion>
   );
 }

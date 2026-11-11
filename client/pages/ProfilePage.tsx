@@ -378,25 +378,25 @@ export default function ProfilePage() {
       setShareSending(true);
 
       // Create or get conversation with target user
+      // El servidor pide `participantId` (UN id), no una lista: con `participants` respondía 400 y el perfil nunca se podía compartir por mensaje.
       const convResponse = await fetch('/api/chat/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          participants: [targetUser.id],
-        }),
+        body: JSON.stringify({ participantId: targetUser.id }),
       });
-      const convData = await convResponse.json();
+      const convData = await convResponse.json().catch(() => null);
 
-      if (!convData.success) {
-        throw new Error('No se pudo crear la conversación');
+      const conversationId = convData?.conversation?.id;
+      if (!convData?.success || !conversationId) {
+        throw new Error(convData?.message || 'No se pudo crear la conversación');
       }
 
       // Send message with profile link
       const profileUrl = getProfileUrl();
       const message = `Te comparto el perfil de ${user.name}: ${profileUrl}`;
 
-      await fetch(`/api/chat/conversations/${convData.conversation.id || convData.conversation.id}/messages`, {
+      const msgResponse = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -411,14 +411,19 @@ export default function ProfilePage() {
           },
         }),
       });
+      const msgData = await msgResponse.json().catch(() => null);
+      // Antes no se miraba la respuesta: si el mensaje no salía, igual se decía «Perfil compartido».
+      if (!msgData?.success) {
+        throw new Error(msgData?.message || 'No se pudo enviar el mensaje');
+      }
 
-      // Track share event
+      // Track share event (una estadística: si falla, el perfil ya se compartió)
       await fetch(`/api/users/${user.id}/track-share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ type: 'private_message', targetUserId: targetUser.id }),
-      });
+      }).catch(() => undefined);
 
       setShowShareModal(false);
       setShareSearchQuery('');
@@ -568,10 +573,11 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
         <div className="container mx-auto px-4 py-8 max-w-6xl">
           {/* Header Section */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-8">
+          {/* Sin overflow-hidden: recortaba el menú de «Compartir», que se despliega hacia abajo desde esta tarjeta. La portada lleva sus propias esquinas redondeadas. */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
             {/* Cover Image */}
             <div
-              className={`h-48 bg-gradient-to-r from-sky-500 to-blue-600 relative bg-cover bg-center ${user.coverImage ? 'cursor-zoom-in' : ''}`}
+              className={`h-48 rounded-t-2xl bg-gradient-to-r from-sky-500 to-blue-600 relative bg-cover bg-center ${user.coverImage ? 'cursor-zoom-in' : ''}`}
               style={{ backgroundImage: user.coverImage ? `url(${getImageUrl(user.coverImage)})` : undefined }}
               onClick={() => user.coverImage && openImage(getImageUrl(user.coverImage), user.name)}
             >
@@ -1231,7 +1237,18 @@ export default function ProfilePage() {
                                   src={getImageUrl(contract.job.image)}
                                   alt={contract.job.title}
                                   className="w-24 h-24 object-cover rounded-lg"
+                                  // Si el archivo no carga (se borró del servidor, ruta rota) no se deja el cuadro roto con el texto alternativo: se muestra el ícono de la categoría.
+                                  onError={(ev) => {
+                                    ev.currentTarget.style.display = 'none';
+                                    ev.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  }}
                                 />
+                                <div
+                                  className="hidden w-24 h-24 rounded-lg bg-slate-100 dark:bg-slate-700 items-center justify-center text-4xl [&:not(.hidden)]:flex"
+                                  aria-hidden="true"
+                                >
+                                  {contract.job?.categoryIcon || '📋'}
+                                </div>
                               </div>
                             )}
 

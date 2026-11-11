@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
@@ -135,6 +136,9 @@ export default function Padron({
     } catch { /* noop */ } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity, page, search, status, desde, hasta, sortBy, sortOrder, token]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'ticket', 'user', 'audit'], () => { void load(); });
 
   useEffect(() => {
     const t = setTimeout(load, 250);

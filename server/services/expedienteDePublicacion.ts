@@ -25,8 +25,19 @@ export interface Persona {
   rol: string | null;
 }
 
+/** Una alerta que una persona del equipo marcó como explicada: el registro quedó así, pero fue por esta razón. No borra ni corrige nada. */
+export interface ExplicacionDeAlerta {
+  por: Persona | null;
+  el: string;
+  motivo: string;
+}
+
 export interface Alerta {
   nivel: 'alta' | 'media' | 'info';
+  /** Identifica la alerta aunque cambie su texto (los números del detalle cambian; el código no). Es a lo que se ata una explicación. */
+  codigo: string;
+  /** Si el equipo ya la explicó. Una alerta explicada sigue a la vista, pero no cuenta como pendiente. */
+  explicada?: ExplicacionDeAlerta;
   titulo: string;
   detalle: string;
   /** Qué hacer al respecto. */
@@ -146,6 +157,37 @@ const iso = (v: unknown): string | null => {
 };
 const pesos = (n: number) => `$${r2(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Las acciones del registro de auditoría que guardan una explicación. El registro solo se agrega: explicar o quitar la explicación son dos asientos, nunca un borrado. */
+export const ACCION_EXPLICAR_ALERTA = 'expediente.explicar_alerta';
+export const ACCION_QUITAR_EXPLICACION = 'expediente.quitar_explicacion';
+
+/** Todos los códigos que puede tener una alerta. Solo se puede explicar una alerta de nivel «alta» o «media» (las «info» no piden nada). */
+export const CODIGOS_DE_ALERTA = [
+  'devolucion-sin-cobro-corregida', 'devolucion-sin-cobro', 'figura-pagada-sin-pago', 'pago-no-recibido', 'pago-aprobado-por-el-pagador', 'pago-manual',
+  'devuelto-de-mas', 'doble-devolucion', 'pago-menor-que-el-precio', 'pago-anulado', 'devolucion-sin-pago-anotado', 'ajustes-manuales', 'pausada-por-admin',
+  'reprogramada', 'plata-a-favor-pendiente', 'saldo-vinculado',
+] as const;
+
+/**
+ * Las explicaciones vigentes de una publicación: por código, la última entrada del registro (explicar o quitar). Lee SOLO ese tipo de asientos, así que no depende del
+ * tope de filas de la pestaña «Auditoría».
+ */
+export async function explicacionesVigentes(jobId: string): Promise<Map<string, { por: string | null; el: string; motivo: string }>> {
+  const filas: any[] = await AuditLog.findAll({
+    where: { targetId: String(jobId), action: { [Op.in]: [ACCION_EXPLICAR_ALERTA, ACCION_QUITAR_EXPLICACION] } } as any,
+    order: [['createdAt', 'ASC']],
+    limit: 500,
+  });
+  const vigentes = new Map<string, { por: string | null; el: string; motivo: string }>();
+  for (const f of filas) {
+    const codigo = String(f.metadata?.codigo ?? '');
+    if (!codigo) continue;
+    if (f.action === ACCION_QUITAR_EXPLICACION) vigentes.delete(codigo);
+    else vigentes.set(codigo, { por: f.performedBy ? String(f.performedBy) : null, el: new Date(f.createdAt).toISOString(), motivo: String(f.metadata?.motivo ?? '') });
+  }
+  return vigentes;
+}
+
 const ESTADOS_CON_DINERO = new Set(['completed', 'held_escrow', 'awaiting_confirmation', 'confirmed_for_payout', 'verified', 'approved']);
 
 export interface DatosParaLasAlertas {
@@ -180,13 +222,13 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     if (corregido >= totalDevuelto - 0.01) {
       alertas.push({
         nivel: 'info',
-        titulo: 'Se devolvió plata sin cobro, y ya se corrigió',
+        codigo: 'devolucion-sin-cobro-corregida', titulo: 'Se devolvió plata sin cobro, y ya se corrigió',
         detalle: `Se habían acreditado ${pesos(totalDevuelto)} sin pago detrás; se descontaron con un ajuste manual (queda en el historial del usuario).`,
       });
     } else {
       alertas.push({
         nivel: 'alta',
-        titulo: 'Se devolvió plata de una publicación que nunca se cobró',
+        codigo: 'devolucion-sin-cobro', titulo: 'Se devolvió plata de una publicación que nunca se cobró',
         detalle: `Se acreditaron ${pesos(totalDevuelto)} al saldo de ${d.duenoNombre || 'el dueño'} por cancelar esta publicación, pero no tiene ningún pago registrado ni un descuento de saldo detrás: esa plata no entró.`,
         queHacer: 'Confirmá en Pagos que no hubo un cobro real. Si no lo hubo, descontalo con el script ajustarSaldo (queda como asiento de ajuste en el historial del usuario).',
       });
@@ -194,7 +236,7 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
   } else if (d.figuraPagada && !d.pagoId && !d.pagadaConSaldo && !['draft', 'pending_payment'].includes(d.estado)) {
     alertas.push({
       nivel: 'media',
-      titulo: 'Figura pagada pero no tiene pago registrado',
+      codigo: 'figura-pagada-sin-pago', titulo: 'Figura pagada pero no tiene pago registrado',
       detalle: 'La publicación está marcada como pagada, pero no hay un pago ni un descuento de saldo del dueño que lo respalde (puede ser un contrato libre de comisión, de prueba, o una cotización pagada por otro camino).',
       queHacer: 'Si se cancela, no se devuelve nada (no hay plata que devolver). Revisá si hubo un cobro real antes de dar por buena la publicación.',
     });
@@ -204,7 +246,7 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     if (d.figuraPagada && !ESTADOS_CON_DINERO.has(d.pago.estado)) {
       alertas.push({
         nivel: 'alta',
-        titulo: `La publicación figura pagada pero su pago está «${d.pago.estado}»`,
+        codigo: 'pago-no-recibido', titulo: `La publicación figura pagada pero su pago está «${d.pago.estado}»`,
         detalle: `El pago de ${pesos(d.pago.monto)} no está en un estado de dinero recibido, y aun así la publicación se dio por pagada.`,
         queHacer: 'Revisá el pago (comprobante, Mercado Pago). Si el dinero no llegó, la publicación no debería estar publicada.',
       });
@@ -214,18 +256,18 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     if (d.pago.esManual && d.pago.aprobadoPorElPagador && ESTADOS_CON_DINERO.has(d.pago.estado)) {
       alertas.push({
         nivel: 'media',
-        titulo: 'Pago aprobado a mano por la misma persona que pagó',
+        codigo: 'pago-aprobado-por-el-pagador', titulo: 'Pago aprobado a mano por la misma persona que pagó',
         detalle: `El pago de ${pesos(d.pago.monto)}${d.pago.medio ? ` (${d.pago.medio})` : ''} lo confirmó a mano la misma cuenta que lo hizo, sin que una pasarela lo confirmara. Nadie más comprobó que el dinero haya entrado.`,
         queHacer: 'Confirmá en el banco que el dinero entró. Si no entró, anulá el pago (script anularPago) y, si se devolvió algo al saldo, descontalo con ajustarSaldo --publicacion.',
       });
     } else if (d.pago.esManual && ESTADOS_CON_DINERO.has(d.pago.estado)) {
-      alertas.push({ nivel: 'info', titulo: 'Pago confirmado a mano (sin pasarela)', detalle: 'Lo confirmó una persona (transferencia o comprobante), no una pasarela de pago.' });
+      alertas.push({ nivel: 'info', codigo: 'pago-manual', titulo: 'Pago confirmado a mano (sin pasarela)', detalle: 'Lo confirmó una persona (transferencia o comprobante), no una pasarela de pago.' });
     }
 
     if (totalDevuelto > d.pago.monto + 0.01) {
       alertas.push({
         nivel: 'alta',
-        titulo: 'Se devolvió más de lo que se pagó',
+        codigo: 'devuelto-de-mas', titulo: 'Se devolvió más de lo que se pagó',
         detalle: `Pagó ${pesos(d.pago.monto)} y se devolvieron ${pesos(totalDevuelto)}.`,
         queHacer: 'Corregí la diferencia con ajustarSaldo y revisá por qué se acreditó de más.',
       });
@@ -239,7 +281,7 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     if ([...porPago.values()].some((n) => n > 1)) {
       alertas.push({
         nivel: 'alta',
-        titulo: 'El mismo pago se devolvió más de una vez',
+        codigo: 'doble-devolucion', titulo: 'El mismo pago se devolvió más de una vez',
         detalle: 'Hay más de una devolución por cancelación apuntando al mismo pago.',
         queHacer: 'Corré corregirDobleDevolucion (muestra qué haría antes de tocar nada).',
       });
@@ -247,28 +289,28 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     if (d.pago.moneda.toUpperCase() === 'ARS' && d.pago.monto + 1 < d.precio) {
       alertas.push({
         nivel: 'media',
-        titulo: 'El pago es menor que el precio de la publicación',
+        codigo: 'pago-menor-que-el-precio', titulo: 'El pago es menor que el precio de la publicación',
         detalle: `Pagó ${pesos(d.pago.monto)} y el precio es ${pesos(d.precio)}. Puede ser un precio que cambió después, pero conviene mirarlo.`,
       });
     }
   }
 
   if (d.pago && !pagoVigente) {
-    alertas.push({ nivel: 'info', titulo: `El pago está ${d.pago.estado === 'cancelled' ? 'anulado' : d.pago.estado}`, detalle: 'Ya no cuenta como dinero recibido.' });
+    alertas.push({ nivel: 'info', codigo: 'pago-anulado', titulo: `El pago está ${d.pago.estado === 'cancelled' ? 'anulado' : d.pago.estado}`, detalle: 'Ya no cuenta como dinero recibido.' });
   }
   // Un asiento viejo que no anota el pago, de una publicación que sí lo tiene: no es «sin cobro», es un dato que falta en el asiento.
   if (d.pagoId && d.devoluciones.some((x) => !x.pagoId)) {
-    alertas.push({ nivel: 'info', titulo: 'La devolución no anota de qué pago salió', detalle: 'Es un asiento anterior a que se anotara el pago; se respalda con el pago registrado de la publicación.' });
+    alertas.push({ nivel: 'info', codigo: 'devolucion-sin-pago-anotado', titulo: 'La devolución no anota de qué pago salió', detalle: 'Es un asiento anterior a que se anotara el pago; se respalda con el pago registrado de la publicación.' });
   }
   if (corregido > 0 && d.devoluciones.length > 0 && !(d.devoluciones.length > 0 && !d.pagoId && !d.pagadaConSaldo)) {
-    alertas.push({ nivel: 'info', titulo: 'Hay ajustes manuales por esta publicación', detalle: `Se descontaron ${pesos(corregido)} con ajustes manuales (queda en el historial del usuario).` });
+    alertas.push({ nivel: 'info', codigo: 'ajustes-manuales', titulo: 'Hay ajustes manuales por esta publicación', detalle: `Se descontaron ${pesos(corregido)} con ajustes manuales (queda en el historial del usuario).` });
   }
 
   if (d.pausadaPorAdmin) {
-    alertas.push({ nivel: 'info', titulo: 'La pausó un administrador', detalle: 'El dueño la tiene que editar y volver a publicar; vuelve a pasar por revisión.' });
+    alertas.push({ nivel: 'info', codigo: 'pausada-por-admin', titulo: 'La pausó un administrador', detalle: 'El dueño la tiene que editar y volver a publicar; vuelve a pasar por revisión.' });
   }
   if (d.reprogramada) {
-    alertas.push({ nivel: 'info', titulo: 'Fue reprogramada', detalle: 'Las fechas anteriores figuran abajo, en «Publicación».' });
+    alertas.push({ nivel: 'info', codigo: 'reprogramada', titulo: 'Fue reprogramada', detalle: 'Las fechas anteriores figuran abajo, en «Publicación».' });
   }
   const pendientes = d.pendientes ?? [];
   if (pendientes.length > 0) {
@@ -276,19 +318,27 @@ export function alertasDeLaPublicacion(d: DatosParaLasAlertas): Alerta[] {
     const primera = pendientes.map((x) => x.disponibleDesde).filter((x): x is string => !!x).sort()[0];
     alertas.push({
       nivel: 'info',
-      titulo: 'Hay plata a favor del dueño pendiente de liquidar',
+      codigo: 'plata-a-favor-pendiente', titulo: 'Hay plata a favor del dueño pendiente de liquidar',
       detalle: `${pesos(total)} que todavía NO están en el saldo de ${d.duenoNombre || 'el dueño'}: el pago original sigue en Mercado Pago${primera ? ` y pasan a su saldo el ${new Date(primera).toLocaleDateString('es-AR')}` : ''}. Hasta entonces no los puede usar ni retirar.`,
     });
   }
   if (d.creditoVinculado > 0) {
     alertas.push({
       nivel: 'info',
-      titulo: 'Tiene saldo vinculado',
+      codigo: 'saldo-vinculado', titulo: 'Tiene saldo vinculado',
       detalle: `${pesos(d.creditoVinculado)} del saldo del dueño están vinculados a esta publicación (sirven para volver a publicarla; si los retira, hay que pagarla de nuevo).`,
     });
   }
   const orden = { alta: 0, media: 1, info: 2 } as const;
   return alertas.sort((a, b) => orden[a.nivel] - orden[b.nivel]);
+}
+
+/** Les pone su explicación a las alertas que el equipo ya explicó, y las manda al final: lo que sigue pendiente se ve primero. */
+export function conExplicaciones(alertas: Alerta[], explicaciones: Map<string, ExplicacionDeAlerta>): Alerta[] {
+  const orden = { alta: 0, media: 1, info: 2 } as const;
+  return alertas
+    .map((a) => (a.nivel !== 'info' && explicaciones.has(a.codigo) ? { ...a, explicada: explicaciones.get(a.codigo)! } : a))
+    .sort((a, b) => Number(!!a.explicada) - Number(!!b.explicada) || orden[a.nivel] - orden[b.nivel]);
 }
 
 export async function expedienteDePublicacion(jobId: string): Promise<ExpedienteDePublicacion | null> {
@@ -351,6 +401,8 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     sumar(m.metadata?.actor?.id);
   }
   for (const a of auditoriaCruda) sumar(a.performedBy);
+  const explicacionesCrudas = await seguro('explicaciones', () => explicacionesVigentes(jobId), new Map<string, { por: string | null; el: string; motivo: string }>());
+  for (const x of explicacionesCrudas.values()) sumar(x.por);
   const usuarios: any[] = await seguro('personas', () => User.findAll({ where: { id: { [Op.in]: [...ids] } } as any, attributes: ['id', 'name', 'email', 'role'] }), [] as any[]);
   const porId = new Map<string, Persona>(usuarios.map((u) => [String(u.id), { id: String(u.id), nombre: String(u.name || u.email || u.id), email: u.email ?? null, rol: u.role ?? null }]));
   const persona = (id: unknown): Persona | null => (id ? porId.get(String(id)) ?? { id: String(id), nombre: `usuario ${String(id).slice(0, 8)}… (ya no existe)`, email: null, rol: null } : null);
@@ -444,7 +496,7 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     cancelacionDefinitiva: job.permanentlyCancelled === true,
   };
 
-  const alertas = alertasDeLaPublicacion({
+  const alertasSinExplicar = alertasDeLaPublicacion({
     estado: publicacion.estado,
     precio: publicacion.precio,
     figuraPagada: publicacion.figuraPagada,
@@ -459,6 +511,10 @@ export async function expedienteDePublicacion(jobId: string): Promise<Expediente
     corregidoAMano,
     pendientes,
   });
+  const alertas = conExplicaciones(
+    alertasSinExplicar,
+    new Map([...explicacionesCrudas].map(([codigo, x]) => [codigo, { por: persona(x.por), el: x.el, motivo: x.motivo }] as const)),
+  );
 
   const contratosSalida = contratos.map((c) => ({
     id: String(c.id),

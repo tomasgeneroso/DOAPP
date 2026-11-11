@@ -237,7 +237,7 @@ export default function Dashboard() {
 
   // Calculate free contracts info
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
-  // En la beta todos los contratos son sin comisión y sin límite: no hay un contador que mostrar.
+  // En la beta no se cobra comisión, pero el cartel muestra igual los contratos libres que tiene la persona (regla del dueño, 2026-11-11); el título explica que ahora no se cobra.
   const enBeta = !!(user as any)?.platform?.isBeta;
 
   // Grupo 1: Finanzas
@@ -459,10 +459,13 @@ export default function Dashboard() {
             <div className="text-right flex-shrink-0">
               <DollarSign className="h-12 w-12 opacity-20 mb-4 ml-auto" />
               {/* Publicaciones libres de comisión */}
-              <div className="bg-white/15 rounded-xl px-4 py-3 text-center min-w-[120px]">
-                <p className="text-2xl font-extrabold leading-none">{enBeta ? '∞' : freeContractsRemaining}</p>
-                <p className="text-xs opacity-80 mt-1 leading-tight">{enBeta ? <>publicaciones sin comisión<br />ilimitadas en la beta</> : <>publicaciones{'\n'}sin comisión</>}</p>
-                {!enBeta && freeContractsRemaining === 0 && (
+              <div
+                className="bg-white/15 rounded-xl px-4 py-3 text-center min-w-[120px]"
+                title={enBeta ? 'Ahora, en la beta, no se cobra comisión. Esto es lo que tenés para cuando termine.' : undefined}
+              >
+                <p className="text-2xl font-extrabold leading-none">{freeContractsRemaining}</p>
+                <p className="text-xs opacity-80 mt-1 leading-tight">publicaciones{'\n'}sin comisión</p>
+                {freeContractsRemaining === 0 && (
                   <Link to="/membership" className="mt-2 block text-[10px] font-semibold underline opacity-80 hover:opacity-100">
                     Obtener más
                   </Link>

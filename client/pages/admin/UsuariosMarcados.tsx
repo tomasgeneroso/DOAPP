@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ShieldAlert, Loader2, RefreshCw } from "lucide-react";
@@ -57,6 +58,9 @@ export default function UsuariosMarcados() {
       setCargando(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user'], () => { void cargar(); });
 
   useEffect(() => {
     cargar();

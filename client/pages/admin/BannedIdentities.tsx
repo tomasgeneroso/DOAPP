@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { adminApi } from "@/lib/adminApi";
@@ -52,6 +53,9 @@ export default function BannedIdentities() {
       setLoading(false);
     }
   }, [page, search, status]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user'], () => { void load(); });
 
   useEffect(() => {
     const t = setTimeout(load, 250);

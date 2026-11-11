@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -73,12 +74,16 @@ function Ficha({ userId }: { userId: string }) {
   const [e, setE] = useState<Expediente | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Tiempo real (regla del dueño, 2026-11-09): cuando algo cambia, la ficha se vuelve a pedir sola (sin parpadeo: no hay pantalla de carga en las recargas).
+  const [version, setVersion] = useState(0);
+  useCambiosDeAdministracion(['user', 'payment', 'contract', 'job', 'withdrawal', 'dispute', 'ticket'], () => setVersion((v) => v + 1));
+
   useEffect(() => {
     fetch(`${API_URL}/admin/users/${userId}/expediente`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => (d.success ? setE(d.data) : setError(d.message || "No se pudo cargar la ficha")))
       .catch(() => setError("No se pudo cargar la ficha"));
-  }, [userId, token]);
+  }, [userId, token, version]);
 
   const pestanas: Pestana[] = [
     { id: "resumen", rotulo: "Resumen", icono: UserIcon },

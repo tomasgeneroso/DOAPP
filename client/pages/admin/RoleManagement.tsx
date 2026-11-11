@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
@@ -123,6 +124,9 @@ export default function RoleManagement() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user'], () => { void fetchRolesAndPermissions(); void fetchUsers(); });
 
   const fetchPasswordStatus = async () => {
     try {

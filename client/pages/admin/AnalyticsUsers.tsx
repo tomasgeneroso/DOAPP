@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { adminApi } from "@/lib/adminApi";
@@ -58,6 +59,9 @@ export default function AnalyticsUsers() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'ticket', 'user', 'audit'], () => { void loadAnalytics(); }, 5000);
 
   if (loading) {
     return (

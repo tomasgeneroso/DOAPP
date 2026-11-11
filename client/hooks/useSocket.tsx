@@ -177,8 +177,9 @@ export function useRecargaJuntada(recargar: () => void, esperaMs = 250): () => v
  * Pantallas de administración: algo de dinero, contratos, trabajos o reclamos cambió (lo hizo un usuario, un cron o Mercado Pago) y la lista se recarga.
  * Los tipos son los de `admin:cambio` (`services/avisosPorCambios.ts`): 'payment', 'contract', 'job', 'withdrawal', 'dispute'.
  */
-export function useCambiosDeAdministracion(tipos: string[], recargar: () => void): void {
-  const juntada = useRecargaJuntada(recargar);
+export function useCambiosDeAdministracion(tipos: string[], recargar: () => void, esperaMs?: number): void {
+  // `esperaMs`: cuánto juntar los avisos antes de recargar. Lo normal es 250 ms; una pantalla de analítica (agregados pesados) junta varios segundos.
+  const juntada = useRecargaJuntada(recargar, esperaMs);
   useEventoEnVivo('admin:cambio', (datos?: { tipo?: string }) => {
     if (!datos?.tipo || tipos.includes(datos.tipo)) juntada();
   });

@@ -126,21 +126,23 @@ export default function Header() {
   const contractsBadge = useMemo(() => {
     if (!user) return null;
 
-    // Durante la beta no hay comisión en ningún contrato, así que contar
-    // "publicaciones sin cargo" es mentir por omisión: sugiere que las demás
-    // sí tienen cargo. Se muestra lo que es cierto, y nada más.
-    if ((user as any).platform?.isBeta) {
-      return { type: "beta" as const };
-    }
+    // En la beta no se cobra comisión, pero la persona ve igual lo que le corresponde: sus contratos libres o la comisión de su perfil (regla del dueño, 2026-11-11:
+    // «cambiar por los contratos gratis disponibles / comisión del perfil»; no hace falta cambiar de fase). El cartel avisa con un texto que ahora no se cobra.
+    const enBeta = !!(user as any).platform?.isBeta;
+    // En la beta la web sube a todos al nivel PRO (`withBetaTier`): la comisión del PERFIL es la del plan que la persona realmente tiene (el contratado), no la de la beta.
+    // El dueño tiene PRO permanente (no es de la beta): para él vale el nivel efectivo.
+    const planDelPerfil: string | undefined =
+      (user as any).membershipIsFromBeta && !(user as any).membershipIsFromOwner ? ((user as any).realMembershipTier ?? 'free') : user.membershipTier;
 
     // Los contratos libres de comisión que puede usar ahora: el del mes (primeras cuentas o PRO) más los de premios. El servidor ya los suma.
     const freeContractsRemaining = user.freeContractsRemaining || 0;
     const totalFreeRemaining = freeContractsRemaining;
-    const isFreeUser = !user.membershipTier || user.membershipTier === "free";
+    const isFreeUser = !planDelPerfil || planDelPerfil === "free";
 
     if (totalFreeRemaining > 0) {
       return {
         type: "free" as const,
+        enBeta,
         totalFreeRemaining,
         freeContractsRemaining,
         isFreeUser,
@@ -152,17 +154,18 @@ export default function Header() {
     // pantalla le mostraba a la gente una comisión menor a la que se cobra.
     let commissionRate: number = COMMISSION_RATES.free;
     if (user.hasFamilyPlan) commissionRate = 0;
-    else if (user.membershipTier === "super_pro") commissionRate = COMMISSION_RATES.super_pro;
-    else if (user.membershipTier === "pro") commissionRate = COMMISSION_RATES.pro;
+    else if (planDelPerfil === "super_pro") commissionRate = COMMISSION_RATES.super_pro;
+    else if (planDelPerfil === "pro") commissionRate = COMMISSION_RATES.pro;
 
     if (user.hasFamilyPlan) {
-      return { type: "family" as const };
+      return { type: "family" as const, enBeta };
     }
 
     return {
       type: "commission" as const,
+      enBeta,
       commissionRate,
-      membershipTier: user.membershipTier,
+      membershipTier: planDelPerfil,
     };
   }, [user]);
 
@@ -197,19 +200,12 @@ export default function Header() {
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {user ? (
             <>
-              {/* En beta: un solo mensaje, sin contadores que no aplican. */}
-              {contractsBadge?.type === "beta" && (
-                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                  <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                    {t('nav.betaNoFee', 'Sin comisión durante la beta')}
-                  </span>
-                </div>
-              )}
-
-              {/* Free Contracts Counter - memoized calculation */}
+              {/* Free Contracts Counter - memoized calculation. En la beta también se ve (con un texto que explica que ahora no se cobra comisión). */}
               {contractsBadge?.type === "free" && (
-                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <div
+                  className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                  title={contractsBadge.enBeta ? t('nav.betaHint', 'Ahora, en la beta, no se cobra comisión. Esto es lo que tenés para cuando termine.') : undefined}
+                >
                   <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
                   <div className="flex flex-col">
                     {contractsBadge.isFreeUser ? (
@@ -227,7 +223,10 @@ export default function Header() {
                 </div>
               )}
               {contractsBadge?.type === "family" && (
-                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
+                <div
+                  className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800"
+                  title={contractsBadge.enBeta ? t('nav.betaHint', 'Ahora, en la beta, no se cobra comisión. Esto es lo que tenés para cuando termine.') : undefined}
+                >
                   <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
@@ -243,6 +242,7 @@ export default function Header() {
                 <Link
                   to="/membership/pricing"
                   className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer"
+                  title={contractsBadge.enBeta ? t('nav.betaHint', 'Ahora, en la beta, no se cobra comisión. Esto es lo que tenés para cuando termine.') : undefined}
                 >
                   <FileText className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                   <div className="flex flex-col">

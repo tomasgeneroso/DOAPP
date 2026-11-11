@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
@@ -78,6 +79,9 @@ export default function AdminTickets() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['ticket'], () => { void loadTickets(); });
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

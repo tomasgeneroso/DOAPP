@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import RefundModal from '../../components/admin/RefundModal';
+import ReembolsoPorTransferenciaModal from '../../components/admin/ReembolsoPorTransferenciaModal';
+import PedidosDeReembolso from '../../components/admin/PedidosDeReembolso';
 import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
@@ -92,6 +94,8 @@ interface ContractPaymentRow {
   workers: WorkerPaymentInfo[];
   commissionVerified?: boolean;
   paymentRecordStatus?: string;
+  /** El pago existe pero quedó suelto (sin contrato): se vincula desde «Gestión de contratos». */
+  pagoSinVincular?: boolean;
   paymentId?: string;
   proofs?: PaymentProofInfo[];
   // Worker payment proof (admin's proof of transfer to worker)
@@ -197,7 +201,11 @@ interface CompletedSummary {
 export default function PendingPayments() {
   // Main tab state: "app" = Pagos a la App, "workers" = Pagos a Trabajadores
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<"app" | "workers" | "refunds">("app");
+  // Si se llega desde otra pantalla con `?tab=` se abre esa pestaña (por ejemplo desde «Transacciones financieras»).
+  const [activeTab, setActiveTab] = useState<"app" | "workers" | "refunds">(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "workers" || t === "refunds" ? t : "app";
+  });
   const [refunds, setRefunds] = useState<any[]>([]);
   const [refundsLoading, setRefundsLoading] = useState(false);
   const [timelinePayment, setTimelinePayment] = useState<any | null>(null);
@@ -216,7 +224,8 @@ export default function PendingPayments() {
   };
 
   // Sub-filter state for each tab
-  const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">("pending");
+  // Con `?search=<id>` (se llega desde otra pantalla a UN pago) se busca en TODOS los estados: en «Pendiente» no aparecería un pago que ya está verificado o devuelto.
+  const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">(() => (new URLSearchParams(window.location.search).get("search") ? "all" : "pending"));
   const [workersSubFilter, setWorkersSubFilter] = useState<"pending" | "paid" | "disputed">("pending");
 
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
@@ -240,6 +249,10 @@ export default function PendingPayments() {
   const [approvingPaymentId, setApprovingPaymentId] = useState<string | null>(null);
   /** Pago abierto en el modal de devolución. Null = cerrado. */
   const [pagoADevolver, setPagoADevolver] = useState<any>(null);
+  /** Pago por transferencia abierto en el modal de reembolso (al saldo o al banco). Null = cerrado. */
+  const [pagoAReembolsar, setPagoAReembolsar] = useState<any>(null);
+  /** Pedidos de reembolso de clientes sin resolver (el contador de la pestaña «Devoluciones»). */
+  const [pedidosDeReembolsoPendientes, setPedidosDeReembolsoPendientes] = useState(0);
   const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
 
   // Reject modal state
@@ -935,6 +948,18 @@ export default function PendingPayments() {
   // Un pago que llega (Mercado Pago, transferencia), cambia de estado o se devuelve, aunque lo mueva otra persona o un cron: la pestaña abierta se recarga sola.
   useCambiosDeAdministracion(['payment', 'contract'], () => reloadActive());
 
+  // El contador de pedidos de reembolso se ve aunque la pestaña «Devoluciones» esté cerrada: un pedido nuevo del cliente no puede pasar desapercibido.
+  const contarPedidosDeReembolso = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/refund-requests?status=pending`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setPedidosDeReembolsoPendientes(Number(data.data?.pendientes) || 0);
+    } catch { /* best-effort */ }
+  };
+  useEffect(() => { void contarPedidosDeReembolso(); }, []);
+  useCambiosDeAdministracion(['refund'], () => void contarPedidosDeReembolso());
+
   // Immediate reload on tab / sub-filter / sort / period changes.
   useEffect(() => {
     reloadActive();
@@ -1375,6 +1400,14 @@ export default function PendingPayments() {
           >
             <ArrowDownCircle className="h-5 w-5" />
             Devoluciones
+            {pedidosDeReembolsoPendientes > 0 && (
+              <span
+                className="ml-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                title="Pedidos de reembolso de clientes sin resolver"
+              >
+                {pedidosDeReembolsoPendientes} {pedidosDeReembolsoPendientes === 1 ? 'pedido' : 'pedidos'}
+              </span>
+            )}
             {refunds.length > 0 && (
               <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 {refunds.length}
@@ -2007,6 +2040,20 @@ export default function PendingPayments() {
                                     Devolver
                                   </button>
                                 )}
+                              {/* Reembolsar un pago por TRANSFERENCIA: al saldo del cliente o a su banco (con el comprobante). El servidor decide si se puede
+                                  (publicación o contrato en marcha, ya devuelto, pago propio) y lo explica. */}
+                              {!payment.mercadopagoPaymentId &&
+                                payment.paymentMethod === 'Transferencia Bancaria' &&
+                                ['completed', 'approved', 'verified', 'held_escrow', 'confirmed_for_payout'].includes(payment.status) && (
+                                  <button
+                                    onClick={() => setPagoAReembolsar(payment)}
+                                    className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1"
+                                    title="Devolver el dinero al cliente: a su saldo o a su banco"
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                    Reembolsar
+                                  </button>
+                                )}
                               {/* Show cancel reject button for rejected payments */}
                               {appSubFilter === "rejected" && (
                                 <button
@@ -2249,12 +2296,19 @@ export default function PendingPayments() {
                           <div className="flex items-center gap-1">
                             <AlertCircle className="h-4 w-4 text-amber-500" />
                             <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                              Pendiente
+                              {/* No «Pendiente» a secas: dice en qué estado está el pago y qué paso falta (un pago ya recibido no tiene que parecer sin pagar). */}
+                              {payment.paymentRecordStatus === 'no_payment_record' ? 'Sin pago vinculado'
+                                : payment.paymentRecordStatus === 'pending_verification' ? 'Pago por verificar'
+                                : ['verified', 'approved'].includes(payment.paymentRecordStatus || '') ? 'Pago aprobado: falta la garantía'
+                                : 'Pendiente'}
                             </span>
                           </div>
                         )}
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {payment.paymentRecordStatus === 'pending_verification' && '→ Ir a Verificación'}
+                          {['verified', 'approved'].includes(payment.paymentRecordStatus || '') && '→ Verificar la garantía (pestaña «Verificado» de Pagos del cliente)'}
+                          {payment.paymentRecordStatus === 'no_payment_record' && '→ Buscá el pago y vinculalo en Gestión de contratos'}
+                          {payment.pagoSinVincular && '→ El pago está suelto: vinculalo en Gestión de contratos'}
                         </div>
                       </div>
                     </td>
@@ -2590,6 +2644,9 @@ export default function PendingPayments() {
       {/* Devoluciones (refunds) */}
       {activeTab === "refunds" && (
         <div className="space-y-3">
+          {/* Lo que pidieron los clientes sobre pagos por transferencia: se aprueba o se rechaza acá. */}
+          <PedidosDeReembolso onContar={setPedidosDeReembolsoPendientes} />
+
           <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3 text-emerald-800 dark:text-emerald-200">
             <p className="font-semibold text-sm mb-1">Mecánica de devolución</p>
             <p className="text-xs leading-relaxed">
@@ -3717,6 +3774,25 @@ export default function PendingPayments() {
         onListo={() => {
           loadVerificationPayments();
           loadPayments();
+        }}
+      />
+
+      <ReembolsoPorTransferenciaModal
+        abierto={!!pagoAReembolsar}
+        pago={
+          pagoAReembolsar && {
+            id: pagoAReembolsar.id,
+            amount: Number(pagoAReembolsar.amount) || 0,
+            refundedAmount: Number(pagoAReembolsar.refundedAmount) || 0,
+            payerName: pagoAReembolsar.payer?.name || pagoAReembolsar.payerName,
+            description: pagoAReembolsar.description,
+          }
+        }
+        onCerrar={() => setPagoAReembolsar(null)}
+        onListo={() => {
+          loadVerificationPayments();
+          loadPayments();
+          loadRefunds();
         }}
       />
     </div>

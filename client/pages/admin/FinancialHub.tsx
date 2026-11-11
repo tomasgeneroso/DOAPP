@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import MercadoPagoPorLiquidar from '../../components/admin/MercadoPagoPorLiquidar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +38,9 @@ export default function FinancialHub() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'ticket', 'user', 'audit'], () => { void fetchOverview(); });
 
   useEffect(() => { fetchOverview(); }, []);
 

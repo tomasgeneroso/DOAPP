@@ -385,6 +385,8 @@ app.use("/api/users", usersRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/contracts", contractsRoutes);
 app.use("/api/payments", paymentsRoutes);
+// Pedidos de reembolso de pagos por transferencia (lado del cliente; el equipo los resuelve en /api/admin/refund-requests).
+app.use("/api/refund-requests", (await import('./routes/refundRequests.js')).default);
 // Ordenes de pago del modo sin proteccion (pago al terminar).
 app.use("/api/payment-orders", paymentOrderRoutes);
 app.use("/api/matching", matchingRoutes);
@@ -467,6 +469,7 @@ app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
 app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
 app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).default);
+app.use("/api/admin/refund-requests", (await import('./routes/admin/refundRequests.js')).default);
 app.use("/api/admin/audit-logs", (await import('./routes/admin/auditLogs.js')).default);
 app.use("/api/admin/search", (await import('./routes/admin/search.js')).default);
 app.use("/api/admin/company-balance", companyBalanceRoutes);

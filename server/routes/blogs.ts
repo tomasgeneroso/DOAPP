@@ -8,6 +8,7 @@ import { Op, fn, col, literal } from 'sequelize';
 import { body, validationResult } from "express-validator";
 import { uploadBlogCover, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML } from "../utils/sanitizer.js";
+import { contenidoParaMostrar } from "../utils/markdownToHtml.js";
 
 const router = express.Router();
 
@@ -780,6 +781,8 @@ router.get("/:slug", async (req: Request, res: Response): Promise<void> => {
       success: true,
       post: {
         ...post.toJSON(),
+        // Un artículo guardado como Markdown se entrega ya convertido (si no, se ve como texto corrido).
+        content: contenidoParaMostrar(post.content),
         postType: 'official',
         source: 'blog_posts',
       },

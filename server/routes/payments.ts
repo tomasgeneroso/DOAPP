@@ -27,6 +27,7 @@ import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { avisarPagoRecibido } from "../services/avisoDePago.js";
 import { bloqueoPorAprobacionPropia } from "../services/aprobacionDePagos.js";
+import { esPagoPorTransferencia, estadoDeReembolsoParaElCliente, pedidosDeReembolsoDe } from "../services/reembolsoPorTransferencia.js";
 import { aplicarAumentoDePrecio, dejarAumentoEnRevision, aumentoPagadoEnRevision } from "../services/aumentoDePrecio.js";
 import { urlsDeRetorno } from "../services/urlsDeRetorno.js";
 import { firmarDescargaDeFactura, verificarDescargaDeFactura } from "../services/descargaDeFactura.js";
@@ -1618,6 +1619,15 @@ router.get("/my/list", protect, async (req: AuthRequest, res: Response): Promise
             p.relatedJob = { id: job.id, title: job.title };
           }
         }
+      }
+    }
+
+    // Reembolso de los pagos por transferencia que hizo esta persona: si puede pedirlo (y si no, por qué) y cómo va el pedido.
+    const propiasPorTransferencia = paymentsData.filter((p: any) => String(p.payerId) === String(userId) && esPagoPorTransferencia(p));
+    if (propiasPorTransferencia.length > 0) {
+      const pedidos = await pedidosDeReembolsoDe(String(userId), propiasPorTransferencia.map((p: any) => String(p.id)));
+      for (const p of propiasPorTransferencia) {
+        p.reembolso = await estadoDeReembolsoParaElCliente(p, pedidos);
       }
     }
 

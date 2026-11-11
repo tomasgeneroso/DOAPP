@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -7,11 +8,14 @@ import { useAuth } from "../../hooks/useAuth";
 import { BarraDePestanas, PanelDePestana, usePestana, type Pestana } from "../../components/admin/Pestanas";
 import { Tarjeta, Tabla, Vacio } from "../../components/admin/PiezasDeFicha";
 import { $, dia, diaYHora, estado, enlace } from "../../components/admin/formatosDeFicha";
+import Transicion from "../../components/ui/Transicion";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface Persona { id: string; nombre: string; email: string | null; rol: string | null }
-interface Alerta { nivel: "alta" | "media" | "info"; titulo: string; detalle: string; queHacer?: string }
+/** Una alerta que el equipo marcó como explicada: el registro quedó así, pero fue por esta razón. No borra ni corrige nada. */
+interface Explicacion { por: Persona | null; el: string; motivo: string }
+interface Alerta { nivel: "alta" | "media" | "info"; codigo: string; explicada?: Explicacion; titulo: string; detalle: string; queHacer?: string }
 interface Movimiento {
   id: string; fecha: string; tipo: string; monto: number; estado: string; descripcion: string; usuario: Persona | null; origen: string | null;
   hechoPor: { tipo: string | null; persona: Persona | null } | null; saldoAntes: number; saldoDespues: number; pagoId: string | null; sinPago: boolean;
@@ -81,7 +85,16 @@ function Dato({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   );
 }
 
-function Alertas({ alertas }: { alertas: Alerta[] }) {
+/**
+ * Las alertas del expediente. Una alerta de nivel «grave» o «a revisar» se puede marcar como EXPLICADA («esto se registró, pero fue de esta manera»): queda anotado quién, cuándo y
+ * por qué, la alerta sigue a la vista —atenuada, con todo lo que decía— y deja de contar como pendiente. NO borra ni corrige nada: no toca saldos, pagos ni asientos.
+ */
+function Alertas({ alertas, jobId, token, onCambio }: { alertas: Alerta[]; jobId: string; token: string | null; onCambio: () => void }) {
+  const [abierta, setAbierta] = useState<{ codigo: string; accion: "explicar" | "quitar-explicacion" } | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [falla, setFalla] = useState<string | null>(null);
+
   if (alertas.length === 0) {
     return (
       <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100">
@@ -89,24 +102,130 @@ function Alertas({ alertas }: { alertas: Alerta[] }) {
       </p>
     );
   }
+
+  const cerrar = () => {
+    setAbierta(null);
+    setMotivo("");
+    setFalla(null);
+  };
+  const abrir = (codigo: string, accion: "explicar" | "quitar-explicacion") => {
+    setAbierta({ codigo, accion });
+    setMotivo("");
+    setFalla(null);
+  };
+  const enviar = async () => {
+    if (!abierta) return;
+    setEnviando(true);
+    setFalla(null);
+    try {
+      const r = await fetch(`${API_URL}/admin/jobs/${jobId}/expediente/alertas/${abierta.codigo}/${abierta.accion}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ motivo: motivo.trim() }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!d?.success) {
+        setFalla(d?.message || "No se pudo anotar. Probá de nuevo.");
+        return;
+      }
+      cerrar();
+      onCambio();
+    } catch {
+      setFalla("No se pudo conectar con el servidor.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const pendientes = alertas.filter((a) => !a.explicada);
+  const explicadas = alertas.filter((a) => a.explicada);
+
+  const formulario = (a: Alerta) =>
+    abierta?.codigo === a.codigo && (
+      <div className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-white/70 p-3 dark:border-slate-600 dark:bg-slate-900/40">
+        <label htmlFor={`explicacion-${a.codigo}`} className="block text-sm font-medium text-slate-800 dark:text-slate-100">
+          {abierta.accion === "explicar" ? "Cómo fue realmente (queda anotado con tu nombre)" : "Por qué se quita la explicación"}
+        </label>
+        <textarea
+          id={`explicacion-${a.codigo}`}
+          value={motivo}
+          onChange={(ev) => setMotivo(ev.target.value)}
+          rows={2}
+          placeholder={abierta.accion === "explicar" ? "Ej: Era una prueba: ese saldo nunca existió de verdad ni se movió plata." : "Ej: Me equivoqué, hay que revisar este caso."}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+        />
+        {abierta.accion === "explicar" && (
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Esto <strong>no borra ni corrige nada</strong>: no toca saldos, pagos ni asientos. Solo deja anotado que el registro es así por esta razón. Si el saldo SÍ quedó de más, corregilo aparte con ajustarSaldo.
+          </p>
+        )}
+        <Transicion mostrar={!!falla}>{falla && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{falla}</p>}</Transicion>
+        <div className="flex justify-end gap-2">
+          <button onClick={cerrar} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
+          <button
+            onClick={() => void enviar()}
+            disabled={enviando || motivo.trim().length < 15}
+            className="inline-flex items-center gap-2 rounded-lg bg-sky-500 px-3 py-1.5 text-sm text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enviando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {abierta.accion === "explicar" ? "Anotar como explicada" : "Quitar la explicación"}
+          </button>
+        </div>
+      </div>
+    );
+
   return (
     <div className="space-y-2" role="region" aria-label="Alertas de la publicación">
-      {alertas.map((a, i) => {
+      {pendientes.map((a) => {
         const e = ESTILO_DE_ALERTA[a.nivel];
         return (
-          <div key={i} role={a.nivel === "alta" ? "alert" : "note"} className={`flex gap-3 rounded-lg border p-3 ${e.caja}`}>
+          <div key={a.codigo} role={a.nivel === "alta" ? "alert" : "note"} className={`flex gap-3 rounded-lg border p-3 ${e.caja}`}>
             {e.icono}
-            <div className="min-w-0 text-sm">
+            <div className="min-w-0 flex-1 text-sm">
               <p className="font-semibold">
                 <span className="mr-2 rounded bg-white/60 px-1.5 py-0.5 text-[11px] uppercase tracking-wide dark:bg-black/20">{e.rotulo}</span>
                 {a.titulo}
               </p>
               <p className="mt-1">{a.detalle}</p>
               {a.queHacer && <p className="mt-1"><strong>Qué hacer:</strong> {a.queHacer}</p>}
+              {a.nivel !== "info" && abierta?.codigo !== a.codigo && (
+                <button onClick={() => abrir(a.codigo, "explicar")} className="mt-2 text-xs font-medium underline underline-offset-2">
+                  Marcar como explicada…
+                </button>
+              )}
+              {formulario(a)}
             </div>
           </div>
         );
       })}
+
+      {explicadas.length > 0 && (
+        <div className="space-y-2" aria-label="Alertas explicadas">
+          {pendientes.length > 0 && <p className="pt-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Explicadas por el equipo ({explicadas.length})</p>}
+          {explicadas.map((a) => (
+            <div key={a.codigo} role="note" className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="font-semibold">
+                  <span className="mr-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200">Explicada</span>
+                  {a.titulo}
+                </p>
+                <p className="mt-1">{a.detalle}</p>
+                <p className="mt-1">
+                  <strong>Así fue:</strong> {a.explicada!.motivo}{" "}
+                  <span className="text-xs text-slate-500 dark:text-slate-400">— {a.explicada!.por?.nombre ?? "alguien del equipo"}, {diaYHora(a.explicada!.el)}</span>
+                </p>
+                {abierta?.codigo !== a.codigo && (
+                  <button onClick={() => abrir(a.codigo, "quitar-explicacion")} className="mt-2 text-xs font-medium underline underline-offset-2">
+                    Quitar la explicación…
+                  </button>
+                )}
+                {formulario(a)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -122,12 +241,16 @@ function Pagina({ jobId }: { jobId: string }) {
   const [e, setE] = useState<Expediente | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Tiempo real (regla del dueño, 2026-11-09): cuando algo cambia, la ficha se vuelve a pedir sola (sin parpadeo: no hay pantalla de carga en las recargas).
+  const [version, setVersion] = useState(0);
+  useCambiosDeAdministracion(['job', 'payment', 'contract', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'audit'], () => setVersion((v) => v + 1));
+
   useEffect(() => {
     fetch(`${API_URL}/admin/jobs/${jobId}/expediente`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => (d.success ? setE(d.data) : setError(d.message || "No se pudo cargar el expediente")))
       .catch(() => setError("No se pudo cargar el expediente"));
-  }, [jobId, token]);
+  }, [jobId, token, version]);
 
   const pestanas: Pestana[] = [
     { id: "resumen", rotulo: "Resumen", icono: Briefcase },
@@ -152,7 +275,7 @@ function Pagina({ jobId }: { jobId: string }) {
   }
 
   const p = e.publicacion;
-  const hayGraves = e.alertas.some((a) => a.nivel === "alta");
+  const hayGraves = e.alertas.some((a) => a.nivel === "alta" && !a.explicada);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
@@ -176,7 +299,7 @@ function Pagina({ jobId }: { jobId: string }) {
       </header>
 
       {/* Las alertas van arriba de todo: si hay algo grave, es lo primero que se ve. */}
-      <Alertas alertas={e.alertas} />
+      <Alertas alertas={e.alertas} jobId={p.id} token={token} onCambio={() => setVersion((v) => v + 1)} />
       {e.avisos.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Algunas listas no se pudieron leer: {e.avisos.join(" · ")}</p>}
 
       <BarraDePestanas pestanas={pestanas} actual={actual} onCambiar={cambiar} etiqueta={`Expediente de ${p.titulo}`} />

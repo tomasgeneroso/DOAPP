@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Search, Loader2, RefreshCw } from 'lucide-react';
 import IdBadge from '../../components/admin/IdBadge';
@@ -69,6 +70,9 @@ export default function AuditLogs() {
       setLoading(false);
     }
   }, [page, category, severity, search]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['audit'], () => { void load(); });
 
   useEffect(() => {
     const h = setTimeout(load, 300);

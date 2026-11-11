@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Loader2, AlertTriangle, Scale, XCircle, CreditCard } from "lucide-react";
@@ -141,12 +142,16 @@ export default function HistorialUsuario({ incrustado = false }: { incrustado?: 
   const [h, setH] = useState<Historial | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Tiempo real (regla del dueño, 2026-11-09): cuando algo cambia, la ficha se vuelve a pedir sola (sin parpadeo: no hay pantalla de carga en las recargas).
+  const [version, setVersion] = useState(0);
+  useCambiosDeAdministracion(['user', 'payment', 'contract', 'job', 'withdrawal', 'dispute', 'ticket', 'audit'], () => setVersion((v) => v + 1));
+
   useEffect(() => {
     fetch(`${API_URL}/admin/hubs/historial/${userId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => (d.success ? setH(d.data) : setError(d.message || "No se pudo cargar")))
       .catch(() => setError("No se pudo cargar"));
-  }, [userId, token]);
+  }, [userId, token, version]);
 
   if (error) return <div className="p-6 text-red-600 dark:text-red-400">{error}</div>;
   if (!h) return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-sky-500" /></div>;

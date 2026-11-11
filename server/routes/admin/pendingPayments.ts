@@ -20,7 +20,8 @@ import { logMoneyEvent } from "../../utils/auditLog.js";
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 import { pagableDesde } from "../../services/liberacionDeSaldo.js";
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
-import { respaldadosPorLaPublicacion } from "../../services/pagosAlTrabajador.js";
+import { respaldadosPorLaPublicacion, PAGOS_CON_LA_PLATA_ADENTRO } from "../../services/pagosAlTrabajador.js";
+import { pagosSinVincularPorContrato } from "../../services/vinculoDePagos.js";
 import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = express.Router();
@@ -106,6 +107,8 @@ interface ContractPaymentRow {
   contractStatus: string;
   // Payment record status (for admin verification tracking)
   paymentRecordStatus: string;
+  /** El pago de este contrato existe pero quedó suelto (sin `contract_id`): una cotización pagada antes del contrato. Se vincula desde «Gestión de contratos». */
+  pagoSinVincular: boolean;
   commissionVerified: boolean;
   workers: WorkerPaymentInfo[];
   // Payment proof info (client's payment proof)
@@ -333,6 +336,17 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       if (!paymentRecord && (job as any)?.publicationPaymentId) {
         paymentRecord = await buscarElPago({ id: (job as any).publicationPaymentId });
       }
+      // Tercera vía: una cotización pagada ANTES de que existiera el contrato queda con `contract_id` vacío (services/vinculoDePagos.ts). Sin esto la fila decía «pendiente»
+      // aunque el cliente ya había pagado, porque no encontraba ese pago.
+      let pagoSinVincular = false;
+      if (!paymentRecord) {
+        const sueltos = (await pagosSinVincularPorContrato([firstContract as any])).get(String(firstContract.id)) ?? [];
+        const suyo = sueltos.find((p) => PAGOS_CON_LA_PLATA_ADENTRO.includes(p.status)) ?? sueltos[0];
+        if (suyo) {
+          paymentRecord = await buscarElPago({ id: suyo.id });
+          pagoSinVincular = !!paymentRecord;
+        }
+      }
 
       // Commission is verified if Payment status is 'held_escrow', 'confirmed_for_payout', 'completed', or 'awaiting_confirmation'
       const commissionVerifiedStatuses = ['held_escrow', 'confirmed_for_payout', 'completed', 'awaiting_confirmation', 'released'];
@@ -373,6 +387,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         escrowStatus: firstContract.escrowStatus || 'pending',
         contractStatus: firstContract.status,
         paymentRecordStatus: paymentRecord?.status || 'no_payment_record',
+        pagoSinVincular,
         commissionVerified,
         workers,
         paymentId: paymentRecord?.id,

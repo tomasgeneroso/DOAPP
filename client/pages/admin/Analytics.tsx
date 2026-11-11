@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
@@ -63,6 +64,9 @@ export default function Analytics() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'ticket', 'user', 'audit'], () => { void fetchAnalytics(); }, 5000);
 
   if (loading) {
     return (

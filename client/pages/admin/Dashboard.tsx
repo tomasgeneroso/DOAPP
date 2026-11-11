@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import MercadoPagoPorLiquidar from "../../components/admin/MercadoPagoPorLiquidar";
 import PendientesDelAdmin from "../../components/admin/PendientesDelAdmin";
 import { useEffect, useState } from "react";
@@ -65,6 +66,9 @@ export default function AdminDashboard() {
       console.error("Error loading company balance:", error);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal', 'dispute', 'cancellation', 'changeRequest', 'ticket', 'user', 'audit'], () => { void loadOverview(); void loadCompanyBalance(); });
 
   if (loading) {
     return (

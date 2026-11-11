@@ -60,9 +60,28 @@ export interface Payment {
   platformFeePercentage: number;
   createdAt: Date;
   updatedAt: Date;
+  /** Solo en los pagos por transferencia que hizo quien consulta: si puede pedir el reembolso (y si no, por qué) y cómo va el pedido. */
+  reembolso?: {
+    puede: boolean;
+    motivoNo: string | null;
+    restante: number;
+    solicitud: { id: string; status: "pending" | "approved" | "rejected" | "cancelled"; createdAt: string; resolutionNote: string | null; destination: "saldo" | "banco" | null } | null;
+  };
 }
 
 export const paymentApi = {
+  /** Pedir que devuelvan un pago por transferencia. Lo resuelve una persona del equipo. */
+  async pedirReembolso(data: { paymentId: string; amount?: number; reason: string }): Promise<unknown> {
+    const response = await apiClient.post("/refund-requests", data);
+    return response.data;
+  },
+
+  /** Retirar un pedido de reembolso que nadie resolvió todavía. */
+  async retirarPedidoDeReembolso(id: string): Promise<unknown> {
+    const response = await apiClient.post(`/refund-requests/${id}/cancel`);
+    return response.data;
+  },
+
   /**
    * Create a payment order
    */

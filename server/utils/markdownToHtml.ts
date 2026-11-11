@@ -24,6 +24,22 @@ export function markdownToHtml(markdown: string): string {
   return marked.parse(markdown, { async: false, gfm: true, breaks: false }) as string;
 }
 
+/**
+ * El contenido de un artículo tal como se le entrega al lector.
+ *
+ * Un artículo guardado como Markdown (publicado antes de que se convirtiera al guardar, o por una vía que no convirtió) se dibujaba como texto corrido: los `##`, los `**` y
+ * las tablas `| a | b |` salían literales y las líneas se juntaban en un párrafo («blog/que-incluye-la-beta-de-doapp», 2026-11-09). Se convierte al leer: no toca la base,
+ * sirve para todo lo ya publicado y no hace falta volver a correr el script que publica cada artículo.
+ *
+ * Solo convierte si parece Markdown Y no tiene ya bloques HTML: un artículo que ya es HTML (el del editor) se entrega tal cual.
+ */
+export function contenidoParaMostrar(content: string | null | undefined): string {
+  const texto = String(content ?? '');
+  if (!texto) return '';
+  if (/<(p|div|h[1-6]|ul|ol|table|section|article|blockquote|figure)\b/i.test(texto)) return texto;
+  return looksLikeMarkdown(texto) ? markdownToHtml(texto) : texto;
+}
+
 /** True when the text looks like Markdown that still needs converting. */
 export function looksLikeMarkdown(text: string): boolean {
   if (!text) return false;

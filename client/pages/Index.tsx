@@ -298,7 +298,7 @@ export default function Index() {
         <title>DoApp - Plataforma de Trabajos Argentina | Pagos asegurados</title>
         <meta
           name="description"
-          content="DoApp es la plataforma de trabajos argentina donde publicás trabajos o encontrás oportunidades. Pagos asegurados, tu dinero protegido hasta confirmar el trabajo. Sin comisión durante la beta. Registrate gratis."
+          content="DoApp es la plataforma de trabajos argentina donde publicás trabajos o encontrás oportunidades. Pagos asegurados, tu dinero protegido hasta confirmar el trabajo. Registrate gratis."
         />
         <meta property="og:url" content="https://doapparg.com/" />
         <meta property="og:image" content="https://doapparg.com/og-image.png" />

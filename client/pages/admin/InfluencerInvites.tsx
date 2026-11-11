@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useCallback, useEffect, useState } from "react";
 import { Copy, Gift, Loader2, Plus, Ban, Check } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -75,6 +76,9 @@ export default function InfluencerInvites() {
       setCargando(false);
     }
   }, [pedir]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['code'], () => { void cargar(); });
 
   useEffect(() => {
     cargar();

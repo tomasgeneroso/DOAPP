@@ -16,6 +16,13 @@ import { bloqueoPorAprobacionPropia, esAprobacionPropiaDelDueno } from "../../se
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import { referenciasRepetidas, describirReferenciaRepetida, type ReferenciaRepetida } from "../../services/comprobanteDuplicado.js";
 import { contratosDeUnPago, vincularPagoAlContrato } from "../../services/vinculoDePagos.js";
+import {
+  bloqueoDelReembolso,
+  controlesDelEquipoParaReembolsar,
+  reembolsarPagoPorTransferencia,
+  restanteReembolsable,
+  type DestinoDeReembolso,
+} from "../../services/reembolsoPorTransferencia.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -346,6 +353,68 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
     });
   } catch (error: any) {
     console.error("Error procesando la devolución:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * Reembolsar un pago hecho por TRANSFERENCIA (regla del dueño, 2026-11-09). Va al saldo del cliente (en el momento) o a su banco (con el comprobante de la transferencia
+ * que hizo DOAPP). Nadie reembolsa un pago propio (otra persona del equipo, o el dueño con rastro). Lógica y reglas: `services/reembolsoPorTransferencia.ts`.
+ * POST /api/admin/payments/:paymentId/refund-transfer   { destino: 'saldo'|'banco', monto?, motivo, comprobanteUrl? }
+ */
+router.post("/:paymentId/refund-transfer", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!isValidUUID(req.params.paymentId)) {
+      res.status(400).json({ success: false, message: "Pago inválido" });
+      return;
+    }
+    const { monto, motivo, destino, comprobanteUrl } = req.body || {};
+    const pago: any = await Payment.findByPk(req.params.paymentId);
+    if (!pago) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+    const bloqueoPropio = bloqueoPorAprobacionPropia(pago, req.user);
+    if (bloqueoPropio) {
+      res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+      return;
+    }
+    const bloqueo = await bloqueoDelReembolso(pago);
+    if (bloqueo) {
+      res.status(409).json({ success: false, code: bloqueo.code, message: bloqueo.message });
+      return;
+    }
+    const importe = monto === undefined || monto === null || monto === '' ? await restanteReembolsable(pago) : Number(monto);
+    const controles = await controlesDelEquipoParaReembolsar({
+      adminId: String(req.user.id),
+      rol: String((req.user as any).adminRole || req.user.role || ''),
+      importe: Number.isFinite(importe) ? importe : 0,
+      passwordVerified: Boolean((req as any).passwordVerified),
+    });
+    if (controles) {
+      res.status(controles.status).json(controles.body);
+      return;
+    }
+    const r = await reembolsarPagoPorTransferencia({
+      pagoId: String(pago.id),
+      monto: monto === undefined || monto === null || monto === '' ? null : Number(monto),
+      destino: destino as DestinoDeReembolso,
+      motivo: String(motivo ?? ''),
+      quien: String(req.user.id),
+      comprobanteUrl: typeof comprobanteUrl === 'string' ? comprobanteUrl : null,
+      aprobacionPropiaDelDueno: esAprobacionPropiaDelDueno(pago, req.user),
+    });
+    if (r.ok === false) {
+      res.status(r.status).json({ success: false, code: r.code, message: r.message });
+      return;
+    }
+    res.json({
+      success: true,
+      message: r.destino === 'saldo' ? `Se acreditaron $${r.monto.toLocaleString('es-AR')} al saldo del cliente.` : `Quedó registrada la transferencia de $${r.monto.toLocaleString('es-AR')} al banco del cliente.`,
+      data: { monto: r.monto, destino: r.destino, completo: r.completo, restante: r.restante },
+    });
+  } catch (error: any) {
+    console.error("Error reembolsando un pago por transferencia:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

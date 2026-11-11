@@ -1,5 +1,5 @@
 import type { Sequelize } from 'sequelize-typescript';
-import type { Transaction } from 'sequelize';
+import { QueryTypes, type Transaction } from 'sequelize';
 
 /**
  * Idempotent "ensure schema" safety net.
@@ -92,6 +92,19 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // De qué TRABAJO es el pago (migración 20261109120000): lo completa el modelo al guardar; permite buscar todo lo de una publicación por cualquier id.
   { label: 'payments.job_id', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS job_id UUID` },
   { label: 'payments.job_id index', sql: `CREATE INDEX IF NOT EXISTS payments_job_id ON payments (job_id) WHERE job_id IS NOT NULL` },
+  // Pedidos de reembolso de pagos por transferencia (migración 20261109130000): un solo pedido pendiente por pago.
+  { label: 'refund_requests', sql: `CREATE TABLE IF NOT EXISTS refund_requests (id UUID PRIMARY KEY, payment_id UUID NOT NULL REFERENCES payments(id) ON DELETE CASCADE, requested_by UUID NOT NULL REFERENCES users(id), amount NUMERIC(12,2), reason TEXT NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'pending', destination VARCHAR(10), resolved_amount NUMERIC(12,2), resolved_by UUID REFERENCES users(id), resolved_at TIMESTAMPTZ, resolution_note TEXT, proof_url TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())` },
+  { label: 'refund_requests.payment_id', sql: `CREATE INDEX IF NOT EXISTS refund_requests_payment_id ON refund_requests (payment_id)` },
+  { label: 'refund_requests.requested_by', sql: `CREATE INDEX IF NOT EXISTS refund_requests_requested_by ON refund_requests (requested_by)` },
+  { label: 'refund_requests.status', sql: `CREATE INDEX IF NOT EXISTS refund_requests_status ON refund_requests (status)` },
+  // Portafolio del perfil (migración 20261109140000): nunca tuvo migración y en producción daba «relation "portfolio_items" does not exist».
+  { label: 'portfolio_items', sql: `CREATE TABLE IF NOT EXISTS portfolio_items (id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, linked_contract UUID REFERENCES contracts(id) ON DELETE SET NULL, linked_job UUID REFERENCES jobs(id) ON DELETE SET NULL, title VARCHAR(100) NOT NULL, description TEXT NOT NULL, category VARCHAR(50) NOT NULL, price NUMERIC(12,2), images TEXT[] DEFAULT ARRAY[]::TEXT[], videos TEXT[] DEFAULT ARRAY[]::TEXT[], documents TEXT[] DEFAULT ARRAY[]::TEXT[], tags VARCHAR(255)[] DEFAULT ARRAY[]::VARCHAR(255)[], completed_at TIMESTAMPTZ, client_name VARCHAR(100), project_duration VARCHAR(100), featured BOOLEAN DEFAULT FALSE, views INTEGER DEFAULT 0, likes UUID[] DEFAULT ARRAY[]::UUID[], contract_rating NUMERIC(3,2), contract_review TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())` },
+  { label: 'portfolio_items.user_id+created_at', sql: `CREATE INDEX IF NOT EXISTS portfolio_items_user_id_created_at ON portfolio_items (user_id, created_at)` },
+  { label: 'portfolio_items.category+featured', sql: `CREATE INDEX IF NOT EXISTS portfolio_items_category_featured ON portfolio_items (category, featured)` },
+  { label: 'portfolio_items.views', sql: `CREATE INDEX IF NOT EXISTS portfolio_items_views ON portfolio_items (views)` },
+  { label: 'portfolio_items.featured+created_at', sql: `CREATE INDEX IF NOT EXISTS portfolio_items_featured_created_at ON portfolio_items (featured, created_at)` },
+  { label: 'portfolio_items.user_id+category', sql: `CREATE INDEX IF NOT EXISTS portfolio_items_user_id_category ON portfolio_items (user_id, category)` },
+  { label: 'refund_requests one pending', sql: `CREATE UNIQUE INDEX IF NOT EXISTS refund_requests_one_pending ON refund_requests (payment_id) WHERE status = 'pending'` },
   // Parte de un aumento de precio reservada del saldo a favor hasta que se
   // acredita el pago del resto. Se escribia sin columna: se perdia.
   { label: 'jobs.pending_balance_deduction', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pending_balance_deduction NUMERIC(12,2) NOT NULL DEFAULT 0` },
@@ -482,4 +495,57 @@ export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> 
   // Después de las sentencias (que pueden haber creado columnas): las heredadas que impedirían un alta.
   const relajadas = await relajarColumnasHeredadas(sequelize);
   if (relajadas.length > 0) console.log(`🧹 ensureSchema: columnas heredadas que ya no exigen valor: ${relajadas.join(', ')}`);
+}
+
+/**
+ * Las tablas de los modelos que NO existen, dado el conjunto de las que sí. Pura: se prueba sin base de datos.
+ * `modelos`: nombre de la tabla de cada modelo. Devuelve los que faltan, sin repetir.
+ */
+export function tablasQueFaltan(modelos: string[], existentes: Set<string>): string[] {
+  return [...new Set(modelos)].filter((t) => !existentes.has(t)).sort();
+}
+
+/**
+ * Crea, a partir de los modelos, las tablas que NO existen en la base (regla del dueño, 2026-11-11: «asegurarse que existan todas las tablas»).
+ *
+ * Producción no sincroniza los modelos: vive de migraciones. Un modelo agregado sin su migración funciona en desarrollo (donde `sync()` crea la tabla) y rompe en producción
+ * con `relation "..." does not exist` (pasó con `portfolio_items`, el portafolio del perfil). Esto es la red de seguridad: al arrancar, cada tabla que falta se crea con
+ * `Model.sync()` — que es `CREATE TABLE IF NOT EXISTS` más sus índices —, y NUNCA toca una tabla que ya existe (no altera columnas, no borra nada).
+ *
+ * Varias pasadas: una tabla puede apuntar con una clave foránea a otra que también falta; se reintenta hasta que no haya nada más para crear. Lo que no se pudo crear
+ * se avisa en voz alta (queda faltando y la función que la usa va a fallar). Devuelve las tablas creadas.
+ */
+export async function crearTablasQueFaltan(sequelize: Sequelize): Promise<{ creadas: string[]; siguenFaltando: string[] }> {
+  const nombreDeTabla = (m: { getTableName: () => unknown }): string => {
+    const t = m.getTableName() as string | { tableName: string };
+    return typeof t === 'string' ? t : t.tableName;
+  };
+  const modelos = Object.values(sequelize.models) as Array<{ getTableName: () => unknown; sync: () => Promise<unknown> }>;
+  // Con `type: SELECT` siempre vuelven filas con nombre (sin él, esta conexión devolvía otra forma y la lista de existentes quedaba vacía: se «creaba» todo).
+  const filas = (await sequelize.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`, { type: QueryTypes.SELECT })) as Array<{ table_name: string }>;
+  const existentes = new Set(filas.map((f) => String(Array.isArray(f) ? f[0] : f.table_name)));
+
+  const creadas: string[] = [];
+  let pendientes = tablasQueFaltan(modelos.map(nombreDeTabla), existentes);
+  for (let pasada = 0; pendientes.length > 0 && pasada < 4; pasada++) {
+    const antes = pendientes.length;
+    for (const tabla of pendientes) {
+      const modelo = modelos.find((m) => nombreDeTabla(m) === tabla);
+      if (!modelo) continue;
+      try {
+        await modelo.sync();
+        creadas.push(tabla);
+        existentes.add(tabla);
+      } catch (err: any) {
+        // Probablemente apunta a una tabla que todavía no existe: se reintenta en la pasada siguiente.
+        if (pasada === 3) console.warn(`⚠️  [ensureSchema] no se pudo crear la tabla ${tabla}: ${err?.message}`);
+      }
+    }
+    pendientes = tablasQueFaltan(pendientes, existentes);
+    if (pendientes.length === antes && pasada > 0) break;
+  }
+
+  if (creadas.length > 0) console.log(`🧱 ensureSchema: tablas que faltaban y se crearon desde los modelos: ${creadas.join(', ')}`);
+  if (pendientes.length > 0) console.error(`❌ ensureSchema: siguen faltando ${pendientes.length} tabla(s): ${pendientes.join(', ')}. Hay que crearlas con una migración.`);
+  return { creadas, siguenFaltando: pendientes };
 }

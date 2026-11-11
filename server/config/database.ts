@@ -109,6 +109,17 @@ export async function initDatabase() {
       console.warn('⚠️  ensureCriticalSchema failed (non-fatal):', err?.message);
     }
 
+    // Producción no sincroniza los modelos: una tabla que ninguna migración creó (un modelo agregado sin su migración) rompía con «relation does not exist». Se crean
+    // desde los modelos SOLO las que faltan; nunca se toca una tabla existente. En desarrollo y pruebas lo hace `sync()` (más abajo).
+    if (isProduction) {
+      try {
+        const { crearTablasQueFaltan } = await import('./ensureSchema.js');
+        await crearTablasQueFaltan(sequelize);
+      } catch (err: any) {
+        console.warn('⚠️  crearTablasQueFaltan failed (non-fatal):', err?.message);
+      }
+    }
+
     // Matrícula profesional: encripta lo que quedó guardado en claro antes de que el cifrado existiera (número y archivos).
     // Idempotente (lo ya encriptado no se toca) y no fatal: un problema se informa pero no impide arrancar.
     try {
@@ -155,6 +166,7 @@ async function registerModels() {
   const { default: Role } = await import('../models/sql/Role.model.js');
   const { default: ContractChangeRequest } = await import('../models/sql/ContractChangeRequest.model.js');
   const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
+  const { RefundRequest } = await import('../models/sql/RefundRequest.model.js');
   const { default: Membership } = await import('../models/sql/Membership.model.js');
   const { default: Referral } = await import('../models/sql/Referral.model.js');
   const { default: BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
@@ -206,6 +218,7 @@ async function registerModels() {
     Role,
     ContractChangeRequest,
     ContractCancellationRequest,
+    RefundRequest,
     Membership,
     Referral,
     BalanceTransaction,

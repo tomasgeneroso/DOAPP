@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
@@ -166,6 +167,9 @@ export default function AdminUsers() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['user'], () => { void loadUsers(); });
 
   const handleBan = async (userId: string, userName: string) => {
     const reason = prompt(`¿Por qué quieres banear a ${userName}?`);

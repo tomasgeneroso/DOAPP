@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useCallback } from "react";
 import { getImageUrl } from "@/utils/imageUrl";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -71,6 +72,9 @@ export default function BlogManager() {
       setLoading(false);
     }
   }, [typeFilter, statusFilter, search]);
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['blog'], () => { void load(); });
 
   useEffect(() => { load(); }, [load]);
 

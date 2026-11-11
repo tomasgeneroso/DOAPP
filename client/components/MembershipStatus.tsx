@@ -106,10 +106,10 @@ export default function MembershipStatus() {
           )}
 
           {(user as any)?.platform?.isBeta && (
-            <p>Durante la beta todos tus contratos son <strong>sin comisión y sin límite</strong>.</p>
+            <p>Ahora, en la beta, no se cobra comisión en ningún contrato.</p>
           )}
 
-          {!(user as any)?.platform?.isBeta && typeof usage?.freeContractsRemaining === "number" && usage.freeContractsRemaining > 0 && (
+          {typeof usage?.freeContractsRemaining === "number" && usage.freeContractsRemaining > 0 && (
             <p>
               Te quedan <strong>{usage.freeContractsRemaining}</strong>{" "}
               {usage.freeContractsRemaining === 1 ? "contrato libre" : "contratos libres"} de comisión.

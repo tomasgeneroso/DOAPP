@@ -304,6 +304,15 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     const { proofOfTransfer, adminNotes } = req.body;
     const adminId = req.user.id;
 
+    // El comprobante es un archivo subido por el administrador (`/uploads/payment-proofs/…`, carpeta privada) o el número de operación en texto. Un archivo que no sea
+    // de esa carpeta, o con `..`, no es un comprobante: no se deja apuntar a cualquier archivo del servidor.
+    if (typeof proofOfTransfer === 'string' && proofOfTransfer.startsWith('/uploads/')) {
+      if (!proofOfTransfer.startsWith('/uploads/payment-proofs/') || proofOfTransfer.includes('..') || proofOfTransfer.length > 300) {
+        res.status(400).json({ success: false, message: 'El comprobante no es un archivo subido desde Pagos. Subí el comprobante de nuevo.' });
+        return;
+      }
+    }
+
     const withdrawal = await WithdrawalRequest.findByPk(id, {
       include: [{ model: User, as: 'user' }]
     });

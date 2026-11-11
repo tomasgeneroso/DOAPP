@@ -1,3 +1,4 @@
+import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from "react-router-dom";
@@ -101,6 +102,9 @@ export default function TicketDetail() {
       setLoading(false);
     }
   };
+
+  // Tiempo real (regla del dueño, 2026-11-09): todo el panel de administración se actualiza solo cuando algo cambia, lo haga quien lo haga.
+  useCambiosDeAdministracion(['ticket'], () => { void loadTicket(); });
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

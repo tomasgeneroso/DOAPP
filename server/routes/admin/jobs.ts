@@ -416,6 +416,97 @@ router.get(
 );
 
 /**
+ * Marcar una alerta del expediente como EXPLICADA (regla del dueño, 2026-11-09): «esto se registró, pero fue de esta manera». Sirve para lo que el registro dice y no pasó
+ * (una prueba, una devolución que nunca movió plata de verdad). NO borra ni corrige nada: no toca saldos, pagos ni asientos. Solo deja anotado quién, cuándo y por qué lo dio
+ * por explicado; la alerta sigue a la vista, atenuada, con esa explicación. Si el saldo SÍ quedó de más, se corrige aparte con ajustarSaldo.
+ *
+ * Se guarda en el registro de auditoría, que solo se agrega: explicar y quitar la explicación son dos asientos. Solo alertas de nivel «alta» o «media».
+ * POST /api/admin/jobs/:id/expediente/alertas/:codigo/explicar          { motivo }
+ * POST /api/admin/jobs/:id/expediente/alertas/:codigo/quitar-explicacion { motivo }
+ */
+const MOTIVO_MINIMO_DE_EXPLICACION = 15;
+for (const accion of ['explicar', 'quitar-explicacion'] as const) {
+  router.post(
+    `/:id/expediente/alertas/:codigo/${accion}`,
+    protect,
+    requireRole('admin', 'super_admin', 'owner'),
+    async (req: AuthRequest, res: Response): Promise<void> => {
+      try {
+        const { id, codigo } = req.params;
+        const motivo = String(req.body?.motivo ?? '').trim().replace(/\s+/g, ' ').slice(0, 500);
+        if (!isValidUUID(id)) {
+          res.status(400).json({ success: false, message: 'ID de publicación inválido' });
+          return;
+        }
+        const { expedienteDePublicacion, explicacionesVigentes, CODIGOS_DE_ALERTA, ACCION_EXPLICAR_ALERTA, ACCION_QUITAR_EXPLICACION } = await import('../../services/expedienteDePublicacion.js');
+        if (!(CODIGOS_DE_ALERTA as readonly string[]).includes(codigo)) {
+          res.status(400).json({ success: false, message: 'Esa alerta no existe.' });
+          return;
+        }
+        if (motivo.length < MOTIVO_MINIMO_DE_EXPLICACION) {
+          res.status(400).json({
+            success: false,
+            message: `Escribí el motivo (al menos ${MOTIVO_MINIMO_DE_EXPLICACION} caracteres): queda anotado con tu nombre y es lo que va a leer quien mire este expediente después.`,
+          });
+          return;
+        }
+        const expediente = await expedienteDePublicacion(id);
+        if (!expediente) {
+          res.status(404).json({ success: false, message: 'Publicación no encontrada' });
+          return;
+        }
+        const alerta = expediente.alertas.find((a) => a.codigo === codigo);
+        if (!alerta) {
+          res.status(404).json({ success: false, message: 'Esa alerta ya no está en este expediente (cambió algo): recargá la pantalla.' });
+          return;
+        }
+        const explicando = accion === 'explicar';
+        if (explicando && alerta.nivel === 'info') {
+          res.status(400).json({ success: false, message: 'Las alertas de tipo «dato» no piden nada: no hace falta explicarlas.' });
+          return;
+        }
+        if (explicando && alerta.explicada) {
+          res.status(409).json({ success: false, message: 'Esa alerta ya está explicada. Si querés cambiar la explicación, quitala y volvé a explicarla.' });
+          return;
+        }
+        if (!explicando && !alerta.explicada) {
+          res.status(409).json({ success: false, message: 'Esa alerta no tiene una explicación para quitar.' });
+          return;
+        }
+
+        await logAudit({
+          req,
+          action: explicando ? ACCION_EXPLICAR_ALERTA : ACCION_QUITAR_EXPLICACION,
+          category: 'payment',
+          severity: 'high',
+          description: explicando
+            ? `Se marcó como explicada la alerta «${alerta.titulo}» de la publicación: ${motivo}`
+            : `Se quitó la explicación de la alerta «${alerta.titulo}» de la publicación: ${motivo}`,
+          targetModel: 'Job',
+          targetId: id,
+          // Lo que decía la alerta en ese momento queda guardado: el texto cambia con los números, y esto es lo que la persona estaba dando por explicado.
+          metadata: { codigo, motivo, nivel: alerta.nivel, tituloDeLaAlerta: alerta.titulo, detalleDeLaAlerta: alerta.detalle, ...(explicando ? {} : { explicacionAnterior: alerta.explicada }) },
+        });
+
+        // `logAudit` no propaga sus errores: acá el asiento ES la explicación, así que se comprueba que quedó escrito antes de decir que se hizo.
+        const vigentes = await explicacionesVigentes(id);
+        if (vigentes.has(codigo) !== explicando) {
+          res.status(500).json({ success: false, message: 'No se pudo anotar la explicación en el registro. No se cambió nada: probá de nuevo.' });
+          return;
+        }
+        res.json({
+          success: true,
+          message: explicando ? 'Quedó anotado como explicado. La alerta sigue a la vista con tu explicación; no se tocó ningún saldo ni pago.' : 'Se quitó la explicación: la alerta vuelve a figurar como pendiente.',
+        });
+      } catch (error: any) {
+        console.error('Error anotando la explicación de una alerta:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    },
+  );
+}
+
+/**
  * PUT /api/admin/jobs/:id/status
  * Actualizar estado de una publicación (aprobar/rechazar)
  */
