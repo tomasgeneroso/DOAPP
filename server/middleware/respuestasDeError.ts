@@ -61,9 +61,15 @@ export function respuestasDeError(req: Request, res: Response, next: NextFunctio
 }
 
 function registrar(req: Request, res: Response, status: number, cuerpo: Record<string, unknown> | undefined): void {
-  if (SIN_REGISTRO.has(status) || res.locals?.errorYaRegistrado) return;
   // Sin la consulta (puede traer tokens) y con el motivo: es lo que hace falta para entender un «no pasó nada».
   const ruta = (req.originalUrl || req.url || '').split('?')[0];
+  // Un 5xx le llega por correo al dueño (una vez por problema; `services/avisoAlDueno.ts`). El `errorHandler` ya avisó los suyos, con el texto técnico del error.
+  if (status >= 500 && !res.locals?.avisoAlDuenoEnviado) {
+    void import('../services/avisoAlDueno.js')
+      .then((m) => m.avisarDeUnErrorDelServidor({ metodo: req.method, ruta, estado: status, codigo: cuerpo?.code ? String(cuerpo.code) : undefined, mensaje: String(cuerpo?.message ?? '').slice(0, 300) }))
+      .catch(() => undefined);
+  }
+  if (SIN_REGISTRO.has(status) || res.locals?.errorYaRegistrado) return;
   const quien = (req as Request & { user?: { id?: string } }).user?.id;
   const linea = `[HTTP ${status}] ${req.method} ${ruta}${quien ? ` usuario=${quien}` : ''}${cuerpo?.code ? ` código=${String(cuerpo.code)}` : ''} — ${String(cuerpo?.message ?? '').slice(0, 300)}`;
   if (status >= 500) console.error(linea);

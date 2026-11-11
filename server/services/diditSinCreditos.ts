@@ -40,6 +40,17 @@ export async function avisarQueDiditNoTieneCreditos(ahora: number = Date.now()):
         read: false,
       } as never);
     }
+    // Además, por correo: la notificación solo se ve si el dueño abre la web (regla del dueño, 2026-11-11: que los errores así le lleguen al mail).
+    const { avisarAlDuenoPorCorreo } = await import('./avisoAlDueno.js');
+    await avisarAlDuenoPorCorreo(
+      {
+        clave: 'didit-sin-creditos',
+        asunto: 'Didit se quedó sin créditos: nadie puede verificar su identidad',
+        quePaso: 'Las personas que se registran no pueden pasar la verificación de identidad: Didit rechaza cada pedido porque la cuenta no tiene créditos. Su cuenta queda creada y se les pide de nuevo más tarde.',
+        queHacer: 'Recargá los créditos en https://business.didit.me. Mientras no estén, nadie nuevo puede verificarse ni recibir el beneficio de lanzamiento.',
+      },
+      ahora,
+    );
     return duenos.length > 0;
   } catch (e) {
     console.error('[didit] no se pudo avisar a los dueños:', (e as Error).message);

@@ -548,5 +548,27 @@ export async function crearTablasQueFaltan(sequelize: Sequelize): Promise<{ crea
 
   if (creadas.length > 0) console.log(`🧱 ensureSchema: tablas que faltaban y se crearon desde los modelos: ${creadas.join(', ')}`);
   if (pendientes.length > 0) console.error(`❌ ensureSchema: siguen faltando ${pendientes.length} tabla(s): ${pendientes.join(', ')}. Hay que crearlas con una migración.`);
+  // Por correo al dueño (una vez por cada conjunto): faltaban tablas (ya se crearon) o siguen faltando (esas sí hay que atender).
+  if (creadas.length > 0 || pendientes.length > 0) {
+    void import('../services/avisoAlDueno.js')
+      .then((m) =>
+        m.avisarAlDuenoPorCorreo(
+          pendientes.length > 0
+            ? {
+                clave: `tablas-faltan:${pendientes.join(',')}`,
+                asunto: `Siguen faltando ${pendientes.length} tabla(s) en la base`,
+                quePaso: `La app no pudo crear estas tablas de sus modelos: ${pendientes.join(', ')}. Las pantallas que las usan dan error.`,
+                queHacer: 'Hay que escribir la migración de cada una (migrations/, con su espejo en ensureSchema) y correr npx sequelize-cli db:migrate.',
+              }
+            : {
+                clave: `tablas-creadas:${creadas.join(',')}`,
+                asunto: `Se crearon ${creadas.length} tabla(s) que faltaban en la base`,
+                quePaso: `Al arrancar, la app encontró modelos sin su tabla en la base y las creó: ${creadas.join(', ')}. Ya funcionan; es un aviso para que quede escrito.`,
+                queHacer: 'Nada urgente. Si querés, agregá su migración para que quede en el historial: sin ella, otra base nueva dependería de este arranque.',
+              },
+        ),
+      )
+      .catch(() => undefined);
+  }
   return { creadas, siguenFaltando: pendientes };
 }

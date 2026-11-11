@@ -11,6 +11,29 @@ export class ErrorResponse extends Error {
   }
 }
 
+/** Falta una tabla o una columna: lo arregla un deploy o reiniciar la app, no la persona. El correo dice qué mirar y la clave junta todas las rutas que chocan con lo mismo. */
+function avisarAlDuenoDelEsquema(res: Response, que: "tabla" | "columna", mensaje: string): void {
+  if (res.locals) res.locals.avisoAlDuenoEnviado = true;
+  const nombre = /"([^"]+)"/.exec(mensaje)?.[1] ?? "";
+  void import("../services/avisoAlDueno.js")
+    .then((m) =>
+      m.avisarAlDuenoPorCorreo({
+        clave: `esquema:${que}:${nombre || mensaje.slice(0, 80)}`,
+        asunto: que === "tabla" ? `Falta una tabla en la base${nombre ? `: ${nombre}` : ""}` : `Falta una columna en la base${nombre ? `: ${nombre}` : ""}`,
+        quePaso:
+          que === "tabla"
+            ? "Una pantalla pidió datos de una tabla que no existe en la base de producción, y la persona vio un error."
+            : "Una pantalla pidió una columna que no existe en la base: el código nuevo salió sin que corrieran las migraciones.",
+        queHacer:
+          que === "tabla"
+            ? "Al reiniciar la app se crea sola (pm2 restart doapp). Para comprobarlo: npx tsx server/scripts/verificarTablas.ts. Si sigue faltando, hace falta escribir su migración."
+            : "En el servidor, desde la carpeta de la app: npx sequelize-cli db:migrate, y después pm2 restart doapp.",
+        detalle: mensaje,
+      }),
+    )
+    .catch(() => undefined);
+}
+
 export const errorHandler = (
   err: any,
   req: Request,
@@ -84,6 +107,14 @@ export const errorHandler = (
   if (err.name === "SequelizeDatabaseError" && err.parent?.code === "42703") {
     console.error("[esquema] columna inexistente — ¿falta correr migraciones?", err.message);
     error = new ErrorResponse("Error del servidor", 500);
+    avisarAlDuenoDelEsquema(res, "columna", err.message);
+  }
+
+  // La tabla existe en el modelo pero no en la base (pasó con `portfolio_items` y `login_devices`: `relation "…" does not exist`).
+  if (err.name === "SequelizeDatabaseError" && err.parent?.code === "42P01") {
+    console.error("[esquema] tabla inexistente — se crea sola al reiniciar la app:", err.message);
+    error = new ErrorResponse("Error del servidor", 500);
+    avisarAlDuenoDelEsquema(res, "tabla", err.message);
   }
 
   /**
@@ -110,6 +141,14 @@ export const errorHandler = (
   if (statusCode >= 500) {
     console.error(`[${req.method} ${req.originalUrl}]`, err);
     if (res.locals) res.locals.errorYaRegistrado = true; // respuestasDeError no repite la línea
+    // Le llega por correo al dueño (una vez por problema), con el texto técnico que la respuesta a la persona no lleva. Los de esquema ya avisaron arriba.
+    if (!res.locals?.avisoAlDuenoEnviado) {
+      if (res.locals) res.locals.avisoAlDuenoEnviado = true;
+      const ruta = String(req.originalUrl || req.url || "").split("?")[0];
+      void import("../services/avisoAlDueno.js")
+        .then((m) => m.avisarDeUnErrorDelServidor({ metodo: req.method, ruta, estado: statusCode, mensaje: String(error.message ?? "").slice(0, 200), tecnico: String(err?.message ?? "").slice(0, 300) }))
+        .catch(() => undefined);
+    }
   }
 
   res.status(statusCode).json({

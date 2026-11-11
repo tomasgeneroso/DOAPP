@@ -174,6 +174,16 @@ export async function activarRlsSiLaBaseEstaLista(sequelize: Sequelize): Promise
         `🚨 [rls] RLS_ACTIVO=true pero la base no está lista: ${queFalta(estado)}. La app arranca SIN RLS. ` +
           `Hay que darle CREATEROLE al usuario de la app (o crear el rol como superusuario) y reiniciar.`,
       );
+      void import('../services/avisoAlDueno.js')
+        .then((m) =>
+          m.avisarAlDuenoPorCorreo({
+            clave: 'rls-apagado',
+            asunto: 'La protección de datos por filas (RLS) está APAGADA',
+            quePaso: `La app arrancó sin RLS aunque está pedida: la base no está lista (${queFalta(estado)}). Funciona, pero sin esa segunda capa de protección de los datos de dinero y de personas.`,
+            queHacer: 'Como superusuario de la base: GRANT doapp_app TO <usuario de la app>; y reiniciar la app (pm2 restart doapp). Probalo primero en staging.',
+          }),
+        )
+        .catch(() => undefined);
       return false;
     }
   } catch (e: any) {
