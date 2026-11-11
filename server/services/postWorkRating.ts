@@ -3,6 +3,7 @@ import { Review } from "../models/sql/Review.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
+import { Job } from "../models/sql/Job.model.js";
 
 /**
  * Puntuación post-trabajo: obligatoria para poder volver a publicar o trabajar.
@@ -21,6 +22,11 @@ export interface PendingPostWorkRating {
   reviewedAvatar: string | null;
   reviewedRole: "doer" | "client";
   jobTitle: string | null;
+  /** Para agrupar las de un mismo trabajo con varios trabajadores */
+  jobId: string | null;
+  /** Cuántas personas hay que puntuar en ese trabajo, y qué puesto ocupa esta */
+  totalDelTrabajo: number;
+  posicionEnElTrabajo: number;
   completedAt: Date | null;
   /** Progreso guardado de una puntuación empezada y no terminada */
   draft: {
@@ -93,6 +99,10 @@ export async function findPendingPostWorkRatings(
 
   const contracts = await Contract.findAll({
     where,
+    // El título del trabajo se mostraba siempre vacío porque faltaba traerlo.
+    // En un trabajo con varios trabajadores hace toda la diferencia: sin él, la
+    // misma pantalla aparece una vez por persona sin decir de qué trabajo es.
+    include: [{ model: Job, as: "job", attributes: ["id", "title", "maxWorkers"] }],
     order: [["updatedAt", "DESC"]],
     limit,
   });
@@ -128,12 +138,46 @@ export async function findPendingPostWorkRatings(
       reviewedAvatar: reviewed?.avatar || null,
       reviewedRole: isClient ? "doer" : "client",
       jobTitle: (contract as any).job?.title || null,
+      jobId: (contract as any).jobId?.toString() || null,
+      totalDelTrabajo: 1,
+      posicionEnElTrabajo: 1,
       completedAt: contract.actualEndDate || contract.updatedAt || null,
       draft: draftFrom(draftByContract.get(contract.id.toString())),
     });
   }
 
-  return pending;
+  return agruparPorTrabajo(pending);
+}
+
+/**
+ * Las de un mismo trabajo salen juntas y numeradas.
+ *
+ * Un trabajo con varios trabajadores crea un contrato por persona, así que el
+ * cliente termina con una puntuación pendiente por cada uno. Sin agrupar, le
+ * aparecen salteadas entre las de otros trabajos y sin saber cuántas le quedan;
+ * agrupadas, completa un trabajo y después pasa al siguiente.
+ */
+function agruparPorTrabajo(pending: PendingPostWorkRating[]): PendingPostWorkRating[] {
+  const porTrabajo = new Map<string, PendingPostWorkRating[]>();
+  const sueltas: PendingPostWorkRating[] = [];
+
+  for (const item of pending) {
+    if (!item.jobId) { sueltas.push(item); continue; }
+    const grupo = porTrabajo.get(item.jobId);
+    if (grupo) grupo.push(item);
+    else porTrabajo.set(item.jobId, [item]);
+  }
+
+  const ordenadas: PendingPostWorkRating[] = [];
+  // El orden de inserción del Map conserva el de `pending`: lo más reciente primero
+  for (const grupo of porTrabajo.values()) {
+    grupo.forEach((item, i) => {
+      item.totalDelTrabajo = grupo.length;
+      item.posicionEnElTrabajo = i + 1;
+      ordenadas.push(item);
+    });
+  }
+  return [...ordenadas, ...sueltas];
 }
 
 /** ¿Al usuario le queda alguna puntuación post-trabajo sin terminar? */

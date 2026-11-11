@@ -109,7 +109,8 @@
       "errorNoRecommend": "Contanos si recomendarías DoApp",
       "errorSubmit": "No pudimos guardar tu puntuación",
       "thanksTitle": "¡Gracias por tu opinión!",
-      "thanksDesc": "Tu respuesta nos ayuda a mejorar DoApp para todos."
+      "thanksDesc": "Tu respuesta nos ayuda a mejorar DoApp para todos.",
+      "deVarios": "Trabajador {{n}} de {{total}}"
     }
   },
   "location": {

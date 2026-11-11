@@ -42,6 +42,11 @@ interface PostWorkRatingModalProps {
   reviewedRole?: ReviewedRole;
   /** Progreso guardado de un intento anterior, para retomarlo */
   draft?: PostWorkRatingDraft | null;
+  /** Título del trabajo, para saber de cuál se está hablando */
+  jobTitle?: string | null;
+  /** En un trabajo con varios trabajadores: cuántos hay que puntuar y cuál es éste */
+  totalDelTrabajo?: number;
+  posicionEnElTrabajo?: number;
   /** Se cierra sólo después de completar las dos pantallas */
   onClose: () => void;
   /** Se guardó la puntuación con éxito */
@@ -65,6 +70,9 @@ export default function PostWorkRatingModal({
   reviewedName,
   reviewedRole = "doer",
   draft,
+  jobTitle,
+  totalDelTrabajo = 1,
+  posicionEnElTrabajo = 1,
   onClose,
   onSubmitted,
 }: PostWorkRatingModalProps) {
@@ -353,14 +361,29 @@ export default function PostWorkRatingModal({
           <>
             {/* Encabezado con el paso actual */}
             <div className="mb-5">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sky-400">
-                {t("review.postWork.stepOf", "Paso {{step}} de 2", { step })}
-              </p>
+              <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-400">
+                  {t("review.postWork.stepOf", "Paso {{step}} de 2", { step })}
+                </p>
+                {/* Un trabajo con varios trabajadores se puntúa de a uno: sin esto
+                    la misma pantalla reaparece y parece que no se guardó nada. */}
+                {totalDelTrabajo > 1 && (
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
+                    {t("review.postWork.deVarios", "Trabajador {{n}} de {{total}}", {
+                      n: posicionEnElTrabajo,
+                      total: totalDelTrabajo,
+                    })}
+                  </span>
+                )}
+              </div>
               <h3 className="text-xl font-bold text-white">
                 {step === 1
                   ? ratingQuestion
                   : t("review.postWork.step2Title", "Una última cosa")}
               </h3>
+              {jobTitle && (
+                <p className="mt-0.5 truncate text-sm text-slate-300">{jobTitle}</p>
+              )}
               <p className="text-sm text-slate-400">
                 {step === 1
                   ? t(

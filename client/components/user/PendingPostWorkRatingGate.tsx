@@ -12,6 +12,10 @@ interface PendingRating {
   reviewedName: string;
   reviewedRole: ReviewedRole;
   draft: PostWorkRatingDraft | null;
+  /** De qué trabajo es, para decirlo cuando hay varios trabajadores */
+  jobTitle: string | null;
+  totalDelTrabajo: number;
+  posicionEnElTrabajo: number;
 }
 
 /** No re-consultamos en cada navegación: alcanza con un chequeo por minuto */
@@ -59,6 +63,9 @@ export default function PendingPostWorkRatingGate() {
               reviewedName: item.reviewedName,
               reviewedRole: item.reviewedRole === "client" ? "client" : "doer",
               draft: item.draft || null,
+              jobTitle: item.jobTitle || null,
+              totalDelTrabajo: Number(item.totalDelTrabajo) || 1,
+              posicionEnElTrabajo: Number(item.posicionEnElTrabajo) || 1,
             })),
           );
         }
@@ -128,6 +135,9 @@ export default function PendingPostWorkRatingGate() {
       reviewedName={current.reviewedName}
       reviewedRole={current.reviewedRole}
       draft={current.draft}
+      jobTitle={current.jobTitle}
+      totalDelTrabajo={current.totalDelTrabajo}
+      posicionEnElTrabajo={current.posicionEnElTrabajo}
       onClose={() => setPending((prev) => prev.slice(1))}
     />
   );

@@ -109,7 +109,8 @@
       "errorNoRecommend": "Tell us if you would recommend DoApp",
       "errorSubmit": "We couldn't save your rating",
       "thanksTitle": "Thanks for your feedback!",
-      "thanksDesc": "Your answer helps us make DoApp better for everyone."
+      "thanksDesc": "Your answer helps us make DoApp better for everyone.",
+      "deVarios": "Worker {{n}} of {{total}}"
     }
   },
   "location": {
