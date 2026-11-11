@@ -31,6 +31,9 @@ import { Ticket } from '../models/sql/Ticket.model.js';
 import { AuditLog } from '../models/sql/AuditLog.model.js';
 import { BannedIdentity } from '../models/sql/BannedIdentity.model.js';
 import { FamilyCode } from '../models/sql/FamilyCode.model.js';
+import { EmailTemplate } from '../models/sql/EmailTemplate.model.js';
+import { EmailAudience } from '../models/sql/EmailAudience.model.js';
+import { EmailCampaign } from '../models/sql/EmailCampaign.model.js';
 import { InfluencerInvite } from '../models/sql/InfluencerInvite.model.js';
 import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { engancharFuente, SALA_DE_ADMINISTRACION, type Aviso, type Fuente } from './avisosEnVivo.js';
@@ -262,6 +265,10 @@ export function instalarAvisosPorCambios(): void {
     soloParaAdministracion(AuditLog, 'audit'),
     soloParaAdministracion(BannedIdentity, 'user'),
     soloParaAdministracion(FamilyCode, 'code'),
+    // Módulo de correos: las plantillas, los grupos y el avance de cada campaña (estado y contadores) se ven al instante.
+    soloParaAdministracion(EmailTemplate, 'campaign'),
+    soloParaAdministracion(EmailAudience, 'campaign'),
+    soloParaAdministracion(EmailCampaign, 'campaign', ['id', 'status', 'sentCount', 'failedCount', 'skippedCount']),
     soloParaAdministracion(InfluencerInvite, 'code'),
     soloParaAdministracion(BlogPost, 'blog'),
     USUARIOS,

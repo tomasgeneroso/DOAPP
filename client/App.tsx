@@ -136,6 +136,8 @@ const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
 const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
 const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
 const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
+const CorreosMasivos = lazy(() => import("./pages/admin/CorreosMasivos"));
+const BajaDeCorreos = lazy(() => import("./pages/BajaDeCorreos"));
 const AdminOrdenesDePago = lazy(() => import("./pages/admin/OrdenesDePago"));
 const AdminUnitEconomics = lazy(() => import("./pages/admin/UnitEconomics"));
 const Analisis = lazy(() => import("./pages/Analisis"));
@@ -570,6 +572,8 @@ export default function App() {
             <Route path="/copiar-codigo" element={<CopiarCodigo />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/kyc/callback" element={<KycCallback />} />
+            {/* Darse de baja de los correos (enlace del pie de cada correo): pública, con token. */}
+            <Route path="/baja-de-correos/:token" element={<BajaDeCorreos />} />
             <Route
               path="/complete-registration"
               element={
@@ -771,6 +775,7 @@ export default function App() {
               <Route path="database" element={<DatabaseDiagram />} />
               <Route path="security" element={<SecurityPanel />} />
               <Route path="modules" element={<ModulesManager />} />
+              <Route path="correos" element={<CorreosMasivos />} />
               <Route path="hubs/moderation" element={<ModerationHub />} />
               <Route path="hubs/financial" element={<FinancialHub />} />
               <Route path="hubs/growth" element={<GrowthHub />} />

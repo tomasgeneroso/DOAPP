@@ -766,6 +766,10 @@ export class User extends Model {
   @Column({ type: DataType.UUID, field: 'merged_by' })
   mergedBy?: string | null;
 
+  /** Cuándo se dio de baja de los correos del módulo de correos (enlace del pie). Mientras tenga fecha, no recibe campañas (services/bajaDeCorreos.ts). */
+  @Column({ type: DataType.DATE, field: 'marketing_emails_unsubscribed_at' })
+  marketingEmailsUnsubscribedAt?: Date | null;
+
   /** Cuándo se le dio el beneficio de lanzamiento (contrato libre de comisión y mes de PRO de las primeras cuentas verificadas). Una sola vez. */
   @Column({ type: DataType.DATE, field: 'launch_benefit_granted_at' })
   launchBenefitGrantedAt?: Date | null;

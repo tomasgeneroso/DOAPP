@@ -15,6 +15,8 @@ interface EmailOptions {
   text?: string;
   from?: string;
   replyTo?: string;
+  /** Cabeceras extra (por SMTP): el módulo de correos manda `List-Unsubscribe` para que el cliente de correo ofrezca «darse de baja» con un toque. */
+  headers?: Record<string, string>;
 }
 
 interface TemplateEmailOptions {
@@ -282,6 +284,7 @@ class EmailService {
         text: options.text || this.stripHtml(options.html),
         html: options.html,
         replyTo: options.replyTo,
+        ...(options.headers ? { headers: options.headers } : {}),
       };
 
       const info = await this.smtpTransporter.sendMail(mailOptions);

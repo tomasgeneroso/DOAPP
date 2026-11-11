@@ -27,6 +27,7 @@ import {
   BookOpen,
   CreditCard,
   Sliders,
+  Mail,
   ArrowDownLeft,
   TrendingUp,
   ChevronDown,
@@ -231,6 +232,7 @@ export default function AdminLayout() {
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/content-agent", icon: Sparkles, label: "Agente de contenido", roles: ["owner", "super_admin", "admin", "marketing"] },
+        { path: "/admin/correos", icon: Mail, label: 'Correos a usuarios', roles: ["owner", "super_admin", "admin", "marketing"] },
       ]
     },
     {

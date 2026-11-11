@@ -188,6 +188,10 @@ async function registerModels() {
   const { ContactMessage } = await import('../models/sql/ContactMessage.model.js');
   const { default: PaymentProof } = await import('../models/sql/PaymentProof.model.js');
   const { FamilyCode } = await import('../models/sql/FamilyCode.model.js');
+  const { EmailTemplate } = await import('../models/sql/EmailTemplate.model.js');
+  const { EmailAudience } = await import('../models/sql/EmailAudience.model.js');
+  const { EmailCampaign } = await import('../models/sql/EmailCampaign.model.js');
+  const { EmailCampaignRecipient } = await import('../models/sql/EmailCampaignRecipient.model.js');
   const { InfluencerInvite } = await import('../models/sql/InfluencerInvite.model.js');
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
@@ -239,6 +243,10 @@ async function registerModels() {
     BlogPost,
     ContactMessage,
     FamilyCode,
+    EmailTemplate,
+    EmailAudience,
+    EmailCampaign,
+    EmailCampaignRecipient,
     InfluencerInvite,
     Invoice,
     Quote,

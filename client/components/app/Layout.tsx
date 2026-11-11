@@ -21,7 +21,7 @@ export default function Layout() {
   // a medio registrar). Se dejan abiertas las pantallas del propio recorrido, los textos legales y la ayuda.
   useEffect(() => {
     if (!isAuthenticated || !(user as any)?.registrationPending) return;
-    const libres = ['/complete-registration', '/kyc/callback', '/verify-email', '/legal', '/terms', '/privacy', '/contact', '/help', '/banned', '/login', '/register'];
+    const libres = ['/complete-registration', '/kyc/callback', '/verify-email', '/legal', '/terms', '/privacy', '/contact', '/help', '/banned', '/login', '/register', '/baja-de-correos'];
     if (libres.some((r) => location.pathname === r || location.pathname.startsWith(`${r}/`))) return;
     navigate('/complete-registration', { replace: true });
   }, [user, isAuthenticated, navigate, location.pathname]);

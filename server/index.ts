@@ -48,6 +48,7 @@ import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
 import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startVencerElProDeLanzamientoJob } from "./jobs/vencerElProDeLanzamiento.js";
+import { startCampanasDeCorreoJob } from "./jobs/campanasDeCorreo.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startCicloDelContratoJob } from "./jobs/cicloDelContrato.js";
 import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
@@ -180,6 +181,8 @@ import marketingRoutes from "./routes/admin/marketing.js";
 
 // Family Codes routes (owner only)
 import familyCodesRoutes from "./routes/admin/familyCodes.js";
+import correosAdminRoutes from "./routes/admin/correos.js";
+import bajaDeCorreosRoutes from "./routes/bajaDeCorreos.js";
 
 // Promoter routes
 import promoterRoutes from "./routes/promoter.js";
@@ -478,6 +481,9 @@ app.use("/api/admin/search", (await import('./routes/admin/search.js')).default)
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
+app.use("/api/admin/correos", correosAdminRoutes);
+// Baja de los correos del módulo de correos: pública, con token (el enlace del pie de cada correo).
+app.use("/api/correos", bajaDeCorreosRoutes);
 app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);
@@ -554,6 +560,7 @@ startReclamoDirectoJob();
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();
 startVencerElProDeLanzamientoJob();
+startCampanasDeCorreoJob();
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();

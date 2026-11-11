@@ -96,6 +96,10 @@ export { ContactMessage } from './ContactMessage.model.js';
 
 // Family/Friends codes
 export { FamilyCode } from './FamilyCode.model.js';
+export { EmailTemplate } from './EmailTemplate.model.js';
+export { EmailAudience } from './EmailAudience.model.js';
+export { EmailCampaign } from './EmailCampaign.model.js';
+export { EmailCampaignRecipient } from './EmailCampaignRecipient.model.js';
 export { InfluencerInvite } from './InfluencerInvite.model.js';
 
 // ============================================
