@@ -18,9 +18,18 @@ describe('motivoDeDniImposible (control mínimo de un DNI escrito a mano)', () =
     for (const mal of ['3752919', '3999999', '1000000', '1234560']) expect({ mal, motivo: motivoDeDniImposible(mal) }).toEqual({ mal, motivo: expect.stringMatching(/Revisá tu número de DNI/) });
   });
 
-  it('rechaza números que todavía no se entregaron, los de nueve cifras y los de relleno', () => {
-    for (const mal of ['62000000', '75000000', '89999999', '100000000', '999999999', '11111111', '00000000', '77777777', '12345678', '87654321', '1234567']) {
+  it('rechaza números que todavía no se entregaron y los de relleno', () => {
+    for (const mal of ['62000000', '75000000', '89999999', '999999999', '11111111', '00000000', '77777777', '12345678', '87654321', '1234567']) {
       expect({ mal, motivo: motivoDeDniImposible(mal) }).toEqual({ mal, motivo: expect.stringMatching(/Revisá tu número de DNI/) });
+    }
+  });
+
+  // Regla del dueño, 2026-11-11: «permitir documentos como 411111110». Antes el control
+  // rechazaba todo lo que llegara a 100.000.000, así que ningún documento de nueve cifras
+  // podía registrarse aunque `dniValido` los acepte.
+  it('acepta los de nueve cifras, que antes quedaban afuera', () => {
+    for (const bien of ['411111110', '100000000', '411111111', '523456780']) {
+      expect({ bien, motivo: motivoDeDniImposible(bien) }).toEqual({ bien, motivo: null });
     }
   });
 

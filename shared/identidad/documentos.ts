@@ -22,8 +22,11 @@ export const normalizarDni = (v: unknown): string => soloDigitos(v);
  * 3.752.919), los de fin de la serie a las más jóvenes, y desde 90.000.000 van los de extranjeros. Se acepta de más antes que rechazar a alguien real.
  *  - menos de `DNI_MINIMO_POSIBLE`: corresponde a una persona de unos 99 años o más (nacida antes de ~1927);
  *  - de `DNI_PRIMER_NUMERO_SIN_ASIGNAR` a 89.999.999: todavía no se entregó ninguno (los más nuevos van por los 58 millones);
- *  - de 100.000.000 en adelante: ya no es un DNI (tiene nueve cifras);
  *  - todas las cifras iguales (11111111) o una escalera (12345678): son números de relleno.
+ *
+ * Los de nueve cifras SE ACEPTAN (regla del dueño, 2026-11-11: «permitir documentos como 411111110»). Antes se rechazaba todo lo que llegara a 100.000.000, lo que
+ * contradecía a `dniValido`, que acepta de 7 a 9 dígitos: ningún documento de nueve cifras podía registrarse. Los de relleno siguen filtrados por las otras dos reglas
+ * (999999999 son todas iguales, 123456789 es una escalera), así que quitar el techo no abre la puerta a números inventados obvios.
  * Devuelve el motivo para mostrarle a la persona, o null si el número pasa.
  */
 export const DNI_MINIMO_POSIBLE = 4_000_000;
@@ -38,7 +41,6 @@ export function motivoDeDniImposible(v: unknown): string | null {
   if (/^(\d)\1+$/.test(d) || ESCALERAS.has(d)) return revisar;
   if (n < DNI_MINIMO_POSIBLE) return revisar;
   if (n >= DNI_PRIMER_NUMERO_SIN_ASIGNAR && n < 90_000_000) return revisar;
-  if (n >= 100_000_000) return revisar;
   return null;
 }
 
