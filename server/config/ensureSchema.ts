@@ -522,7 +522,8 @@ export async function crearTablasQueFaltan(sequelize: Sequelize): Promise<{ crea
   };
   const modelos = Object.values(sequelize.models) as Array<{ getTableName: () => unknown; sync: () => Promise<unknown> }>;
   // Con `type: SELECT` siempre vuelven filas con nombre (sin él, esta conexión devolvía otra forma y la lista de existentes quedaba vacía: se «creaba» todo).
-  const filas = (await sequelize.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`, { type: QueryTypes.SELECT })) as Array<{ table_name: string }>;
+  // Se mira el catálogo (pg_class), no information_schema: éste solo muestra las tablas sobre las que el usuario tiene algún permiso, y una tabla sin permisos pasaría por «faltante».
+  const filas = (await sequelize.query(`SELECT c.relname AS table_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')`, { type: QueryTypes.SELECT })) as Array<{ table_name: string }>;
   const existentes = new Set(filas.map((f) => String(Array.isArray(f) ? f[0] : f.table_name)));
 
   const creadas: string[] = [];

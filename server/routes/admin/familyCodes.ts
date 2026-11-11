@@ -143,6 +143,54 @@ router.post('/', protect, ownerOnly, async (req: AuthRequest, res: Response): Pr
 });
 
 /**
+ * @route   POST /api/admin/family-codes/bulk
+ * @desc    Crear códigos familia en masa: `nombres` = «Nombre Apellido, Nombre Apellido, …» (coma, punto y coma o un nombre por línea)
+ * @access  Owner only
+ *
+ * Un código por persona; quien ya tiene uno activo no recibe otro (se devuelve el suyo) y los nombres con errores vuelven con el motivo. Todo o nada.
+ * El registro de acciones guarda cuántos y qué códigos se emitieron, NO los nombres.
+ */
+router.post('/bulk', protect, ownerOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { nombres, notes, expiresAt } = req.body ?? {};
+    if (typeof nombres !== 'string' || !nombres.trim()) {
+      res.status(400).json({ success: false, message: 'Escribí los nombres, separados por comas.' });
+      return;
+    }
+    const vence = expiresAt ? new Date(expiresAt) : null;
+    if (vence && Number.isNaN(vence.getTime())) {
+      res.status(400).json({ success: false, message: 'La fecha de vencimiento no es válida.' });
+      return;
+    }
+
+    const { crearCodigosDeFamiliaEnMasa } = await import('../../services/codigosDeFamiliaEnMasa.js');
+    const r = await crearCodigosDeFamiliaEnMasa({ texto: nombres, createdById: req.user.id, notes: typeof notes === 'string' ? notes : null, expiresAt: vence });
+
+    if (r.creados.length === 0 && r.yaExistian.length === 0) {
+      res.status(400).json({ success: false, message: 'No se pudo entender ningún nombre: cada uno necesita nombre y apellido.', data: r });
+      return;
+    }
+
+    if (r.creados.length > 0) {
+      void logAudit({
+        req, action: 'family_code.bulk_create', category: 'system', severity: 'medium',
+        description: `Creó ${r.creados.length} código(s) familia en masa (${r.yaExistian.length} ya existían, ${r.invalidos.length} con errores)`,
+        targetModel: 'FamilyCode', metadata: { creados: r.creados.map((c) => c.id), cantidad: r.creados.length },
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${r.creados.length} código(s) creado(s)${r.yaExistian.length ? `, ${r.yaExistian.length} ya tenían uno` : ''}${r.invalidos.length ? `, ${r.invalidos.length} con errores` : ''}.`,
+      data: r,
+    });
+  } catch (error: any) {
+    console.error('Error creando códigos familia en masa:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+/**
  * @route   PUT /api/admin/family-codes/:id
  * @desc    Actualizar un código familia
  * @access  Owner only

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import CodigosDeFamiliaEnMasa from '../../components/admin/CodigosDeFamiliaEnMasa';
 import {
   Users,
   Plus,
@@ -55,6 +56,7 @@ export default function FamilyCodes() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showMasaModal, setShowMasaModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCode, setSelectedCode] = useState<FamilyCode | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -293,6 +295,14 @@ export default function FamilyCodes() {
             {t('admin.familyCodes.subtitle', 'Manage special codes for family and friends (0% commission)')}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setShowMasaModal(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+        >
+          <Users className="h-5 w-5" />
+          Crear varios
+        </button>
         <button
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition-colors"
@@ -300,6 +310,7 @@ export default function FamilyCodes() {
           <Plus className="h-5 w-5" />
           {t('admin.familyCodes.createCode', 'Create Code')}
         </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -518,6 +529,16 @@ export default function FamilyCodes() {
           </div>
         </div>
       )}
+
+      {/* Crear varios códigos de una vez: nombres separados por comas */}
+      <CodigosDeFamiliaEnMasa
+        abierto={showMasaModal}
+        onCerrar={() => setShowMasaModal(false)}
+        onListo={() => {
+          void fetchCodes();
+          void fetchStats();
+        }}
+      />
 
       {/* Create Modal */}
       {showCreateModal && (

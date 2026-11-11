@@ -12,6 +12,7 @@ import {
   Index,
   HasMany,
 } from 'sequelize-typescript';
+import { randomInt } from 'node:crypto';
 import { User } from './User.model.js';
 
 /**
@@ -113,7 +114,8 @@ export class FamilyCode extends Model {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sin I, O, 0, 1 para evitar confusión
     let code = 'FAM-';
     for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+      // El código da 0% de comisión: no se adivina con un generador común (Math.random no es impredecible).
+      code += chars.charAt(randomInt(chars.length));
     }
     return code;
   }

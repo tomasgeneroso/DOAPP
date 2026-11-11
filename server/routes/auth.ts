@@ -2978,6 +2978,13 @@ router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Prom
     res.json({ success: true, url: session.url, sessionId: session.session_id });
   } catch (error: any) {
     console.warn('[kyc/start]', error?.message);
+    // Didit sin créditos: no es una caída ni algo que se arregle reintentando. Se le dice a la persona la verdad y se le avisa al dueño (antes: «502, probá de nuevo» y nadie se enteraba).
+    const { esFalloDeCreditos, avisarQueDiditNoTieneCreditos, MENSAJE_PARA_LA_PERSONA } = await import('../services/diditSinCreditos.js');
+    if (esFalloDeCreditos(error)) {
+      void avisarQueDiditNoTieneCreditos();
+      res.status(503).json({ success: false, code: 'VERIFICACION_NO_DISPONIBLE', message: MENSAJE_PARA_LA_PERSONA });
+      return;
+    }
     res.status(502).json({ success: false, message: "No pudimos iniciar la verificación. Probá de nuevo." });
   }
 });
