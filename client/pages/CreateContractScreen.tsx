@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { borrarBorrador, guardarBorrador, haceCuanto, leerBorrador } from "../utils/borradorDeTrabajo";
+import { senalarCampo } from "../utils/senalarCampo";
 import ComoFuncionaElPago from "@/components/pagos/ComoFuncionaElPago";
 const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
@@ -462,6 +463,8 @@ export default function CreateContractScreen() {
     if (problemaDeDireccion) {
       setError(problemaDeDireccion);
       setIsSubmitting(false);
+      // Sin esto el aviso queda al pie del formulario, lejos del campo que lo causó
+      senalarCampo('direccion', { enfocar: false });
       return;
     }
 
@@ -470,7 +473,7 @@ export default function CreateContractScreen() {
     if (sinFecha) {
       setError(sinFecha);
       setIsSubmitting(false);
-      document.querySelector('input[name="startDate"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      senalarCampo(!startDate ? 'startDate' : 'endDate');
       return;
     }
 
@@ -479,6 +482,7 @@ export default function CreateContractScreen() {
       if (leidas.ok === false) {
         setError(leidas.mensaje);
         setIsSubmitting(false);
+        senalarCampo('tareas', { enfocar: false });
         return;
       }
     }
@@ -879,6 +883,7 @@ export default function CreateContractScreen() {
             </div>
 
             {/* Address details: calles que existen, número solo con dígitos y los demás campos se completan al elegir una dirección */}
+            <div data-campo="direccion">
             <CalleYNumero
               street={addressStreet}
               number={addressNumber}
@@ -894,6 +899,7 @@ export default function CreateContractScreen() {
                 numberPlaceholder: t('jobs.numberPlaceholder', 'Ej: 1234'),
               }}
             />
+            </div>
             <NeighborhoodAutocomplete
               locationValue={location}
               neighborhood={neighborhood}
@@ -1070,7 +1076,9 @@ export default function CreateContractScreen() {
                 </label>
 
                 {!singleDelivery && (
-                  <TareasDelTrabajo tareas={tareas} onChange={setTareas} inicio={startDate} fin={endDateFlexible ? null : endDate} />
+                  <div data-campo="tareas">
+                    <TareasDelTrabajo tareas={tareas} onChange={setTareas} inicio={startDate} fin={endDateFlexible ? null : endDate} />
+                  </div>
                 )}
               </div>
             </FormField>
