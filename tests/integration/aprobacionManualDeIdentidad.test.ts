@@ -14,6 +14,8 @@ const didit = { configurado: true };
 jest.mock('../../server/services/didit.js', () => ({
   __esModule: true,
   isDiditConfigured: () => didit.configurado,
+  diditEnUso: () => didit.configurado,
+  verificacionConDiditActiva: () => true,
   getKycMaxAttempts: () => 3,
   getDiditMedia: async () => ({ items: [] }),
   isManualKycUnlocked: () => false,

@@ -22,6 +22,13 @@ config({ path: '.env.test', override: true });
 process.env.NODE_ENV = 'test';
 
 /**
+ * Las pruebas existentes cubren el camino CON Didit (registro con documento, KYC_REQUIRED, intentos, carga manual): se corren con la verificación encendida
+ * (la variable es el valor de partida; en producción manda el módulo «Verificación de identidad con Didit» del panel, apagado por ahora: regla del dueño, 2026-11-11,
+ * solo pide el número de DNI). Las pruebas de ese camino (`tests/integration/soloDni.test.ts`) la apagan por su cuenta.
+ */
+process.env.VERIFICACION_CON_DIDIT = 'true';
+
+/**
  * Un pool de conexiones CHICO por archivo de test.
  *
  * Cada archivo de test crea su propia instancia de Sequelize y no la cierra (ver setup.integration.ts: cerrarla

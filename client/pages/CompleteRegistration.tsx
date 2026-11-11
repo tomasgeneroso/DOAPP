@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { AlertCircle, ArrowRight, Camera, Check, CheckCircle2, CreditCard, Loader2, Upload, User as UserIcon, X } from 'lucide-react';
 import Transicion from '../components/ui/Transicion';
 import KycButton from '../components/KycButton';
+import { diditEncendido } from '../utils/kycCallback';
 import { FormField } from '../components/ui/FormField';
 
 /**
@@ -33,8 +34,9 @@ interface DatosDelRegistro {
 const campo =
   'w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all';
 
-function Pasos({ actual }: { actual: 1 | 2 | 3 }) {
-  const pasos = ['Cuenta', 'Identidad', 'Tus datos'];
+function Pasos({ actual, conDidit }: { actual: 1 | 2 | 3; conDidit: boolean }) {
+  // Con la verificación de Didit apagada (solo se pide el DNI) no hay paso de identidad: son dos pasos.
+  const pasos = conDidit ? ['Cuenta', 'Identidad', 'Tus datos'] : ['Cuenta', 'Tus datos'];
   return (
     <ol className="mb-6 flex items-center justify-center gap-2 text-xs" aria-label="Pasos del registro">
       {pasos.map((p, i) => {
@@ -51,7 +53,7 @@ function Pasos({ actual }: { actual: 1 | 2 | 3 }) {
               {hecho ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : n}
             </span>
             <span className={activo ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}>{p}</span>
-            {n < 3 && <span className="mx-1 h-px w-6 bg-slate-300 dark:bg-slate-600" aria-hidden="true" />}
+            {n < pasos.length && <span className="mx-1 h-px w-6 bg-slate-300 dark:bg-slate-600" aria-hidden="true" />}
           </li>
         );
       })}
@@ -65,7 +67,9 @@ export default function CompleteRegistration() {
   const { user, token, refreshUser, isLoading } = useAuth() as any;
 
   const pendiente = !!user?.registrationPending;
-  const identidadHecha = !!user?.dniVerified || ['Approved', 'In Review'].includes(String(user?.kycStatus));
+  // Verificación con documento y selfie (Didit) encendida o apagada: lo dice el servidor. Apagada = no hay paso de identidad, se pide solo el número de DNI.
+  const conDidit = diditEncendido(user);
+  const identidadHecha = !conDidit || !!user?.dniVerified || ['Approved', 'In Review'].includes(String(user?.kycStatus));
   const manualHabilitada = !!user?.capabilities?.manualKyc && !user?.dniVerified;
 
   // ── paso 3: datos
@@ -171,7 +175,9 @@ export default function CompleteRegistration() {
         return;
       }
       if (refreshUser) await refreshUser();
-      setPaso('verificar');
+      // Sin Didit no queda nada por verificar: con el número de DNI el registro está completo.
+      if (conDidit) setPaso('verificar');
+      else navigate('/', { replace: true });
     } catch {
       setErrorDeCampo(t('auth.connectionError', 'Error de conexión. Intentá de nuevo.'));
     } finally {
@@ -255,7 +261,7 @@ export default function CompleteRegistration() {
     </Transicion>
   );
 
-  const pasoActual: 1 | 2 | 3 = pendiente ? (identidadHecha ? 3 : 2) : 2;
+  const pasoActual: 1 | 2 | 3 = pendiente ? (!conDidit ? 2 : identidadHecha ? 3 : 2) : 2;
 
   return (
     <>
@@ -272,7 +278,7 @@ export default function CompleteRegistration() {
           </div>
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 border border-slate-200 dark:border-slate-700">
-            {pendiente && <Pasos actual={pasoActual} />}
+            {pendiente && <Pasos actual={pasoActual} conDidit={conDidit} />}
 
             {/* ───────── Paso 2: verificar la identidad ───────── */}
             {pendiente && !identidadHecha && (
@@ -296,11 +302,13 @@ export default function CompleteRegistration() {
                   <div className="w-14 h-14 bg-sky-100 dark:bg-sky-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
                     <UserIcon className="w-7 h-7 text-sky-600 dark:text-sky-400" aria-hidden="true" />
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Revisá tus datos</h2>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{conDidit ? 'Revisá tus datos' : 'Completá tus datos'}</h2>
                   <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                     {datos?.documento
                       ? 'Esto es lo que leímos de tu documento. Si algo está mal, corregilo; y completá lo que falta.'
-                      : 'Completá tus datos para terminar.'}
+                      : conDidit
+                        ? 'Completá tus datos para terminar.'
+                        : 'Escribí tu nombre, tu número de DNI y elegí tu nombre de usuario. Es todo.'}
                   </p>
                 </div>
 
@@ -325,10 +333,14 @@ export default function CompleteRegistration() {
 
                     <FormField
                       id="dni"
-                      label={datos?.documento?.dni ? 'DNI (de tu documento)' : 'DNI'}
+                      label={datos?.documento?.dni ? 'DNI (de tu documento)' : conDidit ? 'DNI' : 'Número de DNI'}
                       error={errores.dni}
                       privado
-                      note="Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios."
+                      note={
+                        conDidit
+                          ? 'Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.'
+                          : 'Solo el número, sin puntos. Se usa únicamente para identificarte y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.'
+                      }
                     >
                       {(field) => (
                         <input {...field} name="dni" inputMode="numeric" value={form.dni} onChange={(e) => cambiar('dni', e.target.value.replace(/\D/g, '').slice(0, 9))} className={campo} />

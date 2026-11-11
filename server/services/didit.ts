@@ -38,8 +38,40 @@ export function getDiditWorkflowId(): string {
   return fromEnv;
 }
 
+/**
+ * Interruptor de la verificación de identidad con Didit (regla del dueño, 2026-11-11: «sacar lo de Didit por el momento, que solo pida número de DNI» y «hacer la
+ * autenticación de Didit modular, desde el panel de admin»). Es un MÓDULO (`identity:didit`, `shared/constants/modulos.ts`) que el dueño enciende y apaga desde el panel de Módulos.
+ *
+ * APAGADO (el valor de partida): el registro pide el número de DNI y nada más —sin documento ni selfie—, no se ofrece verificar con Didit ni cargar fotos, y quien completó el
+ * registro con su DNI puede publicar, postularse y cobrar (`identidadSuficiente`). Nadie queda «verificado»: `dniVerified` solo lo escribe una verificación de verdad (Didit o un
+ * administrador), así que el beneficio de lanzamiento (primeras 2.000 PERSONAS VERIFICADAS) no se da mientras esté apagado.
+ *
+ * ENCENDIDO: vuelve el registro con documento y selfie (cada verificación gasta créditos de Didit).
+ *
+ * Esta función es síncrona porque la usan rutas, puertas y pantallas que no pueden ir a la base en cada pedido: lee el valor que dejó `services/verificacionDelPanel.ts` (se carga al
+ * arrancar, se actualiza al cambiar el módulo y cada pocos segundos por si hay más de un proceso). Mientras ese valor no existe (arranque, módulo todavía sin fila, pruebas) manda la
+ * variable `VERIFICACION_CON_DIDIT=true` y, sin ella, está apagado.
+ */
+let valorDelPanel: boolean | null = null;
+
+/** Lo llaman el arranque, el panel de Módulos y el refresco periódico. `null` = el módulo no existe: vuelve a valer la variable de entorno. */
+export function fijarVerificacionConDidit(valor: boolean | null): void {
+  valorDelPanel = valor;
+}
+
+export function verificacionConDiditActiva(): boolean {
+  if (valorDelPanel !== null) return valorDelPanel;
+  return String(process.env.VERIFICACION_CON_DIDIT ?? '').trim().toLowerCase() === 'true';
+}
+
+/** ¿Hay claves para hablar con Didit? (no dice si se usa: eso lo dice `verificacionConDiditActiva`; con claves y apagado todavía se puede LEER lo ya verificado). */
 export function isDiditConfigured(): boolean {
   return !diditConfigProblem();
+}
+
+/** ¿Se verifica con Didit en el registro y desde el perfil? Encendido Y con claves. Es lo que decide si se muestra, se pide y se acepta el paso de documento + selfie. */
+export function diditEnUso(): boolean {
+  return verificacionConDiditActiva() && isDiditConfigured();
 }
 
 /**
@@ -122,6 +154,8 @@ export function getKycMaxAttempts(): number {
  * without KYC credentials would have no path to verify anyone.
  */
 export function isManualKycUnlocked(user: { kycAttempts?: number | null }): boolean {
+  // Con la verificación apagada no hay «fallback» que ofrecer: se pide solo el DNI.
+  if (!verificacionConDiditActiva()) return false;
   if (!isDiditConfigured()) return true;
   return (user?.kycAttempts ?? 0) >= getKycMaxAttempts();
 }
@@ -287,6 +321,9 @@ export function applyKycStatus(
 }
 
 export default {
+  verificacionConDiditActiva,
+  fijarVerificacionConDidit,
+  diditEnUso,
   isDiditConfigured,
   isManualKycUnlocked,
   createDiditSession,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { ShieldCheck, X } from "lucide-react";
 import KycButton from "./KycButton";
+import { diditEncendido } from "@/utils/kycCallback";
 
 const SEEN_KEY = "kycWelcomeSeen";
 
@@ -20,7 +21,8 @@ export default function KycWelcomeModal() {
       return false;
     }
   });
-  const open = !!isAuthenticated && !!user && !user.dniVerified && !visto;
+  // Con la verificación de Didit apagada (solo se pide el DNI) no hay nada que verificar: el aviso no aparece.
+  const open = !!isAuthenticated && !!user && !user.dniVerified && !visto && diditEncendido(user);
 
   const close = () => {
     try {

@@ -5,7 +5,9 @@ import { olvidarModulos } from '../../services/moduleFlags.js';
 import { logAudit, getSeverityForAction } from '../../utils/auditLog.js';
 import { ACTIONS, isActionPasswordSet, verifyActionPassword } from '../../services/actionPassword.js';
 import { MODULO_PAGO_AL_TERMINAR } from '../../../shared/pagos/modoDePago.js';
-import { MODULO_APROBACION_DE_PUBLICACIONES } from '../../../shared/constants/modulos.js';
+import { MODULO_APROBACION_DE_PUBLICACIONES, MODULO_VERIFICACION_DIDIT } from '../../../shared/constants/modulos.js';
+import { diditConfigProblem, verificacionConDiditActiva, fijarVerificacionConDidit } from '../../services/didit.js';
+import { cargarVerificacionDelPanel } from '../../services/verificacionDelPanel.js';
 
 const router = Router();
 
@@ -24,8 +26,24 @@ const MODULOS_SENSIBLES: Record<string, { accion: (typeof ACTIONS)[keyof typeof 
   [MODULO_PAGO_AL_TERMINAR]: { accion: ACTIONS.PAYMENT_MODE },
 };
 
+/**
+ * Módulos que cambia SOLO el dueño y que dejan asiento, sin contraseña de acción (no mueven plata ni cambian los términos, pero sí cambian a quién se le exige qué).
+ * La verificación con Didit: encendida, el registro pide documento y selfie (y gasta créditos de Didit); apagada, solo el número de DNI.
+ */
+const MODULOS_DEL_DUENO: ReadonlySet<string> = new Set([MODULO_VERIFICACION_DIDIT]);
+
 // Módulos disponibles (seed inicial)
 export const DEFAULT_MODULES = [
+  {
+    moduleId: MODULO_VERIFICACION_DIDIT,
+    category: 'identity',
+    name: 'Verificación de identidad con Didit',
+    description:
+      'Encendido: el registro pide documento y selfie con Didit (cada verificación gasta créditos de Didit) y solo las personas verificadas reciben el beneficio de lanzamiento. ' +
+      'Apagado: el registro pide solo el número de DNI; quien lo completa puede publicar, postularse y cobrar, pero no queda «verificada». ' +
+      'Lo cambia solo el dueño y queda anotado. No se puede encender si Didit no tiene sus claves en el servidor.',
+    isActive: false,
+  },
   {
     moduleId: 'payment:mercadopago',
     category: 'payment',
@@ -121,7 +139,8 @@ router.get('/', async (_req: AuthRequest, res: Response): Promise<void> => {
      * el estado de los que ya están.
      */
     const existentes = new Set(modules.map((m) => m.moduleId));
-    const faltantes = DEFAULT_MODULES.filter((d) => !existentes.has(d.moduleId));
+    // La verificación con Didit se siembra con lo que HOY está rigiendo (la variable de entorno de partida): abrir el panel por primera vez no puede cambiar el comportamiento.
+    const faltantes = DEFAULT_MODULES.filter((d) => !existentes.has(d.moduleId)).map((d) => (d.moduleId === MODULO_VERIFICACION_DIDIT ? { ...d, isActive: verificacionConDiditActiva() } : d));
 
     if (faltantes.length > 0) {
       await ModuleConfig.bulkCreate(faltantes);
@@ -190,6 +209,27 @@ router.patch('/:moduleId', async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    const delDueno = MODULOS_DEL_DUENO.has(req.params.moduleId);
+    if (delDueno) {
+      if (req.user?.adminRole !== 'owner' && req.user?.role !== 'owner') {
+        res.status(403).json({ success: false, message: 'Este módulo lo cambia sólo el dueño.' });
+        return;
+      }
+      if (isActive !== undefined && typeof isActive !== 'boolean') {
+        res.status(400).json({ success: false, message: 'isActive tiene que ser verdadero o falso.' });
+        return;
+      }
+      // Encender sin las claves de Didit dejaría el registro pidiendo un documento que nadie puede verificar.
+      if (isActive === true && diditConfigProblem()) {
+        res.status(409).json({
+          success: false,
+          code: 'DIDIT_SIN_CLAVES',
+          message: 'No se puede encender: Didit no tiene sus claves en el servidor (falta DIDIT_API_KEY en el .env). Cargalas, reiniciá la app y probá de nuevo.',
+        });
+        return;
+      }
+    }
+
     const sensible = MODULOS_SENSIBLES[req.params.moduleId];
     if (sensible) {
       if (req.user?.adminRole !== 'owner' && req.user?.role !== 'owner') {
@@ -215,7 +255,9 @@ router.patch('/:moduleId', async (req: AuthRequest, res: Response): Promise<void
           severity: getSeverityForAction('module_change_denied'),
           description: `Intento de cambiar ${req.params.moduleId} con contrasena incorrecta`,
           targetModel: 'ModuleConfig',
-          targetId: req.params.moduleId,
+          // `targetId` es una columna UUID y el id de un módulo es texto («payment:on_completion»): ahí el INSERT fallaba y `logAudit` lo tragaba en silencio,
+          // así que estos asientos nunca se guardaron. El id del módulo va en `targetIdentifier` (texto).
+          targetIdentifier: req.params.moduleId,
         });
         res.status(401).json({ success: false, message: 'Contraseña incorrecta.' });
         return;
@@ -232,8 +274,10 @@ router.patch('/:moduleId', async (req: AuthRequest, res: Response): Promise<void
     // La caché del servidor tiene 30 segundos de vida; apagar un módulo por un
     // problema no puede esperar medio minuto mientras sigue entrando trabajo.
     olvidarModulos(req.params.moduleId);
+    // La verificación con Didit la leen puertas y pantallas de forma síncrona: se actualiza en este proceso ya mismo (los demás la toman con el refresco periódico).
+    if (req.params.moduleId === MODULO_VERIFICACION_DIDIT) fijarVerificacionConDidit(module.isActive);
 
-    if (sensible && antes !== module.isActive) {
+    if ((sensible || delDueno) && antes !== module.isActive) {
       await logAudit({
         req,
         action: module.isActive ? 'module_enabled' : 'module_disabled',
@@ -241,7 +285,7 @@ router.patch('/:moduleId', async (req: AuthRequest, res: Response): Promise<void
         severity: getSeverityForAction(module.isActive ? 'module_enabled' : 'module_disabled'),
         description: `${module.name}: ${antes ? 'activo' : 'inactivo'} -> ${module.isActive ? 'activo' : 'inactivo'}`,
         targetModel: 'ModuleConfig',
-        targetId: req.params.moduleId,
+        targetIdentifier: req.params.moduleId, // no `targetId`: es UUID (ver arriba)
         changes: [{ field: 'isActive', oldValue: antes, newValue: module.isActive }],
       });
     }
@@ -276,6 +320,8 @@ router.post('/reset', async (_req: AuthRequest, res: Response): Promise<void> =>
   try {
     await ModuleConfig.destroy({ where: {} });
     const modules = await ModuleConfig.bulkCreate(DEFAULT_MODULES);
+    // Volver a los valores de fábrica también apaga la verificación con Didit: el proceso tiene que enterarse ya.
+    await cargarVerificacionDelPanel().catch(() => null);
 
     console.log(`✅ Reset ${modules.length} modules to defaults`);
 

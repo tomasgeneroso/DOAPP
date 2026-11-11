@@ -11,6 +11,7 @@ import MultipleRatings from '../components/user/MultipleRatings';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
 import KycButton from '../components/KycButton';
+import { diditEncendido } from '../utils/kycCallback';
 import AttentionDot from '../components/AttentionDot';
 import { usePendingTasks } from '../hooks/usePendingTasks';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -851,7 +852,8 @@ export default function ProfilePage() {
           {isOwnProfile() && (user as any).credibility && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6 space-y-4">
               <CredibilityBadge credibility={(user as any).credibility} variant="full" />
-              {!(user as any).dniVerified && (
+              {/* Con la verificación de Didit apagada (solo se pide el DNI) no hay nada que verificar ni funciones limitadas por eso */}
+              {!(user as any).dniVerified && diditEncendido(currentUser) && (
                 <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                   <p className="font-semibold mb-1">Tu identidad todavía no está verificada</p>
                   <p className="mb-1">Hasta que la verifiques, tu cuenta tiene funciones limitadas:</p>
@@ -863,7 +865,7 @@ export default function ProfilePage() {
                   </ul>
                 </div>
               )}
-              {!(user as any).dniVerified && (
+              {!(user as any).dniVerified && diditEncendido(currentUser) && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu identidad</h3>
                   <KycButton verified={(user as any).dniVerified} kycStatus={(user as any).kycStatus} />

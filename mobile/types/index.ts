@@ -134,6 +134,11 @@ export interface User {
 /** What the backend can actually deliver — gates pending-task prompts. */
 export interface UserCapabilities {
   phoneVerification: boolean;
+  /** Verificación con documento y selfie (Didit) encendida. Apagada (por ahora) se pide solo el número de DNI. Falta en sesiones viejas: se asume encendida. */
+  verificacionConDidit?: boolean;
+  /** Esta cuenta ya puede publicar, postularse y cobrar (verificada, o con su DNI mientras Didit está apagado). */
+  identidadSuficiente?: boolean;
+  manualKyc?: boolean;
 }
 
 export interface CredibilityInfo {

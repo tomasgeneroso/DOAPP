@@ -116,20 +116,23 @@ export function usePendingTasks(): PendingTasksResult {
         inModal: true,
         dismissible: false,
       },
-      {
-        id: "identity",
-        labelKey: "dashboard.completeProfile.identityLabel",
-        label: "Verificación de identidad",
-        descKey: "dashboard.completeProfile.identityDesc",
-        desc: "Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.",
-        done: !!u.dniVerified,
-        priority: "high",
-        status: identityStatus,
-        section: "verification",
-        to: VERIFY_ANCHOR,
-        inModal: true,
-        dismissible: false,
-      },
+      // Con la verificación de Didit apagada (regla del dueño, 2026-11-11: solo se pide el número de DNI) esta tarea no existe: el número de arriba es todo lo que se pide.
+      u.capabilities?.verificacionConDidit === false
+        ? null
+        : {
+            id: "identity",
+            labelKey: "dashboard.completeProfile.identityLabel",
+            label: "Verificación de identidad",
+            descKey: "dashboard.completeProfile.identityDesc",
+            desc: "Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.",
+            done: !!u.dniVerified,
+            priority: "high",
+            status: identityStatus,
+            section: "verification",
+            to: VERIFY_ANCHOR,
+            inModal: true,
+            dismissible: false,
+          },
       {
         id: "phone",
         labelKey: "dashboard.completeProfile.phoneLabel",

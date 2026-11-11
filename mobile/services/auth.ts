@@ -226,6 +226,14 @@ export interface DatosDelRegistro {
   pedirCorreo: boolean;
 }
 
+/**
+ * ¿Se verifica la identidad con documento y selfie (Didit)? Lo dice el servidor en `user.capabilities.verificacionConDidit` (regla del dueño, 2026-11-11: por ahora el registro pide
+ * solo el número de DNI; se enciende desde el panel de Módulos). Si el dato no llega (sesión abierta antes del cambio) se asume encendido; el servidor igual manda en lo que acepta.
+ */
+export function diditEncendido(user: unknown): boolean {
+  return (user as { capabilities?: { verificacionConDidit?: boolean } } | null | undefined)?.capabilities?.verificacionConDidit !== false;
+}
+
 /** Empieza la verificación con Didit: devuelve la dirección que se abre en el navegador del teléfono. */
 export async function iniciarVerificacion(): Promise<ApiResponse<void> & { url?: string }> {
   return post<void>('/auth/kyc/start', {}) as any;

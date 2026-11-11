@@ -6,6 +6,14 @@
  * pregunta a Didit la decisión real. Acá solo se decide cómo contarla.
  */
 
+/**
+ * ¿Se verifica la identidad con documento y selfie (Didit)? Lo dice el servidor en `user.capabilities.verificacionConDidit` (regla del dueño, 2026-11-11: por ahora el registro pide
+ * solo el número de DNI). Si el dato no llega (una sesión abierta antes del cambio) se asume encendido, que es como funcionaba: el servidor igual manda en lo que se acepta.
+ */
+export function diditEncendido(user: unknown): boolean {
+  return (user as { capabilities?: { verificacionConDidit?: boolean } } | null | undefined)?.capabilities?.verificacionConDidit !== false;
+}
+
 export type EstadoDeLaVerificacion = 'aprobada' | 'en_revision' | 'rechazada' | 'pendiente';
 
 /** Los estados de Didit ('Approved', 'Declined', 'In Review', 'In Progress', 'Not Started', …) a los cuatro que importan. */

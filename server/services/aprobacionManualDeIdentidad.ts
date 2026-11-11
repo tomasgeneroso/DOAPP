@@ -1,4 +1,4 @@
-import { isDiditConfigured, getKycMaxAttempts } from './didit.js';
+import { diditEnUso, getKycMaxAttempts } from './didit.js';
 
 /**
  * Aprobar una identidad a mano: solo cuando Didit falla o hay un problema.
@@ -8,7 +8,7 @@ import { isDiditConfigured, getKycMaxAttempts } from './didit.js';
  * «En revisión» porque el documento no coincide con el registro, las que agotaron los intentos y las de un despliegue sin Didit configurado.
  *
  * Cuándo se permite (lo decide el SERVIDOR; el botón de la pantalla solo lo refleja):
- *  - `didit_sin_configurar`: Didit no está configurado en este servidor, nadie podría verificarse;
+ *  - `didit_sin_configurar`: Didit no está en uso en este servidor (sin claves o apagado con `VERIFICACION_CON_DIDIT`), nadie podría verificarse;
  *  - `intentos_agotados`: la persona agotó los intentos con Didit (los mismos que habilitan la carga manual de documentos);
  *  - `en_revision`: Didit aprobó el documento pero no coincide con el registro (o quedó para revisión) y alguien tiene que decidir.
  * No se permite si la cuenta ya está verificada, si no terminó el registro, si fue unida a otra, o si Didit anda y la persona todavía puede verificarse sola.
@@ -34,14 +34,14 @@ export interface CuentaParaAprobar {
   kycAttempts?: number | null;
 }
 
-export function permisoParaAprobarAMano(cuenta: CuentaParaAprobar, diditConfigurado: boolean = isDiditConfigured()): PermisoDeAprobacionManual {
+export function permisoParaAprobarAMano(cuenta: CuentaParaAprobar, diditConfigurado: boolean = diditEnUso()): PermisoDeAprobacionManual {
   const no = (descripcion: string): PermisoDeAprobacionManual => ({ permitido: false, motivo: null, descripcion });
   if (cuenta.dniVerified) return no('La identidad de esta cuenta ya está verificada.');
   if (cuenta.mergedIntoId) return no('Esta cuenta fue unida a otra: la identidad se resuelve en la cuenta principal.');
   if (cuenta.registrationPending) return no('Esta cuenta no terminó el registro: todavía no hay datos que aprobar.');
 
   if (!diditConfigurado) {
-    return { permitido: true, motivo: 'didit_sin_configurar', descripcion: 'Didit no está configurado en este servidor: no hay otra forma de verificar a esta persona.' };
+    return { permitido: true, motivo: 'didit_sin_configurar', descripcion: 'Didit no está en uso en este servidor (apagado o sin configurar): no hay otra forma de verificar a esta persona.' };
   }
   if ((cuenta.kycAttempts ?? 0) >= getKycMaxAttempts()) {
     return { permitido: true, motivo: 'intentos_agotados', descripcion: 'La persona agotó los intentos con Didit.' };

@@ -5,6 +5,7 @@ import { Camera, Shield, Check, BadgeCheck } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { upload, post } from '../services/api';
+import { diditEncendido } from '../services/auth';
 
 /**
  * Selfie + insurance (seguro) uploads for the credibility ladder.
@@ -142,7 +143,8 @@ export default function VerificationUploads() {
 
   return (
     <View style={{ marginTop: 8 }}>
-      {row({
+      {/* Con la verificación de Didit apagada (solo se pide el DNI) no se ofrece: el servidor responde que por ahora no hace falta. */}
+      {(diditEncendido(user) || identityDone) && row({
         kind: 'kyc',
         icon: <BadgeCheck size={20} color={colors.primary[600]} />,
         label: 'Verificar identidad',

@@ -6,7 +6,7 @@ import { Check } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { put } from '../../services/api';
-import { completarElRegistro, datosDelRegistro, estadoDeVerificacion, iniciarVerificacion, type DatosDelRegistro } from '../../services/auth';
+import { completarElRegistro, datosDelRegistro, diditEncendido, estadoDeVerificacion, iniciarVerificacion, type DatosDelRegistro } from '../../services/auth';
 import { spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import ContactarSoporte from '../../components/ContactarSoporte';
 
@@ -25,7 +25,9 @@ export default function CompletarRegistro() {
   const router = useRouter();
 
   const pendiente = !!user?.registrationPending;
-  const identidadHecha = !!user?.dniVerified || ['Approved', 'In Review'].includes(String(user?.kycStatus));
+  // Verificación con documento y selfie (Didit) encendida o apagada: lo dice el servidor. Apagada = no hay paso de identidad, se pide solo el número de DNI.
+  const conDidit = diditEncendido(user);
+  const identidadHecha = !conDidit || !!user?.dniVerified || ['Approved', 'In Review'].includes(String(user?.kycStatus));
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace('/(auth)/login' as any);
@@ -196,7 +198,9 @@ export default function CompletarRegistro() {
       <SafeAreaView style={[styles.contenedor, { backgroundColor: themeColors.background }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.centro}>
           <Text style={[styles.titulo, { color: themeColors.text.primary }]}>Un último paso</Text>
-          <Text style={[styles.texto, texto]}>Ingresá tu DNI. Es la clave de tu cuenta: no se puede repetir y después lo verificás con tu documento.</Text>
+          <Text style={[styles.texto, texto]}>
+            {conDidit ? 'Ingresá tu DNI. Es la clave de tu cuenta: no se puede repetir y después lo verificás con tu documento.' : 'Ingresá tu número de DNI. Es la clave de tu cuenta: no se puede repetir.'}
+          </Text>
           <TextInput style={input} placeholder="12345678" placeholderTextColor={themeColors.text.muted} value={dniViejo} onChangeText={(v) => setDniViejo(v.replace(/\D/g, '').slice(0, 9))} keyboardType="number-pad" maxLength={9} />
           {errorViejo && <Text style={styles.error}>{errorViejo}</Text>}
           <TouchableOpacity style={[styles.boton, guardando && { opacity: 0.6 }]} onPress={guardarDniViejo} disabled={guardando}>
@@ -208,8 +212,9 @@ export default function CompletarRegistro() {
     );
   }
 
-  const pasos = ['Cuenta', 'Identidad', 'Tus datos'];
-  const actual = identidadHecha ? 3 : 2;
+  // Con la verificación de Didit apagada (solo se pide el DNI) no hay paso de identidad: son dos pasos.
+  const pasos = conDidit ? ['Cuenta', 'Identidad', 'Tus datos'] : ['Cuenta', 'Tus datos'];
+  const actual = !conDidit ? 2 : identidadHecha ? 3 : 2;
   const indicador = (
     <View style={styles.pasos} accessibilityLabel="Pasos del registro">
       {pasos.map((p, i) => {
@@ -257,9 +262,13 @@ export default function CompletarRegistro() {
             </>
           ) : (
             <>
-              <Text style={[styles.titulo, { color: themeColors.text.primary }]}>Revisá tus datos</Text>
+              <Text style={[styles.titulo, { color: themeColors.text.primary }]}>{conDidit ? 'Revisá tus datos' : 'Completá tus datos'}</Text>
               <Text style={[styles.texto, texto]}>
-                {datos?.documento ? 'Esto es lo que leímos de tu documento. Si algo está mal, corregilo; y completá lo que falta.' : 'Completá tus datos para terminar.'}
+                {datos?.documento
+                  ? 'Esto es lo que leímos de tu documento. Si algo está mal, corregilo; y completá lo que falta.'
+                  : conDidit
+                    ? 'Completá tus datos para terminar.'
+                    : 'Escribí tu nombre, tu número de DNI y elegí tu nombre de usuario. Es todo.'}
               </Text>
               {cargandoDatos ? (
                 <ActivityIndicator size="large" color="#0284c7" style={{ marginVertical: spacing.xl }} />
@@ -267,7 +276,13 @@ export default function CompletarRegistro() {
                 <>
                   {campoDe('nombres', 'Nombre/s', { mayus: 'words', deDoc: !!datos?.documento?.nombres })}
                   {campoDe('apellidos', 'Apellido/s', { mayus: 'words', deDoc: !!datos?.documento?.apellidos })}
-                  {campoDe('dni', 'DNI', { teclado: 'number-pad', deDoc: !!datos?.documento?.dni, ayuda: 'Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.' })}
+                  {campoDe('dni', conDidit ? 'DNI' : 'Número de DNI', {
+                    teclado: 'number-pad',
+                    deDoc: !!datos?.documento?.dni,
+                    ayuda: conDidit
+                      ? 'Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.'
+                      : 'Solo el número, sin puntos. Se usa únicamente para identificarte y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.',
+                  })}
                   {datos?.pedirCorreo && campoDe('email', 'Correo', { teclado: 'email-address', ayuda: 'Tu cuenta de X no tiene correo: lo necesitamos para avisarte de tus contratos.' })}
                   {campoDe('username', 'Nombre de usuario', { ayuda: 'Letras, números, puntos y guiones bajos. Es la dirección de tu perfil.' })}
                   {campoDe('phone', 'Teléfono (opcional)', { teclado: 'phone-pad', ayuda: 'Solo lo usamos para avisarte de tus contratos y contactarte si hay un problema con un trabajo. No aparece en tu perfil ni lo usamos para publicidad.' })}

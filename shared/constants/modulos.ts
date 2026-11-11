@@ -14,3 +14,12 @@
  * (nadie abrió el panel todavía) se considera ENCENDIDO: ante la duda, un administrador mira antes de publicar.
  */
 export const MODULO_APROBACION_DE_PUBLICACIONES = 'feature:aprobacion_de_publicaciones';
+
+/**
+ * Verificación de identidad con Didit (documento y selfie) en el registro.
+ *
+ * Apagado (el valor de partida, regla del dueño 2026-11-11): el registro pide solo el número de DNI; quien lo completa puede publicar, postularse y cobrar, pero no queda
+ * «verificado» (no recibe el beneficio de lanzamiento ni la insignia). Encendido: vuelve el registro con documento y selfie. Lo cambia SOLO el dueño desde el panel de Módulos
+ * y queda anotado; no se puede encender si Didit no tiene sus claves en el servidor. Ver `services/didit.ts` (`verificacionConDiditActiva`).
+ */
+export const MODULO_VERIFICACION_DIDIT = 'identity:didit';

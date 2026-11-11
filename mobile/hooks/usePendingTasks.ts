@@ -79,17 +79,20 @@ export function usePendingTasks(): PendingTasksResult {
         section: 'basic',
         to: VERIFY_ROUTE,
       },
-      {
-        id: 'identity',
-        label: 'Verificación de identidad',
-        desc: 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.',
-        done: !!u.dniVerified,
-        priority: 'high',
-        status:
-          u.kycStatus === 'Declined' ? 'rejected' : u.kycStatus === 'In Review' ? 'in_review' : null,
-        section: 'basic',
-        to: VERIFY_ROUTE,
-      },
+      // Con la verificación de Didit apagada (solo se pide el número de DNI) esta tarea no existe: el número de arriba es todo lo que se pide.
+      u.capabilities?.verificacionConDidit === false
+        ? null
+        : {
+            id: 'identity',
+            label: 'Verificación de identidad',
+            desc: 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.',
+            done: !!u.dniVerified,
+            priority: 'high',
+            status:
+              u.kycStatus === 'Declined' ? 'rejected' : u.kycStatus === 'In Review' ? 'in_review' : null,
+            section: 'basic',
+            to: VERIFY_ROUTE,
+          },
       {
         id: 'phone',
         label: 'Teléfono',

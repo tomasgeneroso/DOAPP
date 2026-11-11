@@ -42,7 +42,8 @@ import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoD
 import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
-import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
+import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
+import { identidadSuficiente } from "../services/identidadDeclarada.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -563,6 +564,9 @@ router.post(
         capabilities: {
           phoneVerification: await telefonoSePuedeVerificar(),
           manualKyc: isManualKycUnlocked(user as any),
+          // Verificación con documento y selfie (Didit) encendida o apagada, y si esta cuenta ya puede publicar/postularse/cobrar (verificada, o con DNI mientras está apagada).
+          verificacionConDidit: verificacionConDiditActiva(),
+          identidadSuficiente: identidadSuficiente(user as any),
         },
         kycStatus: (user as any).kycStatus,
         kycAttempts: (user as any).kycAttempts ?? 0,
@@ -711,6 +715,9 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
           // Manual document upload stays hidden until Didit has actually failed
           // this user as many times as the Didit workflow allows.
           manualKyc: isManualKycUnlocked(user as any),
+          // Verificación con documento y selfie (Didit) encendida o apagada, y si esta cuenta ya puede publicar/postularse/cobrar (verificada, o con DNI mientras está apagada).
+          verificacionConDidit: verificacionConDiditActiva(),
+          identidadSuficiente: identidadSuficiente(user as any),
         },
         kycAttempts: (user as any)?.kycAttempts ?? 0,
         kycMaxAttempts: getKycMaxAttempts(),
@@ -2625,6 +2632,10 @@ router.post("/dni-photos", protect, async (req: AuthRequest, res: Response): Pro
   // control, and this endpoint writes the documents the whole ladder rests on.
   const gateUser = await User.findByPk(req.user!.id, { attributes: ['id', 'kycAttempts', 'dniVerified'] });
   if (!gateUser) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+  if (!verificacionConDiditActiva()) {
+    res.status(403).json({ success: false, code: 'VERIFICACION_APAGADA', message: 'Por ahora no hace falta cargar fotos del documento: alcanza con tu número de DNI.' });
+    return;
+  }
   if (!isManualKycUnlocked(gateUser as any)) {
     res.status(403).json({
       success: false,
@@ -2959,6 +2970,11 @@ router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Respons
 // @access  Private
 router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    // Apagada (regla del dueño, 2026-11-11): por ahora el registro pide solo el número de DNI, sin documento ni selfie. Una pestaña vieja que insiste recibe esto, no una sesión de Didit.
+    if (!verificacionConDiditActiva()) {
+      res.status(409).json({ success: false, code: 'VERIFICACION_APAGADA', message: 'Por ahora no hace falta verificar tu identidad con documento: alcanza con tu número de DNI.' });
+      return;
+    }
     const configProblem = diditConfigProblem();
     if (configProblem) {
       // The user gets the neutral message; the reason goes to the log, where
@@ -3010,7 +3026,8 @@ router.put("/registro/completar", protect, authLimiter, async (req: AuthRequest,
     const user = await User.findByPk(req.user!.id);
     if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
     // Hay que haber pasado por Didit (salvo que la verificación no esté disponible: ahí no se puede dejar a nadie sin poder registrarse).
-    if (user.registrationPending && !['Approved', 'In Review'].includes(String(user.kycStatus)) && isDiditConfigured()) {
+    // Con Didit apagado (`VERIFICACION_CON_DIDIT`) no hay paso de documento: alcanza con el DNI del formulario.
+    if (user.registrationPending && !['Approved', 'In Review'].includes(String(user.kycStatus)) && diditEnUso()) {
       res.status(409).json({ success: false, code: 'IDENTIDAD_PENDIENTE', message: 'Primero verificá tu identidad con Didit.' });
       return;
     }

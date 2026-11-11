@@ -4,6 +4,8 @@ import { config } from "../config/env.js";
 import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
 import { entrarComoUsuario } from "../db/contextoRls.js";
+import { identidadSuficiente } from "../services/identidadDeclarada.js";
+import { verificacionConDiditActiva } from "../services/didit.js";
 
 export type { AuthRequest };
 
@@ -199,11 +201,15 @@ export const requireKyc = (req: AuthRequest, res: Response, next: NextFunction):
     res.status(401).json({ success: false, message: "Usuario no autenticado" });
     return;
   }
-  if (!(req.user as any).dniVerified) {
+  // Verificada, o —con la verificación de Didit apagada— registro completo con un DNI válido (`services/identidadDeclarada.ts`).
+  if (!identidadSuficiente(req.user as any)) {
+    const conDidit = verificacionConDiditActiva();
     res.status(403).json({
       success: false,
       code: "KYC_REQUIRED",
-      message: "Necesitás verificar tu identidad para hacer esto. Verificala desde tu perfil.",
+      message: conDidit
+        ? "Necesitás verificar tu identidad para hacer esto. Verificala desde tu perfil."
+        : "Necesitás completar tu registro con tu número de DNI para hacer esto. Completalo desde tu perfil.",
     });
     return;
   }

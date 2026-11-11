@@ -35,6 +35,8 @@ import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
 import { ErrorResponse } from '../middleware/errorHandler.js';
+import { identidadSuficiente } from "../services/identidadDeclarada.js";
+import { verificacionConDiditActiva } from "../services/didit.js";
 
 const router = express.Router();
 
@@ -958,7 +960,8 @@ router.post(
       // y se marcaba el trabajo como pagado, así que el costo del trabajo no se cobraba nunca.
       //
       // KYC gate: sin identidad verificada un trabajo se CREA pero no se publica: queda en borrador.
-      const identityVerified = !!(req.user as any).dniVerified;
+      // Identidad suficiente: la verificada o —con Didit apagado— el registro completo con DNI (`services/identidadDeclarada.ts`).
+      const identityVerified = identidadSuficiente(req.user as any);
 
       // "A cotizar": el cliente no fija precio y no paga nada al publicar. El
       // precio real aparece cuando un trabajador cotiza, y se cobra al aceptar
@@ -1225,7 +1228,9 @@ router.post(
       } else if (!identityVerified) {
         res.status(201).json({
           success: true,
-          message: "Guardamos tu trabajo como borrador. Verificá tu identidad para poder publicarlo.",
+          message: verificacionConDiditActiva()
+            ? "Guardamos tu trabajo como borrador. Verificá tu identidad para poder publicarlo."
+            : "Guardamos tu trabajo como borrador. Completá tu registro con tu número de DNI para poder publicarlo.",
           job: populatedJob?.toJSON(),
           requiresPayment: false,
           requiresKyc: true,

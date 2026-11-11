@@ -18,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { LogoIcon } from '../../components/ui/Logo';
 import { get } from '../../services/api';
+import { diditEncendido } from '../../services/auth';
 import CredibilityBadge from '../../components/CredibilityBadge';
 import PhoneVerification from '../../components/PhoneVerification';
 import VerifiedBadge from '../../components/VerifiedBadge';
@@ -235,7 +236,8 @@ export default function ProfileScreen() {
         {(user as any)?.credibility && (
           <View style={{ marginHorizontal: 16, marginBottom: 12, gap: 12 }}>
             <CredibilityBadge credibility={(user as any).credibility} variant="full" />
-            {!(user as any)?.dniVerified && (
+            {/* Con la verificación de Didit apagada (solo se pide el DNI) no hay nada que verificar ni funciones limitadas por eso */}
+            {!(user as any)?.dniVerified && diditEncendido(user) && (
               <View style={{ backgroundColor: '#fffbeb', borderRadius: 14, borderWidth: 1, borderColor: '#fde68a', padding: 14 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e', marginBottom: 4 }}>Tu identidad todavía no está verificada</Text>
                 <Text style={{ fontSize: 12, color: '#92400e' }}>Hasta verificarte: podés crear trabajos pero no publicarlos, no podés postularte, ni cobrar o retirar dinero. Sí podés escribir en el blog.</Text>

@@ -234,7 +234,10 @@ if (process.env.RLS_ACTIVO === 'true') {
 try {
   const { cargarAjustesFiscales } = await import('./services/fiscalSettings.js');
   const { cargarFechasDeFase } = await import('./services/platformPhase.js');
-  await Promise.all([cargarAjustesFiscales(), cargarFechasDeFase()]);
+  // Verificación con Didit: es un módulo del panel (`identity:didit`); se carga acá y se refresca sola.
+  const { cargarVerificacionDelPanel, iniciarRefrescoDeLaVerificacion } = await import('./services/verificacionDelPanel.js');
+  await Promise.all([cargarAjustesFiscales(), cargarFechasDeFase(), cargarVerificacionDelPanel().catch(() => null)]);
+  iniciarRefrescoDeLaVerificacion();
 } catch (e: any) {
   console.warn('[arranque] no se pudieron cargar los ajustes del panel, se usa el entorno:', e?.message);
 }

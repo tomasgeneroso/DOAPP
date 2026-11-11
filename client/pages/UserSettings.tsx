@@ -9,6 +9,7 @@ import MatriculaArchivos from "../components/MatriculaArchivos";
 import AttentionDot from "../components/AttentionDot";
 import CredibilityBadge from "../components/CredibilityBadge";
 import KycButton from "../components/KycButton";
+import { diditEncendido } from "../utils/kycCallback";
 import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
 import AddressAutocomplete from "../components/ui/AddressAutocomplete";
@@ -854,9 +855,17 @@ export default function UserSettings() {
 
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                        Verificación automática
+                        {diditEncendido(user) || (user as any)?.dniVerified ? 'Verificación automática' : 'Identidad'}
                       </h4>
-                      <KycButton verified={(user as any)?.dniVerified} kycStatus={(user as any)?.kycStatus} />
+                      {/* Con la verificación de Didit apagada (regla del dueño, 2026-11-11) solo se pide el número de DNI: no hay botón de Didit ni carga de documentos. */}
+                      {!diditEncendido(user) && !(user as any)?.dniVerified && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Por ahora no hace falta verificar tu identidad con documento y selfie: alcanza con tu número de DNI, que cargás en Información básica.
+                        </p>
+                      )}
+                      {(diditEncendido(user) || !!(user as any)?.dniVerified) && (
+                        <KycButton verified={(user as any)?.dniVerified} kycStatus={(user as any)?.kycStatus} />
+                      )}
 
                       {/* Manual upload is a fallback, not a parallel path, so it
                           sits directly under the automatic flow it replaces —
