@@ -90,7 +90,7 @@ export default function LoginScreen() {
             {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
-                ¡Las primeras {POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas verificadas tienen {POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato sin comisión (una sola vez) y PRO gratis por {POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes! 🎉
+                ¡Las primeras {POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas tienen {POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato sin comisión (una sola vez) y PRO gratis por {POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes! 🎉
               </Text>
             </View>
 

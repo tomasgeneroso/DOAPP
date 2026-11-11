@@ -40,7 +40,7 @@ import { completarRegistro, datosDelRegistro, usuarioProvisorio } from "../servi
 import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
 import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
 import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
-import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, normalizarDni } from "../../shared/identidad/documentos.js";
+import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, motivoDeDniImposible, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import { identidadSuficiente } from "../services/identidadDeclarada.js";
@@ -219,6 +219,12 @@ router.post(
       // El DNI es la clave de la cuenta: no se repite. Se guarda solo el número (sin puntos ni espacios).
       const dniLimpio = dni ? normalizarDni(dni) : dni;
       if (dniLimpio) {
+        // Control mínimo del número escrito a mano (nadie de 99 años o más, nada de números de relleno).
+        const imposible = motivoDeDniImposible(dniLimpio);
+        if (imposible) {
+          res.status(400).json({ success: false, code: 'DNI_NO_VALIDO', field: 'dni', message: imposible });
+          return;
+        }
         const dniUsado = await User.findOne({ where: { dni: dniLimpio }, attributes: ['id'] });
         if (dniUsado) {
           res.status(400).json({
@@ -760,6 +766,13 @@ router.put("/complete-registration", protect, [
 
     const dni = normalizarDni(req.body.dni);
 
+    // Control mínimo del número escrito a mano (nadie de 99 años o más, nada de números de relleno).
+    const imposible = motivoDeDniImposible(dni);
+    if (imposible) {
+      res.status(400).json({ success: false, code: "DNI_NO_VALIDO", field: "dni", message: imposible });
+      return;
+    }
+
     // Check if DNI is already in use
     const existingUser = await User.findOne({ where: { dni } });
     if (existingUser && existingUser.id !== req.user.id) {
@@ -1025,6 +1038,11 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
         }
         if (!dniValido(limpio)) {
           errorDeDocumento('El DNI debe tener entre 7 y 9 dígitos, solo números.', 'DNI_INVALIDO');
+          return;
+        }
+        const imposible = motivoDeDniImposible(limpio);
+        if (imposible) {
+          errorDeDocumento(imposible, 'DNI_NO_VALIDO');
           return;
         }
         const usado = await User.findOne({ where: { dni: limpio, id: { [Op.ne]: oldUser.id } }, attributes: ['id'] });

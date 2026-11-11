@@ -1,11 +1,31 @@
 import { describe, it, expect } from '@jest/globals';
-import { explicarCuilInvalido, cuilCoincideConDni, cuilValido, digitoVerificador, dniValido, formatearCuil, normalizarDni, primerCuilValido } from '../shared/identidad/documentos.js';
+import { explicarCuilInvalido, cuilCoincideConDni, cuilValido, digitoVerificador, dniValido, formatearCuil, motivoDeDniImposible, normalizarDni, primerCuilValido } from '../shared/identidad/documentos.js';
 
 describe('DNI', () => {
   it('7 a 9 dígitos; acepta puntos y espacios al escribir y guarda solo el número', () => {
     for (const ok of ['1234567', '12345678', '123456789', '12.345.678', ' 12345678 ']) expect(dniValido(ok)).toBe(true);
     for (const mal of ['', '123456', '1234567890', '1234567a', 'abcdefgh', '12-345-678', null, undefined]) expect(dniValido(mal)).toBe(false);
     expect(normalizarDni('12.345.678')).toBe('12345678');
+  });
+});
+
+describe('motivoDeDniImposible (control mínimo de un DNI escrito a mano)', () => {
+  it('deja pasar los DNI posibles: de personas mayores, de adultos, de jóvenes y de extranjeros', () => {
+    for (const ok of ['4500000', '6123456', '10234567', '13456789', '20123456', '30111222', '40555666', '47123456', '58000000', '61999999', '92345678', '12.345.670']) expect({ ok, motivo: motivoDeDniImposible(ok) }).toEqual({ ok, motivo: null });
+  });
+
+  it('rechaza el de una persona de 99 años o más (los números más chicos), la libreta de Eva Perón incluida', () => {
+    for (const mal of ['3752919', '3999999', '1000000', '1234560']) expect({ mal, motivo: motivoDeDniImposible(mal) }).toEqual({ mal, motivo: expect.stringMatching(/Revisá tu número de DNI/) });
+  });
+
+  it('rechaza números que todavía no se entregaron, los de nueve cifras y los de relleno', () => {
+    for (const mal of ['62000000', '75000000', '89999999', '100000000', '999999999', '11111111', '00000000', '77777777', '12345678', '87654321', '1234567']) {
+      expect({ mal, motivo: motivoDeDniImposible(mal) }).toEqual({ mal, motivo: expect.stringMatching(/Revisá tu número de DNI/) });
+    }
+  });
+
+  it('lo que no tiene forma de DNI lo decide dniValido, no este control', () => {
+    for (const x of ['', '123', 'abc', null, undefined, '1234567890']) expect(motivoDeDniImposible(x)).toBeNull();
   });
 });
 

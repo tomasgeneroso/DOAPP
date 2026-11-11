@@ -117,7 +117,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
         </div>
 
         {/* Notes */}
-        <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para las primeras {{usuarios}} cuentas verificadas', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES })}</p>
+        <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para las primeras {{usuarios}} cuentas', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES })}</p>
         <p className="text-[10px] text-slate-400 text-center px-4 mt-1">
           {t('membership.commissionNote', 'La comisión la paga el cliente: {{free}}% en el plan gratuito y {{pro}}% con PRO.', { free: COMMISSION_RATES.free, pro: COMMISSION_RATES.pro })}
         </p>

@@ -14,6 +14,34 @@ export const dniValido = (v: unknown): boolean => /^\d{7,9}$/.test(soloDigitos(v
 /** Los puntos y espacios se aceptan al escribir (12.345.678); se guarda solo el número. */
 export const normalizarDni = (v: unknown): string => soloDigitos(v);
 
+/**
+ * Control MÍNIMO de un DNI escrito a mano (regla del dueño, 2026-11-11: con la verificación de Didit apagada el registro pide solo el número, así que al menos que el número
+ * sea posible: «no se pueden registrar personas de 99 años o más»). NO comprueba que el DNI sea de la persona ni que exista: descarta lo imposible.
+ *
+ * Los límites son APROXIMACIONES de cómo se numeraron los documentos: los números chicos se entregaron a las personas más grandes (la libreta de Eva Perón, nacida en 1919, es la
+ * 3.752.919), los de fin de la serie a las más jóvenes, y desde 90.000.000 van los de extranjeros. Se acepta de más antes que rechazar a alguien real.
+ *  - menos de `DNI_MINIMO_POSIBLE`: corresponde a una persona de unos 99 años o más (nacida antes de ~1927);
+ *  - de `DNI_PRIMER_NUMERO_SIN_ASIGNAR` a 89.999.999: todavía no se entregó ninguno (los más nuevos van por los 58 millones);
+ *  - de 100.000.000 en adelante: ya no es un DNI (tiene nueve cifras);
+ *  - todas las cifras iguales (11111111) o una escalera (12345678): son números de relleno.
+ * Devuelve el motivo para mostrarle a la persona, o null si el número pasa.
+ */
+export const DNI_MINIMO_POSIBLE = 4_000_000;
+export const DNI_PRIMER_NUMERO_SIN_ASIGNAR = 62_000_000;
+const ESCALERAS = new Set(['1234567', '12345678', '123456789', '7654321', '87654321', '987654321']);
+
+export function motivoDeDniImposible(v: unknown): string | null {
+  const d = soloDigitos(v);
+  if (!/^\d{7,9}$/.test(d)) return null; // el formato lo controla `dniValido`
+  const n = Number(d);
+  const revisar = 'Revisá tu número de DNI: ese no parece válido. Si es correcto y no podés registrarte, escribinos desde el Centro de ayuda.';
+  if (/^(\d)\1+$/.test(d) || ESCALERAS.has(d)) return revisar;
+  if (n < DNI_MINIMO_POSIBLE) return revisar;
+  if (n >= DNI_PRIMER_NUMERO_SIN_ASIGNAR && n < 90_000_000) return revisar;
+  if (n >= 100_000_000) return revisar;
+  return null;
+}
+
 const PESOS = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
 
 /** Dígito verificador de los 10 primeros dígitos de un CUIL/CUIT, o null si ese número no tiene dígito válido. */

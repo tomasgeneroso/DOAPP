@@ -90,7 +90,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
     },
     {
       icono: Gift,
-      titulo: t("authHero.betaTitle", "Las primeras {{usuarios}} cuentas verificadas:", { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES }),
+      titulo: t("authHero.betaTitle", "Las primeras {{usuarios}} cuentas:", { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES }),
       resaltado: t("authHero.betaHighlight", "{{cantidad}} contrato sin comisión y PRO gratis por {{meses}} mes", {
         cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
         meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,

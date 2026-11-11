@@ -4,6 +4,7 @@ import { POLITICAS } from '../../shared/constants/policies.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { calculateCommission, type CommissionResult } from './commissionService.js';
+import { verificacionConDiditActiva } from './didit.js';
 
 /**
  * Contratos LIBRES DE COMISIÓN (no gratuitos).
@@ -222,9 +223,11 @@ export async function devolverContratoLibre(userId: string, cupo: CupoDeExencion
 }
 
 /**
- * Le da a una cuenta el BENEFICIO DE LANZAMIENTO si todavía hay lugar: un contrato libre de comisión (una sola vez) y un mes de PRO. Cuenta recién cuando la persona está
- * VERIFICADA (`dni_verified`: el registro completo con el documento aprobado por Didit): una cuenta que se creó en el paso 1 y se abandonó, o que no verificó, no ocupa uno de
- * los lugares.
+ * Le da a una cuenta el BENEFICIO DE LANZAMIENTO si todavía hay lugar: un contrato libre de comisión (una sola vez) y un mes de PRO. Cuenta recién cuando el REGISTRO ESTÁ COMPLETO
+ * y la persona está VERIFICADA (`dni_verified`: el documento aprobado por Didit) o —mientras la verificación de Didit está apagada, la etapa beta (regla del dueño, 2026-11-11:
+ * «seguir con los beneficios de lanzamiento por la beta igualmente»)— declaró su número de DNI (T&C 4.7: DOAPP se fía de la buena fe, no comprueba identidad ni antecedentes).
+ * Una cuenta que se creó en el paso 1 y se abandonó no ocupa uno de los lugares. Sin clave de persona (sale del documento de Didit), «una persona, un beneficio» se controla con el DNI:
+ * si otra cuenta con el mismo DNI ya lo recibió, no se da.
  *
  * Idempotente (una cuenta que ya lo recibió no lo recibe dos veces) y exacta bajo verificaciones simultáneas: un candado de la base serializa el conteo. No se da si
  * OTRA cuenta con la misma clave de persona ya lo recibió (una persona, un beneficio: la misma persona con dos documentos no cobra dos veces). Si la cuenta ya tiene PRO
@@ -249,13 +252,19 @@ export async function otorgarContratosLibres(userId: string, ahora: Date = new D
           WHERE id = :id
             AND launch_benefit_granted_at IS NULL
             AND registration_pending = false
-            AND dni_verified = true
+            -- VERIFICADA (documento aprobado) o, con la verificación de Didit apagada (etapa beta), con el registro completo y su DNI declarado.
+            AND (dni_verified = true OR (CAST(:dniDeclarado AS boolean) AND dni IS NOT NULL AND dni <> ''))
             AND merged_into_id IS NULL
             -- El lugar lo ocupa quien RECIBIÓ el beneficio (no quien quedó marcado «primera» por la regla anterior al registrarse sin verificar).
             AND (SELECT COUNT(*) FROM users WHERE launch_benefit_granted_at IS NOT NULL AND merged_into_id IS NULL) < :tope
             AND NOT EXISTS (
               SELECT 1 FROM users otra
                WHERE users.identity_key IS NOT NULL AND otra.identity_key = users.identity_key
+                 AND otra.id <> users.id AND otra.merged_into_id IS NULL AND otra.launch_benefit_granted_at IS NOT NULL
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM users otra
+               WHERE users.dni IS NOT NULL AND users.dni <> '' AND otra.dni = users.dni
                  AND otra.id <> users.id AND otra.merged_into_id IS NULL AND otra.launch_benefit_granted_at IS NOT NULL
             )
         RETURNING early_user_number`,
@@ -266,6 +275,8 @@ export async function otorgarContratosLibres(userId: string, ahora: Date = new D
             contratos: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
             mesesDePro: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,
             tope: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES,
+            // Con Didit apagado (etapa beta) alcanza el DNI declarado: se confía en la buena fe (T&C 4.7).
+            dniDeclarado: !verificacionConDiditActiva(),
           },
           type: QueryTypes.SELECT,
           transaction: t,
@@ -281,7 +292,7 @@ export async function otorgarContratosLibres(userId: string, ahora: Date = new D
           recipientId: userId,
           type: 'success',
           category: 'user',
-          title: `¡Sos una de las primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas verificadas!`,
+          title: `¡Sos una de las primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas!`,
           message: `Tenés ${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión (se usa una sola vez; después pagás la comisión de siempre) y la membresía PRO gratis por ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes.`,
           relatedModel: 'User',
           relatedId: userId,
@@ -330,10 +341,11 @@ export async function asignarContratosLibresAExistentes(
   const candidatas = (await sequelize.query(
     `SELECT u.id, u.created_at AS "creadaEl"
        FROM users u
-      WHERE u.launch_benefit_granted_at IS NULL AND u.dni_verified = true AND u.registration_pending = false AND u.merged_into_id IS NULL
+      WHERE u.launch_benefit_granted_at IS NULL AND u.registration_pending = false AND u.merged_into_id IS NULL
+        AND (u.dni_verified = true OR (CAST(:dniDeclarado AS boolean) AND u.dni IS NOT NULL AND u.dni <> ''))
       ORDER BY u.created_at ASC, u.id ASC
       LIMIT :lugares`,
-    { replacements: { lugares: Math.max(0, tope - conBeneficio) }, type: QueryTypes.SELECT },
+    { replacements: { lugares: Math.max(0, tope - conBeneficio), dniDeclarado: !verificacionConDiditActiva() }, type: QueryTypes.SELECT },
   )) as Array<{ id: string; creadaEl: Date }>;
 
   escribir(`Ya con el beneficio de lanzamiento: ${conBeneficio} de ${tope}. Lugares libres: ${Math.max(0, tope - conBeneficio)}.`);

@@ -2,9 +2,10 @@ import { Op } from 'sequelize';
 import { User } from '../models/sql/User.model.js';
 import { BannedIdentity } from '../models/sql/BannedIdentity.model.js';
 import { compararIdentidad } from '../../shared/identidad/coincidencia.js';
-import { dniValido, normalizarDni } from '../../shared/identidad/documentos.js';
+import { dniValido, motivoDeDniImposible, normalizarDni } from '../../shared/identidad/documentos.js';
 import { aplicarIdentidadDeDidit, controlarCoincidencia, leerDocumento } from './identidadDeDidit.js';
 import { otorgarContratosLibres } from './exencionDeComision.js';
+import { verificacionConDiditActiva } from './didit.js';
 
 /**
  * Registro en pasos: 1) correo y contraseña (o Google/X), 2) verificación de identidad con Didit, 3) datos prellenados desde el documento
@@ -125,6 +126,11 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
 
   if (!dniValido(entrada.dni)) return { ok: false, estado: 400, field: 'dni', message: 'El DNI debe tener entre 7 y 9 dígitos, solo números.' };
   const dni = normalizarDni(entrada.dni);
+  // Control mínimo de un DNI escrito a mano (nadie de 99 años o más, nada de números de relleno). Si el documento lo aprobó Didit, el número viene de un documento real: no se mira.
+  if (!(user.kycStatus === 'Approved' && user.kycData)) {
+    const imposible = motivoDeDniImposible(dni);
+    if (imposible) return { ok: false, estado: 400, code: 'DNI_NO_VALIDO', field: 'dni', message: imposible };
+  }
 
   const username = String(entrada.username ?? '').trim().toLowerCase();
   if (username.length < 3 || username.length > 30 || !REGLA_DE_USUARIO.test(username) || /^[._]|[._]$/.test(username) || /[._]{2,}/.test(username)) {
@@ -175,8 +181,9 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
       try { await aplicarIdentidadDeDidit(user, user.kycData); } catch (e: any) { console.warn('[registro] no se pudo completar la identidad:', e?.message); }
     }
   }
-  // Recién con el registro completo Y la identidad verificada la cuenta cuenta para las primeras 2.000 personas (las que se abandonan en el paso 1, o quedan en revisión, no ocupan un lugar).
-  if (verificada) await otorgarContratosLibres(String(user.id));
+  // Recién con el registro completo la cuenta cuenta para las primeras 2.000: verificada (Didit) o, con Didit apagado (etapa beta), con su DNI declarado. Las que se abandonan en el paso 1, o quedan
+  // en revisión con Didit encendido, no ocupan un lugar (`otorgarContratosLibres` decide con las mismas reglas).
+  if (verificada || !verificacionConDiditActiva()) await otorgarContratosLibres(String(user.id));
   return { ok: true, verificada, enRevision };
 }
 

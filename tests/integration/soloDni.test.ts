@@ -8,8 +8,8 @@ import jwt from 'jsonwebtoken';
  * Solo el número de DNI (regla del dueño, 2026-11-11: «sacar lo de Didit por el momento, que solo pida número de dni»).
  *
  * Con `VERIFICACION_CON_DIDIT` apagada el registro no pide documento ni selfie: alcanza con el DNI del formulario. Esa persona puede publicar, postularse y cobrar
- * (`identidadSuficiente`), pero NO queda «verificada»: no recibe el beneficio de lanzamiento (primeras 2.000 PERSONAS VERIFICADAS) ni la insignia. Encendida de nuevo, todo vuelve
- * a como era. Las pruebas del resto del proyecto corren con la variable encendida (`tests/env.first.ts`).
+ * (`identidadSuficiente`), pero NO queda «verificada» (ni insignia). SÍ recibe el beneficio de lanzamiento (regla del dueño, 2026-11-11: «seguir con los beneficios de lanzamiento por
+ * la beta igualmente»; T&C 4.7 y 7.13): se fía de la buena fe, con el DNI como único control (no se repite y no puede ser imposible). Encendida de nuevo, todo vuelve a como era. Las pruebas del resto del proyecto corren con la variable encendida (`tests/env.first.ts`).
  */
 jest.mock('../../server/index.js', () => {
   const nada: any = new Proxy(function () {}, { get: () => nada, apply: () => nada });
@@ -19,10 +19,12 @@ jest.mock('../../server/services/email.js', () => ({ __esModule: true, default: 
 
 import { User } from '../../server/models/sql/User.model.js';
 import { ModuleConfig } from '../../server/models/sql/ModuleConfig.model.js';
+import { Notification } from '../../server/models/sql/Notification.model.js';
 import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { protect, requireKyc } from '../../server/middleware/auth.js';
 import { identidadDeclarada, identidadSuficiente } from '../../server/services/identidadDeclarada.js';
 import { permisoParaAprobarAMano } from '../../server/services/aprobacionManualDeIdentidad.js';
+import { otorgarContratosLibres } from '../../server/services/exencionDeComision.js';
 import { fijarVerificacionConDidit, verificacionConDiditActiva } from '../../server/services/didit.js';
 import { cargarVerificacionDelPanel } from '../../server/services/verificacionDelPanel.js';
 import { MODULO_VERIFICACION_DIDIT } from '../../shared/constants/modulos.js';
@@ -32,7 +34,7 @@ describe('solo DNI (verificación con Didit apagada)', () => {
   let app: Express;
   const emails: string[] = [];
   let n = 0;
-  const dniNuevo = () => String(60000000 + Math.floor(Math.random() * 2000000) + n++);
+  const dniNuevo = () => String(45000000 + Math.floor(Math.random() * 3000000) + n++);
   const con = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
   const apagar = () => {
     process.env.VERIFICACION_CON_DIDIT = 'false';
@@ -66,6 +68,8 @@ describe('solo DNI (verificación con Didit apagada)', () => {
   afterAll(async () => {
     encender();
     try {
+      const ids = (await User.findAll({ where: { email: emails }, attributes: ['id'] })).map((x: any) => x.id);
+      await Notification.destroy({ where: { recipientId: ids } });
       await User.destroy({ where: { email: emails }, force: true });
     } catch {
       /* la limpieza no puede hacer fallar el test */
@@ -92,7 +96,7 @@ describe('solo DNI (verificación con Didit apagada)', () => {
   });
 
   describe('registro sin documento', () => {
-    it('/registro/completar no exige haber pasado por Didit, aunque Didit tenga claves, y deja la cuenta SIN verificar y SIN beneficio de lanzamiento', async () => {
+    it('/registro/completar no exige haber pasado por Didit, aunque Didit tenga claves: deja la cuenta SIN verificar pero CON el beneficio de lanzamiento (beta)', async () => {
       const claveAntes = process.env.DIDIT_API_KEY;
       process.env.DIDIT_API_KEY = 'clave-de-prueba';
       try {
@@ -103,12 +107,43 @@ describe('solo DNI (verificación con Didit apagada)', () => {
         expect(r.body.verificada).toBe(false);
         const despues: any = await User.findByPk(u.id);
         expect(despues).toMatchObject({ registrationPending: false, dniVerified: false, name: 'Ana Prueba' });
-        expect(despues.launchBenefitGrantedAt ?? null).toBeNull();
-        expect(despues.freeContractsRemaining).toBe(antes);
+        expect(despues.launchBenefitGrantedAt).toBeTruthy();
+        expect(despues.freeContractsRemaining).toBe(antes + 1);
+        expect(despues.membershipTier).toBe('pro');
       } finally {
         if (claveAntes === undefined) delete process.env.DIDIT_API_KEY;
         else process.env.DIDIT_API_KEY = claveAntes;
       }
+    });
+
+    it('un DNI imposible se rechaza: nadie de 99 años o más, nada de números de relleno ni sin asignar (y la cuenta queda sin completar)', async () => {
+      const u = await cuentaNueva();
+      for (const dni of ['3500000', '1234567', '11111111', '12345678', '65000000', '123456789']) {
+        const r = await completar(u, dni);
+        expect({ dni, estado: r.status, code: r.body.code, campo: r.body.field }).toEqual({ dni, estado: 400, code: 'DNI_NO_VALIDO', campo: 'dni' });
+        expect(r.body.message).toMatch(/Revisá tu número de DNI/);
+      }
+      expect(((await User.findByPk(u.id)) as any).registrationPending).toBe(true);
+      expect((await completar(u, dniNuevo())).status).toBe(200); // uno posible sí pasa
+    });
+
+    it('un DNI, un beneficio: la base no admite dos cuentas con el mismo DNI, y el beneficio se da una sola vez por cuenta', async () => {
+      const a = await cuentaNueva();
+      const dni = dniNuevo();
+      expect((await completar(a, dni)).status).toBe(200);
+      expect(((await User.findByPk(a.id)) as any).launchBenefitGrantedAt).toBeTruthy();
+      expect((await otorgarContratosLibres(String(a.id))).otorgado).toBe(false); // ya lo tiene: no se da dos veces
+      const b = await cuentaNueva();
+      await expect(User.update({ dni }, { where: { id: b.id } })).rejects.toThrow(); // el DNI es único en la base
+    });
+
+    it('con Didit encendido, el DNI solo NO da el beneficio: hace falta estar verificada', async () => {
+      const u = await cuentaNueva();
+      await User.update({ registrationPending: false, dni: dniNuevo() }, { where: { id: u.id } });
+      encender();
+      expect((await otorgarContratosLibres(String(u.id))).otorgado).toBe(false);
+      apagar();
+      expect((await otorgarContratosLibres(String(u.id))).otorgado).toBe(true);
     });
 
     it('el DNI no se repite entre cuentas: es lo único que se controla, así que se controla', async () => {

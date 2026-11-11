@@ -162,7 +162,7 @@ describe('los textos estáticos no afirman una fase ni una fecha que se cambia d
       expect({ archivo, patron: String(viejo), aparece: viejo.test(texto) }).toEqual({ archivo, patron: String(viejo), aparece: false });
     }
     // y dicen la política vigente del lanzamiento
-    expect(texto).toMatch(/primeras 2\.000 personas verificadas/);
+    expect(texto).toMatch(/primeras 2\.000 personas/);
   });
 
   it('la descripción de la portada no promete «sin comisión durante la beta» (sale de la fase real, no de un texto fijo)', () => {

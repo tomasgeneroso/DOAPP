@@ -90,7 +90,7 @@ export default function ReferralsScreen() {
             {t('referrals.title', 'Referral Program')}
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            {t('referrals.subtitle', 'The first {{usuarios}} verified accounts get {{cantidad}} commission-free contract (one time only) and free PRO for {{meses}} month! Plus, invite your friends and earn benefits.', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}
+            {t('referrals.subtitle', 'The first {{usuarios}} accounts get {{cantidad}} commission-free contract (one time only) and free PRO for {{meses}} month! Plus, invite your friends and earn benefits.', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}
           </p>
         </div>
 

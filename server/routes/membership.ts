@@ -202,7 +202,7 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.free,
           benefits: [
-            `${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión, una sola vez, y PRO gratis por ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas verificadas)`,
+            `${POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO} contrato libre de comisión, una sola vez, y PRO gratis por ${POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO} mes (primeras ${POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES} cuentas)`,
             `Comisión fija del ${COMMISSION_RATES.free}%`,
             '3 códigos de invitación',
           ],
