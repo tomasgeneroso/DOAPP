@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Rocket, PartyPopper } from "lucide-react";
+import { Rocket, PartyPopper, ChevronDown } from "lucide-react";
 import { formatBetaEnd, usePlatformPhase } from "@/hooks/usePlatformPhase";
 import { BETA_POST_SLUG } from "../../shared/content/betaPost";
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing";
@@ -8,7 +8,7 @@ import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/
 /**
  * Standing notice that the platform is in its beta phase.
  *
- * Not dismissible on purpose. The beta is why people pay no commission and get
+ * Not dismissible on purpose (se puede PLEGAR, no cerrar: el título con la promesa queda a la vista). The beta is why people pay no commission and get
  * the PRO membership's features, and it ends on a fixed date — so the offer and its expiry have to
  * travel together. A banner someone closed in week one is exactly how a
  * scheduled price change turns into a broken promise.
@@ -23,6 +23,25 @@ export default function BetaBanner() {
   const { phase: platform } = usePlatformPhase();
   // El «ahora» se toma una vez al montar (llamar a Date.now() en el render hace que el resultado cambie entre dibujos).
   const [ahora] = useState(() => Date.now());
+  // Plegable (pedido del dueño, 2026-11-12): el título queda siempre a la vista (la promesa y su fecha no desaparecen), el detalle se pliega.
+  // Se recuerda en este navegador; sin almacenamiento, arranca desplegado.
+  const [plegado, setPlegado] = useState(() => {
+    try {
+      return localStorage.getItem("doapp:beta-banner-plegado") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const alternar = () => {
+    setPlegado((p) => {
+      try {
+        localStorage.setItem("doapp:beta-banner-plegado", p ? "0" : "1");
+      } catch {
+        /* sin almacenamiento */
+      }
+      return !p;
+    });
+  };
 
   // Out of beta: announce it for a while instead of the banner simply
   // vanishing. The free period was stated loudly, so its end has to be too —
@@ -57,26 +76,47 @@ export default function BetaBanner() {
     <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
       <div className="container mx-auto px-4 py-2 flex items-start gap-2 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
         <Rocket className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-        <p>
-          <strong className="font-semibold">Estás en la beta de DOAPP.</strong>{" "}
-          No cobramos comisión por los contratos. Todas las cuentas tienen las funciones de la
-          membresía <strong className="font-semibold">PRO</strong> disponibles
-          para que las pruebes. La versión beta está disponible hasta el{" "}
-          <strong className="font-semibold">{endsAt}</strong>
-          {typeof platform.betaDaysLeft === "number" && platform.betaDaysLeft > 0
-            ? ` (faltan ${platform.betaDaysLeft} días)`
-            : ""}
-          ; luego se cobra la comisión y la membresía PRO pasa a ser paga.{" "}
-          {/* The banner states the offer; the article states its limits. Anyone
-              deciding based on "gratis" deserves one click to the detail. */}
-          <Link
-            to={`/blog/${BETA_POST_SLUG}`}
-            className="underline font-semibold hover:no-underline"
+        <div className="flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={alternar}
+            aria-expanded={!plegado}
+            aria-controls="detalle-de-la-beta"
+            className="flex w-full items-center justify-between gap-2 text-left"
           >
-            Para más info hacé clic acá
-          </Link>
-          .
-        </p>
+            <strong className="font-semibold">Estás en la beta de DOAPP.</strong>
+            <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+              <span className="hidden sm:inline">{plegado ? "Ver detalle" : "Ocultar"}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${plegado ? "" : "rotate-180"}`} aria-hidden="true" />
+            </span>
+          </button>
+          <div
+            id="detalle-de-la-beta"
+            className={`grid transition-all duration-200 ease-out ${plegado ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
+            aria-hidden={plegado}
+          >
+            <p className="overflow-hidden">
+              No cobramos comisión por los contratos. Todas las cuentas tienen las funciones de la
+              membresía <strong className="font-semibold">PRO</strong> disponibles
+              para que las pruebes. La versión beta está disponible hasta el{" "}
+              <strong className="font-semibold">{endsAt}</strong>
+              {typeof platform.betaDaysLeft === "number" && platform.betaDaysLeft > 0
+                ? ` (faltan ${platform.betaDaysLeft} días)`
+                : ""}
+              ; luego se cobra la comisión y la membresía PRO pasa a ser paga.{" "}
+              {/* The banner states the offer; the article states its limits. Anyone
+                  deciding based on "gratis" deserves one click to the detail. */}
+              <Link
+                to={`/blog/${BETA_POST_SLUG}`}
+                tabIndex={plegado ? -1 : 0}
+                className="underline font-semibold hover:no-underline"
+              >
+                Para más info hacé clic acá
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
