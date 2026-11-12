@@ -5,6 +5,9 @@ import { config } from '../config/env.js';
 import { entorno } from './deployInfo.js';
 import { limpiarTextoLibre } from '../../shared/seguridad/datosPersonales.js';
 import { CATALOGO_DE_PROBLEMAS } from '../../shared/errores/catalogoDeProblemas.js';
+import { avisosAlDuenoActivos, __activarAvisos } from './avisosAlDuenoActivos.js';
+
+export { __activarAvisos };
 
 /**
  * Aviso al dueño por correo (regla del dueño, 2026-11-11: «cuando salten errores así que me avisen al mail»).
@@ -43,15 +46,9 @@ export interface AvisoAlDueno {
   codigo?: string;
 }
 
-let activo = process.env.NODE_ENV === 'production';
 const ultimoPorClave = new Map<string, number>();
 let enviadosEnLaHora: number[] = [];
 let omitidosDesdeElUltimo = 0;
-
-/** Para las pruebas: enciende o apaga los avisos (por defecto solo están encendidos en producción). */
-export function __activarAvisos(valor: boolean): void {
-  activo = valor;
-}
 
 /** Para las pruebas. */
 export function __reiniciarAvisos(): void {
@@ -116,7 +113,7 @@ ${parrafo(`${escapar(fechaLegible(ahora))} (hora de Argentina). No se repite por
  */
 export async function avisarAlDuenoPorCorreo(aviso: AvisoAlDueno, ahora: number = Date.now()): Promise<boolean> {
   try {
-    if (!activo) return false;
+    if (!avisosAlDuenoActivos()) return false;
 
     const previo = ultimoPorClave.get(aviso.clave);
     if (previo !== undefined && ahora - previo < ENTRE_AVISOS_MS) return false;
@@ -160,7 +157,7 @@ export async function avisarAlDuenoPorCorreo(aviso: AvisoAlDueno, ahora: number 
 
 /** Una respuesta 5xx del servidor: el correo dice qué ruta falló y con qué estado, sin ids ni consulta. No espera ni lanza. */
 export function avisarDeUnErrorDelServidor(datos: { metodo: string; ruta: string; estado: number; codigo?: string; mensaje?: string; tecnico?: string }): void {
-  if (!activo || datos.estado < 500) return;
+  if (!avisosAlDuenoActivos() || datos.estado < 500) return;
   if (datos.codigo && CODIGOS_CON_AVISO_PROPIO.has(datos.codigo)) return;
   const ruta = rutaSinIds(datos.ruta);
   const tiempoAgotado = datos.codigo === 'TIEMPO_AGOTADO';

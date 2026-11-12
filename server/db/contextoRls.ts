@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Sequelize } from 'sequelize';
 import { ROL_DE_LA_APP, SOLO_AGREGAR, TABLAS } from './rls.cjs';
+import { avisosAlDuenoActivos } from '../services/avisosAlDuenoActivos.js';
 
 /**
  * Quién está pidiendo, para que PostgreSQL decida qué filas puede ver (Row Level Security: ver `server/db/rls.cjs`).
@@ -174,7 +175,7 @@ export async function activarRlsSiLaBaseEstaLista(sequelize: Sequelize): Promise
         `🚨 [rls] RLS_ACTIVO=true pero la base no está lista: ${queFalta(estado)}. La app arranca SIN RLS. ` +
           `Hay que darle CREATEROLE al usuario de la app (o crear el rol como superusuario) y reiniciar.`,
       );
-      void import('../services/avisoAlDueno.js')
+      if (avisosAlDuenoActivos()) void import('../services/avisoAlDueno.js')
         .then((m) =>
           m.avisarAlDuenoPorCorreo({
             clave: 'rls-apagado',

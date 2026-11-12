@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config/env.js";
 import { mensajeSegunEstado } from "../../shared/errores/mensajesPorEstado.js";
+import { avisosAlDuenoActivos } from "../services/avisosAlDuenoActivos.js";
 
 export class ErrorResponse extends Error {
   statusCode: number;
@@ -14,6 +15,7 @@ export class ErrorResponse extends Error {
 /** Falta una tabla o una columna: lo arregla un deploy o reiniciar la app, no la persona. El correo dice qué mirar y la clave junta todas las rutas que chocan con lo mismo. */
 function avisarAlDuenoDelEsquema(res: Response, que: "tabla" | "columna", mensaje: string): void {
   if (res.locals) res.locals.avisoAlDuenoEnviado = true;
+  if (!avisosAlDuenoActivos()) return;
   const nombre = /"([^"]+)"/.exec(mensaje)?.[1] ?? "";
   void import("../services/avisoAlDueno.js")
     .then((m) =>
@@ -142,7 +144,7 @@ export const errorHandler = (
     console.error(`[${req.method} ${req.originalUrl}]`, err);
     if (res.locals) res.locals.errorYaRegistrado = true; // respuestasDeError no repite la línea
     // Le llega por correo al dueño (una vez por problema), con el texto técnico que la respuesta a la persona no lleva. Los de esquema ya avisaron arriba.
-    if (!res.locals?.avisoAlDuenoEnviado) {
+    if (avisosAlDuenoActivos() && !res.locals?.avisoAlDuenoEnviado) {
       if (res.locals) res.locals.avisoAlDuenoEnviado = true;
       const ruta = String(req.originalUrl || req.url || "").split("?")[0];
       void import("../services/avisoAlDueno.js")

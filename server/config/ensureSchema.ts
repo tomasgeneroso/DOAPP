@@ -1,5 +1,6 @@
 import type { Sequelize } from 'sequelize-typescript';
 import { QueryTypes, type Transaction } from 'sequelize';
+import { avisosAlDuenoActivos } from '../services/avisosAlDuenoActivos.js';
 
 /**
  * Idempotent "ensure schema" safety net.
@@ -558,7 +559,7 @@ export async function crearTablasQueFaltan(sequelize: Sequelize): Promise<{ crea
   if (creadas.length > 0) console.log(`🧱 ensureSchema: tablas que faltaban y se crearon desde los modelos: ${creadas.join(', ')}`);
   if (pendientes.length > 0) console.error(`❌ ensureSchema: siguen faltando ${pendientes.length} tabla(s): ${pendientes.join(', ')}. Hay que crearlas con una migración.`);
   // Por correo al dueño (una vez por cada conjunto): faltaban tablas (ya se crearon) o siguen faltando (esas sí hay que atender).
-  if (creadas.length > 0 || pendientes.length > 0) {
+  if ((creadas.length > 0 || pendientes.length > 0) && avisosAlDuenoActivos()) {
     void import('../services/avisoAlDueno.js')
       .then((m) =>
         m.avisarAlDuenoPorCorreo(
