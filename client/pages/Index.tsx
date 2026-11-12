@@ -18,6 +18,7 @@ import WorkInProgress from "../components/jobs/WorkInProgress";
 import TrabajosDeEjemplo from "../components/home/TrabajosDeEjemplo";
 import MovilPagoLiberado from "../components/home/MovilPagoLiberado";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+import DescargarApk from "../components/DescargarApk";
 
 const handleSpotlightMove = (e: React.MouseEvent<HTMLElement>) => {
   const el = e.currentTarget as HTMLElement;
@@ -361,6 +362,10 @@ export default function Index() {
               >
                 {t('home.ctaSeeJobs', 'Ver trabajos disponibles')}
               </Link>
+            </div>
+            {/* App para Android sin tienda (APK) */}
+            <div className="relative z-10 mt-4">
+              <DescargarApk variante="portada" />
             </div>
             {/* Scroll indicator */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">

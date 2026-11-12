@@ -1,0 +1,142 @@
+# ============================================
+# DOAPP - APK de Android (descarga sin tienda)
+# ============================================
+# Compila la app (mobile/) como APK firmado y lo deja en el servidor, de donde lo entrega `GET /api/app/android` (server/routes/appAndroid.ts) al
+# botón «Descargar APK» de la web. Regla del dueño (2026-11-12): la app se baja sin pasar por ninguna tienda.
+#
+# - Cuándo corre: al subir cambios de `mobile/` a la rama `staging`, o a mano (botón «Run workflow»).
+# - La app queda apuntando a PRODUCCIÓN (https://doapparg.com/api): es la que instalan las personas.
+# - La clave de firma NO es un secreto de GitHub: se crea la primera vez y vive en el servidor (`<carpeta>/.firma`, permisos 600). Hace falta que sea
+#   SIEMPRE la misma: Android solo deja actualizar una app instalada si la nueva viene firmada con la misma clave. HACÉ COPIA de esa carpeta.
+# - Usa los mismos secretos de SSH que el deploy (SSH_HOST, SSH_USERNAME, SSH_PRIVATE_KEY). La carpeta del servidor es /var/www/doapp-descargas
+#   (la misma que lee la app: APK_DIR). Producción y staging comparten servidor, así que sirven el mismo archivo.
+# ============================================
+
+name: Android APK
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [staging]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+# Un APK a la vez: dos subidas pisándose dejan el archivo a medio escribir.
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  CARPETA_REMOTA: /var/www/doapp-descargas
+  EXPO_PUBLIC_API_URL: https://doapparg.com/api
+
+jobs:
+  apk:
+    name: Compilar y publicar el APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Java 17 (el que pide Gradle)
+        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
+      - name: Instalar dependencias de la app
+        working-directory: mobile
+        run: npm ci --legacy-peer-deps
+
+      # versionCode sube con cada corrida: sin eso Android no deja instalar la versión nueva encima de la vieja.
+      - name: Numerar la versión
+        working-directory: mobile
+        run: |
+          node -e "
+          const fs = require('fs');
+          const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          j.expo.android = j.expo.android || {};
+          j.expo.android.versionCode = Number(process.env.GITHUB_RUN_NUMBER);
+          fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
+          fs.writeFileSync(process.env.GITHUB_ENV, 'VERSION_DE_LA_APP=' + j.expo.version + '\n', { flag: 'a' });
+          "
+
+      - name: Generar el proyecto de Android
+        working-directory: mobile
+        run: npx expo prebuild --platform android --no-install
+
+      # Los secretos de SSH van por variables de entorno (nunca dentro del texto del comando).
+      - name: Preparar el acceso al servidor y la clave de firma
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST" "mkdir -p '$CARPETA_REMOTA/.firma' && chmod 700 '$CARPETA_REMOTA/.firma'"
+          mkdir -p "$RUNNER_TEMP/firma"
+          if ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST" "test -s '$CARPETA_REMOTA/.firma/doapp-release.jks' && test -s '$CARPETA_REMOTA/.firma/clave.txt'"; then
+            echo "Usando la clave de firma que ya está en el servidor."
+            scp -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST:$CARPETA_REMOTA/.firma/doapp-release.jks" "$RUNNER_TEMP/firma/doapp-release.jks"
+            scp -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST:$CARPETA_REMOTA/.firma/clave.txt" "$RUNNER_TEMP/firma/clave.txt"
+          else
+            echo "Primera vez: se crea la clave de firma y se guarda en el servidor."
+            openssl rand -hex 24 | tr -d '\n' > "$RUNNER_TEMP/firma/clave.txt"
+            keytool -genkeypair -keystore "$RUNNER_TEMP/firma/doapp-release.jks" -alias doapp -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$(cat "$RUNNER_TEMP/firma/clave.txt")" -keypass "$(cat "$RUNNER_TEMP/firma/clave.txt")" \
+              -dname "CN=DOAPP, O=DOAPP, C=AR" > /dev/null 2>&1
+            scp -i ~/.ssh/deploy_key -o BatchMode=yes "$RUNNER_TEMP/firma/doapp-release.jks" "$RUNNER_TEMP/firma/clave.txt" "$SSH_USERNAME@$SSH_HOST:$CARPETA_REMOTA/.firma/"
+            ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST" "chmod 600 '$CARPETA_REMOTA'/.firma/*"
+          fi
+
+      - name: Compilar el APK firmado
+        working-directory: mobile/android
+        run: |
+          set -euo pipefail
+          CLAVE="$(cat "$RUNNER_TEMP/firma/clave.txt")"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
+            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/firma/doapp-release.jks" \
+            -Pandroid.injected.signing.store.password="$CLAVE" \
+            -Pandroid.injected.signing.key.alias=doapp \
+            -Pandroid.injected.signing.key.password="$CLAVE"
+          test -s app/build/outputs/apk/release/app-release.apk
+
+      - name: Subir el APK al servidor
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+        run: |
+          set -euo pipefail
+          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
+          cp "$APK" "$RUNNER_TEMP/doapp.apk"
+          printf '{"version":"%s","build":"%s","fecha":"%s"}\n' "$VERSION_DE_LA_APP" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RUNNER_TEMP/doapp.apk.json"
+          # Se sube con otro nombre y se renombra al final: nadie baja un archivo a medio escribir.
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes "$RUNNER_TEMP/doapp.apk" "$SSH_USERNAME@$SSH_HOST:$CARPETA_REMOTA/doapp.apk.subiendo"
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes "$RUNNER_TEMP/doapp.apk.json" "$SSH_USERNAME@$SSH_HOST:$CARPETA_REMOTA/doapp.apk.json.subiendo"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$SSH_USERNAME@$SSH_HOST" "cd '$CARPETA_REMOTA' && chmod 644 doapp.apk.subiendo doapp.apk.json.subiendo && mv -f doapp.apk.subiendo doapp.apk && mv -f doapp.apk.json.subiendo doapp.apk.json"
+          {
+            echo "### APK publicado"
+            echo "- Versión: $VERSION_DE_LA_APP (build $GITHUB_RUN_NUMBER)"
+            echo "- Tamaño: $(du -h "$RUNNER_TEMP/doapp.apk" | cut -f1)"
+            echo "- SHA-256: $(sha256sum "$RUNNER_TEMP/doapp.apk" | cut -d' ' -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Borrar la llave y la clave de firma del runner
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key "$RUNNER_TEMP/firma"

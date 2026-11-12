@@ -183,6 +183,7 @@ import marketingRoutes from "./routes/admin/marketing.js";
 import familyCodesRoutes from "./routes/admin/familyCodes.js";
 import correosAdminRoutes from "./routes/admin/correos.js";
 import bajaDeCorreosRoutes from "./routes/bajaDeCorreos.js";
+import appAndroidRoutes from "./routes/appAndroid.js";
 
 // Promoter routes
 import promoterRoutes from "./routes/promoter.js";
@@ -484,6 +485,8 @@ app.use("/api/admin/family-codes", familyCodesRoutes);
 app.use("/api/admin/correos", correosAdminRoutes);
 // Baja de los correos del módulo de correos: pública, con token (el enlace del pie de cada correo).
 app.use("/api/correos", bajaDeCorreosRoutes);
+// Descarga de la app para Android como APK (pública, sin sesión): el archivo lo deja el workflow android-apk.yml en APK_DIR.
+app.use("/api/app", appAndroidRoutes);
 app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);

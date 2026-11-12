@@ -91,6 +91,9 @@ Para desarrollo local:
 EXPO_PUBLIC_API_URL=http://192.168.X.X:3001/api
 ```
 
+### APK para descargar (sin tienda)
+El workflow `.github/workflows/android-apk.yml` compila y firma el APK y lo deja en el servidor; la web lo ofrece en el botón «Descargar APK» (`/api/app/android`). Se dispara solo al subir cambios de `mobile/` a la rama `staging`, o a mano desde GitHub → Actions → «Android APK» → Run workflow. Para instalar: abrir el archivo en el celular y permitir «instalar apps de esta fuente».
+
 ## 📦 Build para Producción
 
 ### Configurar EAS

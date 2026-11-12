@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { features } from "../../../shared/featureFlags";
 import { useAuth } from "../../hooks/useAuth";
 import { guardarEleccionDeCookies } from "../../utils/consentimientoDeCookies";
+import DescargarApk from "../DescargarApk";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -71,6 +72,7 @@ export default function Footer() {
                 <Linkedin className="h-5 w-5" />
               </a>
             </div>
+            <DescargarApk variante="pie" />
           </div>
 
           {/* Enlaces Rápidos */}
