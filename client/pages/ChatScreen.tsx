@@ -33,6 +33,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import QuoteMessage from '../components/chat/QuoteMessage';
+import { mezclarMensajes } from '../utils/mensajesDelChat';
 import ConfirmModal from '../components/ui/ConfirmModal';
 
 interface ConversationPreview {
@@ -274,12 +275,9 @@ export default function ChatScreen() {
       const msgData = await msgResponse.json();
       if (msgData.success && msgData.data) {
         setMessages(prev => {
-          // Merge new messages avoiding duplicates
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = msgData.data.filter((m: Message) => !existingIds.has(m.id));
-          if (newMessages.length > 0) {
-            return [...prev, ...newMessages];
-          }
+          // Mezcla sin repetir: lo que ya se ve no se agrega de nuevo y un mensaje confirmado reemplaza a su provisorio.
+          const mezcla = mezclarMensajes(prev, msgData.data as Message[]);
+          if (mezcla !== prev) return mezcla;
           // También actualizar si hay cambios en metadata (ej: proposalStatus)
           const hasMetadataChanges = msgData.data.some((newMsg: Message) => {
             const existing = prev.find(p => (p.id) === (newMsg.id));
@@ -303,36 +301,8 @@ export default function ChatScreen() {
   useEffect(() => {
     console.log('🔄 Socket messages changed:', socketMessages.length, 'messages');
     if (socketMessages.length > 0) {
-      setMessages(prev => {
-        // Get IDs of existing messages, excluding temporary optimistic messages
-        const existingIds = new Set(
-          prev
-            .filter(m => !String(m.id).startsWith('temp-'))
-            .map(m => m.id)
-        );
-
-        // Filter out messages that already exist
-        const newMessages = socketMessages.filter(m => {
-          const msgId = (m as any).id || (m as any).id;
-          return !existingIds.has(msgId);
-        });
-
-        if (newMessages.length > 0) {
-          // Remove any temp messages that match the content of new messages
-          // and add the real messages from server
-          const filteredPrev = prev.filter(m => {
-            if (!String(m.id).startsWith('temp-')) return true;
-            // Check if this temp message is now confirmed by server
-            const hasServerVersion = newMessages.some(nm =>
-              (nm as any).message === m.message &&
-              (nm as any).sender === m.sender
-            );
-            return !hasServerVersion;
-          });
-          return [...filteredPrev, ...newMessages as any];
-        }
-        return prev;
-      });
+      // Mezcla sin repetir (ver utils/mensajesDelChat.ts): el mensaje que uno escribe se muestra provisorio y el del servidor lo reemplaza, no se suma.
+      setMessages(prev => mezclarMensajes(prev, socketMessages as any as Message[]));
     }
   }, [socketMessages]);
 

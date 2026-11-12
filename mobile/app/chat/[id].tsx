@@ -174,7 +174,8 @@ export default function ChatScreen() {
         const response = await sendMessage(id!, { content: text, type: 'text' });
         const enviado = leerClave(response, 'message');
         if (enviado) {
-          setMessages((prev) => [enviado, ...prev]);
+          // Sin repetir: si el mensaje ya está en la lista (llegó por otra vía) no se suma de nuevo.
+          setMessages((prev) => (prev.some((m: any) => (m.id || m._id) && (m.id || m._id) === ((enviado as any).id || (enviado as any)._id)) ? prev : [enviado, ...prev]));
           flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         } else {
           setMessageText(text);
