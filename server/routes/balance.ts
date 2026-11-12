@@ -182,12 +182,16 @@ router.get("/transactions", protect, async (req: AuthRequest, res: Response): Pr
  * cotizaciones, órdenes al terminar y membresía), en pesos. Sale de los pagos y no de los contratos: el tablero sumaba solo contratos
  * COMPLETADOS (`totalPrice`), así que quien ya había pagado un trabajo todavía en curso veía «$0 gastado».
  *
- * Cuentan los pagos en que la plata ya entró (verificado, en custodia, esperando confirmación, en disputa, completado). No cuentan los
- * pendientes de comprobar, fallidos, cancelados ni devueltos, ni lo que no es un gasto suyo (la liberación al trabajador y los reembolsos).
+ * Cuentan SOLO los pagos con la plata CONFIRMADA (regla del dueño, 2026-11-11: «el dashboard detecta gastos de pagos que no fueron confirmados»): en custodia, listo para
+ * pagarle al trabajador, esperando confirmación del trabajo, en reclamo, completado y aprobado. NO cuentan los que están en revisión —el comprobante todavía no se aprobó
+ * (`pending_verification`) o se aprobó pero falta verificar la custodia (`verified`)—: se informan aparte en `enRevision`, sin sumarlos. Tampoco los fallidos,
+ * cancelados ni devueltos, ni lo que no es un gasto suyo (la liberación al trabajador y los reembolsos).
  * Un pago en otra moneda cuenta por su equivalente en pesos si lo tiene; si no, no se inventa un tipo de cambio.
  * GET /api/balance/gastado
  */
-const ESTADOS_DE_PAGO_ACREDITADO = ['verified', 'held_escrow', 'confirmed_for_payout', 'awaiting_confirmation', 'disputed', 'completed', 'approved'];
+export const ESTADOS_DE_PAGO_ACREDITADO = ['held_escrow', 'confirmed_for_payout', 'awaiting_confirmation', 'disputed', 'completed', 'approved'];
+/** El comprobante todavía no se aprobó, o se aprobó y falta verificar la custodia: la plata no está confirmada, no es un gasto todavía. */
+export const ESTADOS_DE_PAGO_EN_REVISION = ['pending_verification', 'verified'];
 const TIPOS_QUE_NO_SON_UN_GASTO = ['escrow_release', 'refund'];
 
 /** Cómo se le dice a la persona cada tipo y estado de pago (nunca el valor de la base, que sale en inglés). */
@@ -227,6 +231,20 @@ router.get("/gastado", protect, async (req: AuthRequest, res: Response): Promise
       status: string; paymentType: string; description: string | null; contractId: string | null; createdAt: Date;
     }>;
 
+    // Lo que está en revisión se cuenta aparte: la persona ve que existe, pero no se le suma como gasto.
+    const enRevisionFilas = (await Payment.findAll({
+      where: { payerId: req.user.id, status: { [Op.in]: ESTADOS_DE_PAGO_EN_REVISION }, paymentType: { [Op.notIn]: TIPOS_QUE_NO_SON_UN_GASTO } } as any,
+      attributes: ['amount', 'currency', 'amountArs'],
+      raw: true,
+    })) as unknown as Array<{ amount: string | number; currency: string; amountArs: string | number | null }>;
+    const enRevision = enRevisionFilas.reduce(
+      (acc, p) => {
+        const enPesos = String(p.currency).toUpperCase() === 'ARS' ? Number(p.amount) || 0 : p.amountArs !== null && p.amountArs !== undefined ? Number(p.amountArs) || 0 : 0;
+        return { pagos: acc.pagos + 1, total: Math.round((acc.total + enPesos) * 100) / 100 };
+      },
+      { pagos: 0, total: 0 },
+    );
+
     let total = 0;
     let sinEquivalente = 0;
     const detalle: Array<Record<string, unknown>> = [];
@@ -248,7 +266,7 @@ router.get("/gastado", protect, async (req: AuthRequest, res: Response): Promise
         });
       }
     }
-    res.json({ success: true, totalGastado: Math.round(total * 100) / 100, pagos: pagos.length, pagosSinEquivalenteEnPesos: sinEquivalente, detalle });
+    res.json({ success: true, totalGastado: Math.round(total * 100) / 100, pagos: pagos.length, pagosSinEquivalenteEnPesos: sinEquivalente, enRevision, detalle });
   } catch (error: any) {
     console.error("Error calculando lo gastado:", error);
     res.status(500).json({ success: false, message: error.message || "Error al calcular lo gastado" });

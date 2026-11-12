@@ -311,6 +311,19 @@ export default function CreateContractScreen() {
     }
   };
 
+  /** La persona colocó el pin a mano: se completan el barrio, el código postal y la localidad del punto elegido. */
+  const alMoverElPin = async (lat: number, lon: number) => {
+    const d = await detallesDeUbicacion(lat, lon);
+    if (!d) return;
+    if (d.barrio) setNeighborhood(d.barrio);
+    if (d.codigoPostal) setPostalCode(d.codigoPostal);
+    if (d.ciudad || d.provincia) {
+      setContextoGeo({ provincia: d.provincia || undefined, ciudad: d.ciudad || undefined });
+      const nueva = [d.ciudad, d.provincia].filter((x, i, a) => x && a.indexOf(x) === i).join(", ");
+      if (nueva && !(d.ciudad && location.toLowerCase().includes(d.ciudad.toLowerCase()))) setLocation(nueva);
+    }
+  };
+
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
       setSelectedTags([...selectedTags, tag]);
@@ -564,7 +577,8 @@ export default function CreateContractScreen() {
           </div>
         )}
 
-        <form ref={formRef} onSubmit={handleSubmit} onInput={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
+        {/* onChange y NO onInput: con onInput el formulario se redibujaba en el «input» del selector, antes de su «change», y React le devolvía la categoría vieja (no dejaba elegir). */}
+        <form ref={formRef} onSubmit={handleSubmit} onChange={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
               label={t('jobs.titleLabel', 'Job title')}
@@ -932,11 +946,15 @@ export default function CreateContractScreen() {
               </div>
             }>
               <LocationPinMap
-                address={[[addressStreet, addressNumber].filter(Boolean).join(' '), location].filter(Boolean).join(', ')}
-                initialLat={latitude ?? undefined}
-                initialLng={longitude ?? undefined}
+                calle={addressStreet}
+                numero={addressNumber}
+                lugar={location}
+                provincia={contextoDeCalles.provincia}
+                ciudad={contextoDeCalles.ciudad}
+                lat={latitude}
+                lng={longitude}
                 onCoordinatesChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }}
-                onAddressChange={setLocation}
+                onPinMovedByUser={alMoverElPin}
               />
             </Suspense>
 

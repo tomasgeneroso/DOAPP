@@ -33,6 +33,8 @@ interface Respuesta {
   totalGastado?: number;
   pagos?: number;
   pagosSinEquivalenteEnPesos?: number;
+  /** Pagos cuyo comprobante todavía se está revisando: NO suman al total hasta que se confirme la plata. */
+  enRevision?: { pagos: number; total: number };
   detalle?: Gasto[];
 }
 
@@ -115,6 +117,12 @@ export default function ExpensesDetail() {
           {error && (
             <p role="alert" className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
               {error}
+            </p>
+          )}
+
+          {!error && (datos?.enRevision?.pagos ?? 0) > 0 && (
+            <p role="status" className="mb-6 rounded-lg border border-sky-300 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-200">
+              Tenés {datos?.enRevision?.pagos} pago(s) en revisión por {pesos(datos?.enRevision?.total ?? 0)}: todavía no se confirmó que la plata entró, así que no figuran en el total. Se suman solos cuando se confirmen.
             </p>
           )}
 
