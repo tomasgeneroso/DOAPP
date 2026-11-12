@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { Gift, Users, Copy, Check, Trophy, Clock } from "lucide-react";
 import Transicion from "../components/ui/Transicion";
+import CanjearCodigo from "../components/CanjearCodigo";
 import { POLITICAS } from "../../shared/constants/policies";
 
 interface ReferralStats {
@@ -101,6 +102,11 @@ export default function ReferralsScreen() {
           </div>
         )}
         </Transicion>
+
+        {/* «Tengo un código»: el código de invitación que te enviaron (de un creador de contenido), el de familia o el de un amigo */}
+        <div className="max-w-2xl">
+          <CanjearCodigo />
+        </div>
 
         {/* Referral Code Card */}
         <div className="mb-8 bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-8 text-white shadow-lg">

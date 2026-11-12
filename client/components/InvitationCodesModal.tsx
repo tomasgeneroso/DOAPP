@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { InvitationCode } from '../types';
 import Button from './ui/Button';
+import CanjearCodigo from './CanjearCodigo';
 import analytics from '../utils/analytics';
 import { POLITICAS } from "../../shared/constants/policies";
 
@@ -78,6 +79,9 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
               </svg>
             </button>
           </div>
+
+          {/* Canjear un código que te enviaron (invitación, familia o de un amigo): no depende de que se hayan cargado los datos de abajo. */}
+          <CanjearCodigo />
 
           {loading ? (
             <div className="flex justify-center py-8">
