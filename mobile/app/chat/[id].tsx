@@ -7,6 +7,7 @@ import {
   StyleSheet,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -29,6 +30,20 @@ export default function ChatScreen() {
   const { colors: themeColors } = useTheme();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
+
+  // Mientras el teclado está abierto, la lista de mensajes queda quieta y el campo de escribir no se mueve (regla del dueño, 2026-11-12):
+  // para recorrer la conversación hay que bajar el teclado primero. Si no, un deslizamiento sin querer mientras se escribe mueve la pantalla.
+  const [tecladoAbierto, setTecladoAbierto] = useState(false);
+  useEffect(() => {
+    const alAbrir = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const alCerrar = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const a = Keyboard.addListener(alAbrir, () => setTecladoAbierto(true));
+    const b = Keyboard.addListener(alCerrar, () => setTecladoAbierto(false));
+    return () => {
+      a.remove();
+      b.remove();
+    };
+  }, []);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -562,6 +577,9 @@ export default function ChatScreen() {
           inverted
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={!tecladoAbierto}
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="handled"
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
