@@ -577,6 +577,28 @@ export class User extends Model {
   @Column(DataType.JSONB)
   address?: Address;
 
+  /** Rubros que ofrece como trabajador (ids de `JOB_CATEGORIES`); vacío + `workAnyCategory` = cualquier rubro. */
+  @Default([])
+  @AllowNull(false)
+  @Column(DataType.ARRAY(DataType.TEXT))
+  workCategories!: string[];
+
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  workAnyCategory!: boolean;
+
+  /** Otras zonas de trabajo, además de la del domicilio: [{ name, radiusKm? }]. */
+  @Default([])
+  @AllowNull(false)
+  @Column(DataType.JSONB)
+  workZones!: Array<{ name: string; radiusKm?: number }>;
+
+  /** Radio de trabajo en km desde el domicilio. */
+  @AllowNull(true)
+  @Column(DataType.INTEGER)
+  workRadiusKm?: number | null;
+
   @Column(DataType.JSONB)
   bankingInfo?: BankingInfo;
 

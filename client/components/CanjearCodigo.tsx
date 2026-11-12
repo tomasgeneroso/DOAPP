@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Ticket, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
-import { clasificarCodigo } from '../utils/clasificarCodigo';
+import { candidatosDeCodigo } from '../utils/clasificarCodigo';
 
 /**
  * «Tengo un código» (Códigos de invitación, en el menú): un solo campo para el código de invitación de un creador de contenido (INF-…), el de familia (FAM-…)
@@ -22,27 +22,34 @@ export default function CanjearCodigo() {
 
   const canjear = async () => {
     if (enviando) return;
-    const c = clasificarCodigo(texto);
-    if (!c) {
+    const candidatos = candidatosDeCodigo(texto);
+    if (candidatos.length === 0) {
       setResultado({ ok: false, texto: 'Ese código no tiene la forma de ninguno que conozcamos. Revisalo o pegá el enlace que te mandaron.' });
       return;
     }
     setEnviando(true);
     setResultado(null);
     try {
-      const r = await fetchWithAuth(RUTAS[c.tipo], {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [c.tipo === 'invitacion' ? 'codigo' : 'code']: c.codigo }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok && d.success) {
-        setResultado({ ok: true, texto: d.message || '¡Código aplicado!' });
-        setTexto('');
-        await refreshUser?.();
-      } else {
-        setResultado({ ok: false, texto: d.message || 'No se pudo aplicar el código. Probá de nuevo.' });
+      // Un código de 8 caracteres sin prefijo puede ser de un referido o de familia: se prueba uno y, si el servidor dice que no existe, el otro.
+      let ultimo = 'No se pudo aplicar el código. Probá de nuevo.';
+      for (const c of candidatos) {
+        const r = await fetchWithAuth(RUTAS[c.tipo], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [c.tipo === 'invitacion' ? 'codigo' : 'code']: c.codigo }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) {
+          setResultado({ ok: true, texto: d.message || '¡Código aplicado!' });
+          setTexto('');
+          await refreshUser?.();
+          return;
+        }
+        ultimo = d.message || ultimo;
+        // Un código que existe pero no se puede usar (ya usado, propio, ya tenés uno) se explica tal cual; solo «no existe» pasa al siguiente.
+        if (r.status !== 404 && !/inv[aá]lid/i.test(String(d.message || ''))) break;
       }
+      setResultado({ ok: false, texto: ultimo });
     } catch {
       setResultado({ ok: false, texto: 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.' });
     } finally {

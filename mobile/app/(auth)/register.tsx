@@ -19,6 +19,8 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 import Logo from '../../components/ui/Logo';
 import ContactarSoporte from '../../components/ContactarSoporte';
 import BotonesSociales from '../../components/BotonesSociales';
+import SelectorDeTipoDeCuenta, { type TipoDeCuenta } from '../../components/SelectorDeTipoDeCuenta';
+import MediosDePago from '../../components/ui/MediosDePago';
 import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
 import { motivoDeDniImposible } from '../../../shared/identidad/documentos';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
@@ -45,6 +47,10 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  // «¿Cómo vas a usar DOAPP?»: cliente, trabajador o ambos; el trabajador elige rubros o «cualquier rubro».
+  const [tipoDeCuenta, setTipoDeCuenta] = useState<TipoDeCuenta>('client');
+  const [rubros, setRubros] = useState<string[]>([]);
+  const [cualquierRubro, setCualquierRubro] = useState(false);
 
   const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -84,6 +90,11 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (tipoDeCuenta !== 'client' && !cualquierRubro && rubros.length === 0) {
+      setError('Elegí al menos un rubro, o marcá «Cualquier rubro».');
+      return;
+    }
+
     if (!termsAccepted) {
       setError('Debes aceptar los términos y condiciones');
       return;
@@ -104,6 +115,8 @@ export default function RegisterScreen() {
         sinSesion: true,
         referralCode: formData.referralCode.trim() || undefined,
         invitationCode: invitationCode || undefined,
+        accountType: tipoDeCuenta,
+        ...(tipoDeCuenta !== 'client' ? { workCategories: cualquierRubro ? [] : rubros, workAnyCategory: cualquierRubro } : {}),
         termsAccepted: true,
       });
 
@@ -306,6 +319,8 @@ export default function RegisterScreen() {
                 </Text>
               </View>
 
+              <SelectorDeTipoDeCuenta tipo={tipoDeCuenta} onTipo={setTipoDeCuenta} rubros={rubros} cualquier={cualquierRubro} onRubros={setRubros} onCualquier={setCualquierRubro} />
+
               {/* Código de referido */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: themeColors.text.secondary }]}>
@@ -372,6 +387,7 @@ export default function RegisterScreen() {
             </View>
 
             <ContactarSoporte tema="registrarte" />
+            <MediosDePago />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

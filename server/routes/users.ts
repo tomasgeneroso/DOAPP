@@ -12,6 +12,7 @@ import { protect, type AuthRequest } from "../middleware/auth.js";
 import { puedeVerLosArchivosDeLaMatricula, leerArchivoDeMatricula } from "../services/matricula.js";
 import { logEvento } from "../utils/auditLog.js";
 import { conSistema } from "../db/contextoRls.js";
+import { esRubroValido, etiquetaDeRubro } from "../../shared/perfiles/zonaDeTrabajo.js";
 
 const router = express.Router();
 
@@ -58,6 +59,77 @@ router.get("/check-username/:username", async (req: Request, res: Response): Pro
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// @route   GET /api/users/directory
+// @desc    Directorio de perfiles (tarjetas con foto, nombre, reputación y rubros). Filtros: q (nombre, usuario o profesión), rubro, role (worker|client|all),
+//          minRating, location (ciudad, provincia o zona de trabajo). Público y sin datos de contacto ni la calle del domicilio.
+// @access  Public
+router.get("/directory", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { sequelize } = await import("../config/database.js");
+    const q = String(req.query.q ?? "").trim().slice(0, 80);
+    const rubro = String(req.query.rubro ?? "").trim();
+    const role = ["client", "all"].includes(String(req.query.role)) ? String(req.query.role) : "worker";
+    const minRating = Math.min(5, Math.max(0, Number(req.query.minRating) || 0));
+    const location = String(req.query.location ?? "").trim().slice(0, 80);
+    const page = Math.max(1, parseInt(String(req.query.page)) || 1);
+    const limit = Math.min(48, Math.max(1, parseInt(String(req.query.limit)) || 12));
+    const comodin = (s: string) => sequelize.escape("%" + s.replace(/[\\%_]/g, (c) => "\\" + c) + "%");
+
+    const condiciones: any[] = [{ isBanned: false }, { mergedIntoId: null }];
+    if (role === "worker") condiciones.push({ role: { [Op.in]: ["doer", "both"] } });
+    else if (role === "client") condiciones.push({ role: { [Op.in]: ["client", "both", "user"] } });
+    if (q) {
+      condiciones.push({ [Op.or]: [{ name: { [Op.iLike]: "%" + q + "%" } }, { username: { [Op.iLike]: "%" + q + "%" } }, { profession: { [Op.iLike]: "%" + q + "%" } }] });
+    }
+    if (rubro && esRubroValido(rubro)) {
+      // Quien eligió «cualquier rubro» sirve para todos.
+      condiciones.push({ [Op.or]: [{ workCategories: { [Op.contains]: [rubro] } }, { workAnyCategory: true }] });
+    }
+    if (minRating > 0) condiciones.push({ rating: { [Op.gte]: minRating } });
+    if (location) {
+      const l = comodin(location);
+      condiciones.push(sequelize.literal(`(("address"->>'city') ILIKE ${l} OR ("address"->>'state') ILIKE ${l} OR "work_zones"::text ILIKE ${l})`));
+    }
+
+    const { count, rows } = await User.findAndCountAll({
+      where: { [Op.and]: condiciones },
+      attributes: ["id", "name", "username", "avatar", "rating", "reviewsCount", "completedJobs", "role", "profession", "address", "membershipTier", "hasMembership", "isPremiumVerified", "hasFamilyPlan", "workCategories", "workAnyCategory", "workZones", "workRadiusKm"],
+      order: [["rating", "DESC"], ["completedJobs", "DESC"], ["createdAt", "DESC"]],
+      offset: (page - 1) * limit,
+      limit,
+    });
+
+    res.json({
+      success: true,
+      users: rows.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        avatar: u.avatar,
+        rating: u.rating,
+        reviewsCount: u.reviewsCount,
+        completedJobs: u.completedJobs,
+        role: u.role,
+        profession: u.profession,
+        // Solo la ciudad y la provincia: la calle y el número no salen.
+        city: u.address?.city || null,
+        state: u.address?.state || null,
+        rubros: (u.workCategories || []).map((id: string) => ({ id, label: etiquetaDeRubro(id) })),
+        workAnyCategory: !!u.workAnyCategory,
+        workZones: u.workZones || [],
+        workRadiusKm: u.workRadiusKm ?? null,
+        membershipTier: u.membershipTier,
+        hasMembership: u.hasMembership,
+        isPremiumVerified: u.isPremiumVerified,
+        hasFamilyPlan: u.hasFamilyPlan,
+      })),
+      pagination: { page, limit, total: count, pages: Math.ceil(count / limit) },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 
@@ -185,6 +257,11 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         hasFamilyPlan: user.hasFamilyPlan,
+        workCategories: user.workCategories,
+        workAnyCategory: user.workAnyCategory,
+        workZones: user.workZones,
+        workRadiusKm: user.workRadiusKm,
+        city: user.address?.city || null,
         createdAt: user.createdAt,
         cancellationMarkUntil: marcaVigente((user as any).cancellationMarkUntil),
         profession: user.profession,
@@ -627,6 +704,11 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         hasFamilyPlan: user.hasFamilyPlan,
+        workCategories: user.workCategories,
+        workAnyCategory: user.workAnyCategory,
+        workZones: user.workZones,
+        workRadiusKm: user.workRadiusKm,
+        city: user.address?.city || null,
         // Ni phone ni email: es el perfil PUBLICO y esta ruta no pide login.
         // Los dos se devolvian, mientras el formulario de registro promete que
         // el telefono "no aparece en tu perfil". Lo que se le promete al

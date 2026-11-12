@@ -33,6 +33,11 @@ interface UserResult {
   membershipTier?: string;
   hasMembership?: boolean;
   isPremiumVerified?: boolean;
+  city?: string | null;
+  state?: string | null;
+  rubros?: Array<{ id: string; label: string }>;
+  workAnyCategory?: boolean;
+  workRadiusKm?: number | null;
 }
 
 export default function SearchScreen() {
@@ -45,6 +50,9 @@ export default function SearchScreen() {
   const [users, setUsers] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // Perfiles: por ubicación y puntuación (pedido del dueño, 2026-11-12)
+  const [ubicacion, setUbicacion] = useState('');
+  const [minRating, setMinRating] = useState<number | null>(null);
 
   const categories = getCategories();
 
@@ -64,10 +72,14 @@ export default function SearchScreen() {
     }
   }, []);
 
-  const searchUsers = useCallback(async (query: string) => {
+  const searchUsers = useCallback(async (query: string, rubro?: string, lugar?: string, puntaje?: number | null) => {
     setLoading(true);
     try {
-      const response = await get<any>(`/jobs?type=users&query=${encodeURIComponent(query)}&limit=20`);
+      const qs = [`q=${encodeURIComponent(query)}`, 'limit=24'];
+      if (rubro) qs.push(`rubro=${encodeURIComponent(rubro)}`);
+      if (lugar?.trim()) qs.push(`location=${encodeURIComponent(lugar.trim())}`);
+      if (puntaje) qs.push(`minRating=${puntaje}`);
+      const response = await get<any>(`/users/directory?${qs.join('&')}`);
       if (response.success && response.users) {
         setUsers(response.users);
       } else {
@@ -90,16 +102,18 @@ export default function SearchScreen() {
       if (activeTab === 'jobs') {
         searchJobs(searchQuery, selectedCategory || undefined);
       } else {
-        searchUsers(searchQuery);
+        searchUsers(searchQuery, selectedCategory || undefined, ubicacion, minRating);
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedCategory, activeTab, searchJobs, searchUsers]);
+  }, [searchQuery, selectedCategory, ubicacion, minRating, activeTab, searchJobs, searchUsers]);
 
   const handleTabChange = (tab: SearchTab) => {
     setActiveTab(tab);
     setSelectedCategory(null);
     setSearchQuery('');
+    setUbicacion('');
+    setMinRating(null);
     if (tab === 'users') {
       searchUsers('');
     } else {
@@ -164,16 +178,30 @@ export default function SearchScreen() {
             </View>
           )}
         </View>
-        {item.bio ? (
+        {(item.rubros?.length || item.workAnyCategory) ? (
+          <Text style={[styles.userBio, { color: themeColors.primary[600] }]} numberOfLines={1}>
+            {item.workAnyCategory ? 'Cualquier rubro' : item.rubros!.slice(0, 3).map((r) => r.label).join(' · ')}
+          </Text>
+        ) : item.bio ? (
           <Text style={[styles.userBio, { color: themeColors.text.secondary }]} numberOfLines={2}>{item.bio}</Text>
         ) : null}
+        {(item.city || item.state) ? (
+          <View style={styles.locationRow}>
+            <MapPin size={12} color={themeColors.text.muted} strokeWidth={2} />
+            <Text style={[styles.locationText, { color: themeColors.text.muted }]} numberOfLines={1}>
+              {[item.city, item.state].filter(Boolean).join(', ')}{item.workRadiusKm ? ` · hasta ${item.workRadiusKm} km` : ''}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.userStats}>
-          {item.rating ? (
+          {item.rating && item.reviewsCount ? (
             <View style={styles.ratingRow}>
               <Star size={13} color={colors.warning[500]} fill={colors.warning[500]} strokeWidth={2} />
-              <Text style={[styles.ratingText, { color: themeColors.text.secondary }]}>{Number(item.rating).toFixed(1)}</Text>
+              <Text style={[styles.ratingText, { color: themeColors.text.secondary }]}>{Number(item.rating).toFixed(1)} ({item.reviewsCount})</Text>
             </View>
-          ) : null}
+          ) : (
+            <Text style={[styles.jobsText, { color: themeColors.text.muted }]}>Nuevo en DOAPP</Text>
+          )}
           {item.completedJobs ? (
             <Text style={[styles.jobsText, { color: themeColors.text.muted }]}>{item.completedJobs} trabajos</Text>
           ) : null}
@@ -226,8 +254,34 @@ export default function SearchScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Category chips — only for jobs tab */}
-      {activeTab === 'jobs' && (
+      {/* Perfiles: ubicación y puntuación */}
+      {activeTab === 'users' && (
+        <View style={[styles.categoriesWrapper, { backgroundColor: themeColors.background, borderBottomColor: themeColors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm }]}>
+          <TextInput
+            style={[styles.searchInputTop, { color: themeColors.text.primary, backgroundColor: themeColors.slate[50], borderColor: themeColors.border, borderWidth: 1, borderRadius: borderRadius.lg, paddingHorizontal: spacing.md, height: 40 }]}
+            placeholder="Ciudad, provincia o zona"
+            placeholderTextColor={themeColors.text.muted}
+            value={ubicacion}
+            onChangeText={setUbicacion}
+            returnKeyType="search"
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {[null, 3, 4, 4.5].map((p) => (
+              <TouchableOpacity
+                key={String(p)}
+                onPress={() => setMinRating(p)}
+                style={[styles.categoryChip, { backgroundColor: themeColors.slate[100], borderColor: themeColors.border }, minRating === p && { backgroundColor: colors.primary[500], borderColor: colors.primary[500] }]}
+              >
+                <Text style={[styles.categoryChipText, { color: minRating === p ? '#fff' : themeColors.text.secondary }]}>{p === null ? 'Cualquier puntuación' : `${String(p).replace('.', ',')}★ o más`}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Rubros (trabajos: categoría; perfiles: rubro del trabajador) */}
+      {(
+
         <View style={[styles.categoriesWrapper, { backgroundColor: themeColors.background, borderBottomColor: themeColors.border }]}>
           <ScrollView
             horizontal
@@ -297,7 +351,7 @@ export default function SearchScreen() {
           <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
             <Text style={styles.emptyIcon}>👤</Text>
             <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>
-              {searchQuery ? 'No encontramos usuarios' : 'Buscá por nombre de usuario'}
+              {searchQuery || selectedCategory || ubicacion || minRating ? 'No encontramos perfiles' : 'Buscá por nombre, rubro o zona'}
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
               {searchQuery ? 'Probá con otros términos' : 'Escribí un nombre para buscar profesionales'}

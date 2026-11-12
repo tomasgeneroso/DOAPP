@@ -5,6 +5,7 @@ import { features } from "../../../shared/featureFlags";
 import { useAuth } from "../../hooks/useAuth";
 import { guardarEleccionDeCookies } from "../../utils/consentimientoDeCookies";
 import DescargarApk from "../DescargarApk";
+import MediosDePago from "../MediosDePago";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -25,7 +26,7 @@ export default function Footer() {
           {/* Sobre DOAPP */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <img src="/logo.svg?v=5" alt="DOAPP" className="h-10 w-10" />
+              <img src="/logo.svg?v=6" alt="DOAPP" className="h-10 w-10" />
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
               {t('footer.description')}
@@ -73,6 +74,7 @@ export default function Footer() {
               </a>
             </div>
             <DescargarApk variante="pie" />
+            <MediosDePago className="mt-4 !items-start" />
           </div>
 
           {/* Enlaces Rápidos */}

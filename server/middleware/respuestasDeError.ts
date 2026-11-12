@@ -13,8 +13,16 @@ import { avisosAlDuenoActivos } from '../services/avisosAlDuenoActivos.js';
  * No toca el resto del cuerpo (códigos, listas, datos) ni las respuestas que ya traen `message`.
  */
 
-/** Respuestas que son parte del funcionamiento normal y llenarían el log de ruido. */
-const SIN_REGISTRO = new Set([401, 404, 429]);
+/**
+ * Qué se anota en el registro (pedido del dueño, 2026-11-12: «es más importante ver errores de la app y la performance que errores de tipeo del usuario»).
+ * Un 4xx es la respuesta correcta a un pedido incorrecto (contraseña mal escrita, usuario con un carácter inválido, correo sin confirmar): no es un problema de
+ * la app y llenaba el registro de ruido. Solo se anotan los 5xx (errores del servidor y pedidos que no responden). Para investigar un «no pasó nada» se puede volver a
+ * ver todo con `REGISTRAR_ERRORES_DE_CLIENTE=true` (y reiniciar). Los pedidos LENTOS también se anotan (ver `UMBRAL_DE_RESPUESTA_LENTA_MS`).
+ */
+const registrarErroresDeCliente = (): boolean => String(process.env.REGISTRAR_ERRORES_DE_CLIENTE || '').toLowerCase() === 'true';
+
+/** Desde cuántos milisegundos un pedido se anota como lento. */
+export const UMBRAL_DE_RESPUESTA_LENTA_MS = 3000;
 
 /**
  * Un pedido que no responde nunca es lo peor que le puede pasar a una pantalla: queda en «enviando…» sin error ni nada en el log. Pasado este
@@ -29,6 +37,17 @@ export function respuestasDeError(req: Request, res: Response, next: NextFunctio
 
   const limite = Number(process.env.TIEMPO_MAXIMO_DE_RESPUESTA_MS) || TIEMPO_MAXIMO_DE_RESPUESTA_MS;
   const ruta = (req.originalUrl || req.url || '').split('?')[0];
+
+  // Performance: un pedido que tarda más del umbral deja una línea (método, ruta sin la consulta, estado y tiempo). Sin la consulta: puede traer tokens.
+  const umbral = Number(process.env.UMBRAL_DE_RESPUESTA_LENTA_MS) || UMBRAL_DE_RESPUESTA_LENTA_MS;
+  if (!SIN_LIMITE_DE_TIEMPO.some((p) => ruta.startsWith(p))) {
+    const inicio = Date.now();
+    res.once('finish', () => {
+      const ms = Date.now() - inicio;
+      if (ms >= umbral) console.warn(`[LENTO] ${req.method} ${ruta} → ${res.statusCode} en ${ms} ms`);
+    });
+  }
+
   if (!SIN_LIMITE_DE_TIEMPO.some((p) => ruta.startsWith(p))) {
     const reloj = setTimeout(() => {
       if (res.headersSent) return;
@@ -70,7 +89,8 @@ function registrar(req: Request, res: Response, status: number, cuerpo: Record<s
       .then((m) => m.avisarDeUnErrorDelServidor({ metodo: req.method, ruta, estado: status, codigo: cuerpo?.code ? String(cuerpo.code) : undefined, mensaje: String(cuerpo?.message ?? '').slice(0, 300) }))
       .catch(() => undefined);
   }
-  if (SIN_REGISTRO.has(status) || res.locals?.errorYaRegistrado) return;
+  // Los 4xx (errores de tipeo o de uso del usuario) no se anotan salvo que se pida (REGISTRAR_ERRORES_DE_CLIENTE=true).
+  if ((status < 500 && !registrarErroresDeCliente()) || res.locals?.errorYaRegistrado) return;
   const quien = (req as Request & { user?: { id?: string } }).user?.id;
   const linea = `[HTTP ${status}] ${req.method} ${ruta}${quien ? ` usuario=${quien}` : ''}${cuerpo?.code ? ` código=${String(cuerpo.code)}` : ''} — ${String(cuerpo?.message ?? '').slice(0, 300)}`;
   if (status >= 500) console.error(linea);

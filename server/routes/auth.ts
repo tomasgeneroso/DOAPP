@@ -46,6 +46,7 @@ import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSeP
 import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import { identidadSuficiente, correoConfirmado } from "../services/identidadDeclarada.js";
 import twitterOAuth from "../services/twitterOAuth.js";
+import { sanearRubros, sanearZonas, sanearRadio, rolDeLaCuenta, esTrabajador } from "../../shared/perfiles/zonaDeTrabajo.js";
 
 const router = express.Router();
 
@@ -187,7 +188,7 @@ router.post(
         return;
       }
 
-      const { name: nombreCrudo, username: usuarioCrudo, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu, invitationCode } = req.body;
+      const { name: nombreCrudo, username: usuarioCrudo, email: emailCrudo, password, phone, dni, termsAccepted, referralCode, cbu, invitationCode, accountType, workCategories, workAnyCategory } = req.body;
       const registroEnPasos = req.body?.pasos === true;
       // Paso 1 del registro en pasos: datos provisorios, que la persona completa al terminar la verificación de identidad.
       const name: string = registroEnPasos ? 'Nuevo usuario' : nombreCrudo;
@@ -303,6 +304,9 @@ router.post(
         referredBy: referrer?.id,
         bankingInfo,
         registrationPending: registroEnPasos,
+        // «Quiero…»: cliente, trabajador o ambos; el trabajador elige sus rubros (o «cualquier rubro»). Sin elegir, cliente.
+        ...(accountType ? { role: rolDeLaCuenta(accountType) } : {}),
+        ...(accountType && esTrabajador(rolDeLaCuenta(accountType)) ? { workCategories: sanearRubros(workCategories), workAnyCategory: workAnyCategory === true } : {}),
       });
       // Contratos libres de comisión de lanzamiento (las primeras cuentas). No frena el alta si falla.
       await otorgarContratosLibres(String(user.id));
@@ -561,6 +565,10 @@ router.post(
         isVerified: user.isVerified,
         onboardingCompleted: user.onboardingCompleted,
         interests: user.interests,
+        workCategories: user.workCategories,
+        workAnyCategory: user.workAnyCategory,
+        workZones: user.workZones,
+        workRadiusKm: user.workRadiusKm,
         membershipType: user.membershipTier,   // alias para frontend
         membershipTier: user.membershipTier,
         hasMembership: user.hasMembership,
@@ -681,6 +689,10 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         permissions: user?.permissions,
         isVerified: user?.isVerified,
         interests: user?.interests,
+        workCategories: user?.workCategories,
+        workAnyCategory: user?.workAnyCategory,
+        workZones: user?.workZones,
+        workRadiusKm: user?.workRadiusKm,
         onboardingCompleted: user?.onboardingCompleted,
         address: user?.address,
         bankingInfo: user?.bankingInfo ? {
@@ -990,6 +1002,10 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       licenseNumber,
       licenseCategory,
       licenseCertNumber,
+      workCategories,
+      workAnyCategory,
+      workZones,
+      workRadiusKm,
     } = req.body;
 
     // Obtener usuario actual para comparar cambios
@@ -1176,6 +1192,11 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (dontAskBankingInfo !== undefined) updateData.dontAskBankingInfo = dontAskBankingInfo;
     if (legalInfo) updateData.legalInfo = legalFinal;
     if (interests) updateData.interests = interests;
+    // Rubros y zona de trabajo (se sanean: solo rubros que existen, zonas con nombre, radios razonables).
+    if (workCategories !== undefined) updateData.workCategories = sanearRubros(workCategories);
+    if (workAnyCategory !== undefined) updateData.workAnyCategory = workAnyCategory === true;
+    if (workZones !== undefined) updateData.workZones = sanearZonas(workZones);
+    if (workRadiusKm !== undefined) updateData.workRadiusKm = sanearRadio(workRadiusKm);
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
     if (availabilitySchedule !== undefined) updateData.availabilitySchedule = availabilitySchedule;
     if (isAvailabilityPublic !== undefined) updateData.isAvailabilityPublic = isAvailabilityPublic;
@@ -1235,6 +1256,10 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
         dontAskBankingInfo: updatedUser?.dontAskBankingInfo,
         legalInfo: updatedUser?.legalInfo,
         interests: updatedUser?.interests,
+        workCategories: updatedUser?.workCategories,
+        workAnyCategory: updatedUser?.workAnyCategory,
+        workZones: updatedUser?.workZones,
+        workRadiusKm: updatedUser?.workRadiusKm,
         notificationPreferences: updatedUser?.notificationPreferences,
         availabilitySchedule: updatedUser?.availabilitySchedule,
         isAvailabilityPublic: updatedUser?.isAvailabilityPublic,

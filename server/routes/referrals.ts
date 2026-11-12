@@ -183,7 +183,8 @@ router.post("/use-code", protect, async (req: AuthRequest, res: Response): Promi
 
     // Buscar el usuario que generó el código
     const referrer = await User.findOne({
-      where: { referralCode: code.toUpperCase() },
+      // Sin espacios ni guiones de más y en cualquier mayúscula: el código se copia y se pega de cualquier lado.
+      where: { referralCode: String(code).toUpperCase().replace(/[^A-Z0-9]/g, '') },
       include: [{
         model: User,
         as: 'invitedUsers'

@@ -85,11 +85,37 @@ describe('servidor: toda respuesta de error trae message y deja registro', () =>
     expect(ok.body).toEqual({ success: true, data: [1] });
   });
 
-  it('deja una línea en el log con la ruta, el código de estado y el motivo (los 5xx por console.error)', async () => {
+  it('un 5xx deja una línea en el log con la ruta, el código de estado y el motivo; un 4xx (error de tipeo del usuario) NO', async () => {
     await request(app()).post('/validacion').send({});
-    expect(String(warn.mock.calls[0][0])).toMatch(/\[HTTP 400\] POST \/validacion — El título es requerido/);
+    expect(warn.mock.calls.filter((c) => String(c[0]).startsWith('[HTTP'))).toHaveLength(0);
     await request(app()).get('/vacio');
     expect(String(error.mock.calls[0][0])).toMatch(/\[HTTP 500\] GET \/vacio/);
+  });
+
+  it('con REGISTRAR_ERRORES_DE_CLIENTE=true los 4xx vuelven al registro (para investigar un «no pasó nada»)', async () => {
+    process.env.REGISTRAR_ERRORES_DE_CLIENTE = 'true';
+    try {
+      await request(app()).post('/validacion').send({});
+      expect(String(warn.mock.calls[0][0])).toMatch(/\[HTTP 400\] POST \/validacion — El título es requerido/);
+    } finally {
+      delete process.env.REGISTRAR_ERRORES_DE_CLIENTE;
+    }
+  });
+
+  it('un pedido lento (más del umbral) deja una línea [LENTO] con la ruta sin la consulta y el tiempo', async () => {
+    process.env.UMBRAL_DE_RESPUESTA_LENTA_MS = '20';
+    try {
+      const a = express();
+      a.use(respuestasDeError);
+      a.get('/despacio', (_q, r) => void setTimeout(() => r.json({ success: true }), 60));
+      await request(a).get('/despacio?token=secreto');
+      const lineas = warn.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith('[LENTO]'));
+      expect(lineas).toHaveLength(1);
+      expect(lineas[0]).toMatch(/\[LENTO\] GET \/despacio → 200 en \d+ ms/);
+      expect(lineas[0]).not.toContain('secreto');
+    } finally {
+      delete process.env.UMBRAL_DE_RESPUESTA_LENTA_MS;
+    }
   });
 
   it('no llena el log con lo corriente (404 y 401) y no repite lo que el manejador global ya registró', async () => {

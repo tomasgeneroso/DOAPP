@@ -34,6 +34,10 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'quotes_numero_seq arranca después del último', sql: `SELECT setval('quotes_numero_seq', GREATEST((SELECT COALESCE(MAX(SUBSTRING(quote_number FROM 5)::bigint), 0) FROM quotes WHERE quote_number ~ '^COT-[0-9]+$'), (SELECT last_value FROM quotes_numero_seq)), true)` },
   { label: 'tickets_numero_seq arranca después del último', sql: `SELECT setval('tickets_numero_seq', GREATEST((SELECT COALESCE(MAX(SUBSTRING(ticket_number FROM 4)::bigint), 0) FROM tickets WHERE ticket_number ~ '^TK-[0-9]+$'), (SELECT last_value FROM tickets_numero_seq)), true)` },
   // --- memberships: precio de lista en euros ---
+  { label: 'users.work_categories', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_categories TEXT[] NOT NULL DEFAULT '{}'` },
+  { label: 'users.work_any_category', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_any_category BOOLEAN NOT NULL DEFAULT FALSE` },
+  { label: 'users.work_zones', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_zones JSONB NOT NULL DEFAULT '[]'::jsonb` },
+  { label: 'users.work_radius_km', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_radius_km INTEGER` },
   { label: 'quotes.counter_offer_amount', sql: `ALTER TABLE IF EXISTS quotes ADD COLUMN IF NOT EXISTS counter_offer_amount NUMERIC(12,2)` },
   { label: 'quotes.counter_offer_note', sql: `ALTER TABLE IF EXISTS quotes ADD COLUMN IF NOT EXISTS counter_offer_note TEXT` },
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },

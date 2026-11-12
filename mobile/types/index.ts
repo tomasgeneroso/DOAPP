@@ -425,6 +425,10 @@ export interface RegisterData {
   sinSesion?: boolean;
   termsAccepted: boolean;
   referralCode?: string;
+  /** «¿Cómo vas a usar DOAPP?»: cliente, trabajador o ambos; el trabajador elige rubros (ids de los rubros de los trabajos) o «cualquier rubro». */
+  accountType?: 'client' | 'worker' | 'both';
+  workCategories?: string[];
+  workAnyCategory?: boolean;
   /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un tiempo desde el canje. */
   invitationCode?: string;
 }

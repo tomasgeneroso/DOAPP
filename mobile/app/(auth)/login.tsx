@@ -14,6 +14,7 @@ import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import MediosDePago from '../../components/ui/MediosDePago';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
 import ContactarSoporte from '../../components/ContactarSoporte';
@@ -178,6 +179,7 @@ export default function LoginScreen() {
             </View>
 
             <ContactarSoporte tema="ingresar" />
+            <MediosDePago />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

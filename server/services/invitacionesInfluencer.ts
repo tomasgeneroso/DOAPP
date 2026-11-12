@@ -37,7 +37,10 @@ export function generarCodigoDeInvitacion(): string {
 
 /** El código como lo escribió o pegó la persona → el código canónico, o null si no tiene la forma de un código. */
 export function normalizarCodigoDeInvitacion(entrada: unknown): string | null {
-  const c = String(entrada ?? '').trim().toUpperCase();
+  // Con o sin «INF-», en minúsculas y con espacios o guiones de más (el alfabeto no tiene la «I», así que un «INF» al principio nunca es parte del código).
+  let limpio = String(entrada ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (limpio.startsWith('INF')) limpio = limpio.slice(3);
+  const c = `${PREFIJO_DEL_CODIGO}${limpio}`;
   return FORMATO_DEL_CODIGO.test(c) ? c : null;
 }
 

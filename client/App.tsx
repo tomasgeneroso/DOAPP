@@ -80,6 +80,7 @@ const IngresoDesdeApp = lazy(() => import("./pages/IngresoDesdeApp"));
 const PaymentCancel = lazy(() => import("./pages/PaymentCancel"));
 const MembershipPaymentSuccess = lazy(() => import("./pages/MembershipPaymentSuccess"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const Profesionales = lazy(() => import("./pages/Profesionales"));
 const BannedUserScreen = lazy(() => import("./pages/BannedUserScreen"));
 
 // Admin pages (lazy — only loaded for admin users)
@@ -328,6 +329,8 @@ export default function App() {
                 path="/portfolio/:id"
                 element={<PortfolioItemDetail />}
               />
+              {/* Directorio de perfiles: se busca por nombre, rubro, perfil, puntuación y ubicación */}
+              <Route path="/profesionales" element={<Profesionales />} />
               {/* Profile routes - username takes precedence */}
               <Route path="/u/:username" element={<ProfilePage />} />
               <Route path="/profile/:userId" element={<ProfilePage />} />

@@ -125,7 +125,9 @@ export function usePendingTasks(): PendingTasksResult {
         section: 'basic',
         to: VERIFY_ROUTE,
       },
-      {
+      // Solo con la verificación con Didit encendida y fuera de la beta (pedido del dueño, 2026-11-12).
+      !(u as any).platform?.isBeta && (u as any).capabilities?.verificacionConDidit
+        ? {
         id: 'selfie',
         label: 'Selfie de verificación',
         desc: 'Confirmá que sos vos con una selfie. Suma credibilidad a tu perfil.',
@@ -134,7 +136,8 @@ export function usePendingTasks(): PendingTasksResult {
         priority: 'high',
         section: 'basic',
         to: VERIFY_ROUTE,
-      },
+      }
+        : null,
       {
         id: 'cbu',
         label: 'Datos bancarios (CBU)',

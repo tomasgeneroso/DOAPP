@@ -52,6 +52,8 @@ import Transicion from "../components/ui/Transicion";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 import AvatarConInicial from "../components/ui/AvatarConInicial";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
+import ZonaDeTrabajo, { type Zona } from "../components/perfil/ZonaDeTrabajo";
+import SelectorDeRubros from "../components/perfil/SelectorDeRubros";
 
 type TabType = "basic" | "membership" | "promotion" | "verification" | "security" | "profession" | "address" | "banking" | "interests" | "notifications" | "help";
 
@@ -64,7 +66,7 @@ const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
   verification: "Verificación",
   security: "Seguridad",
   profession: "Profesión",
-  address: "Dirección",
+  address: "Domicilio y zona de trabajo",
   banking: "Banca",
   interests: "Intereses",
   notifications: "Notificaciones",
@@ -367,6 +369,11 @@ export default function UserSettings() {
 
   // Interests
   const [interests, setInterests] = useState<string[]>([]);
+  // Rubros y zona de trabajo (pedido del dueño, 2026-11-12)
+  const [workCategories, setWorkCategories] = useState<string[]>([]);
+  const [workAny, setWorkAny] = useState(false);
+  const [workRadiusKm, setWorkRadiusKm] = useState<number | null>(null);
+  const [workZones, setWorkZones] = useState<Zona[]>([]);
 
   // Profesión y matrícula
   const [profession, setProfession] = useState("");
@@ -413,6 +420,10 @@ export default function UserSettings() {
       setTaxStatus(user.legalInfo?.taxStatus || "freelancer");
       setTaxId(user.legalInfo?.taxId || "");
       setInterests(user.interests || []);
+      setWorkCategories(user.workCategories || []);
+      setWorkAny(!!user.workAnyCategory);
+      setWorkRadiusKm(user.workRadiusKm ?? null);
+      setWorkZones(user.workZones || []);
       setProfession(user.profession || "");
       setLicenseNumber(user.licenseNumber || "");
       setLicenseCategory(user.licenseCategory || "");
@@ -539,6 +550,10 @@ export default function UserSettings() {
           ...(dni && !user?.dniVerified ? { dni } : {}),
           legalInfo: { taxStatus, taxId },
           interests,
+          workCategories,
+          workAnyCategory: workAny,
+          workRadiusKm,
+          workZones,
           notificationPreferences: notifPrefs,
           profession: profession || null,
           licenseNumber: licenseNumber || null,
@@ -593,7 +608,7 @@ export default function UserSettings() {
     { id: "verification", label: "Verificación", icon: ShieldCheck },
     { id: "security", label: "Seguridad", icon: Lock },
     { id: "profession", label: "Profesión", icon: Briefcase },
-    { id: "address", label: t('settings.tabs.address'), icon: MapPin },
+    { id: "address", label: "Domicilio y zona", icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
     { id: "interests", label: t('settings.tabs.interests'), icon: Tag },
     { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
@@ -1057,6 +1072,13 @@ export default function UserSettings() {
                       />
                     </div>
                   </div>
+                  <ZonaDeTrabajo ciudad={city} provincia={state} radioKm={workRadiusKm} onRadio={setWorkRadiusKm} zonas={workZones} onZonas={setWorkZones} />
+                  {(user?.role === "doer" || user?.role === "both") && (
+                    <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-slate-700">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">Rubros</h3>
+                      <SelectorDeRubros rubros={workCategories} cualquier={workAny} onRubros={setWorkCategories} onCualquier={setWorkAny} />
+                    </section>
+                  )}
                 </div>
               )}
 

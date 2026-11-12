@@ -183,7 +183,9 @@ export function usePendingTasks(): PendingTasksResult {
         inModal: false,
         dismissible: false,
       },
-      {
+      // La selfie solo se pide cuando la verificación con Didit está encendida y fuera de la beta (pedido del dueño, 2026-11-12: «sacarlo por la beta»).
+      !(u as any).platform?.isBeta && u.capabilities?.verificacionConDidit
+        ? {
         id: "selfie",
         labelKey: "tasks.selfieLabel",
         label: "Selfie de verificación",
@@ -198,7 +200,8 @@ export function usePendingTasks(): PendingTasksResult {
         // into one would pop a modal at every existing user without a selfie.
         inModal: false,
         dismissible: false,
-      },
+      }
+        : null,
       {
         id: "cbu",
         labelKey: "dashboard.completeProfile.bankingLabel",

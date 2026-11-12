@@ -19,6 +19,7 @@ import AuthHero from "../components/auth/AuthHero";
 import { rutaInternaSegura } from "../../shared/auth/rutaInterna";
 import { POLITICAS } from "../../shared/constants/policies";
 import { guardarDestino } from "../utils/destinoDespuesDeGoogle";
+import SelectorDeTipoDeCuenta, { type TipoDeCuenta } from "../components/perfil/SelectorDeTipoDeCuenta";
 
 type FormMode = "login" | "register";
 
@@ -72,6 +73,10 @@ export default function LoginScreen() {
     cbu: "",
     termsAccepted: false,
   });
+  // «Quiero…»: cliente, trabajador o ambos; el trabajador elige sus rubros (o «cualquier rubro»).
+  const [tipoDeCuenta, setTipoDeCuenta] = useState<TipoDeCuenta>("client");
+  const [rubros, setRubros] = useState<string[]>([]);
+  const [cualquierRubro, setCualquierRubro] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [usernameDebounce, setUsernameDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -337,6 +342,13 @@ export default function LoginScreen() {
           setIsLoading(false);
           return;
         }
+        // Quien va a trabajar elige al menos un rubro o «cualquier rubro».
+        if ((tipoDeCuenta === "worker" || tipoDeCuenta === "both") && !cualquierRubro && rubros.length === 0) {
+          setError("Elegí al menos un rubro, o marcá «Cualquier rubro».");
+          setErrorField("rubros" as any);
+          setIsLoading(false);
+          return;
+        }
         // Control mínimo del número (nadie de 99 años o más, nada de números de relleno): el servidor lo repite, acá se avisa antes de mandar.
         const dniImposible = motivoDeDniImposible(formData.dni.trim());
         if (dniImposible) {
@@ -357,6 +369,8 @@ export default function LoginScreen() {
           dni: formData.dni.trim(),
           referralCode: formData.referralCode || undefined,
           invitationCode: invitationCode || undefined,
+          accountType: tipoDeCuenta,
+          ...(tipoDeCuenta !== "client" ? { workCategories: cualquierRubro ? [] : rubros, workAnyCategory: cualquierRubro } : {}),
           termsAccepted: formData.termsAccepted,
         });
 
@@ -863,6 +877,16 @@ export default function LoginScreen() {
                   )}
                 </FormField>
 
+
+                <SelectorDeTipoDeCuenta
+                  tipo={tipoDeCuenta}
+                  onTipo={setTipoDeCuenta}
+                  rubros={rubros}
+                  cualquier={cualquierRubro}
+                  onRubros={setRubros}
+                  onCualquier={setCualquierRubro}
+                  errorRubros={(errorField as string) === "rubros" ? (error ?? undefined) : undefined}
+                />
 
                 {invitationCode && (
                   <div className="rounded-lg border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-2 text-sm text-green-800 dark:text-green-300">

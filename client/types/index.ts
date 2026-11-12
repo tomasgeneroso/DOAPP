@@ -168,6 +168,10 @@ export interface User {
   permissions?: string[];
   isVerified: boolean;
   interests?: string[];
+  workCategories?: string[];
+  workAnyCategory?: boolean;
+  workZones?: Array<{ name: string; radiusKm?: number }>;
+  workRadiusKm?: number | null;
   onboardingCompleted?: boolean;
   profession?: string;
   licenseNumber?: string;
@@ -253,6 +257,11 @@ export interface RegisterData {
   /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un año desde el canje. */
   invitationCode?: string;
   cbu?: string;
+  /** «Quiero…»: cliente, trabajador o ambos. */
+  accountType?: "client" | "worker" | "both";
+  /** Rubros del trabajador (ids de `JOB_CATEGORIES`); con `workAnyCategory` ofrece cualquier rubro. */
+  workCategories?: string[];
+  workAnyCategory?: boolean;
 }
 
 export interface BlogPost {

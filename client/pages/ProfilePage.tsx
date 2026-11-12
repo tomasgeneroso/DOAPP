@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { User } from '../types';
 import { getCategoryById } from '../../shared/constants/categories';
+import { etiquetaDeRubro } from '../../shared/perfiles/zonaDeTrabajo';
 import { getImageUrl } from '../utils/imageUrl';
 import ShareProfileModal from '../components/profile/ShareProfileModal';
 import ImageEditorModal from '../components/profile/ImageEditorModal';
@@ -710,6 +711,25 @@ export default function ProfilePage() {
                         <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
                           {user.bio}
                         </p>
+                      )}
+                      {/* Rubros y zona de trabajo (solo quien ofrece servicios y los cargó) */}
+                      {(((user as any).workCategories?.length > 0) || (user as any).workAnyCategory || ((user as any).workZones?.length > 0)) && (
+                        <div className="mt-3 flex max-w-2xl flex-wrap items-center gap-1.5" data-testid="rubros-y-zona">
+                          {(user as any).workAnyCategory ? (
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">Cualquier rubro</span>
+                          ) : (
+                            ((user as any).workCategories as string[] | undefined)?.map((id) => (
+                              <span key={id} className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{etiquetaDeRubro(id)}</span>
+                            ))
+                          )}
+                          {((user as any).city || (user as any).workRadiusKm || (user as any).workZones?.length > 0) && (
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                              <MapPin className="h-3 w-3" aria-hidden="true" />
+                              {[(user as any).city, ...(((user as any).workZones as Array<{ name: string }> | undefined) || []).map((z) => z.name)].filter(Boolean).join(', ')}
+                              {(user as any).workRadiusKm ? ` · hasta ${(user as any).workRadiusKm} km` : ''}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
