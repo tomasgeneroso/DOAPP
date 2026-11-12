@@ -179,6 +179,20 @@ describe('solo DNI (verificación con Didit apagada)', () => {
       expect(fotos.body.code).toBe('VERIFICACION_APAGADA');
     });
 
+    it('la respuesta del REGISTRO ya trae si Didit está encendido (el cliente guarda ese usuario tal cual: sin el dato mostraba el paso de Didit con el módulo apagado)', async () => {
+      const registrar = async () => {
+        const email = `solodni${Date.now().toString(36)}${n++}@registro.test`;
+        emails.push(email);
+        return request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123', termsAccepted: true });
+      };
+      const apagado = await registrar();
+      expect(apagado.status).toBe(201);
+      expect(apagado.body.user.capabilities).toMatchObject({ verificacionConDidit: false, identidadSuficiente: false, manualKyc: false });
+      encender();
+      const encendido = await registrar();
+      expect(encendido.body.user.capabilities).toMatchObject({ verificacionConDidit: true });
+    });
+
     it('/auth/me dice si Didit está encendido y si la cuenta ya puede publicar, postularse y cobrar', async () => {
       const u = await cuentaNueva();
       const antes = await request(app).get('/api/auth/me').set(con(u));

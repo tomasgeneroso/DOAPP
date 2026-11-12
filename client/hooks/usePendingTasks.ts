@@ -117,7 +117,7 @@ export function usePendingTasks(): PendingTasksResult {
         dismissible: false,
       },
       // Con la verificación de Didit apagada (regla del dueño, 2026-11-11: solo se pide el número de DNI) esta tarea no existe: el número de arriba es todo lo que se pide.
-      u.capabilities?.verificacionConDidit === false
+      u.capabilities?.verificacionConDidit !== true
         ? null
         : {
             id: "identity",

@@ -2,6 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  diditEncendido,
   ESPERA_ENTRE_CONSULTAS_MS,
   MAXIMO_DE_CONSULTAS,
   estadoDeLaVerificacion,
@@ -18,6 +19,16 @@ import {
  */
 
 const RAIZ = process.cwd();
+
+describe('diditEncendido: solo el servidor lo enciende; si el dato no llega, está APAGADO', () => {
+  it('apagado por defecto: sin usuario, sin capacidades o sin el dato (la respuesta del registro no lo traía y mostraba Didit con el módulo apagado)', () => {
+    for (const u of [null, undefined, {}, { capabilities: {} }, { capabilities: { phoneVerification: true } }, { capabilities: { verificacionConDidit: false } }]) expect(diditEncendido(u)).toBe(false);
+  });
+
+  it('encendido solo cuando el servidor dice true', () => {
+    expect(diditEncendido({ capabilities: { verificacionConDidit: true } })).toBe(true);
+  });
+});
 
 describe('la dirección de retorno de Didit existe en la web', () => {
   it('el servidor pide exactamente /kyc/callback', () => {

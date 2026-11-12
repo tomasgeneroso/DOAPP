@@ -228,10 +228,10 @@ export interface DatosDelRegistro {
 
 /**
  * ¿Se verifica la identidad con documento y selfie (Didit)? Lo dice el servidor en `user.capabilities.verificacionConDidit` (regla del dueño, 2026-11-11: por ahora el registro pide
- * solo el número de DNI; se enciende desde el panel de Módulos). Si el dato no llega (sesión abierta antes del cambio) se asume encendido; el servidor igual manda en lo que acepta.
+ * solo el número de DNI; se enciende desde el panel de Módulos). Si el dato NO llega se asume APAGADO (antes se asumía encendido y una respuesta sin el dato —el registro— mostraba el paso de Didit con el módulo apagado); el servidor igual manda en lo que acepta.
  */
 export function diditEncendido(user: unknown): boolean {
-  return (user as { capabilities?: { verificacionConDidit?: boolean } } | null | undefined)?.capabilities?.verificacionConDidit !== false;
+  return (user as { capabilities?: { verificacionConDidit?: boolean } } | null | undefined)?.capabilities?.verificacionConDidit === true;
 }
 
 /** Empieza la verificación con Didit: devuelve la dirección que se abre en el navegador del teléfono. */

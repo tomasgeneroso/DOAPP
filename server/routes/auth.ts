@@ -383,6 +383,12 @@ router.post(
           hasMembership: user.hasMembership,
           balance: user.balanceArs,
           registrationPending: !!(user as any).registrationPending,
+          // El cliente guarda ESTE usuario sin volver a pedirlo: sin esto, la pantalla de «completar registro» no sabía si Didit está apagado y pedía verificar (2026-11-11).
+          capabilities: {
+            verificacionConDidit: verificacionConDiditActiva(),
+            identidadSuficiente: identidadSuficiente(user as any),
+            manualKyc: isManualKycUnlocked(user as any),
+          },
         },
       });
     } catch (error: any) {

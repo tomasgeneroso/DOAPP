@@ -80,7 +80,7 @@ export function usePendingTasks(): PendingTasksResult {
         to: VERIFY_ROUTE,
       },
       // Con la verificación de Didit apagada (solo se pide el número de DNI) esta tarea no existe: el número de arriba es todo lo que se pide.
-      u.capabilities?.verificacionConDidit === false
+      u.capabilities?.verificacionConDidit !== true
         ? null
         : {
             id: 'identity',
