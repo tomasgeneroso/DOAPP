@@ -695,18 +695,19 @@ export default function LoginScreen() {
                 htmlFor="email"
                 className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
               >
-                {t('auth.email')} <span className="text-red-500">*</span>
+                {isRegister ? t('auth.email') : t('auth.emailOrUsername', 'Email o usuario')} <span className="text-red-500">*</span>
               </label>
               <div className="mt-2 relative">
                 <input
                   id="email"
                   name="email"
-                  type="email"
-                  autoComplete="email"
+                  type={isRegister ? 'email' : 'text'}
+                  autoComplete={isRegister ? 'email' : 'username'}
+                  autoCapitalize="none"
                   required
                   onChange={handleInputChange}
                   value={formData.email}
-                  placeholder={t('auth.emailPlaceholder')}
+                  placeholder={isRegister ? t('auth.emailPlaceholder') : t('auth.emailOrUsernamePlaceholder', 'tucorreo@email.com o tu usuario')}
                   className={`block w-full h-12 rounded-lg border ${
                     errorField === 'email'
                       ? 'border-red-500 dark:border-red-500 focus:ring-red-500'

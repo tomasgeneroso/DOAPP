@@ -55,13 +55,27 @@ describe('autenticación: sin enumeración de cuentas, correo normalizado y con 
   });
 
   describe('login', () => {
+    it('se puede ingresar con el nombre de usuario (en cualquier mayúscula) o con el correo; un usuario que no existe da la misma respuesta que una clave mala', async () => {
+      const porUsuario = await login('existelogin');
+      expect(porUsuario.status).toBe(200);
+      expect(porUsuario.body.token).toBeTruthy();
+      expect(porUsuario.body.user.email).toBe('existe@login.test');
+      expect((await login('  ExisteLogin ')).status).toBe(200);
+      expect((await login('existe@login.test')).status).toBe(200);
+      const claveMala = await login('existelogin', 'otra-clave-equivocada');
+      const sinUsuario = await login('nadie_con_este_usuario', 'otra-clave-equivocada');
+      expect(claveMala.status).toBe(401);
+      expect(sinUsuario.body).toEqual(claveMala.body);
+      expect((await login('')).status).toBe(400);
+    });
+
     it('contraseña mal en una cuenta que existe, y correo que no existe: la MISMA respuesta (no se sabe cuál es cuál)', async () => {
       const malaClave = await login('existe@login.test', 'otra-clave-equivocada');
       const sinCuenta = await login('no-existe-nadie@login.test', 'otra-clave-equivocada');
       expect(malaClave.status).toBe(401);
       expect(sinCuenta.status).toBe(401);
       expect(sinCuenta.body).toEqual(malaClave.body);
-      expect(malaClave.body.message).toBe('Email o contraseña incorrectos');
+      expect(malaClave.body.message).toBe('Usuario/email o contraseña incorrectos');
       expect(JSON.stringify(sinCuenta.body)).not.toMatch(/no existe/i);
     });
 

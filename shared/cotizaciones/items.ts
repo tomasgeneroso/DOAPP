@@ -1,6 +1,6 @@
 /**
  * Los ítems de una cotización (regla del dueño, 2026-11-12: una cotización de $0,00 se pudo enviar y al aceptarla Mercado Pago rechazaba el pago con
- * «unit_price invalid»). Cantidad y precio tienen que ser números mayores que cero y el total no puede ser cero. Lo usan el servidor (crear, editar,
+ * «unit_price invalid»). La cantidad tiene que ser mayor que cero, un ítem puede costar $0 (con que uno tenga precio alcanza) y el TOTAL no puede ser cero. Lo usan el servidor (crear, editar,
  * aceptar y pagar) y el formulario de la web, para avisar ANTES de enviar.
  */
 export interface ItemDeCotizacion {
@@ -20,10 +20,11 @@ export function motivoDeItemsInvalidos(items: unknown): string | null {
     const qty = Number(it.qty);
     const precio = Number(it.unitPrice);
     if (!Number.isFinite(qty) || qty <= 0) return `El ítem ${n} tiene una cantidad inválida: tiene que ser mayor que cero.`;
-    if (!Number.isFinite(precio) || precio <= 0) return `El ítem ${n} tiene precio $0: poné un precio mayor que cero.`;
+    // Un ítem puede valer $0 (una cortesía, algo incluido): lo que no puede ser cero es el TOTAL (regla del dueño, 2026-11-12).
+    if (!Number.isFinite(precio) || precio < 0) return `El ítem ${n} tiene un precio inválido: no puede ser negativo.`;
     total += qty * precio;
   }
-  return total > 0 ? null : 'El total de la cotización no puede ser $0.';
+  return total > 0 ? null : 'El total de la cotización tiene que ser mayor que $0: al menos un ítem tiene que tener precio.';
 }
 
 /** Un total que Mercado Pago aceptaría cobrar. */

@@ -111,8 +111,11 @@ export default function ProfilePage() {
   const { openImage, viewer } = useImageViewer();
 
   // Determine which identifier to use
+  // La dirección oficial es /profile/<usuario> (pedido del dueño, 2026-11-12). Si lo que viene en la dirección no es un id (UUID), es un usuario; las direcciones
+  // viejas (/profile/<id> y /u/<usuario>) siguen funcionando y se redirigen solas.
   const profileIdentifier = username || userId;
-  const isUsernameRoute = !!username;
+  const esUuid = (v?: string) => !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  const isUsernameRoute = !!username || (!!userId && !esUuid(userId));
 
   // Helper function to check if viewing own profile
   const isOwnProfile = () => {
@@ -175,7 +178,7 @@ export default function ProfilePage() {
       setLoading(true);
       // Use different API endpoint based on route type
       const endpoint = isUsernameRoute
-        ? `/api/users/u/${profileIdentifier}`
+        ? `/api/users/u/${encodeURIComponent(profileIdentifier)}`
         : `/api/users/${profileIdentifier}`;
 
       const response = await fetch(endpoint, {
@@ -186,9 +189,9 @@ export default function ProfilePage() {
       if (data.success) {
         setUser(data.user);
 
-        // If accessed by old ID route and user has username, redirect to username route
-        if (!isUsernameRoute && data.user.username) {
-          navigate(`/u/${data.user.username}`, { replace: true });
+        // Si se entró por el id (o por /u/<usuario>) y la persona tiene usuario, la dirección pasa a /profile/<usuario>.
+        if (data.user.username && (!isUsernameRoute || !!username || String(profileIdentifier).toLowerCase() !== String(data.user.username).toLowerCase())) {
+          navigate({ pathname: `/profile/${data.user.username}`, search: window.location.search }, { replace: true });
           return;
         }
 
@@ -283,7 +286,7 @@ export default function ProfilePage() {
     // Solo cargar si es el perfil propio
     if (!currentUser) return;
     const isOwn =
-      (userId && (currentUser.id === userId || currentUser.id === userId)) ||
+      (userId && (currentUser.id === userId || currentUser.username === userId)) ||
       (username && currentUser.username === username);
     if (!isOwn) return;
 
@@ -313,7 +316,7 @@ export default function ProfilePage() {
   const getProfileUrl = () => {
     const baseUrl = window.location.origin;
     if (user?.username) {
-      return `${baseUrl}/u/${user.username}`;
+      return `${baseUrl}/profile/${user.username}`;
     }
     return `${baseUrl}/profile/${user?.id}`;
   };

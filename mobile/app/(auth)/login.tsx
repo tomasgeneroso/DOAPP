@@ -120,14 +120,13 @@ export default function LoginScreen() {
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Email</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Email o usuario</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
-                  placeholder="tucorreo@email.com"
+                  placeholder="tucorreo@email.com o tu usuario"
                   placeholderTextColor={themeColors.text.muted}
                   value={email}
                   onChangeText={setEmail}
-                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />

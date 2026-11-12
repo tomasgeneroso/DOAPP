@@ -139,6 +139,11 @@ export default function Header() {
     const totalFreeRemaining = freeContractsRemaining;
     const isFreeUser = !planDelPerfil || planDelPerfil === "free";
 
+    // El Plan Familia (0% de comisión permanente) manda sobre el contador de contratos libres: quien lo tiene ve «PLAN FAMILIAR 0% COMISIONES» (pedido del dueño, 2026-11-12).
+    if (user.hasFamilyPlan) {
+      return { type: "family" as const, enBeta };
+    }
+
     if (totalFreeRemaining > 0) {
       return {
         type: "free" as const,
@@ -230,10 +235,10 @@ export default function Header() {
                   <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
-                      {t('nav.noCommission', 'No commission')}
+                      {t('nav.familyPlan', 'PLAN FAMILIAR')}
                     </span>
                     <span className="text-[10px] text-pink-600 dark:text-pink-400">
-                      {t('nav.familyPlan', 'FAMILY PLAN')}
+                      {t('nav.familyZeroCommission', '0% COMISIONES')}
                     </span>
                   </div>
                 </div>
@@ -385,7 +390,7 @@ export default function Header() {
                       Dashboard
                     </Link>
                     <Link
-                      to={`/profile/${user.id}`}
+                      to={`/profile/${(user as any).username || user.id}`}
                       onClick={() => handleNavClick('/profile')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"

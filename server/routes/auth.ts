@@ -425,7 +425,8 @@ router.post(
   "/login",
   authLimiter,
   [
-    body("email").isEmail().withMessage("Email inválido"),
+    // Se entra con el correo O con el nombre de usuario (pedido del dueño, 2026-11-12). El campo se sigue llamando `email` por las apps ya instaladas.
+    body("email").isString().trim().notEmpty().withMessage("Ingresá tu usuario o tu email"),
     body("password").notEmpty().withMessage("La contraseña es requerida"),
   ],
   async (req: Request, res: Response): Promise<void> => {
@@ -441,11 +442,13 @@ router.post(
       }
 
       const { email: emailCrudo, password, deviceFingerprint } = req.body;
-      const email = sanitizeEmail(emailCrudo);
+      // Con «@» es un correo; sin «@», un nombre de usuario (los usuarios se guardan en minúsculas y no llevan «@»).
+      const identificador = sanitizeEmail(emailCrudo);
+      const where = identificador.includes('@') ? { email: identificador } : { username: identificador };
 
       // Buscar usuario con password
       const user = await User.findOne({
-        where: { email },
+        where,
         attributes: { include: ['password'] }
       });
 
@@ -462,7 +465,7 @@ router.post(
       if (!user || !user.password || !isMatch) {
         res.status(401).json({
           success: false,
-          message: "Email o contraseña incorrectos",
+          message: "Usuario/email o contraseña incorrectos",
           field: "password"
         });
         return;

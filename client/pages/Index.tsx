@@ -756,7 +756,7 @@ export default function Index() {
                 {users.map((userResult) => (
                   <Link
                     key={`user-${userResult.id}`}
-                    to={userResult.username ? `/u/${userResult.username}` : `/profile/${userResult.id}`}
+                    to={userResult.username ? `/profile/${userResult.username}` : `/profile/${userResult.id}`}
                     className="spotlight-card group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-300 dark:hover:border-sky-500/60 hover:shadow-lg hover:shadow-sky-100 dark:hover:shadow-sky-900/20"
                     onMouseMove={handleSpotlightMove}
                     onMouseLeave={handleSpotlightLeave}

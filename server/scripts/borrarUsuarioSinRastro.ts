@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   }
   const { initDatabase } = await import('../config/database.js');
   const { User } = await import('../models/sql/User.model.js');
-  const { buscarRastros, borrarSinRastro, riesgos } = await import('../services/borrarUsuarioSinRastro.js');
+  const { buscarRastros, borrarSinRastro, riesgos, consultaDeRevision } = await import('../services/borrarUsuarioSinRastro.js');
   await initDatabase();
 
   const user: any = await User.findOne({ where: { email } });
@@ -47,12 +47,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const hallazgos = await buscarRastros(String(user.id), user.email);
+  // Además del id y el correo se busca el nombre de usuario, el DNI y el teléfono (antes «el usuario» quedaba en textos y listas).
+  const datos = { username: user.username, dni: user.dni, phone: user.phone };
+  console.log(`Se busca por: id, correo${user.username ? ', usuario "' + user.username + '"' : ''}${user.dni ? ', DNI' : ''}${user.phone ? ', teléfono' : ''}.`);
+  const hallazgos = await buscarRastros(String(user.id), user.email, datos);
   console.log('\nLo que la nombra en la base:');
   if (hallazgos.length === 0) console.log('  (nada fuera de la cuenta misma)');
   for (const h of hallazgos) console.log(`  ${h.tabla}.${h.columna}: ${h.filas} fila(s)  [${h.tipo === 'referencia' ? 'referencia' : 'texto/JSON'}]`);
 
-  const motivos = await riesgos(String(user.id));
+  const motivos = await riesgos(String(user.id), user.email);
   if (motivos.length > 0) {
     console.log('\nCuidado:');
     for (const m of motivos) console.log(`  - ${m}`);
@@ -72,13 +75,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const r = await borrarSinRastro(String(user.id), user.email);
+  const r = await borrarSinRastro(String(user.id), user.email, datos);
   console.log('\nBorrado.');
   for (const b of r.borradas) console.log(`  borradas ${b.filas} fila(s) de ${b.tabla}.${b.columna}`);
   for (const d of r.desvinculadas) console.log(`  desvinculadas ${d.filas} cuenta(s) en ${d.tabla}.${d.columna} (la otra persona NO se borró)`);
   if (r.aRevisarAMano.length > 0) {
-    console.log('\nRevisá a mano (nombran a la cuenta en un texto, pero son datos de otras personas):');
-    for (const h of r.aRevisarAMano) console.log(`  ${h.tabla}.${h.columna}: ${h.filas} fila(s)`);
+    console.log('\nRevisá a mano (nombran a la cuenta en un texto, pero son datos de otras personas). Para VER las filas, pegá en psql (psql -U <usuario> -h localhost <base>):');
+    for (const h of r.aRevisarAMano) {
+      console.log(`\n  ${h.tabla}.${h.columna}: ${h.filas} fila(s)`);
+      console.log(`    ${consultaDeRevision(h, String(user.id), user.email, datos)}`);
+    }
+    console.log('\n  Si después de mirarlas querés borrarlas: reemplazá SELECT * por DELETE (misma condición). Si no son de esta persona, dejalas.');
   }
   console.log('\nListo. Si tenías sesión abierta con esa cuenta, ya no sirve.');
   process.exit(0);

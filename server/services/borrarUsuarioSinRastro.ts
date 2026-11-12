@@ -21,6 +21,20 @@ export const TABLAS_DE_RASTRO = new Set([
   'email_logs', 'campaign_recipients', 'push_subscriptions', 'user_sessions', 'security_events', 'rate_limit_logs',
 ]);
 
+/**
+ * Tablas donde una fila con el correo o el documento de la cuenta ES de esa misma persona (no de otra): la lista de identidades baneadas guarda el correo y el
+ * DNI de quien fue baneado. Una fila ahí que coincide con la cuenta se borra con ella. OJO: quitarla deja a esa persona libre para registrarse de nuevo, por eso
+ * `riesgos` lo avisa y el script pide `--forzar`.
+ */
+export const TABLAS_DE_IDENTIDAD_PROPIA = new Set(['banned_identities']);
+
+/** Lo que identifica a la cuenta además de su id y su correo: el nombre de usuario, el DNI y el teléfono (sin esto «el usuario» quedaba en textos y listas). */
+export interface DatosDeLaCuenta {
+  username?: string | null;
+  dni?: string | null;
+  phone?: string | null;
+}
+
 export interface Hallazgo {
   tabla: string;
   columna: string;
@@ -60,15 +74,58 @@ function condicion(c: Columna): { sql: string; tipo: Hallazgo['tipo'] } | null {
   return { sql: `${col}::text ILIKE :likeId ESCAPE '\\'`, tipo: 'texto' };
 }
 
-function reemplazos(userId: string, email: string) {
-  return { id: userId, idTexto: userId, likeId: `%${escaparLike(userId)}%`, likeCorreo: `%${escaparLike(email.toLowerCase())}%` };
+function reemplazos(userId: string, email: string, datos: DatosDeLaCuenta = {}) {
+  const usuario = (datos.username || '').trim().toLowerCase();
+  const dni = (datos.dni || '').trim();
+  const telefono = (datos.phone || '').trim();
+  return {
+    id: userId,
+    idTexto: userId,
+    likeId: `%${escaparLike(userId)}%`,
+    likeCorreo: `%${escaparLike(email.toLowerCase())}%`,
+    // Vacío = no se busca por eso (un valor vacío igualaría a todas las filas vacías).
+    usuario: usuario || null,
+    likeUsuarioEntreComillas: usuario ? `%"${escaparLike(usuario)}"%` : null,
+    dni: dni || null,
+    likeDniEntreComillas: dni ? `%"${escaparLike(dni)}"%` : null,
+    telefono: telefono || null,
+  };
+}
+
+type Reemplazos = ReturnType<typeof reemplazos>;
+
+/**
+ * Cuando una columna de texto o JSON NOMBRA a la cuenta (no la referencia): su id o su correo dentro de un texto, y su usuario, DNI o teléfono ENTEROS (igualdad
+ * exacta o entre comillas en un JSON: un «juan» suelto dentro de una frase no cuenta, es otra cosa).
+ */
+function condicionDeTexto(c: Columna, r: Reemplazos): string {
+  const col = q(c.columna);
+  const esTexto = c.tipo === 'character varying' || c.tipo === 'text';
+  const cast = esTexto ? col : `${col}::text`;
+  const partes = [`${cast} ILIKE :likeCorreo ESCAPE '\\'`, `${cast} ILIKE :likeId ESCAPE '\\'`];
+  if (r.usuario) partes.push(esTexto ? `lower(${col}) = :usuario` : `${cast} ILIKE :likeUsuarioEntreComillas ESCAPE '\\'`);
+  if (r.dni) partes.push(esTexto ? `${col} = :dni` : `${cast} ILIKE :likeDniEntreComillas ESCAPE '\\'`);
+  if (r.telefono && esTexto) partes.push(`${col} = :telefono`);
+  return `(${partes.join(' OR ')})`;
+}
+
+/** En `users` la fila de la cuenta misma nombra su propio correo y usuario: esa no cuenta. */
+const sinLaFilaPropia = (tabla: string): string => (tabla === 'users' ? ' AND "id" <> :id' : '');
+
+/** Para mirar a mano: la consulta lista para pegar en psql, con los valores escritos (para las filas que el script no se anima a borrar solo). */
+export function consultaDeRevision(h: Hallazgo, userId: string, email: string, datos: DatosDeLaCuenta = {}): string {
+  const lit = (s: string): string => `'${s.replace(/'/g, "''")}'`;
+  const partes = [`"${h.columna}"::text ILIKE ${lit('%' + email.toLowerCase() + '%')}`, `"${h.columna}"::text ILIKE ${lit('%' + userId + '%')}`];
+  if (datos.username) partes.push(`lower("${h.columna}"::text) IN (${lit(datos.username.toLowerCase())}, ${lit('"' + datos.username.toLowerCase() + '"')})`);
+  if (datos.dni) partes.push(`"${h.columna}"::text = ${lit(datos.dni)}`);
+  return `SELECT * FROM "${h.tabla}" WHERE ${partes.join(' OR ')};`;
 }
 
 /** Solo LEE: cuántas filas de cada tabla nombran a la cuenta. */
-export async function buscarRastros(userId: string, email: string): Promise<Hallazgo[]> {
+export async function buscarRastros(userId: string, email: string, datos: DatosDeLaCuenta = {}): Promise<Hallazgo[]> {
   const { sequelize } = await import('../config/database.js');
   const columnas = await columnasDeLaBase();
-  const r = reemplazos(userId, email);
+  const r = reemplazos(userId, email, datos);
   const hallazgos: Hallazgo[] = [];
   for (const c of columnas) {
     if (c.tabla === 'users' && c.columna === 'id') continue; // la fila de la cuenta se cuenta aparte
@@ -79,8 +136,7 @@ export async function buscarRastros(userId: string, email: string): Promise<Hall
     }
     // El correo (y el id) dentro de textos largos y JSON: solo en columnas de texto libre, nunca en las que ya son el id.
     if (c.tipo !== 'uuid') {
-      const col = q(c.columna);
-      const texto = c.tipo === 'character varying' || c.tipo === 'text' ? `${col} ILIKE :likeCorreo ESCAPE '\\' OR ${col} ILIKE :likeId ESCAPE '\\'` : `${col}::text ILIKE :likeCorreo ESCAPE '\\' OR ${col}::text ILIKE :likeId ESCAPE '\\'`;
+      const texto = condicionDeTexto(c, r) + sinLaFilaPropia(c.tabla);
       const [fila] = (await sequelize.query(`SELECT COUNT(*)::int AS n FROM ${q(c.tabla)} WHERE ${texto}`, { replacements: r, type: QueryTypes.SELECT })) as Array<{ n: number }>;
       if (fila.n > 0 && !hallazgos.some((h) => h.tabla === c.tabla && h.columna === c.columna && h.tipo === 'referencia' && h.filas === fila.n)) {
         hallazgos.push({ tabla: c.tabla, columna: c.columna, filas: fila.n, tipo: 'texto' });
@@ -97,10 +153,10 @@ export interface ResultadoDelBorrado {
 }
 
 /** Borra la cuenta y todo lo que la nombra. Todo o nada. Lanza un error con el motivo si algo no se pudo. */
-export async function borrarSinRastro(userId: string, email: string): Promise<ResultadoDelBorrado> {
+export async function borrarSinRastro(userId: string, email: string, datos: DatosDeLaCuenta = {}): Promise<ResultadoDelBorrado> {
   const { sequelize } = await import('../config/database.js');
   const columnas = await columnasDeLaBase();
-  const r = reemplazos(userId, email);
+  const r = reemplazos(userId, email, datos);
   const resultado: ResultadoDelBorrado = { borradas: [], desvinculadas: [], aRevisarAMano: [] };
 
   await sequelize.transaction(async (t) => {
@@ -115,12 +171,10 @@ export async function borrarSinRastro(userId: string, email: string): Promise<Re
         if (hay.n > 0) tareas.push({ tabla: c.tabla, columna: c.columna, where: refs.sql, accion: c.tabla === 'users' ? 'desvincular' : 'borrar' });
       }
       if (c.tipo !== 'uuid') {
-        const col = q(c.columna);
-        const cast = c.tipo === 'character varying' || c.tipo === 'text' ? col : `${col}::text`;
-        const where = `${cast} ILIKE :likeCorreo ESCAPE '\\' OR ${cast} ILIKE :likeId ESCAPE '\\'`;
+        const where = condicionDeTexto(c, r) + sinLaFilaPropia(c.tabla);
         const [fila] = (await sequelize.query(`SELECT COUNT(*)::int AS n FROM ${q(c.tabla)} WHERE ${where}`, { replacements: r, type: QueryTypes.SELECT, transaction: t })) as Array<{ n: number }>;
         if (fila.n > 0) {
-          if (TABLAS_DE_RASTRO.has(c.tabla)) tareas.push({ tabla: c.tabla, columna: c.columna, where, accion: 'borrar' });
+          if (TABLAS_DE_RASTRO.has(c.tabla) || TABLAS_DE_IDENTIDAD_PROPIA.has(c.tabla)) tareas.push({ tabla: c.tabla, columna: c.columna, where, accion: 'borrar' });
           else if (c.tabla !== 'users') resultado.aRevisarAMano.push({ tabla: c.tabla, columna: c.columna, filas: fila.n, tipo: 'texto' });
         }
       }
@@ -161,12 +215,12 @@ export async function borrarSinRastro(userId: string, email: string): Promise<Re
 }
 
 /** Cosas que hacen peligroso borrar: dinero, o contratos con otras personas. Solo LEE; si una tabla no existe, esa parte se saltea. */
-export async function riesgos(userId: string): Promise<string[]> {
+export async function riesgos(userId: string, email?: string): Promise<string[]> {
   const { sequelize } = await import('../config/database.js');
   const motivos: string[] = [];
   const contar = async (sql: string): Promise<number> => {
     try {
-      const [f] = (await sequelize.query(sql, { replacements: { id: userId }, type: QueryTypes.SELECT })) as Array<{ n: number }>;
+      const [f] = (await sequelize.query(sql, { replacements: { id: userId, email: (email || '').toLowerCase() }, type: QueryTypes.SELECT })) as Array<{ n: number }>;
       return f?.n ?? 0;
     } catch {
       return 0;
@@ -180,5 +234,9 @@ export async function riesgos(userId: string): Promise<string[]> {
   if (saldo > 0) motivos.push('La cuenta tiene saldo distinto de cero.');
   const retiros = await contar(`SELECT COUNT(*)::int AS n FROM withdrawal_requests WHERE user_id = :id`);
   if (retiros > 0) motivos.push(`${retiros} pedido(s) de retiro.`);
+  if (email) {
+    const baneada = await contar(`SELECT COUNT(*)::int AS n FROM banned_identities WHERE lower(email) = :email OR user_id = :id`);
+    if (baneada > 0) motivos.push(`${baneada} registro(s) en la lista de identidades baneadas: al borrarlos esta persona podría volver a registrarse.`);
+  }
   return motivos;
 }

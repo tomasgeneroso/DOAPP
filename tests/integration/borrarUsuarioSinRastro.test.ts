@@ -33,10 +33,15 @@ describe('borrar una cuenta sin rastro', () => {
     await Notification.create({ recipientId: objetivo.id, type: 'system', category: 'system', title: 'hola', message: 'una notificación' } as never);
     // Una notificación de OTRA persona que nombra el correo de la cuenta (rastro de texto): se borra, aunque no sea suya.
     await Notification.create({ recipientId: ajena.id, type: 'system', category: 'system', title: 'Aviso', message: `Se registró ${correoRaro}` } as never);
+    // Una notificación de otra persona cuyo TÍTULO es exactamente el nombre de usuario de la cuenta (antes «el usuario» quedaba en la base).
+    await Notification.create({ recipientId: ajena.id, type: 'system', category: 'system', title: objetivo.username, message: 'nombra a la cuenta por su usuario' } as never);
+    // La lista de identidades baneadas guarda el correo de quien fue baneado (era lo que quedaba «a revisar a mano»).
+    await sequelize.query(`INSERT INTO banned_identities (email, reason) VALUES (:e, 'prueba')`, { replacements: { e: correoRaro } });
   });
 
   afterAll(async () => {
     try {
+      await sequelize.query(`DELETE FROM banned_identities WHERE email = :e`, { replacements: { e: correoRaro } });
       await Job.destroy({ where: { id: trabajoAjeno.id }, force: true } as never);
       await Notification.destroy({ where: { recipientId: [ajena.id, referida.id] } });
       await User.destroy({ where: { id: [ajena.id, referida.id] }, force: true });
@@ -61,8 +66,21 @@ describe('borrar una cuenta sin rastro', () => {
     expect(await riesgos(String(objetivo.id))).toEqual([]);
   });
 
+  it('si la cuenta figura en la lista de baneados, los riesgos lo avisan (borrarla deja a esa persona registrarse de nuevo)', async () => {
+    const motivos = await riesgos(String(objetivo.id), objetivo.email);
+    expect(motivos.some((m) => /baneadas/.test(m))).toBe(true);
+  });
+
+  it('la vista previa también encuentra lo que nombra su usuario y su correo en la lista de baneados', async () => {
+    const h = await buscarRastros(String(objetivo.id), objetivo.email, { username: objetivo.username, dni: objetivo.dni });
+    expect(h.some((x) => x.tabla === 'banned_identities' && x.columna === 'email')).toBe(true);
+    expect(h.some((x) => x.tabla === 'notifications' && x.columna === 'title')).toBe(true);
+  });
+
   it('al borrar: desaparecen la cuenta, su trabajo, su notificación y la notificación ajena con su correo; la cuenta que refirió QUEDA (sin vínculo) y lo ajeno no se toca', async () => {
-    const r = await borrarSinRastro(String(objetivo.id), objetivo.email);
+    const datos = { username: objetivo.username, dni: objetivo.dni, phone: objetivo.phone };
+    const r = await borrarSinRastro(String(objetivo.id), objetivo.email, datos);
+    expect(r.aRevisarAMano.some((h) => h.tabla === 'banned_identities')).toBe(false);
     expect(r.borradas.some((b) => b.tabla === 'jobs')).toBe(true);
     expect(r.desvinculadas.some((d) => d.tabla === 'users' && d.columna === 'referred_by')).toBe(true);
 
@@ -79,6 +97,6 @@ describe('borrar una cuenta sin rastro', () => {
     expect(await Job.findByPk(trabajoAjeno.id)).not.toBeNull();
 
     // Y después de borrar, ya no queda nada que la nombre.
-    expect(await buscarRastros(String(objetivo.id), objetivo.email)).toEqual([]);
+    expect(await buscarRastros(String(objetivo.id), objetivo.email, datos)).toEqual([]);
   });
 });
