@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { mensajeDeError, MENSAJE_TIEMPO_AGOTADO } from '../../shared/errores/mensajesPorEstado.js';
 import { avisosAlDuenoActivos } from '../services/avisosAlDuenoActivos.js';
+import { CATALOGO_DE_PROBLEMAS } from '../../shared/errores/catalogoDeProblemas.js';
 
 /**
  * Toda respuesta de error del servidor lleva un `message` legible, y deja una línea en el log.
@@ -19,6 +20,12 @@ import { avisosAlDuenoActivos } from '../services/avisosAlDuenoActivos.js';
  * la app y llenaba el registro de ruido. Solo se anotan los 5xx (errores del servidor y pedidos que no responden). Para investigar un «no pasó nada» se puede volver a
  * ver todo con `REGISTRAR_ERRORES_DE_CLIENTE=true` (y reiniciar). Los pedidos LENTOS también se anotan (ver `UMBRAL_DE_RESPUESTA_LENTA_MS`).
  */
+/**
+ * Un 4xx que NO es un error de tipeo: lleva el código de un problema del catálogo (`shared/errores/catalogoDeProblemas.ts`: el libro de un saldo que no cierra, un pago aprobado sin dinero,
+ * una devolución que falló...). Son incongruencias de datos o fallas de un paso de dinero: esas SÍ se anotan, aunque el estado sea 4xx.
+ */
+const esProblemaDelSistema = (cuerpo: Record<string, unknown> | undefined): boolean => !!cuerpo?.code && Object.prototype.hasOwnProperty.call(CATALOGO_DE_PROBLEMAS, String(cuerpo.code));
+
 const registrarErroresDeCliente = (): boolean => String(process.env.REGISTRAR_ERRORES_DE_CLIENTE || '').toLowerCase() === 'true';
 
 /** Desde cuántos milisegundos un pedido se anota como lento. */
@@ -90,9 +97,10 @@ function registrar(req: Request, res: Response, status: number, cuerpo: Record<s
       .catch(() => undefined);
   }
   // Los 4xx (errores de tipeo o de uso del usuario) no se anotan salvo que se pida (REGISTRAR_ERRORES_DE_CLIENTE=true).
-  if ((status < 500 && !registrarErroresDeCliente()) || res.locals?.errorYaRegistrado) return;
+  const delSistema = esProblemaDelSistema(cuerpo);
+  if ((status < 500 && !delSistema && !registrarErroresDeCliente()) || res.locals?.errorYaRegistrado) return;
   const quien = (req as Request & { user?: { id?: string } }).user?.id;
   const linea = `[HTTP ${status}] ${req.method} ${ruta}${quien ? ` usuario=${quien}` : ''}${cuerpo?.code ? ` código=${String(cuerpo.code)}` : ''} — ${String(cuerpo?.message ?? '').slice(0, 300)}`;
-  if (status >= 500) console.error(linea);
+  if (status >= 500 || delSistema) console.error(delSistema && status < 500 ? `[PROBLEMA DEL SISTEMA] ${linea}` : linea);
   else console.warn(linea);
 }

@@ -19,6 +19,7 @@ import TrabajosDeEjemplo from "../components/home/TrabajosDeEjemplo";
 import MovilPagoLiberado from "../components/home/MovilPagoLiberado";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import DescargarApk from "../components/DescargarApk";
+import ParaMi, { parametrosParaMi, tieneAlgoParaMi } from "../components/home/ParaMi";
 import MediosDePago from "../components/MediosDePago";
 
 const handleSpotlightMove = (e: React.MouseEvent<HTMLElement>) => {
@@ -50,6 +51,14 @@ export default function Index() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
   const [howItWorksTab, setHowItWorksTab] = useState<'client' | 'worker'>('client');
+  // «Para mí»: solo los trabajos de mis rubros y mi zona (se recuerda en este navegador).
+  const [paraMi, setParaMi] = useState<boolean>(() => {
+    try { return localStorage.getItem('doapp:muro-para-mi') === '1'; } catch { return false; }
+  });
+  const ultimosFiltros = useRef<SearchFilters | undefined>(undefined);
+  // Las búsquedas que llegan con la barra (con un cierre viejo de `fetchJobs`) leen el valor actual de «Para mí» desde acá.
+  const paraMiActual = useRef(paraMi);
+  paraMiActual.current = paraMi;
   const { ads, recordImpression, recordClick } = useAdvertisements({
     placement: "jobs_list",
   });
@@ -140,7 +149,10 @@ export default function Index() {
     }
   };
 
-  const fetchJobs = async (filters?: SearchFilters) => {
+  const fetchJobs = async (filtrosNuevos?: SearchFilters) => {
+    // Sin filtros nuevos (por ejemplo al tocar «Para mí») se repiten los últimos.
+    if (filtrosNuevos) ultimosFiltros.current = filtrosNuevos;
+    const filters = filtrosNuevos ?? ultimosFiltros.current;
     try {
       // Si el tipo de búsqueda es usuarios, buscar usuarios en su lugar
       if (filters?.searchType === 'users') {
@@ -174,6 +186,11 @@ export default function Index() {
         if (filters.sortBy) params.append("sortBy", filters.sortBy);
       }
 
+      // «Para mí»: lo suma el servidor a la consulta (rubros, zonas y radio de la persona).
+      if (user && paraMiActual.current && tieneAlgoParaMi(user as any)) {
+        for (const [k, v] of Object.entries(parametrosParaMi(user as any))) params.set(k, v);
+      }
+
       const response = await fetch(`/api/jobs?${params.toString()}`);
       const text = await response.text();
       if (!text) return;
@@ -192,6 +209,13 @@ export default function Index() {
     fetchJobs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Al prender o apagar «Para mí» (o cuando llega el perfil) se vuelve a pedir la lista.
+  useEffect(() => {
+    try { localStorage.setItem('doapp:muro-para-mi', paraMi ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    if (user) void fetchJobs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paraMi, user?.id]);
 
   // Track if we've already checked for expired jobs this session
   const expiredJobsChecked = useRef(false);
@@ -875,6 +899,9 @@ export default function Index() {
 
             {/* Las publicaciones propias que todavía no se ven acá (sin pagar, en revisión…): qué son y qué sigue */}
             <MisPublicacionesSinPublicar />
+
+            {/* Para mí: mis rubros y mi zona (solo quien ofrece servicios y los cargó) */}
+            {(user.role === 'doer' || user.role === 'both') && <ParaMi perfil={user as any} activo={paraMi} onCambiar={setParaMi} />}
 
             {jobsLoading ? (
               <div className="flex justify-center py-12">

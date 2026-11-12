@@ -217,3 +217,24 @@ describe('un pedido que no responde nunca (antes: «enviando…» para siempre)'
     expect((errorDeRedLegible(new DOMException('x', 'AbortError'), true) as Error).message).toContain('tardó demasiado');
   });
 });
+
+describe('registro: lo del sistema se anota aunque la respuesta sea 4xx', () => {
+  it('un 4xx con el código de un problema del catálogo (saldo que no cierra, pago sin dinero...) deja línea; uno sin código, no', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const a = express();
+      a.use(respuestasDeError);
+      a.get('/del-sistema', (_q, r) => void r.status(409).json({ success: false, code: 'SALDO-NO-CIERRA-LIBRO', message: 'El saldo no cierra' }));
+      a.get('/tipeo', (_q, r) => void r.status(400).json({ success: false, message: 'El nombre de usuario solo puede contener letras' }));
+      await request(a).get('/tipeo');
+      expect(error).not.toHaveBeenCalled();
+      expect(warn.mock.calls.filter((c) => String(c[0]).startsWith('[HTTP'))).toHaveLength(0);
+      await request(a).get('/del-sistema');
+      expect(String(error.mock.calls[0][0])).toMatch(/^\[PROBLEMA DEL SISTEMA\] \[HTTP 409\] GET \/del-sistema código=SALDO-NO-CIERRA-LIBRO/);
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+});

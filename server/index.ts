@@ -604,6 +604,16 @@ httpServer.on('error', (error: NodeJS.ErrnoException) => {
   }
 });
 
+// Errores que se escapan de todo (una promesa sin atrapar, una excepción fuera de una ruta): quedan en el registro con una etiqueta que se busca fácil.
+// Una promesa sin atrapar se anota y la app sigue; una excepción sin atrapar deja la app en un estado dudoso: se anota y se reinicia (PM2 la levanta).
+process.on('unhandledRejection', (motivo) => {
+  console.error('[PROMESA SIN ATRAPAR]', motivo instanceof Error ? motivo.stack || motivo.message : motivo);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[EXCEPCIÓN SIN ATRAPAR]', error?.stack || error);
+  process.exit(1);
+});
+
 // Iniciar servidor
 httpServer.listen(PORT, () => {
   const protocol = isHttps ? 'https' : 'http';

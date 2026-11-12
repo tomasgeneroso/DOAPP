@@ -46,7 +46,7 @@ import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSeP
 import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import { identidadSuficiente, correoConfirmado } from "../services/identidadDeclarada.js";
 import twitterOAuth from "../services/twitterOAuth.js";
-import { sanearRubros, sanearZonas, sanearRadio, rolDeLaCuenta, esTrabajador } from "../../shared/perfiles/zonaDeTrabajo.js";
+import { sanearRubros, sanearZonas, sanearRadio, sanearPunto, rolDeLaCuenta, esTrabajador } from "../../shared/perfiles/zonaDeTrabajo.js";
 
 const router = express.Router();
 
@@ -569,6 +569,8 @@ router.post(
         workAnyCategory: user.workAnyCategory,
         workZones: user.workZones,
         workRadiusKm: user.workRadiusKm,
+        workLatitude: user.workLatitude,
+        workLongitude: user.workLongitude,
         membershipType: user.membershipTier,   // alias para frontend
         membershipTier: user.membershipTier,
         hasMembership: user.hasMembership,
@@ -693,6 +695,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         workAnyCategory: user?.workAnyCategory,
         workZones: user?.workZones,
         workRadiusKm: user?.workRadiusKm,
+        workLatitude: user?.workLatitude,
+        workLongitude: user?.workLongitude,
         onboardingCompleted: user?.onboardingCompleted,
         address: user?.address,
         bankingInfo: user?.bankingInfo ? {
@@ -1006,6 +1010,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       workAnyCategory,
       workZones,
       workRadiusKm,
+      workLatitude,
+      workLongitude,
     } = req.body;
 
     // Obtener usuario actual para comparar cambios
@@ -1197,6 +1203,11 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (workAnyCategory !== undefined) updateData.workAnyCategory = workAnyCategory === true;
     if (workZones !== undefined) updateData.workZones = sanearZonas(workZones);
     if (workRadiusKm !== undefined) updateData.workRadiusKm = sanearRadio(workRadiusKm);
+    if (workLatitude !== undefined || workLongitude !== undefined) {
+      const punto = sanearPunto(workLatitude, workLongitude);
+      updateData.workLatitude = punto?.lat ?? null;
+      updateData.workLongitude = punto?.lng ?? null;
+    }
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
     if (availabilitySchedule !== undefined) updateData.availabilitySchedule = availabilitySchedule;
     if (isAvailabilityPublic !== undefined) updateData.isAvailabilityPublic = isAvailabilityPublic;
@@ -1260,6 +1271,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
         workAnyCategory: updatedUser?.workAnyCategory,
         workZones: updatedUser?.workZones,
         workRadiusKm: updatedUser?.workRadiusKm,
+        workLatitude: updatedUser?.workLatitude,
+        workLongitude: updatedUser?.workLongitude,
         notificationPreferences: updatedUser?.notificationPreferences,
         availabilitySchedule: updatedUser?.availabilitySchedule,
         isAvailabilityPublic: updatedUser?.isAvailabilityPublic,

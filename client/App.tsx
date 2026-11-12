@@ -764,6 +764,7 @@ export default function App() {
               <Route path="ayuda" element={<AdminAyuda />} />
               <Route path="manual" element={<AdminAyuda inicial="manual" />} />
               <Route path="guia-de-errores" element={<AdminAyuda inicial="errores" />} />
+              <Route path="circuitos" element={<AdminAyuda inicial="circuitos" />} />
               <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
               {/* Códigos de familia e invitaciones de influencers: una sola pantalla con dos pestañas. Las direcciones viejas abren la pestaña que corresponde. */}
               <Route path="codigos" element={<AdminCodigosDeAcceso />} />

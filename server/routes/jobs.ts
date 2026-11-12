@@ -37,6 +37,7 @@ import { conSistema } from "../db/contextoRls.js";
 import { ErrorResponse } from '../middleware/errorHandler.js';
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
+import { sanearRubros, sanearPunto, sanearRadio } from "../../shared/perfiles/zonaDeTrabajo.js";
 
 const router = express.Router();
 
@@ -75,6 +76,13 @@ const upload = multer({
   }
 });
 
+// Distancia en km entre dos puntos (fórmula de Haversine).
+const distanciaEnKm = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+};
+
 // Normalize location string: remove punctuation and convert to lowercase
 const normalizeLocation = (location: string): string => {
   return location
@@ -102,6 +110,11 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       type, // 'jobs' (default) or 'users'
       client: clientePedido,
       userId: usuarioPedido,
+      categories: categoriasPedidas, // rubros del trabajador, separados por coma («Para mí»)
+      zones: zonasPedidas, // zonas de trabajo, separadas por |
+      nearLat,
+      nearLng,
+      radiusKm,
     } = req.query;
     // `userId` lo mandan varias pantallas con el mismo sentido que `client`: sólo los trabajos de esa persona.
     const clienteFiltro = clientePedido ?? usuarioPedido;
@@ -127,6 +140,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     // Generate cache key for this request
     const cacheKey = generateCacheKey('jobs:search', {
       status: estadoPedido ?? 'publicos', category, minPrice, maxPrice, limit: limiteFinal, searchQuery, location, tags, sortBy, type, clienteFiltro,
+      categoriasPedidas, zonasPedidas, nearLat, nearLng, radiusKm,
     });
 
     // Check cache first (cache for 60 seconds for search results)
@@ -181,6 +195,14 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Zonas del «Para mí»: nombres de lugares y/o un punto con su radio en km.
+    const zonasBuscadas: string[] = typeof zonasPedidas === 'string'
+      ? zonasPedidas.split('|').map((z) => normalizeLocation(z)).filter((z) => z.length >= 2).slice(0, 12)
+      : [];
+    const punto = sanearPunto(nearLat, nearLng);
+    const radio = sanearRadio(radiusKm);
+    const hayFiltroDeZona = zonasBuscadas.length > 0 || (!!punto && !!radio);
+
     const query: any = {};
     // Cada grupo de condiciones "una u otra" va en su propio elemento de Op.and: antes la búsqueda de texto
     // reemplazaba a la condición de "no vencida" (las dos usaban query[Op.or]) y una búsqueda con status=open
@@ -215,6 +237,10 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     // Category filter
     if (category) {
       query.category = category;
+    } else if (typeof categoriasPedidas === 'string' && categoriasPedidas.trim()) {
+      // «Para mí»: solo los rubros que existen (lo que no es un rubro se ignora).
+      const ids = sanearRubros(categoriasPedidas.split(','));
+      if (ids.length > 0) query.category = { [Op.in]: ids };
     }
 
     // Price range filter (Sequelize syntax)
@@ -290,7 +316,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       order: sortOrder,
       // En SQL cuando se puede. Con filtro de ubicación hay que traer candidatos y filtrar en memoria (la
       // normalización no se puede hacer en la consulta), pero con un techo: antes se traía toda la tabla.
-      limit: location && typeof location === 'string' ? 2000 : limiteFinal,
+      limit: (location && typeof location === 'string') || hayFiltroDeZona ? 2000 : limiteFinal,
     });
 
     // Apply location filter with normalization if provided
@@ -300,6 +326,18 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         if (!job.location) return false;
         const normalizedJobLocation = normalizeLocation(job.location);
         return normalizedJobLocation.includes(normalizedSearchLocation);
+      });
+    }
+
+    // «Para mí» por zona: el trabajo está en alguna de mis zonas (el nombre aparece en su ubicación) O dentro de mi radio (distancia real entre los puntos). Cualquiera de las dos sirve.
+    if (hayFiltroDeZona) {
+      jobs = jobs.filter((job: any) => {
+        const lugar = job.location ? normalizeLocation(String(job.location)) : '';
+        if (zonasBuscadas.some((z) => lugar.includes(z))) return true;
+        if (punto && radio && Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude))) {
+          return distanciaEnKm(punto.lat, punto.lng, Number(job.latitude), Number(job.longitude)) <= radio;
+        }
+        return false;
       });
     }
 

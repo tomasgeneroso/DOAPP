@@ -599,6 +599,15 @@ export class User extends Model {
   @Column(DataType.INTEGER)
   workRadiusKm?: number | null;
 
+  /** Punto base de la zona de trabajo (el domicilio, redondeado a ~1 km: no es la dirección exacta). Privado: solo lo ve la propia persona y sirve para filtrar el muro por radio. */
+  @AllowNull(true)
+  @Column(DataType.DOUBLE)
+  workLatitude?: number | null;
+
+  @AllowNull(true)
+  @Column(DataType.DOUBLE)
+  workLongitude?: number | null;
+
   @Column(DataType.JSONB)
   bankingInfo?: BankingInfo;
 

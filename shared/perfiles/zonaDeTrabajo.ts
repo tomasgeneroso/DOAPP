@@ -72,4 +72,40 @@ export function rolDeLaCuenta(tipo: unknown): 'client' | 'doer' | 'both' {
   return 'client';
 }
 
+export interface PerfilParaElMuro {
+  workCategories?: string[];
+  workAnyCategory?: boolean;
+  workZones?: Array<{ name: string }>;
+  workRadiusKm?: number | null;
+  workLatitude?: number | null;
+  workLongitude?: number | null;
+  address?: { city?: string; state?: string } | null;
+}
+
+/** Los parámetros que se le suman a `GET /api/jobs` para mostrar solo lo que va con los rubros y la zona de la persona («Para mí»). */
+export function parametrosParaMi(u: PerfilParaElMuro): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (!u.workAnyCategory && (u.workCategories?.length ?? 0) > 0) p.categories = u.workCategories!.join(',');
+  const nombres = [u.address?.city, ...(u.workZones || []).map((z) => z.name)].filter((x): x is string => !!x && x.trim().length >= 2);
+  if (nombres.length > 0) p.zones = nombres.join('|');
+  if (u.workRadiusKm && u.workLatitude != null && u.workLongitude != null) {
+    p.nearLat = String(u.workLatitude);
+    p.nearLng = String(u.workLongitude);
+    p.radiusKm = String(u.workRadiusKm);
+  }
+  return p;
+}
+
+/** ¿Tiene algo cargado para filtrar? Sin rubros ni zona, el interruptor no aparece. */
+export const tieneAlgoParaMi = (u: PerfilParaElMuro): boolean => Object.keys(parametrosParaMi(u)).length > 0;
+
 export const esTrabajador = (role: unknown): boolean => role === 'doer' || role === 'both';
+
+/** Un punto (latitud, longitud) válido y redondeado a 2 decimales (~1 km): sirve para filtrar por radio sin guardar la dirección exacta. null si no es un punto. */
+export function sanearPunto(lat: unknown, lng: unknown): { lat: number; lng: number } | null {
+  if (lat === null || lat === undefined || lat === '' || lng === null || lng === undefined || lng === '') return null;
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a < -90 || a > 90 || b < -180 || b > 180) return null;
+  return { lat: Math.round(a * 100) / 100, lng: Math.round(b * 100) / 100 };
+}

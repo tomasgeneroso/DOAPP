@@ -54,6 +54,7 @@ import AvatarConInicial from "../components/ui/AvatarConInicial";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
 import ZonaDeTrabajo, { type Zona } from "../components/perfil/ZonaDeTrabajo";
 import SelectorDeRubros from "../components/perfil/SelectorDeRubros";
+import { ubicarDireccion } from "../../shared/geo/ubicar";
 
 type TabType = "basic" | "membership" | "promotion" | "verification" | "security" | "profession" | "address" | "banking" | "interests" | "notifications" | "help";
 
@@ -524,6 +525,19 @@ export default function UserSettings() {
 
     setLoading(true);
 
+    // Punto base de la zona de trabajo: el CENTRO de la ciudad y provincia del domicilio (la calle y el número no se mandan a ningún buscador). Sirve para filtrar el muro por radio.
+    let puntoBase: { lat: number; lon: number } | null | undefined;
+    if ((city.trim() || state.trim()) && (city !== (user?.address?.city || "") || state !== (user?.address?.state || "") || user?.workLatitude == null)) {
+      try {
+        const control = new AbortController();
+        const corte = setTimeout(() => control.abort(), 6000);
+        puntoBase = await ubicarDireccion({ lugar: [city.trim(), state.trim()].filter(Boolean).join(", ") }, { signal: control.signal });
+        clearTimeout(corte);
+      } catch {
+        puntoBase = undefined; // sin respuesta del buscador: se guarda todo lo demás y el punto queda como estaba
+      }
+    }
+
     try {
       const response = await fetch("/api/auth/settings", {
         method: "PUT",
@@ -554,6 +568,7 @@ export default function UserSettings() {
           workAnyCategory: workAny,
           workRadiusKm,
           workZones,
+          ...(puntoBase ? { workLatitude: puntoBase.lat, workLongitude: puntoBase.lon } : {}),
           notificationPreferences: notifPrefs,
           profession: profession || null,
           licenseNumber: licenseNumber || null,

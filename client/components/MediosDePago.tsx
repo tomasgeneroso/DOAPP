@@ -11,7 +11,8 @@ export default function MediosDePago({ className = '', conTitulo = true }: { cla
           <img src="/MP_RGB_HANDSHAKE_color_horizontal.svg" alt="Mercado Pago" className="h-6 w-auto" loading="lazy" />
         </li>
         <li className="flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 shadow-sm">
-          <img src="/binance.svg" alt="Binance" className="h-5 w-auto" loading="lazy" />
+          <img src="/binance-mark.png" alt="" aria-hidden="true" className="h-5 w-5" loading="lazy" />
+          <span className="ml-1.5 text-sm font-bold tracking-wide text-[#F3BA2F]" aria-label="Binance">BINANCE</span>
         </li>
       </ul>
     </div>

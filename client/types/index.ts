@@ -172,6 +172,9 @@ export interface User {
   workAnyCategory?: boolean;
   workZones?: Array<{ name: string; radiusKm?: number }>;
   workRadiusKm?: number | null;
+  /** Punto base de la zona de trabajo (privado, aproximado). */
+  workLatitude?: number | null;
+  workLongitude?: number | null;
   onboardingCompleted?: boolean;
   profession?: string;
   licenseNumber?: string;

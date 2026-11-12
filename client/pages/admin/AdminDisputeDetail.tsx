@@ -889,11 +889,33 @@ const AdminDisputeDetail: React.FC = () => {
                     </label>
                     <input
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value ? Number(e.target.value) : '')}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:text-white"
                       required
                     />
+                    {/* Por porcentaje (pedido del dueño, 2026-11-12): el monto se calcula sobre el precio del contrato y viceversa. */}
+                    {Number((dispute as any)?.contract?.price) > 0 && (
+                      <div className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" data-testid="porcentaje-de-la-disputa">
+                        <label htmlFor="porcentajeDevuelto">o por porcentaje del contrato:</label>
+                        <input
+                          id="porcentajeDevuelto"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={refundAmount === '' ? '' : Math.round((Number(refundAmount) / Number((dispute as any).contract.price)) * 10000) / 100}
+                          onChange={(e) => {
+                            const pct = Math.min(100, Math.max(0, Number(e.target.value)));
+                            setRefundAmount(e.target.value === '' ? '' : Math.round(Number((dispute as any).contract.price) * pct) / 100);
+                          }}
+                          className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                        />
+                        <span>% de ${Number((dispute as any).contract.price).toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

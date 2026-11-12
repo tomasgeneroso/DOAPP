@@ -38,6 +38,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.work_any_category', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_any_category BOOLEAN NOT NULL DEFAULT FALSE` },
   { label: 'users.work_zones', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_zones JSONB NOT NULL DEFAULT '[]'::jsonb` },
   { label: 'users.work_radius_km', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_radius_km INTEGER` },
+  { label: 'users.work_latitude', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_latitude DOUBLE PRECISION` },
+  { label: 'users.work_longitude', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS work_longitude DOUBLE PRECISION` },
   { label: 'quotes.counter_offer_amount', sql: `ALTER TABLE IF EXISTS quotes ADD COLUMN IF NOT EXISTS counter_offer_amount NUMERIC(12,2)` },
   { label: 'quotes.counter_offer_note', sql: `ALTER TABLE IF EXISTS quotes ADD COLUMN IF NOT EXISTS counter_offer_note TEXT` },
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },

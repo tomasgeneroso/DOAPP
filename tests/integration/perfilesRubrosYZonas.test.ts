@@ -19,7 +19,7 @@ jest.mock('../../server/services/email.js', () => ({
 }));
 
 import { User } from '../../server/models/sql/User.model.js';
-import { crearUsuario } from '../helpers/fixtures.js';
+import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 
 describe('perfiles: rubros, zonas y directorio', () => {
   let app: Express;
@@ -38,6 +38,7 @@ describe('perfiles: rubros, zonas y directorio', () => {
     app.use(express.json());
     app.use('/api/auth', (await import('../../server/routes/auth.js')).default);
     app.use('/api/users', (await import('../../server/routes/users.js')).default);
+    app.use('/api/jobs', (await import('../../server/routes/jobs.js')).default);
   });
 
   afterAll(async () => {
@@ -164,6 +165,70 @@ describe('perfiles: rubros, zonas y directorio', () => {
       const r = await buscar({ limit: '2', page: '2' });
       expect(r.users).toHaveLength(1);
       expect(r.pagination).toMatchObject({ page: 2, total: 3, pages: 2 });
+    });
+  });
+
+  describe('muro de trabajos: «Para mí»', () => {
+    let cliente: any;
+    const titulos: string[] = [];
+    const trabajo = async (titulo: string, over: Record<string, unknown>) => {
+      const j: any = await crearTrabajo(cliente.id, { status: 'open', title: `${titulo} ${marca}`, ...over });
+      titulos.push(j.title);
+      return j;
+    };
+    const muro = async (qs: Record<string, string>) => {
+      const r = await request(app).get('/api/jobs').query({ status: 'open', query: marca, limit: '50', ...qs });
+      return r.body.jobs.map((j: any) => j.title.replace(` ${marca}`, '')).sort();
+    };
+
+    beforeAll(async () => {
+      cliente = await crearUsuario({ role: 'client' });
+      creados.push(cliente.id);
+      // Rosario (-32.95, -60.64), Funes (-32.92, -60.81, a ~16 km), Córdoba (-31.42, -64.18, lejos)
+      await trabajo('Plomería en Rosario', { category: 'plomeria', location: 'Rosario, Santa Fe', latitude: -32.95, longitude: -60.64 });
+      await trabajo('Pintura en Funes', { category: 'pintura', location: 'Funes, Santa Fe', latitude: -32.92, longitude: -60.81 });
+      await trabajo('Plomería en Córdoba', { category: 'plomeria', location: 'Córdoba, Córdoba', latitude: -31.42, longitude: -64.18 });
+      await trabajo('Electricidad sin coordenadas', { category: 'electricidad', location: 'Rosario, Santa Fe' });
+    });
+
+    it('por rubros: solo los trabajos de esos rubros (los rubros que no existen se ignoran)', async () => {
+      expect(await muro({ categories: 'plomeria' })).toEqual(['Plomería en Córdoba', 'Plomería en Rosario']);
+      expect(await muro({ categories: 'plomeria,pintura,inventado' })).toEqual(['Pintura en Funes', 'Plomería en Córdoba', 'Plomería en Rosario']);
+      expect((await muro({ categories: 'inventado' })).length).toBe(4); // sin rubros válidos no filtra
+    });
+
+    it('por zona (nombre): el lugar aparece en la ubicación del trabajo, con cualquier mayúscula o puntuación', async () => {
+      expect(await muro({ zones: 'rosario' })).toEqual(['Electricidad sin coordenadas', 'Plomería en Rosario']);
+      expect(await muro({ zones: 'Funes|Córdoba' })).toEqual(['Pintura en Funes', 'Plomería en Córdoba']);
+    });
+
+    it('por radio: dentro de los km desde el punto base (distancia real), o por nombre de zona; las dos cosas suman', async () => {
+      // desde Rosario, 25 km: Rosario y Funes entran, Córdoba no
+      expect(await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '25' })).toEqual(['Pintura en Funes', 'Plomería en Rosario']);
+      // 5 km: solo Rosario
+      expect(await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '5' })).toEqual(['Plomería en Rosario']);
+      // radio + una zona por nombre (Córdoba) + rubro
+      expect(await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '5', zones: 'Córdoba', categories: 'plomeria' })).toEqual(['Plomería en Córdoba', 'Plomería en Rosario']);
+    });
+
+    it('un punto o radio inválido no filtra nada', async () => {
+      expect((await muro({ nearLat: '999', nearLng: '0', radiusKm: '10' })).length).toBe(4);
+      expect((await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '0' })).length).toBe(4);
+    });
+  });
+
+  describe('punto base de la zona', () => {
+    it('se guarda redondeado a ~1 km, no sale en el perfil público y un punto inválido lo borra', async () => {
+      const u: any = await crearUsuario({ role: 'doer', username: `pt${marca.toLowerCase()}` });
+      creados.push(u.id);
+      await request(app).put('/api/auth/settings').set(como(u)).send({ workLatitude: -32.951234, workLongitude: -60.641234 });
+      let g: any = await User.findByPk(u.id);
+      expect([g.workLatitude, g.workLongitude]).toEqual([-32.95, -60.64]);
+      const publico = await request(app).get(`/api/users/u/${u.username}`);
+      expect(JSON.stringify(publico.body)).not.toMatch(/workLatitude|workLongitude/);
+      await request(app).put('/api/auth/settings').set(como(u)).send({ workLatitude: 500, workLongitude: 0 });
+      g = await User.findByPk(u.id);
+      expect(g.workLatitude).toBeNull();
     });
   });
 });

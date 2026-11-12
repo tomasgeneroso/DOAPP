@@ -10,6 +10,7 @@ import {
   Image,
   ScrollView,
   TextInput,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,8 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 import Svg, { Path, Rect, G, Defs, ClipPath } from 'react-native-svg';
 import Logo from '../../components/ui/Logo';
 import LocationAutocomplete from '../../components/ui/LocationAutocomplete';
+import MediosDePago from '../../components/ui/MediosDePago';
+import { parametrosParaMi, tieneAlgoParaMi, etiquetaDeRubro } from '../../../shared/perfiles/zonaDeTrabajo';
 
 type HomeTab = 'jobs' | 'users';
 
@@ -40,6 +43,9 @@ export default function HomeScreen() {
   const { isDarkMode, toggleTheme, colors: themeColors } = useTheme();
 
   const [activeTab, setActiveTab] = useState<HomeTab>('jobs');
+  // «Para mí»: solo los trabajos de mis rubros y mi zona (igual que en la web).
+  const [paraMi, setParaMi] = useState(false);
+  const esTrabajadorConDatos = !!user && ((user as any).role === 'doer' || (user as any).role === 'both') && tieneAlgoParaMi(user as any);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,8 +88,9 @@ export default function HomeScreen() {
     if (filterMaxBudget) filters.maxPrice = Number(filterMaxBudget);
     if (filterSortBy !== 'date') filters.sortBy = filterSortBy;
     if (selectedTag) filters.tags = selectedTag;
+    if (paraMi && esTrabajadorConDatos) Object.assign(filters, parametrosParaMi(user as any));
     return filters;
-  }, [searchQuery, filterLocation, filterCategory, filterMinBudget, filterMaxBudget, filterSortBy, selectedTag]);
+  }, [searchQuery, filterLocation, filterCategory, filterMinBudget, filterMaxBudget, filterSortBy, selectedTag, paraMi, esTrabajadorConDatos, user]);
 
   const fetchJobs = async (pageNum: number = 1, refresh: boolean = false) => {
     try {
@@ -200,7 +207,7 @@ export default function HomeScreen() {
 
       {!user && (
         <Text style={[styles.heroSmallText, { color: themeColors.text.muted }]}>
-          Nos aseguramos que cada acuerdo se cumpla por ambas partes. Publicá un trabajo, negociá directamente con la persona y pagá automáticamente solo cuando todo esté verificado.
+          Garantizamos que el trabajo se termine y que el pago sea efectuado en tiempo y forma. Publicá un trabajo, negociá directamente con la persona y pagá automáticamente solo cuando todo esté verificado.
         </Text>
       )}
 
@@ -463,9 +470,16 @@ export default function HomeScreen() {
         onPress={() => router.push(`/job/${item.id || item.id}`)}
         activeOpacity={0.7}
       >
-        {/* Price Badge */}
-        <View style={[styles.priceBadge, { backgroundColor: isDarkMode ? themeColors.primary[50] : colors.primary[50] }]}>
-          <Text style={[styles.priceText, { color: themeColors.primary[600] }]}>{formatPrice(item.budget || item.price)}</Text>
+        {/* Rubro y precio, como en la web */}
+        <View style={styles.jobCardTop}>
+          {!!item.category && (
+            <View style={[styles.categoriaChip, { backgroundColor: themeColors.primary[50] }]}>
+              <Text style={[styles.categoriaChipTexto, { color: themeColors.primary[700] }]}>{etiquetaDeRubro(String(item.category))}</Text>
+            </View>
+          )}
+          <View style={[styles.priceBadge, { backgroundColor: colors.primary[600], alignSelf: 'auto', marginBottom: 0 }]}>
+            <Text style={[styles.priceText, { color: '#fff' }]}>{formatPrice(item.budget || item.price)}</Text>
+          </View>
         </View>
 
         {/* Title */}
@@ -509,12 +523,64 @@ export default function HomeScreen() {
     );
   };
 
+  /** Barra de arriba de quien ya ingresó (como el encabezado de la web): la marca, la etiqueta de la beta, lo que tiene sin comisión y el tema. */
+  const renderBarraLogueada = () => {
+    const libres = Number((user as any)?.freeContractsRemaining) || 0;
+    const familia = !!(user as any)?.hasFamilyPlan;
+    return (
+      <View style={[styles.barraLogueada, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
+        <Logo size="small" />
+        {!!(user as any)?.platform?.isBeta && (
+          <View style={styles.etiquetaBeta}><Text style={styles.etiquetaBetaTexto}>BETA</Text></View>
+        )}
+        <View style={{ flex: 1 }} />
+        {(familia || libres > 0) && (
+          <View style={[styles.chipSinComision, familia && { backgroundColor: '#fdf2f8', borderColor: '#f9a8d4' }]}>
+            <Text style={[styles.chipSinComisionTexto, familia && { color: '#be185d' }]} numberOfLines={1}>
+              {familia ? 'PLAN FAMILIAR · 0% COMISIONES' : `${libres} sin comisión`}
+            </Text>
+          </View>
+        )}
+        <TouchableOpacity style={styles.themeToggle2} onPress={toggleTheme} accessibilityLabel="Cambiar tema">
+          {isDarkMode ? <Sun size={20} color={themeColors.text.secondary} strokeWidth={2} /> : <Moon size={20} color={themeColors.text.secondary} strokeWidth={2} />}
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  /** «Para mí»: el interruptor y qué rubros y zona está usando. */
+  const renderParaMi = () => {
+    if (!esTrabajadorConDatos) return null;
+    const u: any = user;
+    const rubros = u.workAnyCategory ? 'cualquier rubro' : (u.workCategories || []).map(etiquetaDeRubro).join(', ');
+    const zona = [u.address?.city, ...(u.workZones || []).map((z: any) => z.name)].filter(Boolean).join(', ');
+    return (
+      <View style={[styles.paraMi, { backgroundColor: themeColors.primary[50], borderColor: themeColors.primary[200] }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.paraMiTitulo, { color: themeColors.primary[700] }]}>Para mí</Text>
+          <Text style={[styles.paraMiDetalle, { color: themeColors.text.secondary }]} numberOfLines={2}>
+            {rubros || 'Todos los rubros'}{zona ? ` · ${zona}` : ''}{u.workRadiusKm ? ` · hasta ${u.workRadiusKm} km` : ''}
+          </Text>
+        </View>
+        <Switch value={paraMi} onValueChange={setParaMi} trackColor={{ true: colors.primary[500], false: themeColors.border }} accessibilityLabel="Mostrar solo trabajos para mí" />
+      </View>
+    );
+  };
+
   const renderHeader = () => (
     <>
-      {renderHero()}
-      {renderHowItWorksClient()}
-      {renderHowItWorksWorker()}
-      {renderSecurityBanner()}
+      {isAuthenticated ? renderBarraLogueada() : (
+        <>
+          {renderHero()}
+          {renderHowItWorksClient()}
+          {renderHowItWorksWorker()}
+          {renderSecurityBanner()}
+        </>
+      )}
+      {isAuthenticated && !!user && (
+        <Text style={[styles.saludo, { color: themeColors.text.primary }]}>¡Hola, {user.name?.split(' ')[0]}!</Text>
+      )}
+      {isAuthenticated && renderParaMi()}
 
       {/* Tabs */}
       <View style={[styles.tabsContainer, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
@@ -556,38 +622,19 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {isAuthenticated && (
+          <View style={{ width: '100%', marginBottom: spacing.lg }}>
+            {renderHowItWorksClient()}
+            {renderHowItWorksWorker()}
+          </View>
+        )}
         <Text style={styles.footerBrand}>DOAPP</Text>
         <Text style={styles.footerDescription}>
           La plataforma de freelancing más confiable de Argentina.{'\n'}
           Conectamos talento con oportunidades.
         </Text>
 
-        <View style={styles.paymentSection}>
-          <Text style={styles.paymentTitle}>Pagos procesados de forma segura:</Text>
-          <View style={styles.paymentLogos}>
-            {/* MercadoPago official logo */}
-            <View style={[styles.paymentMethodBadge, { backgroundColor: '#00aeef', borderColor: '#00aeef' }]}>
-              <Svg width={20} height={20} viewBox="0 0 24 24">
-                <Path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z" fill="#fff"/>
-                <Path d="M17.5 9.5c0-1.5-1.2-2.7-2.7-2.7H9.2C7.7 6.8 6.5 8 6.5 9.5v5c0 1.5 1.2 2.7 2.7 2.7h5.6c1.5 0 2.7-1.2 2.7-2.7v-5z" fill="#00aeef"/>
-                <Path d="M9 11.5l1.5 1.5 3-3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              </Svg>
-              <Text style={[styles.paymentMethodText, { color: '#fff', fontWeight: '700' }]}>MercadoPago</Text>
-            </View>
-            {/* Bitcoin / Cripto */}
-            <View style={[styles.paymentMethodBadge, { backgroundColor: '#fff7ed', borderColor: '#fdba74' }]}>
-              <Svg width={20} height={20} viewBox="0 0 24 24">
-                <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#f7931a"/>
-                <Path d="M15.5 10.2c.2-1.4-0.8-2.1-2.3-2.6l.5-1.9-1.1-.3-.4 1.8c-.3-.1-.6-.1-.9-.2l.4-1.8-1.1-.3-.5 1.9c-.2-.1-.5-.1-.7-.2l-1.5-.4-.3 1.2s.8.2.8.2c.5.1.5.4.5.7l-.5 2.2c0 0 .1 0 .1 0l-.1 0-.7 3c-.1.2-.2.4-.6.3 0 0-.8-.2-.8-.2l-.6 1.3 1.4.4c.3.1.5.1.8.2l-.5 1.9 1.1.3.5-1.9c.3.1.6.2.9.2l-.5 1.9 1.1.3.5-1.9c2 .4 3.5.2 4.1-1.6.5-1.4 0-2.3-1.1-2.8.8-.2 1.3-.7 1.5-1.8zm-2.7 3.8c-.4 1.4-2.7.7-3.5.5l.6-2.5c.8.2 3.3.6 2.9 2zm.4-3.8c-.3 1.3-2.3.6-2.9.5l.6-2.3c.7.2 2.7.5 2.3 1.8z" fill="#fff"/>
-              </Svg>
-              <Text style={[styles.paymentMethodText, { color: '#f97316' }]}>  Cripto</Text>
-            </View>
-            {/* Transferencia */}
-            <View style={[styles.paymentMethodBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
-              <Text style={[styles.paymentMethodText, { color: '#16a34a' }]}>Transferencia</Text>
-            </View>
-          </View>
-        </View>
+        <MediosDePago />
       </View>
     );
   };
@@ -671,6 +718,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.light,
   },
+  // Barra de quien ya ingresó (como el encabezado de la web)
+  barraLogueada: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1 },
+  etiquetaBeta: { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  etiquetaBetaTexto: { color: '#b45309', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  chipSinComision: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: 190 },
+  chipSinComisionTexto: { color: '#15803d', fontSize: 11, fontWeight: '700' },
+  themeToggle2: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  saludo: { fontSize: 22, fontWeight: '800', paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  paraMi: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md, borderRadius: borderRadius.xl, borderWidth: 1 },
+  paraMiTitulo: { fontSize: 14, fontWeight: '800' },
+  paraMiDetalle: { fontSize: 12, marginTop: 2 },
+  jobCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.sm },
+  categoriaChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 1 },
+  categoriaChipTexto: { fontSize: 12, fontWeight: '700' },
   // Top Auth Bar
   topAuthBar: {
     flexDirection: 'row',

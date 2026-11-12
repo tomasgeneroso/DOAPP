@@ -89,6 +89,8 @@ export const errorHandler = (
 
   // Clave foránea: se referencia algo que no existe o se borra algo en uso.
   if (err.name === "SequelizeForeignKeyConstraintError") {
+    // Es una incongruencia de datos (algo apunta a una fila que no está), no un error de tipeo: se anota aunque la respuesta sea 409.
+    console.error(`[datos] clave foránea — ${req.method} ${String(req.originalUrl || '').split('?')[0]}:`, err.parent?.detail || err.parent?.constraint || err.message);
     error = new ErrorResponse(
       "No se puede completar: el recurso está vinculado a otro o no existe",
       409,
@@ -134,6 +136,11 @@ export const errorHandler = (
         : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE"
           ? new ErrorResponse("Enviaste más archivos de los permitidos.", 400)
           : new ErrorResponse("No se pudo recibir el archivo. Probá de nuevo.", 400);
+  }
+
+  // Una restricción de la base que el código dejó pasar (campo obligatorio vacío 23502, regla CHECK 23514): también es del sistema, no de la persona.
+  if (err.name === "SequelizeDatabaseError" && (err.parent?.code === "23502" || err.parent?.code === "23514")) {
+    console.error(`[datos] ${err.parent.code === "23502" ? "campo obligatorio vacío" : "regla de la base incumplida"} — ${req.method} ${String(req.originalUrl || '').split('?')[0]}:`, err.parent?.detail || err.parent?.constraint || err.message);
   }
 
   const statusCode = error.statusCode || err.status || 500;
