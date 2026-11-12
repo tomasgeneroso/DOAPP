@@ -15,6 +15,7 @@ import { logAudit } from "../../utils/auditLog.js";
 import { bloqueoPorAprobacionPropia, esAprobacionPropiaDelDueno } from "../../services/aprobacionDePagos.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import { referenciasRepetidas, describirReferenciaRepetida, type ReferenciaRepetida } from "../../services/comprobanteDuplicado.js";
+import { resumenesDeTrabajos } from "../../services/panelDePublicaciones.js";
 import { contratosDeUnPago, vincularPagoAlContrato } from "../../services/vinculoDePagos.js";
 import {
   bloqueoDelReembolso,
@@ -958,14 +959,32 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
     };
     const originalPorId = new Map<string, any>((payments as any[]).map((p) => [String(p.id), p]));
 
+    // La situación de cada pago, de punta a punta (pedido del dueño, 2026-11-12: el estado tiene que ser descriptivo —«falta pagar al trabajador»— y todo debe
+    // decir lo mismo): sale de la MISMA cuenta que el panel de Publicaciones (`services/panelDePublicaciones.ts` → `shared/admin/resumenDePublicacion.ts`).
+    const trabajoDeCadaPago = new Map<string, string>();
+    for (const row of paymentsWithJobs as any[]) {
+      const idT = row.jobId ?? row.contract?.jobId ?? row.job?.id ?? enlacesDe(row, originalPorId.get(String(row.id)) ?? row).trabajo?.id ?? null;
+      if (idT) trabajoDeCadaPago.set(String(row.id), String(idT));
+    }
+    const trabajosDeLaPagina: any[] = trabajoDeCadaPago.size
+      ? await Job.findAll({
+          where: { id: { [Op.in]: [...new Set(trabajoDeCadaPago.values())] } } as any,
+          attributes: ['id', 'status', 'publicationPaid', 'publicationPaymentId', 'cancellationRequestedAt'],
+        })
+      : [];
+    const resumenes = await resumenesDeTrabajos(trabajosDeLaPagina);
+
     const conComprobantes = paymentsWithJobs.map((row: any) => {
       const adminProofs = delAdminPorPago.get(String(row.id)) ?? [];
+      const idTrabajo = trabajoDeCadaPago.get(String(row.id)) ?? null;
+      const resumen = idTrabajo ? resumenes.get(idTrabajo) ?? null : null;
       return {
         ...row,
         adminProofs,
         hasProof: Boolean(row.hasProof) || adminProofs.length > 0,
         comprobanteDuplicado: repetidas.get(String(row.id)) ?? null,
         enlaces: enlacesDe(row, originalPorId.get(String(row.id)) ?? row),
+        situacion: resumen ? { trabajoId: idTrabajo, estadoFinal: resumen.estadoFinal, contrato: resumen.contrato, pago: resumen.pago, alerta: resumen.alerta } : null,
       };
     });
 

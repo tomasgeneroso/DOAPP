@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { verificarBaseDeStaging } from '../server/config/guardaDeStaging.js';
+import { verificarBaseDeStaging, direccionPropiaDeStaging } from '../server/config/guardaDeStaging.js';
 
 /** Incidente 2026-10-18: staging corría contra la base de producción (su .env se copió de producción y `DATABASE_URL` no se lee). */
 describe('staging no puede usar la base de producción', () => {
@@ -31,5 +31,28 @@ describe('staging no puede usar la base de producción', () => {
   it('el ecosistema de staging declara APP_ENV=staging (sin eso la guarda no se activa)', () => {
     const eco = readFileSync(join(process.cwd(), 'ecosystem.staging.config.cjs'), 'utf8');
     expect(eco).toContain("APP_ENV: 'staging'");
+  });
+});
+
+/** Informe del dueño (2026-11-12): en staging «ingreso y me manda a producción» (el enlace del correo abría el sitio real). */
+describe('los enlaces de staging vuelven a staging', () => {
+  const staging = { APP_ENV: 'staging' };
+
+  it('una dirección vacía o la del sitio real se cambia por la de staging', () => {
+    expect(direccionPropiaDeStaging(undefined, staging)).toBe('https://staging.doapparg.com');
+    expect(direccionPropiaDeStaging('', staging)).toBe('https://staging.doapparg.com');
+    expect(direccionPropiaDeStaging('https://doapparg.com', staging)).toBe('https://staging.doapparg.com');
+    expect(direccionPropiaDeStaging('https://www.doapparg.com/', staging)).toBe('https://staging.doapparg.com');
+    expect(direccionPropiaDeStaging('no es una dirección', staging)).toBe('https://staging.doapparg.com');
+  });
+
+  it('una dirección propia de staging (o local) se respeta', () => {
+    expect(direccionPropiaDeStaging('https://staging.doapparg.com', staging)).toBe('https://staging.doapparg.com');
+    expect(direccionPropiaDeStaging('http://localhost:5173', staging)).toBe('http://localhost:5173');
+  });
+
+  it('fuera de staging no toca nada (producción sigue con su dominio)', () => {
+    expect(direccionPropiaDeStaging('https://doapparg.com', { APP_ENV: 'production' })).toBe('https://doapparg.com');
+    expect(direccionPropiaDeStaging(undefined, {})).toBeUndefined();
   });
 });

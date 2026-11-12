@@ -168,8 +168,8 @@ export const setupForegroundMessageHandler = () => {
       if (Notification.permission === 'granted') {
         new Notification(title, {
           body: body || '',
-          icon: icon || '/logo.png',
-          badge: '/logo.png',
+          icon: icon || '/icon-192.png',
+          badge: '/icon-192.png',
           tag: payload.messageId,
         });
       }

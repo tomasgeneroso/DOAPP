@@ -16,6 +16,7 @@ import { calculateCommission } from "../../services/commissionService.js";
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { idsDeContratosPorPago, pagosSinVincularPorContrato, vincularPagoAlContrato } from "../../services/vinculoDePagos.js";
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
+import { resumenesDeTrabajos } from "../../services/panelDePublicaciones.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -126,9 +127,19 @@ router.get(
         contractsRaw.filter((c: any) => !paymentsByContractId.has(c.id)).map((c: any) => ({ id: c.id, jobId: c.jobId, doerId: c.doerId, clientId: c.clientId, status: c.status })),
       );
 
+      // La situación de punta a punta de cada contrato (trabajo + contratos + pagos): la MISMA cuenta que el panel de Publicaciones y la lista de Pagos
+      // (regla del dueño, 2026-11-12: «todo debe estar con los mismos estados»). Se calcula en cada lectura, así que nunca queda desfasada.
+      const idsDeTrabajos = [...new Set(contractsRaw.map((c: any) => String(c.jobId)).filter(Boolean))];
+      const trabajosDeLaPagina: any[] = idsDeTrabajos.length
+        ? await Job.findAll({ where: { id: { [Op.in]: idsDeTrabajos } } as any, attributes: ["id", "status", "publicationPaid", "publicationPaymentId", "cancellationRequestedAt"] })
+        : [];
+      const resumenes = await resumenesDeTrabajos(trabajosDeLaPagina);
+
       // Attach payments to contracts
       const contracts = contractsRaw.map(contract => {
         const contractJson: any = contract.toJSON();
+        const resumen = resumenes.get(String((contract as any).jobId));
+        contractJson.situacion = resumen ? { estadoFinal: resumen.estadoFinal, contrato: resumen.contrato, pago: resumen.pago, alerta: resumen.alerta } : null;
         contractJson.payment = paymentsByContractId.get(contract.id) || null;
         const idPub = (contract as any).job?.publicationPaymentId;
         contractJson.pagoDePublicacion = !contractJson.payment && idPub ? publicacionPorId.get(String(idPub)) ?? null : null;

@@ -12,7 +12,7 @@ import { useEventoEnVivo } from '../hooks/useSocket';
  * Perfiles (pedido del dueño, 2026-11-12): se buscan por nombre, rubro, perfil (trabajador o cliente), puntuación y ubicación, y se muestran como tarjetas con
  * foto, nombre, reputación y rubros. Datos de `GET /api/users/directory` (público: sin contacto ni la calle del domicilio).
  */
-interface Tarjeta {
+export interface Tarjeta {
   id: string;
   name: string;
   username: string;
@@ -28,6 +28,8 @@ interface Tarjeta {
   workAnyCategory: boolean;
   workZones: Array<{ name: string; radiusKm?: number }>;
   workRadiusKm?: number | null;
+  membershipTier?: string | null;
+  hasMembership?: boolean | null;
 }
 
 const POR_PAGINA = 12;
@@ -47,7 +49,12 @@ export function TarjetaDePerfil({ u }: { u: Tarjeta }) {
         <div className="flex items-center gap-3">
           <AvatarConInicial src={u.avatar ? getImageUrl(u.avatar) : null} nombre={u.name} className="h-14 w-14 shrink-0 rounded-full text-lg" />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-slate-900 dark:text-white">{u.name}</p>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
+              <span className="truncate">{u.name}</span>
+              {u.membershipTier === 'pro' && u.hasMembership && (
+                <span className="shrink-0 rounded bg-gradient-to-r from-amber-500 to-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">PRO</span>
+              )}
+            </p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">@{u.username}</p>
             <p className="mt-0.5 flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400">
               <Star className={`h-3.5 w-3.5 ${r.tieneCalificacion ? 'fill-current' : ''}`} aria-hidden="true" />

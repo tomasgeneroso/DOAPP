@@ -7,7 +7,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
-import type { Job, User as UserType } from "@/types";
+import type { Job } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
 import { useAdvertisements } from "../hooks/useAdvertisements";
 import Advertisement from "../components/Advertisement";
@@ -18,9 +18,9 @@ import WorkInProgress from "../components/jobs/WorkInProgress";
 import TrabajosDeEjemplo from "../components/home/TrabajosDeEjemplo";
 import MovilPagoLiberado from "../components/home/MovilPagoLiberado";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
-import DescargarApk from "../components/DescargarApk";
+
 import ParaMi, { parametrosParaMi, tieneAlgoParaMi } from "../components/home/ParaMi";
-import MediosDePago from "../components/MediosDePago";
+import { TarjetaDePerfil, type Tarjeta } from "./Profesionales";
 
 const handleSpotlightMove = (e: React.MouseEvent<HTMLElement>) => {
   const el = e.currentTarget as HTMLElement;
@@ -46,7 +46,8 @@ export default function Index() {
   const showVisitor = !user && (!isLoading || !hasStoredToken);
   const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<Tarjeta[]>([]);
+  const pedidoDePerfiles = useRef(0);
   const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
@@ -129,23 +130,27 @@ export default function Index() {
     }
   };
 
-  const fetchUsers = async (query: string) => {
+  // Perfiles: nombre, perfil (trabajador/cliente), rubro, puntuación y ubicación. Sin texto también lista (los mejor puntuados primero).
+  const fetchUsers = async (filters: SearchFilters) => {
+    const mio = ++pedidoDePerfiles.current;
     try {
       setJobsLoading(true);
-      const params = new URLSearchParams({
-        q: query,
-        limit: "20",
-      });
+      const params = new URLSearchParams({ limit: "24", role: filters.userRole ?? "all" });
+      if (filters.query.trim()) params.set("q", filters.query.trim());
+      if (filters.userRubro) params.set("rubro", filters.userRubro);
+      if (filters.userMinRating) params.set("minRating", String(filters.userMinRating));
+      if (filters.location.trim()) params.set("location", filters.location.trim());
 
-      const response = await fetch(`/api/users/search?${params.toString()}`);
+      const response = await fetch(`/api/users/directory?${params.toString()}`);
       const data = await response.json();
-      if (data.success) {
+      // Si llegó otra búsqueda después, esta ya no vale.
+      if (mio === pedidoDePerfiles.current && data.success) {
         setUsers(data.users);
       }
     } catch (error) {
       console.error("Error al buscar usuarios:", error);
     } finally {
-      setJobsLoading(false);
+      if (mio === pedidoDePerfiles.current) setJobsLoading(false);
     }
   };
 
@@ -157,12 +162,7 @@ export default function Index() {
       // Si el tipo de búsqueda es usuarios, buscar usuarios en su lugar
       if (filters?.searchType === 'users') {
         setSearchType('users');
-        if (filters.query) {
-          await fetchUsers(filters.query);
-        } else {
-          setUsers([]);
-          setJobsLoading(false);
-        }
+        await fetchUsers(filters);
         return;
       }
 
@@ -387,14 +387,6 @@ export default function Index() {
               >
                 {t('home.ctaSeeJobs', 'Ver trabajos disponibles')}
               </Link>
-            </div>
-            {/* App para Android sin tienda (APK) */}
-            <div className="relative z-10 mt-4">
-              <DescargarApk variante="portada" />
-            </div>
-            {/* Medios de pago */}
-            <div className="relative z-10 mt-4 flex justify-center sm:justify-start [&_span]:text-slate-400">
-              <MediosDePago />
             </div>
             {/* Scroll indicator */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
@@ -632,8 +624,9 @@ export default function Index() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-sky-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20">
-                  <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                {/* Logo de Mercado Pago (sobre pastilla blanca: sus letras son azul oscuro) */}
+                <div className="h-10 self-start rounded-xl bg-white px-3 flex items-center transition-all duration-300 group-hover:scale-105">
+                  <img src="/MP_RGB_HANDSHAKE_color_horizontal.svg" alt="Mercado Pago" className="h-6 w-auto" loading="lazy" />
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Mercado Pago</p>
@@ -652,8 +645,10 @@ export default function Index() {
                 <span className="text-xs font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full self-start">{t('home.bankBadge', 'Sin comisión bancaria')}</span>
               </div>
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-orange-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-orange-500/20">
-                  <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="currentColor"><path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.238c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.52 2.75 2.084v.006z"/></svg>
+                {/* Logo de Binance */}
+                <div className="h-10 self-start rounded-xl bg-white px-3 flex items-center gap-1.5 transition-all duration-300 group-hover:scale-105">
+                  <img src="/binance-mark.png" alt="" aria-hidden="true" className="h-5 w-5" loading="lazy" />
+                  <span className="text-sm font-bold tracking-wide text-[#F3BA2F]" aria-label="Binance">BINANCE</span>
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Cripto (USDT/BTC)</p>
@@ -761,6 +756,16 @@ export default function Index() {
           </div>
         )}
 
+        {/* Search bar para usuarios logueados — siempre visible, ARRIBA de los resultados (de trabajos y de perfiles) */}
+        {user && (
+          <div className="mt-8 px-2" data-onboarding="search">
+            <SearchBar
+              onSearch={handleSearch}
+              onSearchChange={handleSearchChange}
+            />
+          </div>
+        )}
+
         {/* Lista de usuarios (cuando se busca usuarios) */}
         {searchType === 'users' && (
           <div key="users-section" className="mt-10 sm:mt-16 px-2 animate-fadeInUp">
@@ -776,78 +781,14 @@ export default function Index() {
               </div>
             ) : users.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-slate-400">
-                  {t('home.searchUserHint', 'Escribí un nombre o @usuario para buscar.')}
+                <p className="text-gray-500 dark:text-slate-400" data-testid="sin-perfiles">
+                  {t('home.noProfilesFound', 'No encontramos perfiles con esos filtros. Probá con menos filtros o con otra zona.')}
                 </p>
               </div>
             ) : (
-              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {users.map((userResult) => (
-                  <Link
-                    key={`user-${userResult.id}`}
-                    to={userResult.username ? `/profile/${userResult.username}` : `/profile/${userResult.id}`}
-                    className="spotlight-card group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-300 dark:hover:border-sky-500/60 hover:shadow-lg hover:shadow-sky-100 dark:hover:shadow-sky-900/20"
-                    onMouseMove={handleSpotlightMove}
-                    onMouseLeave={handleSpotlightLeave}
-                  >
-                    {/* Avatar y nombre */}
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={getImageUrl(userResult.avatar)}
-                        alt={userResult.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-sky-600 truncate">
-                            {userResult.name}
-                          </h3>
-                          {userResult.membershipTier === "pro" && userResult.hasMembership && (
-                            <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold rounded flex-shrink-0">
-                              PRO
-                            </span>
-                          )}
-                          {userResult.isPremiumVerified && (
-                            <CheckCircle className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                          )}
-                        </div>
-                        {userResult.username && (
-                          <p className="text-sm text-slate-500 dark:text-slate-400">
-                            @{userResult.username}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bio */}
-                    {userResult.bio && (
-                      <p className="mt-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
-                        {userResult.bio}
-                      </p>
-                    )}
-
-                    {/* Stats */}
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center gap-4">
-                      <div className="flex items-center gap-1 text-amber-500">
-                        <Star className="h-4 w-4 fill-current" />
-                        <span className="text-sm font-medium">{(typeof userResult.rating === 'number' ? userResult.rating : parseFloat(userResult.rating) || 0).toFixed(1)}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          ({userResult.reviewsCount || 0})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                        <Briefcase className="h-4 w-4" />
-                        <span className="text-sm">{userResult.completedJobs || 0} trabajos</span>
-                      </div>
-                    </div>
-
-                    {/* Hover Button */}
-                    <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-r from-sky-500 to-sky-600 py-3 text-center text-sm font-semibold text-white transition-transform group-hover:translate-y-0">
-                      Ver perfil
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <ul className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" data-testid="lista-de-perfiles">
+                {users.map((u) => <TarjetaDePerfil key={`user-${u.id}`} u={u} />)}
+              </ul>
             )}
           </div>
         )}
@@ -878,15 +819,7 @@ export default function Index() {
           </div>
         )}
 
-        {/* Search bar para usuarios logueados — siempre visible */}
-        {user && (
-          <div className="mt-8 px-2" data-onboarding="search">
-            <SearchBar
-              onSearch={handleSearch}
-              onSearchChange={handleSearchChange}
-            />
-          </div>
-        )}
+
 
         {/* Lista de trabajos disponibles */}
         {user && searchType === 'jobs' && (

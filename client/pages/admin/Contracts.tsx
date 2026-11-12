@@ -7,6 +7,7 @@ import IdBadge from "../../components/admin/IdBadge";
 import { statusDescription, contractStatusDescriptions, contractPaymentDescriptions } from "../../utils/statusDescriptions";
 import { useSocket, useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
+import { TONOS, tonoDe, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
 
 interface ContractChange {
   field: string;
@@ -81,6 +82,8 @@ interface Contract {
   /** El pago de la publicación del trabajo, cuando el contrato no tiene un pago propio. */
   pagoDePublicacion?: { id: string; status: string; amount: number; paymentType?: string } | null;
   pagosSinVincular?: PagoSinVincular[];
+  /** Situación de punta a punta (trabajo + contratos + pagos), la misma cuenta que Publicaciones y Pagos. */
+  situacion?: { estadoFinal: { clave: string; rotulo: string }; contrato: { clave: string; rotulo: string }; pago: { clave: string; rotulo: string }; alerta: string | null } | null;
 }
 
 type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'payment';
@@ -359,7 +362,8 @@ export default function AdminContracts() {
   }, [fetchContracts]);
 
   // Un contrato o un pago suyo que cambia (el cron lo empieza o termina, Mercado Pago acredita): la lista se recarga sola.
-  useCambiosDeAdministracion(['contract', 'payment'], () => fetchContracts());
+  // También cuando cambia el TRABAJO: la situación que se muestra («falta pagar al trabajador», «esperando pago»…) depende del trabajo, sus contratos y sus pagos.
+  useCambiosDeAdministracion(['contract', 'payment', 'job'], () => fetchContracts());
 
   const handleSort = (field: SortField) => {
     let newDirection: SortDirection = 'asc';
@@ -777,6 +781,17 @@ export default function AdminContracts() {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full cursor-help ${getStatusBadge(contract.status)}`} title={statusDescription(contractStatusDescriptions, contract.status)}>
                         {getStatusLabel(contract.status)}
                       </span>
+                      {contract.situacion && (
+                        <div className="mt-1 space-y-1" data-testid="situacion-del-contrato">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONOS[tonoDe(contract.situacion.estadoFinal.clave)]}`}>
+                            {contract.situacion.estadoFinal.rotulo}
+                          </span>
+                          <div>
+                            <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${COLOR_DE_PAGO[contract.situacion.pago.clave] ?? TONOS.espera}`}>{contract.situacion.pago.rotulo}</span>
+                          </div>
+                          {contract.situacion.alerta && <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {contract.situacion.alerta}</div>}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full cursor-help ${getPaymentBadge(contract.paymentStatus)}`} title={statusDescription(contractPaymentDescriptions, contract.paymentStatus)}>

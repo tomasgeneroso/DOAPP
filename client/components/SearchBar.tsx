@@ -20,7 +20,13 @@ export interface SearchFilters {
   maxBudget?: number;
   sortBy?: 'date' | 'budget-asc' | 'budget-desc' | 'proximity';
   searchType?: 'jobs' | 'users';
+  // Solo para la búsqueda de perfiles (pedido del dueño, 2026-11-12: los filtros van en la barra).
+  userRole?: 'all' | 'worker' | 'client';
+  userRubro?: string;
+  userMinRating?: number;
 }
+
+type PerfilBuscado = NonNullable<SearchFilters['userRole']>;
 
 export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) {
   const { t } = useTranslation();
@@ -32,6 +38,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const [maxBudget, setMaxBudget] = useState<string>("");
   const [sortBy, setSortBy] = useState<SearchFilters['sortBy']>('date');
   const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
+  const [userRole, setUserRole] = useState<PerfilBuscado>('all');
+  const [userRubro, setUserRubro] = useState("");
+  const [userMinRating, setUserMinRating] = useState("");
+  const [userLocation, setUserLocation] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<ReturnType<typeof searchLocations>>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
@@ -80,6 +90,21 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     };
   }, []);
 
+  // Lo que se manda a la pantalla: en perfiles, la ubicación es la de los filtros de perfiles (no se mezcla con la de trabajos).
+  const armarFiltros = (): SearchFilters => ({
+    query,
+    location: searchType === 'users' ? userLocation : location,
+    category,
+    tags,
+    minBudget: minBudget ? parseFloat(minBudget) : undefined,
+    maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
+    sortBy,
+    searchType,
+    userRole,
+    userRubro: userRubro || undefined,
+    userMinRating: userMinRating ? parseFloat(userMinRating) : undefined,
+  });
+
   // Trigger real-time search with debounce
   const triggerRealTimeSearch = () => {
     if (!onSearchChange) return;
@@ -89,16 +114,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      onSearchChange({
-        query,
-        location,
-        category,
-        tags,
-        minBudget: minBudget ? parseFloat(minBudget) : undefined,
-        maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
-        sortBy,
-        searchType,
-      });
+      onSearchChange(armarFiltros());
     }, 500); // 500ms debounce
   };
 
@@ -196,7 +212,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   // Trigger search whenever filters change
   useEffect(() => {
     triggerRealTimeSearch();
-  }, [query, location, category, tags, minBudget, maxBudget, sortBy, searchType]);
+  }, [query, location, category, tags, minBudget, maxBudget, sortBy, searchType, userRole, userRubro, userMinRating, userLocation]);
 
   const handleSelectLocation = (locationValue: string) => {
     setLocation(locationValue);
@@ -210,16 +226,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     analytics.jobSearch(query, { category, location });
     if (location) analytics.filterApply('location', location, 'search_bar');
     if (category) analytics.filterApply('category', category, 'search_bar');
-    onSearch({
-      query,
-      location,
-      category,
-      tags,
-      minBudget: minBudget ? parseFloat(minBudget) : undefined,
-      maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
-      sortBy,
-      searchType,
-    });
+    onSearch(armarFiltros());
   };
 
   const handleClear = () => {
@@ -231,6 +238,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     setMaxBudget("");
     setSortBy('date');
     setSearchType('jobs');
+    setUserRole('all');
+    setUserRubro("");
+    setUserMinRating("");
+    setUserLocation("");
     setLocationSuggestions([]);
     setShowLocationSuggestions(false);
     setQueryLocationSuggestions([]);
@@ -244,6 +255,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
       maxBudget: undefined,
       sortBy: 'date',
       searchType: 'jobs',
+      userRole: 'all',
     });
   };
 
@@ -256,6 +268,14 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   };
 
   const hasActiveFilters = location || category || tags.length > 0 || minBudget || maxBudget || sortBy !== 'date';
+  const hayFiltrosDePerfiles = userRole !== 'all' || !!userRubro || !!userMinRating || !!userLocation.trim();
+  const limpiarFiltrosDePerfiles = () => {
+    setUserRole('all');
+    setUserRubro("");
+    setUserMinRating("");
+    setUserLocation("");
+  };
+  const campoDePerfil = "w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent";
 
   return (
     <div className="w-full">
@@ -376,6 +396,55 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             {t('common.search')}
           </button>
         </div>
+
+        {/* Filtros de perfiles: dentro de la barra, siempre a la vista (perfil, rubro, puntuación y ubicación) */}
+        {searchType === 'users' && (
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" data-testid="filtros-de-perfiles">
+            <label>
+              <span className="sr-only">Perfil</span>
+              <select value={userRole} onChange={(e) => setUserRole(e.target.value as PerfilBuscado)} className={campoDePerfil}>
+                <option value="all">Todos los perfiles</option>
+                <option value="worker">Trabajadores</option>
+                <option value="client">Clientes</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Rubro</span>
+              <select value={userRubro} onChange={(e) => setUserRubro(e.target.value)} className={campoDePerfil}>
+                <option value="">Todos los rubros</option>
+                {JOB_CATEGORIES.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.icon} {t(cat.labelKey, cat.label)}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Puntuación</span>
+              <select value={userMinRating} onChange={(e) => setUserMinRating(e.target.value)} className={campoDePerfil}>
+                <option value="">Cualquier puntuación</option>
+                <option value="3">3 estrellas o más</option>
+                <option value="4">4 estrellas o más</option>
+                <option value="4.5">4,5 estrellas o más</option>
+              </select>
+            </label>
+            <label className="relative">
+              <span className="sr-only">Ubicación</span>
+              <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                type="text"
+                value={userLocation}
+                onChange={(e) => setUserLocation(e.target.value)}
+                placeholder="Ciudad, provincia o zona"
+                maxLength={80}
+                className={`${campoDePerfil} pl-9`}
+              />
+            </label>
+            {hayFiltrosDePerfiles && (
+              <button type="button" onClick={limpiarFiltrosDePerfiles} className="col-span-2 text-left text-sm text-sky-600 dark:text-sky-400 hover:underline lg:col-span-4">
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Advanced Filters - Only for jobs */}
         {showFilters && searchType === 'jobs' && (

@@ -192,7 +192,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
       />
 
       <div className="relative flex items-center gap-2">
-        <img src="/logo.svg?v=4" alt="" className="h-8 w-8" aria-hidden="true" />
+        <img src="/logo.svg?v=6" alt="" className="h-8 w-8" aria-hidden="true" />
         <span className="text-lg font-semibold tracking-tight">
           D<span className="text-sky-600 dark:text-sky-400">o</span>App
         </span>

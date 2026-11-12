@@ -1,8 +1,16 @@
 import dotenv from "dotenv";
 import { SITIO } from "../../shared/constants/contacto.js";
+import { direccionPropiaDeStaging } from "./guardaDeStaging.js";
 
 // Cargar variables de entorno
 dotenv.config();
+
+// En staging los enlaces (correos, regreso de pagos, Google) vuelven a staging, aunque el .env se haya copiado de producción. Se corrige en process.env para que
+// lo vean TODOS los que leen CLIENT_URL / SERVER_URL directo, no solo `config`.
+for (const nombre of ["CLIENT_URL", "SERVER_URL"]) {
+  const propia = direccionPropiaDeStaging(process.env[nombre]);
+  if (propia) process.env[nombre] = propia;
+}
 
 export const config = {
   // Puerto del servidor

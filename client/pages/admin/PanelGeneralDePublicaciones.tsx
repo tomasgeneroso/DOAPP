@@ -31,20 +31,20 @@ interface Fila {
   coincide: string[];
 }
 
-const TONOS: Record<TonoDeEstado, string> = {
+export const TONOS: Record<TonoDeEstado, string> = {
   atender: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
   espera: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   marcha: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
   fin: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
   cancelada: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
 };
-const tonoDe = (clave: string): TonoDeEstado => ESTADOS_FINALES.find((e) => e.clave === clave)?.tono ?? 'espera';
+export const tonoDe = (clave: string): TonoDeEstado => ESTADOS_FINALES.find((e) => e.clave === clave)?.tono ?? 'espera';
 
 /** El contrato y el pago se pintan por su propia clave: lo bueno en verde, lo que falta en ámbar, lo que está mal en rojo. */
-const COLOR_DE_CONTRATO: Record<string, string> = {
+export const COLOR_DE_CONTRATO: Record<string, string> = {
   en_disputa: TONOS.atender, sin_contrato: TONOS.cancelada, cancelado: TONOS.cancelada, terminado: TONOS.fin, en_proceso: TONOS.marcha, por_empezar: TONOS.marcha, esperando_confirmacion: TONOS.marcha,
 };
-const COLOR_DE_PAGO: Record<string, string> = {
+export const COLOR_DE_PAGO: Record<string, string> = {
   sin_pagar: TONOS.espera, en_revision: TONOS.espera, verificado: TONOS.fin, rechazado: TONOS.atender, devuelto: TONOS.cancelada, falta_pagar_trabajador: TONOS.atender, pagado_trabajador: TONOS.fin,
 };
 

@@ -9,6 +9,7 @@ import PedidosDeReembolso from '../../components/admin/PedidosDeReembolso';
 import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
+import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
 import {
   CheckCircle,
   XCircle,
@@ -946,7 +947,8 @@ export default function PendingPayments() {
   };
 
   // Un pago que llega (Mercado Pago, transferencia), cambia de estado o se devuelve, aunque lo mueva otra persona o un cron: la pestaña abierta se recarga sola.
-  useCambiosDeAdministracion(['payment', 'contract'], () => reloadActive());
+  // También cuando cambia el TRABAJO: la situación de cada pago («falta pagar al trabajador», «esperando pago»…) se calcula con el trabajo, su contrato y sus pagos.
+  useCambiosDeAdministracion(['payment', 'contract', 'job', 'withdrawal'], () => reloadActive());
 
   // El contador de pedidos de reembolso se ve aunque la pestaña «Devoluciones» esté cerrada: un pedido nuevo del cliente no puede pasar desapercibido.
   const contarPedidosDeReembolso = async () => {
@@ -1816,7 +1818,28 @@ export default function PendingPayments() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="space-y-1">
-                              {/* Estado del contrato */}
+                              {/* Situación de punta a punta: la misma cuenta que el panel de Publicaciones (trabajo + contrato + pagos). */}
+                              {payment.situacion ? (
+                                <>
+                                  <span
+                                    data-testid="situacion-del-pago"
+                                    className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${TONOS[tonoDe(payment.situacion.estadoFinal.clave)]}`}
+                                  >
+                                    {payment.situacion.estadoFinal.rotulo}
+                                  </span>
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${COLOR_DE_CONTRATO[payment.situacion.contrato.clave] ?? TONOS.espera}`}>
+                                      Contrato: {payment.situacion.contrato.rotulo}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${COLOR_DE_PAGO[payment.situacion.pago.clave] ?? TONOS.espera}`}>
+                                      {payment.situacion.pago.rotulo}
+                                    </span>
+                                  </div>
+                                  {payment.situacion.alerta && (
+                                    <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {payment.situacion.alerta}</div>
+                                  )}
+                                </>
+                              ) : (
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                                 contractStatus === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
                                 contractStatus === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
@@ -1827,6 +1850,7 @@ export default function PendingPayments() {
                                  contractStatus === 'awaiting_confirmation' ? 'Esperando Confirm.' :
                                  contractStatus || 'Pendiente'}
                               </span>
+                              )}
                               {/* Confirmaciones de trabajo */}
                               <div className="flex items-center gap-1 text-xs mt-1">
                                 {clientConfirmed ? (

@@ -238,6 +238,20 @@ export const MANUAL: EntradaManual[] = [
     ],
   },
   {
+    id: "confirmar-correo-en-staging",
+    titulo: "Confirmar el correo de una cuenta en staging",
+    roles: ["owner"],
+    resumen: "Staging no manda el correo de verificación: con esto confirmás la cuenta a mano, sin pedir la clave de la base.",
+    claves: ["staging", "correo", "verificación", "verificar", "confirmar", "email", "no puedo ingresar", "login", "cuenta", "prueba"],
+    cuerpo: [
+      "Se corre <b>en el servidor de staging</b>, desde la carpeta de la app de staging. <b>No pide la clave de la base</b>: la lee del <code>.env</code> como la propia app (no hace falta entrar con <code>psql</code>).",
+      "<b>1) Vista previa</b>: <code>npx tsx server/scripts/confirmarCorreo.ts --email=correo@ejemplo.com</code> (también acepta el nombre de usuario). Dice si la cuenta existe en la base de staging, si el correo está confirmado y cuándo ingresó por última vez.",
+      "<b>2) Confirmar</b>: el mismo comando con <code>--aplicar</code>. Deja el correo como confirmado igual que el enlace del correo (y entrega el beneficio de lanzamiento si corresponde). Después ya se puede ingresar.",
+      "Si dice que <b>no existe la cuenta</b>: staging tiene su propia base, separada de producción. Registrate de nuevo en staging y volvé a correr el comando.",
+      "<b>Solo funciona con una base que no sea la de producción</b> (<code>doapp</code>): en producción la persona confirma con el enlace que recibe. Los enlaces que salen de staging (verificación, recuperar contraseña, pagos) vuelven a <code>staging.doapparg.com</code> aunque el <code>.env</code> se haya copiado de producción.",
+    ],
+  },
+  {
     id: "comandos-del-servidor",
     titulo: "Comandos del servidor (referencia del dueño)",
     roles: ["owner"],

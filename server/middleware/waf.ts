@@ -30,7 +30,7 @@ const WAF_CONFIG = {
 
   // Rate limiting específico por endpoint
   endpointRateLimits: {
-    '/api/auth/login': { windowMs: 60000, maxRequests: 5 },
+    '/api/auth/login': { windowMs: 60000, maxRequests: 10 }, // 2026-11-12: con 5 una persona que se equivoca de contraseña quedaba frenada; el freno fuerte es authLimiter (30 fallidos / 15 min)
     '/api/auth/register': { windowMs: 60000, maxRequests: 3 },
     '/api/auth/forgot-password': { windowMs: 60000, maxRequests: 3 },
     '/api/payments': { windowMs: 60000, maxRequests: 10 },
@@ -915,7 +915,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
       logWafEvent(req, 'ENDPOINT_RATE_LIMIT', `Exceeded ${endpointLimit.maxRequests} requests for ${req.path}`, true);
       return res.status(429).json({
         success: false,
-        message: 'Too many requests to this endpoint. Please try again later.',
+        message: 'Demasiados intentos seguidos. Esperá un minuto y volvé a probar.',
         retryAfter: Math.ceil(endpointLimit.windowMs / 1000),
       });
     }

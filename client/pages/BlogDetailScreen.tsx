@@ -206,7 +206,7 @@ export default function BlogDetailScreen() {
               "name": "DOAPP",
               "logo": {
                 "@type": "ImageObject",
-                "url": `${window.location.origin}/logo.png`
+                "url": `${window.location.origin}/icon-512.png`
               }
             },
             "mainEntityOfPage": {
