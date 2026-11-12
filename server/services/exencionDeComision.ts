@@ -252,6 +252,9 @@ export async function otorgarContratosLibres(userId: string, ahora: Date = new D
           WHERE id = :id
             AND launch_benefit_granted_at IS NULL
             AND registration_pending = false
+            -- Con el CORREO confirmado (regla del dueño, 2026-11-12): sin eso se podrían gastar los lugares con correos inventados que nadie abrió.
+            -- Al confirmarlo (GET /auth/verify-email) se vuelve a probar, así que quien se registra y confirma recibe el beneficio en ese momento.
+            AND is_verified = true AND COALESCE(email, '') <> ''
             -- VERIFICADA (documento aprobado) o, con la verificación de Didit apagada (etapa beta), con el registro completo y su DNI declarado.
             AND (dni_verified = true OR (CAST(:dniDeclarado AS boolean) AND dni IS NOT NULL AND dni <> ''))
             AND merged_into_id IS NULL

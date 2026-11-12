@@ -94,7 +94,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const register = async (data: RegisterData): Promise<ApiResponse<any>> => {
     const response = await authService.register(data);
 
-    if (response.success && response.data) {
+    // Con `sinSesion` (registro en un paso) no hay token: la cuenta se abre recién al confirmar el correo.
+    if (response.success && response.data?.token) {
       setState({
         user: response.data.user,
         token: response.data.token,

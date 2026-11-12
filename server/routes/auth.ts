@@ -5,6 +5,7 @@ import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { FamilyCode } from "../models/sql/FamilyCode.model.js";
+import { activarCodigoDeFamilia, esCodigoDeFamiliaDisponible } from "../services/codigoDeFamilia.js";
 import { otorgarContratosLibres, contratosLibresDisponibles } from "../services/exencionDeComision.js";
 import { sequelize } from "../config/database.js";
 import { config } from "../config/env.js";
@@ -43,7 +44,7 @@ import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVincul
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, motivoDeDniImposible, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
-import { identidadSuficiente } from "../services/identidadDeclarada.js";
+import { identidadSuficiente, correoConfirmado } from "../services/identidadDeclarada.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -258,15 +259,22 @@ router.post(
       }
 
       // Verificar código de referido si se proporcionó
+      // El mismo campo sirve para el código de un referido (8 letras y números) y para un código de FAMILIA (FAM-…, con o sin el prefijo): primero se mira si es de un
+      // referido; si no, si es un código de familia que se puede usar. Solo si no es ninguno de los dos se rechaza.
       let referrer = null;
+      let usaCodigoDeFamilia = false;
       if (referralCode) {
-        referrer = await User.findOne({ where: { referralCode: referralCode.toUpperCase() } });
+        referrer = await User.findOne({ where: { referralCode: String(referralCode).trim().toUpperCase() } });
         if (!referrer) {
-          res.status(400).json({
-            success: false,
-            message: "Código de referido inválido",
-          });
-          return;
+          usaCodigoDeFamilia = await esCodigoDeFamiliaDisponible(referralCode);
+          if (!usaCodigoDeFamilia) {
+            res.status(400).json({
+              success: false,
+              field: "referralCode",
+              message: "Ese código no es válido o ya no se puede usar. Si es de familia, revisalo: son 8 letras y números, con o sin «FAM-» adelante.",
+            });
+            return;
+          }
         }
       }
 
@@ -298,6 +306,13 @@ router.post(
       });
       // Contratos libres de comisión de lanzamiento (las primeras cuentas). No frena el alta si falla.
       await otorgarContratosLibres(String(user.id));
+
+      // Código de familia (0% de comisión): se activa con la cuenta recién creada. Si alguien lo usó justo en el medio, la cuenta queda creada y se le cuenta.
+      let familia: { aplicada: boolean; mensaje: string } | undefined;
+      if (usaCodigoDeFamilia) {
+        const r = await activarCodigoDeFamilia(String(user.id), referralCode);
+        familia = r.ok ? { aplicada: true, mensaje: 'Plan Familia activado: 0% de comisión en tus contratos.' } : { aplicada: false, mensaje: `No se pudo activar el código de familia: ${r.message}. Podés probar de nuevo desde Configuración.` };
+      }
 
       // Crear registro de referido si existe
       if (referrer) {
@@ -345,6 +360,7 @@ router.post(
           success: true,
           requiresEmailVerification: true,
           invitacion,
+          familia,
           user: { id: user.id, name: user.name, username: user.username, email: user.email },
         });
         return;
@@ -366,6 +382,7 @@ router.post(
         token, // Mantener para compatibilidad temporal
         requiresEmailVerification: true,
         invitacion,
+        familia,
         user: {
           id: user.id, // Alias for compatibility
           name: user.name,
@@ -387,6 +404,7 @@ router.post(
           capabilities: {
             verificacionConDidit: verificacionConDiditActiva(),
             identidadSuficiente: identidadSuficiente(user as any),
+            correoConfirmado: correoConfirmado(user as any),
             manualKyc: isManualKycUnlocked(user as any),
           },
         },
@@ -579,6 +597,7 @@ router.post(
           // Verificación con documento y selfie (Didit) encendida o apagada, y si esta cuenta ya puede publicar/postularse/cobrar (verificada, o con DNI mientras está apagada).
           verificacionConDidit: verificacionConDiditActiva(),
           identidadSuficiente: identidadSuficiente(user as any),
+          correoConfirmado: correoConfirmado(user as any),
         },
         kycStatus: (user as any).kycStatus,
         kycAttempts: (user as any).kycAttempts ?? 0,
@@ -730,6 +749,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
           // Verificación con documento y selfie (Didit) encendida o apagada, y si esta cuenta ya puede publicar/postularse/cobrar (verificada, o con DNI mientras está apagada).
           verificacionConDidit: verificacionConDiditActiva(),
           identidadSuficiente: identidadSuficiente(user as any),
+          correoConfirmado: correoConfirmado(user as any),
         },
         kycAttempts: (user as any)?.kycAttempts ?? 0,
         kycMaxAttempts: getKycMaxAttempts(),
@@ -1825,6 +1845,8 @@ router.get("/verify-email", async (req: Request, res: Response): Promise<void> =
     user.verificationToken = undefined;
     user.verificationTokenExpiry = undefined;
     await user.save();
+    // El beneficio de lanzamiento pide el correo confirmado: quien terminó el registro y recién ahora lo confirma lo recibe en este momento (no hace nada si no corresponde).
+    await otorgarContratosLibres(String(user.id));
 
     res.json({ success: true, message: "Email verificado correctamente. Ya podés iniciar sesión." });
   } catch (error: any) {
@@ -2511,91 +2533,24 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
 router.post("/activate-family-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { code } = req.body;
-
     if (!code) {
-      res.status(400).json({
-        success: false,
-        message: "El código es requerido",
-      });
+      res.status(400).json({ success: false, message: "El código es requerido" });
       return;
     }
-
-    // Verificar si el usuario ya tiene un plan familia
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: "Usuario no encontrado",
-      });
+    // Con o sin «FAM-», en mayúsculas o minúsculas; el código se bloquea en la base (dos a la vez: sale uno solo).
+    const r = await activarCodigoDeFamilia(String(req.user.id), code);
+    if (!r.ok) {
+      res.status(r.status).json({ success: false, message: r.message });
       return;
     }
-
-    if (user.hasFamilyPlan) {
-      res.status(400).json({
-        success: false,
-        message: "Ya tienes un plan familia activo",
-      });
-      return;
-    }
-
-    // Wrap in transaction with row-level lock to prevent race conditions
-    // where two users try to activate the same code simultaneously
-    await sequelize.transaction(async (t) => {
-      const familyCode = await FamilyCode.findOne({
-        where: { code: code.toUpperCase().trim() },
-        lock: t.LOCK.UPDATE, // SELECT FOR UPDATE — blocks concurrent reads until commit
-        transaction: t,
-      });
-
-      if (!familyCode) {
-        const err: any = new Error("Código no válido");
-        err.status = 404;
-        throw err;
-      }
-
-      if (!familyCode.isActive) {
-        const err: any = new Error("Este código ya no está activo");
-        err.status = 400;
-        throw err;
-      }
-
-      if (familyCode.usedById) {
-        const err: any = new Error("Este código ya fue utilizado");
-        err.status = 400;
-        throw err;
-      }
-
-      if (familyCode.expiresAt && new Date() > new Date(familyCode.expiresAt)) {
-        const err: any = new Error("Este código ha expirado");
-        err.status = 400;
-        throw err;
-      }
-
-      await familyCode.update(
-        { usedById: user.id, usedAt: new Date() },
-        { transaction: t }
-      );
-
-      await user.update(
-        { familyCodeId: familyCode.id, hasFamilyPlan: true, currentCommissionRate: 0 },
-        { transaction: t }
-      );
-    });
-
     res.json({
       success: true,
       message: `¡Plan Familia activado! Ahora disfrutas de 0% comisión en todos tus contratos.`,
-      data: {
-        hasFamilyPlan: true,
-        commissionRate: 0,
-      },
+      data: { hasFamilyPlan: true, commissionRate: 0 },
     });
   } catch (error: any) {
     console.error("Error activating family code:", error);
-    res.status(error.status || 500).json({
-      success: false,
-      message: error.message || "Error del servidor",
-    });
+    res.status(error.status || 500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 
@@ -3061,6 +3016,8 @@ router.put("/registro/completar", protect, authLimiter, async (req: AuthRequest,
       return;
     }
     const recargado = await User.findByPk(user.id);
+    // El correo se escribió recién ahora (cuenta de X): se manda el enlace para confirmarlo (hace falta para publicar o trabajar).
+    if (r.correoNuevo && recargado) await sendVerificationEmailToUser(recargado);
     res.json({
       success: true,
       verificada: r.verificada,

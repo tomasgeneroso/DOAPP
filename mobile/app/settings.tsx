@@ -40,6 +40,7 @@ import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
 import SelectorDeBanco from '../components/SelectorDeBanco';
 import CuentasVinculadas from '../components/CuentasVinculadas';
+import CodigoDeFamilia from '../components/CodigoDeFamilia';
 import DireccionConSugerencias from '../components/DireccionConSugerencias';
 import { usePendingTasks, type SettingsSection } from '../hooks/usePendingTasks';
 
@@ -514,6 +515,9 @@ export default function SettingsScreen() {
           </Text>
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <CuentasVinculadas />
+          </View>
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border, marginTop: spacing.md }]}>
+            <CodigoDeFamilia />
           </View>
         </View>
         </>}

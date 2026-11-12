@@ -18,6 +18,7 @@ import CambiarContrasena from "../components/CambiarContrasena";
 import CuentasVinculadas from "../components/CuentasVinculadas";
 import EmailVerification from "../components/EmailVerification";
 import MembershipStatus from "../components/MembershipStatus";
+import CanjearCodigoDeFamilia from "../components/CanjearCodigoDeFamilia";
 import ProfilePromotion from "../components/profile/ProfilePromotion";
 import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
@@ -800,6 +801,7 @@ export default function UserSettings() {
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Mi membresía</h2>
                   <SeccionSegura nombre="Mi membresía"><MembershipStatus /></SeccionSegura>
+                  <SeccionSegura nombre="Código de familia"><CanjearCodigoDeFamilia /></SeccionSegura>
                 </div>
               )}
 

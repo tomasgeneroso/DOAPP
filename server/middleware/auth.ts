@@ -4,8 +4,7 @@ import { config } from "../config/env.js";
 import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
 import { entrarComoUsuario } from "../db/contextoRls.js";
-import { identidadSuficiente } from "../services/identidadDeclarada.js";
-import { verificacionConDiditActiva } from "../services/didit.js";
+import { bloqueoParaOperar, correoConfirmado, MENSAJE_CORREO_SIN_CONFIRMAR } from "../services/identidadDeclarada.js";
 
 export type { AuthRequest };
 
@@ -201,16 +200,27 @@ export const requireKyc = (req: AuthRequest, res: Response, next: NextFunction):
     res.status(401).json({ success: false, message: "Usuario no autenticado" });
     return;
   }
-  // Verificada, o —con la verificación de Didit apagada— registro completo con un DNI válido (`services/identidadDeclarada.ts`).
-  if (!identidadSuficiente(req.user as any)) {
-    const conDidit = verificacionConDiditActiva();
-    res.status(403).json({
-      success: false,
-      code: "KYC_REQUIRED",
-      message: conDidit
-        ? "Necesitás verificar tu identidad para hacer esto. Verificala desde tu perfil."
-        : "Necesitás completar tu registro con tu número de DNI para hacer esto. Completalo desde tu perfil.",
-    });
+  // Primero el correo confirmado (regla del dueño, 2026-11-12) y después la identidad: verificada, o —con Didit apagado— registro completo con un DNI válido
+  // (`services/identidadDeclarada.ts`: una sola regla y un solo texto para esta puerta, la publicación de trabajos y su pago).
+  const bloqueo = bloqueoParaOperar(req.user as any);
+  if (bloqueo) {
+    res.status(403).json({ success: false, code: bloqueo.codigo, message: bloqueo.mensaje });
+    return;
+  }
+  next();
+};
+
+/**
+ * Solo pide el correo confirmado (sin la identidad): para aceptar un contrato. Quien trabaja o publica tiene que haber confirmado el correo (regla del dueño, 2026-11-12). Devuelve
+ * 403 con el código EMAIL_REQUIRED.
+ */
+export const requireEmailConfirmado = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: "Usuario no autenticado" });
+    return;
+  }
+  if (!correoConfirmado(req.user as any)) {
+    res.status(403).json({ success: false, code: "EMAIL_REQUIRED", message: MENSAJE_CORREO_SIN_CONFIRMAR });
     return;
   }
   next();

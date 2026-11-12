@@ -34,6 +34,8 @@ export async function crearUsuario(over: Partial<any> = {}): Promise<any> {
     password: 'password123',
     role: 'client',
     balanceArs: 0,
+    // Con el correo confirmado: para publicar o trabajar hace falta (regla del dueño, 2026-11-12) y quien puede ingresar ya lo confirmó. Las pruebas del caso contrario lo pisan con `isVerified: false`.
+    isVerified: true,
     ...over,
   } as any);
   // Un saldo real siempre tiene sus movimientos: acreditar y retirar comprueban que el saldo sea la suma del libro. Sin este asiento un

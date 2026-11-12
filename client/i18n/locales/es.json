@@ -526,6 +526,14 @@
     "allRead": "Leíste todas tus notificaciones",
     "willAppear": "Las notificaciones aparecerán acá cuando tengas actividad"
   },
+  "apk": {
+    "descargar": "Descargar APK (Android)",
+    "proximamente": "App para Android: próximamente",
+    "comoSeInstala": "¿Cómo se instala?",
+    "paso1": "Tocá «Descargar APK» y esperá a que termine.",
+    "paso2": "Abrí el archivo descargado. Si Android lo pide, permití «instalar apps de esta fuente».",
+    "paso3": "Tocá «Instalar». Para actualizar, descargá la versión nueva e instalala encima."
+  },
   "auth": {
     "loginTitle": "Inicia sesión en tu cuenta",
     "registerTitle": "Crea tu cuenta",
@@ -577,7 +585,7 @@
     "usernamePlaceholder": "juanperez",
     "emailPlaceholder": "tucorreo@email.com",
     "referralCode": "Código de referido",
-    "referralHelper": "Si alguien te invitó, ingresa su código aquí",
+    "referralHelper": "Si alguien te invitó, ingresá su código aquí. También sirve un código de familia (con o sin FAM-).",
     "cbu": "CBU / CVU",
     "cbuHelper": "Tu CBU/CVU para recibir pagos por trabajos",
     "forgotPassword": "¿Olvidaste tu contraseña?",
@@ -608,6 +616,8 @@
     "socialDenied": "Cancelaste el ingreso con X. Podés intentar de nuevo o ingresar con tu correo.",
     "backToHome": "Volver al inicio",
     "promoFirst1000": "¡Las primeras {{usuarios}} cuentas tienen {{cantidad}} contrato sin comisión (una sola vez) y PRO gratis por {{meses}} mes!",
+    "promoConfirmEmail": "Para recibir estos beneficios tenés que confirmar tu correo con el enlace que te mandamos al registrarte.",
+    "verificationBenefitsNote": "Importante: los beneficios de lanzamiento (contrato sin comisión y mes de PRO gratis) se activan recién cuando confirmás tu correo. Sin confirmarlo tampoco podés publicar ni trabajar.",
     "alreadyRegistered": "Este email ya está registrado",
     "goToLogin": "Ir a Iniciar Sesión",
     "sessionExpired": "Tu sesión ha expirado",

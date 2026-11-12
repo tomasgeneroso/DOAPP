@@ -277,7 +277,7 @@ describe('invitaciones de creadores de contenido', () => {
       const sufijo = Date.now().toString(36);
       const reg = await request(app).post('/api/auth/register').send({
         name: 'Persona Invitada', username: `inv${sufijo}`, email: `inv${sufijo}@test.local`, password: 'Clave12345!',
-        phone: '+5491112345678', dni: String(Date.now()).slice(-8), termsAccepted: true, invitationCode: r.invitaciones[0].code,
+        phone: '+5491112345678', dni: String(30000000 + (Date.now() % 15000000)), termsAccepted: true, invitationCode: r.invitaciones[0].code,
       });
       expect(reg.status).toBe(201);
       expect(reg.body.invitacion?.aplicada).toBe(true);
@@ -294,7 +294,7 @@ describe('invitaciones de creadores de contenido', () => {
       const sufijo = Date.now().toString(36) + 'b';
       const reg = await request(app).post('/api/auth/register').send({
         name: 'Persona Tarde', username: `tar${sufijo}`, email: `tar${sufijo}@test.local`, password: 'Clave12345!',
-        phone: '+5491112345679', dni: String(Date.now() + 7).slice(-8), termsAccepted: true, invitationCode: r.invitaciones[0].code,
+        phone: '+5491112345679', dni: String(30000000 + ((Date.now() + 7) % 15000000)), termsAccepted: true, invitationCode: r.invitaciones[0].code,
       });
       expect(reg.status).toBe(201);
       expect(reg.body.invitacion).toMatchObject({ aplicada: false });

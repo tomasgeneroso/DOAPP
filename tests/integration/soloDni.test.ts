@@ -47,6 +47,8 @@ describe('solo DNI (verificación con Didit apagada)', () => {
     emails.push(email);
     const r = await request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123', termsAccepted: true });
     expect(r.status).toBe(201);
+    // Estas pruebas son de la puerta de IDENTIDAD: se simula que ya confirmó el correo (el caso contrario está en correoConfirmado.test.ts).
+    await User.update({ isVerified: true } as never, { where: { email } });
     return (await User.findOne({ where: { email } })) as any;
   };
   const completar = (u: any, dni: string) => request(app).put('/api/auth/registro/completar').set(con(u)).send({ nombres: 'Ana', apellidos: 'Prueba', dni, username: `sd${Date.now().toString(36)}${n++}` });

@@ -1,3 +1,4 @@
+import CanjearCodigoDeFamilia from "../components/CanjearCodigoDeFamilia";
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -381,6 +382,8 @@ export default function CompleteRegistration() {
                         Podés corregir un error de lectura (una letra, un acento). Si cambiás el nombre o el DNI por otros que no son los de tu documento, un administrador va a revisar tu identidad antes de verificarla.
                       </p>
                     )}
+
+                    <CanjearCodigoDeFamilia />
 
                     {aviso}
 

@@ -35,7 +35,7 @@ import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
 import { ErrorResponse } from '../middleware/errorHandler.js';
-import { identidadSuficiente } from "../services/identidadDeclarada.js";
+import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
 
 const router = express.Router();
@@ -961,7 +961,9 @@ router.post(
       //
       // KYC gate: sin identidad verificada un trabajo se CREA pero no se publica: queda en borrador.
       // Identidad suficiente: la verificada o —con Didit apagado— el registro completo con DNI (`services/identidadDeclarada.ts`).
-      const identityVerified = identidadSuficiente(req.user as any);
+      // Para PUBLICAR: correo confirmado (2026-11-12) e identidad suficiente. Sin eso el trabajo se crea pero queda en borrador.
+      const bloqueoParaPublicar = bloqueoParaOperar(req.user as any);
+      const identityVerified = bloqueoParaPublicar === null;
 
       // "A cotizar": el cliente no fija precio y no paga nada al publicar. El
       // precio real aparece cuando un trabajador cotiza, y se cobra al aceptar
@@ -1226,14 +1228,17 @@ router.post(
           requiresPayment: false,
         });
       } else if (!identityVerified) {
+        const sinCorreo = bloqueoParaPublicar?.codigo === 'EMAIL_REQUIRED';
         res.status(201).json({
           success: true,
-          message: verificacionConDiditActiva()
-            ? "Guardamos tu trabajo como borrador. Verificá tu identidad para poder publicarlo."
-            : "Guardamos tu trabajo como borrador. Completá tu registro con tu número de DNI para poder publicarlo.",
+          message: sinCorreo
+            ? "Guardamos tu trabajo como borrador. Confirmá tu correo electrónico para poder publicarlo: te mandamos un enlace a tu casilla."
+            : verificacionConDiditActiva()
+              ? "Guardamos tu trabajo como borrador. Verificá tu identidad para poder publicarlo."
+              : "Guardamos tu trabajo como borrador. Completá tu registro con tu número de DNI para poder publicarlo.",
           job: populatedJob?.toJSON(),
           requiresPayment: false,
-          requiresKyc: true,
+          ...(sinCorreo ? { requiresEmail: true, code: 'EMAIL_REQUIRED' } : { requiresKyc: true }),
         });
       } else {
         res.status(201).json({

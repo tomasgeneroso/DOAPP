@@ -744,6 +744,14 @@
     "allRead": "You've read all your notifications",
     "willAppear": "Notifications will appear here when you have activity"
   },
+  "apk": {
+    "descargar": "Download APK (Android)",
+    "proximamente": "Android app: coming soon",
+    "comoSeInstala": "How do I install it?",
+    "paso1": "Tap “Download APK” and wait for it to finish.",
+    "paso2": "Open the downloaded file. If Android asks, allow “install apps from this source”.",
+    "paso3": "Tap “Install”. To update, download the new version and install it over the old one."
+  },
   "auth": {
     "loginTitle": "Sign in to your account",
     "registerTitle": "Create your account",
@@ -795,7 +803,7 @@
     "usernamePlaceholder": "johndoe",
     "emailPlaceholder": "youremail@email.com",
     "referralCode": "Referral code",
-    "referralHelper": "If someone invited you, enter their code here",
+    "referralHelper": "If someone invited you, enter their code here. A family code (with or without FAM-) also works.",
     "cbu": "Bank Account (CBU/CVU)",
     "cbuHelper": "Your CBU/CVU to receive payments for jobs.",
     "forgotPassword": "Forgot your password?",
@@ -813,6 +821,8 @@
     "socialDenied": "You cancelled the sign-in with X. You can try again or sign in with your email.",
     "backToHome": "Back to home",
     "promoFirst1000": "The first {{usuarios}} accounts get {{cantidad}} commission-free contract (one time only) and free PRO for {{meses}} month!",
+    "promoConfirmEmail": "To receive these benefits you must confirm your email with the link we send you when you sign up.",
+    "verificationBenefitsNote": "Important: the launch benefits (commission-free contract and free PRO month) are only activated once you confirm your email. Without confirming it you also cannot post jobs or work.",
     "alreadyRegistered": "This email is already registered",
     "goToLogin": "Go to Log In",
     "sessionExpired": "Your session has expired",

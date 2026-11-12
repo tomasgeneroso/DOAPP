@@ -74,7 +74,7 @@ describe('retorno de Mercado Pago a la app', () => {
     app.use('/api/payments', (await import('../../server/routes/payments.js')).default);
     app.use('/api/jobs', (await import('../../server/routes/jobs.js')).default);
     // sin publicaciones gratis: para que publicar pida pago
-    cliente = await crearUsuario({ role: 'client', freeContractsRemaining: 0, proContractsUsedThisMonth: 2 });
+    cliente = await crearUsuario({ role: 'client', freeContractsRemaining: 0, proContractsUsedThisMonth: 2, dniVerified: true });
     otro = await crearUsuario({ role: 'client' });
     trabajador = await crearUsuario({ role: 'doer' });
   });

@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
+import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { splitFees, getProcessingFeeRate } from "../../shared/pricing/processingCost.js";
 import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing.js";
 import { requireRole } from "../middleware/permissions.js";
@@ -108,6 +109,13 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // Verify user owns the job (use clientId for PostgreSQL)
       if (job.clientId !== userId) {
         res.status(403).json({ success: false, message: "Unauthorized - You don't own this job" });
+        return;
+      }
+
+      // Publicar exige correo confirmado e identidad suficiente (2026-11-12). Este camino no tenía puerta propia: se podía pagar y publicar sin pasar por `requireKyc`.
+      const bloqueoParaPublicar = bloqueoParaOperar(req.user as any);
+      if (bloqueoParaPublicar) {
+        res.status(403).json({ success: false, code: bloqueoParaPublicar.codigo, message: bloqueoParaPublicar.mensaje });
         return;
       }
 

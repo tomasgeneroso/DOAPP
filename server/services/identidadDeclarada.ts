@@ -16,6 +16,41 @@ export interface CuentaConDni {
   dniVerified?: boolean | null;
   registrationPending?: boolean | null;
   dni?: string | number | null;
+  isVerified?: boolean | null;
+  email?: string | null;
+}
+
+/**
+ * Correo confirmado (regla del dueño, 2026-11-12: «para publicar o trabajar se debe confirmar el correo electrónico»): la persona abrió el enlace que se le mandó a su casilla y la
+ * cuenta tiene un correo. Una cuenta de X nace «verificada» pero sin correo: no cuenta hasta que escribe uno y lo confirma.
+ */
+export function correoConfirmado(cuenta: CuentaConDni | null | undefined): boolean {
+  return !!cuenta && !!cuenta.isVerified && String(cuenta.email ?? '').trim() !== '';
+}
+
+export const MENSAJE_CORREO_SIN_CONFIRMAR =
+  'Confirmá tu correo electrónico para publicar o trabajar. Te mandamos un enlace a tu casilla: abrilo para confirmarlo, o pedí uno nuevo desde tu perfil.';
+
+export interface BloqueoParaOperar {
+  codigo: 'EMAIL_REQUIRED' | 'KYC_REQUIRED';
+  mensaje: string;
+}
+
+/**
+ * Por qué una cuenta todavía NO puede publicar ni trabajar, o null si puede. Primero el correo (siempre), después la identidad (verificada con Didit o, con Didit apagado, el DNI
+ * declarado). Lo usan la puerta `requireKyc`, la publicación de trabajos y el pago de la publicación: una sola regla, un solo texto.
+ */
+export function bloqueoParaOperar(cuenta: CuentaConDni | null | undefined): BloqueoParaOperar | null {
+  if (!correoConfirmado(cuenta)) return { codigo: 'EMAIL_REQUIRED', mensaje: MENSAJE_CORREO_SIN_CONFIRMAR };
+  if (!identidadSuficiente(cuenta)) {
+    return {
+      codigo: 'KYC_REQUIRED',
+      mensaje: verificacionConDiditActiva()
+        ? 'Necesitás verificar tu identidad para hacer esto. Verificala desde tu perfil.'
+        : 'Necesitás completar tu registro con tu número de DNI para hacer esto. Completalo desde tu perfil.',
+    };
+  }
+  return null;
 }
 
 /** Terminó el registro y tiene un DNI con formato válido. */

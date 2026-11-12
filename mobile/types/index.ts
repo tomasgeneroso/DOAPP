@@ -412,7 +412,7 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  /** Con `pasos` no hacen falta: el nombre, el usuario y el DNI salen del documento (Didit) y se completan después. */
+  /** Registro en UN solo paso: nombre, usuario y DNI viajan con el correo y la contraseña. Con `pasos` no hacen falta (recorrido anterior, ya sin uso en la pantalla de registro). */
   name?: string;
   username?: string;
   email: string;
@@ -421,6 +421,8 @@ export interface RegisterData {
   dni?: string;
   /** Registro en pasos: correo y contraseña ahora, verificación de identidad y datos después. */
   pasos?: boolean;
+  /** Registrarse no abre la sesión: primero se confirma el correo (igual que en la web). */
+  sinSesion?: boolean;
   termsAccepted: boolean;
   referralCode?: string;
   /** Invitación de un creador de contenido (INF-…): sin comisión como Cliente por un tiempo desde el canje. */

@@ -20,6 +20,7 @@ import Logo from '../../components/ui/Logo';
 import ContactarSoporte from '../../components/ContactarSoporte';
 import BotonesSociales from '../../components/BotonesSociales';
 import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
+import { motivoDeDniImposible } from '../../../shared/identidad/documentos';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function RegisterScreen() {
@@ -31,7 +32,8 @@ export default function RegisterScreen() {
   const invitationCode = normalizarCodigo(invitacion);
 
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     username: '',
     email: '',
     password: '',
@@ -49,6 +51,18 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    // Registro en UN solo paso (regla del dueño, 2026-11-12): todo lo necesario se pide acá, igual que en la web.
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('Escribí tu nombre y tu apellido');
+      return;
+    }
+
+    const usuario = formData.username.trim().toLowerCase();
+    if (usuario.length < 3 || !/^[a-z0-9._]+$/.test(usuario) || /^[._]|[._]$/.test(usuario) || /[._]{2,}/.test(usuario)) {
+      setError('El nombre de usuario debe tener entre 3 y 30 caracteres: letras, números, puntos y guiones bajos (sin empezar ni terminar con uno, ni dos seguidos)');
+      return;
+    }
+
     if (!formData.email.trim() || !formData.password) {
       setError('Escribí tu correo y una contraseña');
       return;
@@ -56,6 +70,17 @@ export default function RegisterScreen() {
 
     if (formData.password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    const dni = formData.dni.trim();
+    if (!/^\d{7,9}$/.test(dni)) {
+      setError('Escribí tu DNI: solo el número, sin puntos ni espacios (7 a 9 dígitos)');
+      return;
+    }
+    const dniImposible = motivoDeDniImposible(dni);
+    if (dniImposible) {
+      setError(dniImposible);
       return;
     }
 
@@ -68,11 +93,15 @@ export default function RegisterScreen() {
     setError('');
 
     try {
-      // Registro en pasos: solo correo y contraseña. Sigue la verificación de identidad (Didit), de donde salen el nombre y el DNI.
+      // Sin sesión: para ingresar hay que confirmar el correo (llega un enlace). Con Didit apagado alcanza el DNI; si se enciende, se pide desde el perfil.
       const response = await register({
-        pasos: true,
+        name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+        username: usuario,
         email: formData.email.trim(),
         password: formData.password,
+        dni,
+        phone: formData.phone.trim() || undefined,
+        sinSesion: true,
         referralCode: formData.referralCode.trim() || undefined,
         invitationCode: invitationCode || undefined,
         termsAccepted: true,
@@ -82,7 +111,11 @@ export default function RegisterScreen() {
         // Si venía con una invitación, se le cuenta si se aplicó (o por qué no).
         const aviso = mensajeDelRegistro(response);
         if (aviso) Alert.alert(aviso.aplicada ? 'Invitación aplicada' : 'La invitación no se aplicó', aviso.mensaje);
-        router.replace('/(auth)/completar-registro' as any);
+        Alert.alert(
+          'Revisá tu correo',
+          'Te mandamos un enlace para confirmar tu correo. Importante: los beneficios de lanzamiento (contrato sin comisión y mes de PRO gratis) se activan recién cuando lo confirmás, y sin confirmarlo no podés publicar ni trabajar. Después de abrir el enlace, ingresá con tu correo y tu contraseña.',
+          [{ text: 'Ir a ingresar', onPress: () => router.replace('/(auth)/login' as any) }],
+        );
       } else {
         setError(response.message || 'Error al registrarse');
       }
@@ -125,7 +158,7 @@ export default function RegisterScreen() {
             {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
-                Registrate con tu correo y una contraseña; después verificás tu identidad y tus datos se completan solos 🎉
+                Las primeras 2000 cuentas tienen 1 contrato sin comisión (una sola vez) y PRO gratis por 1 mes 🎉 Para recibirlos tenés que confirmar tu correo con el enlace que te mandamos al registrarte.
               </Text>
             </View>
 
@@ -154,6 +187,50 @@ export default function RegisterScreen() {
             <BotonesSociales accion="registrarte" />
 
             <View style={styles.form}>
+              {/* Nombre y apellido */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Nombre/s</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
+                  placeholder="Juan"
+                  placeholderTextColor={themeColors.text.muted}
+                  value={formData.firstName}
+                  onChangeText={(v) => updateField('firstName', v)}
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Apellido/s</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
+                  placeholder="Pérez"
+                  placeholderTextColor={themeColors.text.muted}
+                  value={formData.lastName}
+                  onChangeText={(v) => updateField('lastName', v)}
+                  autoCapitalize="words"
+                  autoComplete="family-name"
+                />
+              </View>
+
+              {/* Nombre de usuario */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Nombre de usuario</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
+                  placeholder="juanperez"
+                  placeholderTextColor={themeColors.text.muted}
+                  value={formData.username}
+                  onChangeText={(v) => updateField('username', v.toLowerCase())}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={30}
+                />
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
+                  Es tu dirección pública: doapp.com/u/tunombredeusuario
+                </Text>
+              </View>
+
               {/* Email */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: themeColors.text.secondary }]}>Email</Text>
@@ -194,6 +271,41 @@ export default function RegisterScreen() {
                 </View>
               </View>
 
+              {/* DNI */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>DNI</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
+                  placeholder="12345678"
+                  placeholderTextColor={themeColors.text.muted}
+                  value={formData.dni}
+                  onChangeText={(v) => updateField('dni', v.replace(/\D/g, ''))}
+                  keyboardType="number-pad"
+                  maxLength={9}
+                />
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
+                  Solo el número, sin puntos ni espacios. Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos; nunca se muestra a otros usuarios.
+                </Text>
+              </View>
+
+              {/* Teléfono */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>
+                  Teléfono <Text style={{ color: themeColors.text.muted, fontWeight: fontWeight.normal }}>(opcional)</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
+                  placeholder="+54 11 1234-5678"
+                  placeholderTextColor={themeColors.text.muted}
+                  value={formData.phone}
+                  onChangeText={(v) => updateField('phone', v)}
+                  keyboardType="phone-pad"
+                />
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
+                  Solo lo usamos para avisarte de tus contratos. No aparece en tu perfil ni lo damos a otros usuarios.
+                </Text>
+              </View>
+
               {/* Código de referido */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: themeColors.text.secondary }]}>
@@ -201,15 +313,15 @@ export default function RegisterScreen() {
                 </Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
-                  placeholder="ABC12345"
+                  placeholder="ABC12345 / FAM-ABCD2345"
                   placeholderTextColor={themeColors.text.muted}
                   value={formData.referralCode}
                   onChangeText={(v) => updateField('referralCode', v.toUpperCase())}
                   autoCapitalize="characters"
-                  maxLength={8}
+                  maxLength={16}
                 />
                 <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
-                  Si alguien te invitó, ingresa su código aquí
+                  Si alguien te invitó, ingresá su código aquí. También sirve un código de familia (con o sin FAM-).
                 </Text>
               </View>
 

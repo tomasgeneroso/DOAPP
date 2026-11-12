@@ -13,7 +13,7 @@ import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { Notification as NotificationModel } from "../models/sql/Notification.model.js";
-import { protect } from "../middleware/auth.js";
+import { protect, requireEmailConfirmado } from "../middleware/auth.js";
 import { notifyPostWorkRatingPending } from "../services/postWorkRating.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -1108,7 +1108,7 @@ router.post(
 // @desc    Aceptar contrato (por el cliente o doer)
 // @desc    Flujo: pending → admin aprueba → ready → ambas partes aceptan → accepted
 // @access  Private
-router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id/accept", protect, requireEmailConfirmado, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const contract = await Contract.findByPk(req.params.id, {
       include: [

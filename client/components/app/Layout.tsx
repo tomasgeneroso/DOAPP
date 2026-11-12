@@ -8,6 +8,7 @@ import Footer from "./Footer";
 import ErrorBoundary from "../ErrorBoundary";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
 import KycWelcomeModal from "../KycWelcomeModal";
+import AvisoCorreoSinConfirmar from "../AvisoCorreoSinConfirmar";
 import PendingPostWorkRatingGate from "../user/PendingPostWorkRatingGate";
 
 export default function Layout() {
@@ -48,6 +49,7 @@ export default function Layout() {
         <Header />
       </ErrorBoundary>
       <BetaBanner />
+      <AvisoCorreoSinConfirmar />
       <main id="main-content" className="flex-1 flex flex-col" tabIndex={-1}>
         <ErrorBoundary>
           <div className="flex-1">

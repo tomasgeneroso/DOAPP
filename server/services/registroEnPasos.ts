@@ -96,7 +96,7 @@ export async function datosDelRegistro(user: any): Promise<DatosDelRegistro> {
 }
 
 export type ResultadoDeCompletar =
-  | { ok: true; verificada: boolean; enRevision: boolean }
+  | { ok: true; verificada: boolean; enRevision: boolean; correoNuevo: boolean }
   | { ok: false; estado: number; code?: string; field?: string; message: string };
 
 export interface EntradaDeCompletar {
@@ -141,6 +141,8 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
   if (phone && !/^[+\d][\d\s()-]{5,19}$/.test(phone)) return { ok: false, estado: 400, field: 'phone', message: 'El teléfono no es válido.' };
 
   let email = String(user.email ?? '');
+  // El correo lo escribió la persona ahora (una cuenta de X no trae): hasta que abra el enlace que se le manda, NO está confirmado.
+  const correoNuevo = !email;
   if (!email) {
     email = String(entrada.email ?? '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, estado: 400, field: 'email', message: 'Escribí tu correo.' };
@@ -163,7 +165,7 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
   }
 
   const name = `${nombres} ${apellidos}`;
-  await user.update({ name, username, dni, phone: phone || user.phone || null, email, registrationPending: false, termsAcceptedAt: user.termsAcceptedAt ?? ahora });
+  await user.update({ name, username, dni, phone: phone || user.phone || null, email, registrationPending: false, termsAcceptedAt: user.termsAcceptedAt ?? ahora, ...(correoNuevo ? { isVerified: false } : {}) });
 
   // Contra el documento: lo corregido tiene que seguir siendo de la misma persona.
   let verificada = !!user.dniVerified;
@@ -184,7 +186,7 @@ export async function completarRegistro(user: any, entrada: EntradaDeCompletar, 
   // Recién con el registro completo la cuenta cuenta para las primeras 2.000: verificada (Didit) o, con Didit apagado (etapa beta), con su DNI declarado. Las que se abandonan en el paso 1, o quedan
   // en revisión con Didit encendido, no ocupan un lugar (`otorgarContratosLibres` decide con las mismas reglas).
   if (verificada || !verificacionConDiditActiva()) await otorgarContratosLibres(String(user.id));
-  return { ok: true, verificada, enRevision };
+  return { ok: true, verificada, enRevision, correoNuevo };
 }
 
 export { compararIdentidad };
