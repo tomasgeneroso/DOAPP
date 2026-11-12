@@ -39,6 +39,10 @@ export default function QuoteDetail() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showCounterModal, setShowCounterModal] = useState(false);
+  const [counterAmount, setCounterAmount] = useState('');
+  const [counterNote, setCounterNote] = useState('');
+  const [countering, setCountering] = useState(false);
 
   const loadQuote = async () => {
     try {
@@ -75,6 +79,43 @@ export default function QuoteDetail() {
         setNotice(data.message || 'No se pudo aceptar la cotización.');
       }
     } catch (_) { setNotice('No se pudo aceptar la cotización. Revisá tu conexión.'); }
+    setAccepting(false);
+  };
+
+  const handleCounter = async () => {
+    if (!id) return;
+    const importe = Number(String(counterAmount).replace(',', '.'));
+    if (!Number.isFinite(importe) || importe <= 0) {
+      setNotice('Escribí el total que proponés pagar (mayor que $0).');
+      return;
+    }
+    setCountering(true);
+    try {
+      const res = await fetch(`${API_URL}/quotes/${id}/counter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: importe, note: counterNote.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowCounterModal(false);
+        setNotice(null);
+        await loadQuote();
+      } else {
+        setNotice(data.message || 'No se pudo enviar la contraoferta.');
+      }
+    } catch (_) { setNotice('No se pudo enviar la contraoferta. Revisá tu conexión.'); }
+    setCountering(false);
+  };
+
+  const handleAcceptCounter = async () => {
+    if (!id) return;
+    setAccepting(true);
+    try {
+      const res = await fetch(`${API_URL}/quotes/${id}/accept-counter`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) { setNotice(null); await loadQuote(); } else { setNotice(data.message || 'No se pudo aceptar la contraoferta.'); }
+    } catch (_) { setNotice('No se pudo aceptar la contraoferta. Revisá tu conexión.'); }
     setAccepting(false);
   };
 
@@ -188,6 +229,27 @@ export default function QuoteDetail() {
                 </Link>
               )}
 
+              {isSender && quote.status === 'rejected' && Number(quote.counterOfferAmount) > 0 && (
+                <button
+                  onClick={handleAcceptCounter}
+                  disabled={accepting}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold"
+                >
+                  <Check className="h-4 w-4" />
+                  {accepting ? 'Aceptando...' : `Aceptar contraoferta (${Number(quote.counterOfferAmount).toLocaleString('es-AR')})`}
+                </button>
+              )}
+
+              {isRecipient && quote.status === 'accepted' && quote.proposalId && quote.jobId && (
+                <Link
+                  to={`/proposals/${quote.proposalId}`}
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold"
+                >
+                  <Check className="h-4 w-4" />
+                  Continuar con el pago
+                </Link>
+              )}
+
               {isRecipient && quote.status === 'sent' && (
                 <>
                   <button
@@ -197,13 +259,21 @@ export default function QuoteDetail() {
                     <X className="h-4 w-4" />
                     Rechazar
                   </button>
+                  {quote.jobId && (
+                    <button
+                      onClick={() => { setCounterAmount(''); setCounterNote(''); setShowCounterModal(true); }}
+                      className="flex items-center gap-2 px-4 py-2 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-sm font-medium"
+                    >
+                      Contraofertar
+                    </button>
+                  )}
                   <button
                     onClick={handleAccept}
                     disabled={accepting}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold"
                   >
                     <Check className="h-4 w-4" />
-                    {accepting ? 'Aceptando...' : 'Aceptar cotización'}
+                    {accepting ? 'Aceptando...' : quote.jobId ? 'Aceptar y pagar' : 'Aceptar cotización'}
                   </button>
                 </>
               )}
@@ -218,6 +288,15 @@ export default function QuoteDetail() {
             <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
               <p className="text-sm font-medium text-red-700 dark:text-red-400">Motivo de rechazo:</p>
               <p className="text-sm text-red-600 dark:text-red-300 mt-1">{quote.rejectionReason}</p>
+            </div>
+          )}
+
+          {quote.status === 'rejected' && Number(quote.counterOfferAmount) > 0 && (
+            <div className="mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3" data-testid="contraoferta">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Contraoferta: ${Number(quote.counterOfferAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+              </p>
+              {quote.counterOfferNote && <p className="text-sm text-amber-700 dark:text-amber-200 mt-1">{quote.counterOfferNote}</p>}
             </div>
           )}
 
@@ -271,6 +350,26 @@ export default function QuoteDetail() {
             </div>
           </div>
         </div>
+
+        {/* La cotización está sujeta a las condiciones del trabajo al que está ligada */}
+        {quote.job && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-6" data-testid="condiciones-del-trabajo">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> Trabajo ligado</p>
+              <Link to={`/jobs/${quote.jobId}`} className="text-sky-600 dark:text-sky-400 hover:underline text-sm font-medium">Ver el trabajo</Link>
+            </div>
+            <p className="font-semibold text-slate-900 dark:text-white">{quote.job.title}</p>
+            {quote.job.description && <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-line">{quote.job.description}</p>}
+            <dl className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+              {quote.job.location && (<div><dt className="text-xs text-slate-500 dark:text-slate-400">Lugar</dt><dd className="text-slate-900 dark:text-white">{quote.job.location}</dd></div>)}
+              {quote.job.startDate && (<div><dt className="text-xs text-slate-500 dark:text-slate-400">Inicio</dt><dd className="text-slate-900 dark:text-white">{new Date(quote.job.startDate).toLocaleDateString('es-AR')}</dd></div>)}
+              {(quote.job.endDate || quote.job.endDateFlexible) && (<div><dt className="text-xs text-slate-500 dark:text-slate-400">Fin</dt><dd className="text-slate-900 dark:text-white">{quote.job.endDate ? new Date(quote.job.endDate).toLocaleDateString('es-AR') : 'Flexible'}</dd></div>)}
+            </dl>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Esta cotización está sujeta a las condiciones del trabajo (lugar, fechas y alcance). Si se acepta, cambia el precio acordado; las condiciones siguen siendo las mismas.
+            </p>
+          </div>
+        )}
 
         {/* Items table */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
@@ -340,6 +439,33 @@ export default function QuoteDetail() {
           </div>
         )}
       </div>
+
+      {/* Contraoferta */}
+      {showCounterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">Contraofertar</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Total actual: ${Number(quote.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS. Proponé el total que pagarías.</p>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Total que proponés (ARS)</label>
+            <input
+              type="number" inputMode="decimal" min="0" step="0.01" value={counterAmount}
+              onChange={e => setCounterAmount(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm mb-3"
+            />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Mensaje (opcional)</label>
+            <textarea
+              value={counterNote} onChange={e => setCounterNote(e.target.value)} rows={3} maxLength={1000}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setShowCounterModal(false)} className="px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm">Cancelar</button>
+              <button onClick={handleCounter} disabled={countering} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                {countering ? 'Enviando...' : 'Enviar contraoferta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject modal */}
       {showRejectModal && (

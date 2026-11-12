@@ -199,7 +199,7 @@
     "jobAttached": "Trabajo adjunto:",
     "autoContractNote": "Si el cliente acepta la cotización, el contrato se crea automáticamente.",
     "back": "Volver",
-    "attachJob": "Adjuntar trabajo a esta cotización (opcional)",
+    "attachJob": "Elegí el trabajo de esta cotización (obligatorio)",
     "searchJobPlaceholder": "Buscar trabajo por nombre...",
     "noResults": "Sin resultados",
     "typeToSearch": "Escribí para buscar",

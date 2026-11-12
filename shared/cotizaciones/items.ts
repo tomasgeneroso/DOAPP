@@ -29,3 +29,51 @@ export function motivoDeItemsInvalidos(items: unknown): string | null {
 
 /** Un total que Mercado Pago aceptaría cobrar. */
 export const totalCobrable = (total: unknown): boolean => Number.isFinite(Number(total)) && Number(total) > 0;
+
+const redondear = (n: number): number => Math.round(n * 100) / 100;
+
+export interface ItemEscalable {
+  qty: number;
+  unitPrice: number;
+  description: string;
+}
+
+/** Subtotal y total de una lista de ítems con su IVA y otros impuestos (porcentajes). La misma cuenta que usa el servidor al crear una cotización. */
+export function totalesDeItems(items: Array<{ qty: number; unitPrice: number }>, taxRate: number, otrosImpuestos: Array<{ rate: number }> = []): { subtotal: number; total: number } {
+  const subtotal = items.reduce((s, i) => s + Number(i.qty) * Number(i.unitPrice), 0);
+  const factor = 1 + Number(taxRate || 0) / 100 + otrosImpuestos.reduce((s, t) => s + Number(t.rate || 0) / 100, 0);
+  return { subtotal: redondear(subtotal), total: redondear(subtotal * factor) };
+}
+
+/**
+ * Lleva una cotización a un TOTAL distinto (contraoferta aceptada): reparte el cambio en proporción entre los ítems que tenían precio (los de $0 quedan en $0).
+ * El resultado suma el total pedido (a lo sumo un centavo de diferencia por redondeo): el desvío de redondeo va al ítem de mayor precio si es de cantidad 1; si no hay uno, queda un solo ítem
+ * «Servicio acordado». Devuelve null si el total pedido no es un número mayor que cero.
+ */
+export function escalarAlTotal(items: ItemEscalable[], taxRate: number, otrosImpuestos: Array<{ rate: number }>, totalPedido: number): ItemEscalable[] | null {
+  const pedido = Number(totalPedido);
+  if (!Number.isFinite(pedido) || pedido <= 0) return null;
+  const factor = 1 + Number(taxRate || 0) / 100 + otrosImpuestos.reduce((s, t) => s + Number(t.rate || 0) / 100, 0);
+  // El subtotal va en centavos y el total sale de multiplicarlo por el IVA: no todo total tiene un subtotal exacto. Se elige el subtotal cuyo total queda más cerca
+  // del pedido (casi siempre exacto; a lo sumo un centavo de diferencia).
+  const base = Math.floor((pedido / factor) * 100);
+  let subtotalObjetivo = redondear(base / 100);
+  for (let c = base - 2; c <= base + 3; c++) {
+    if (Math.abs(redondear((c / 100) * factor) - pedido) < Math.abs(redondear(subtotalObjetivo * factor) - pedido) - 1e-9) subtotalObjetivo = redondear(c / 100);
+  }
+  const actual = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  const unico = (): ItemEscalable[] => [{ description: 'Servicio acordado', qty: 1, unitPrice: subtotalObjetivo }];
+  if (!(actual > 0)) return unico();
+
+  const k = subtotalObjetivo / actual;
+  const nuevos = items.map((i) => ({ ...i, unitPrice: redondear(i.unitPrice * k) }));
+  const diferencia = redondear(subtotalObjetivo - nuevos.reduce((s, i) => s + i.qty * i.unitPrice, 0));
+  if (diferencia === 0) return nuevos;
+  let mayor = -1;
+  nuevos.forEach((i, idx) => {
+    if (i.qty === 1 && i.unitPrice > 0 && (mayor === -1 || i.unitPrice > nuevos[mayor].unitPrice)) mayor = idx;
+  });
+  if (mayor === -1) return unico();
+  nuevos[mayor] = { ...nuevos[mayor], unitPrice: redondear(nuevos[mayor].unitPrice + diferencia) };
+  return nuevos;
+}

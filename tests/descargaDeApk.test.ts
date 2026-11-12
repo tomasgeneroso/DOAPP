@@ -82,6 +82,20 @@ describe('descarga del APK', () => {
     }
   });
 
+  it('en producción, entrando por staging.… SÍ se ofrece (el proceso de staging puede haber arrancado sin APP_ENV); por el dominio de producción, no', async () => {
+    writeFileSync(join(carpeta, 'doapp.apk'), Buffer.alloc(1024, 1));
+    process.env.APP_ENV = 'production';
+    try {
+      const enStaging = await request(app).get('/api/app/android/estado').set('Host', 'staging.doapparg.com');
+      expect(enStaging.body).toMatchObject({ success: true, disponible: true });
+      expect((await request(app).get('/api/app/android').set('Host', 'staging.doapparg.com')).status).toBe(200);
+      const enProduccion = await request(app).get('/api/app/android/estado').set('Host', 'doapparg.com');
+      expect(enProduccion.body).toMatchObject({ disponible: false, oculto: true });
+    } finally {
+      process.env.APP_ENV = 'staging';
+    }
+  });
+
   it('el nombre del archivo es fijo: nada del pedido entra en la ruta del disco', async () => {
     const r = await request(app).get('/api/app/android/../../etc/passwd');
     expect([404, 400]).toContain(r.status);

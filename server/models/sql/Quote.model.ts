@@ -129,6 +129,15 @@ export class Quote extends Model {
   @Column(DataType.INTEGER)
   revisionCount!: number;
 
+  /** Contraoferta de quien recibió la cotización: el TOTAL que propone pagar (la cotización queda «rechazada» hasta que el emisor la acepte o la edite). */
+  @AllowNull(true)
+  @Column(DataType.DECIMAL(12, 2))
+  counterOfferAmount?: number | null;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  counterOfferNote?: string | null;
+
   @AllowNull(true)
   @Column(DataType.JSONB)
   senderInfo?: QuotePartyInfo;

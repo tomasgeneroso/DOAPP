@@ -67,7 +67,8 @@ describe('«válida hasta» de una cotización', () => {
     const cliente: any = await crearUsuario({ role: 'client', dniVerified: true });
     const trabajador: any = await crearUsuario({ role: 'doer', dniVerified: true });
     const con = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
-    const cuerpo = (validUntil: string) => ({ recipientId: cliente.id, title: 'Cotización', status: 'sent', items: [{ description: 'Mano de obra', qty: 1, unitPrice: 100 }], taxRate: 0, otherTaxes: [], validUntil });
+    const trabajo: any = await crearTrabajo(cliente.id, { status: 'open', price: 5000 });
+    const cuerpo = (validUntil: string) => ({ recipientId: cliente.id, jobId: trabajo.id, title: 'Cotización', status: 'sent', items: [{ description: 'Mano de obra', qty: 1, unitPrice: 100 }], taxRate: 0, otherTaxes: [], validUntil });
     try {
       const vieja = await request(app).post('/api/quotes').set(con(trabajador)).send(cuerpo('2020-01-01'));
       expect(vieja.status).toBe(400);

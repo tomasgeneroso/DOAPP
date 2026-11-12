@@ -146,6 +146,11 @@ export default function QuoteForm() {
     setJobId(job.id);
     setJobTitle(job.title);
     setTitle(`Cotización para: ${job.title}`);
+    // La cotización va siempre al cliente del trabajo (es quien la acepta y paga).
+    if (job.clientId) {
+      setRecipientId(job.clientId);
+      if (job.client?.name) setRecipientName(job.client.name);
+    }
     setJobSearch('');
     setJobResults([]);
     setShowJobSearch(false);
@@ -234,7 +239,12 @@ export default function QuoteForm() {
       setError('Falta el destinatario');
       return;
     }
-    // Antes de enviar: nada de ítems en $0 (la cotización no se podría cobrar).
+    // Por ahora la cotización siempre va ligada a un trabajo (regla del dueño, 2026-11-12).
+    if (!isEdit && !jobId) {
+      setError('Elegí el trabajo al que corresponde la cotización: por ahora solo se envían cotizaciones ligadas a un trabajo.');
+      return;
+    }
+    // Antes de enviar: el total tiene que ser mayor que $0 (un ítem en $0 está bien).
     const motivoItems = motivoDeItemsInvalidos(items);
     if (motivoItems) {
       setError(motivoItems);
@@ -339,12 +349,6 @@ export default function QuoteForm() {
                 </p>
               )}
             </div>
-            {!applyMode && (
-              <button type="button" onClick={() => { setJobId(''); setJobTitle(''); }}
-                className="p-1 text-slate-400 hover:text-red-500 transition-colors">
-                <X className="h-4 w-4" />
-              </button>
-            )}
           </div>
         )}
 
@@ -358,7 +362,7 @@ export default function QuoteForm() {
                 className="flex items-center gap-2 px-4 py-2 text-sm border border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors w-full"
               >
                 <Briefcase className="h-4 w-4" />
-                {t('quote.attachJob')}
+                {t('quote.attachJob')} <span className="text-red-500">*</span>
               </button>
 
               {showJobSearch && (

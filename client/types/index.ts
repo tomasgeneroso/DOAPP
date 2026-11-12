@@ -589,9 +589,11 @@ export interface Quote {
   recipientId: string;
   recipient?: { id: string; name: string; email: string; avatar?: string };
   jobId?: string;
-  job?: { id: string; title: string; status: string };
+  job?: { id: string; title: string; status: string; price?: number; description?: string; location?: string; category?: string; startDate?: string; endDate?: string; endDateFlexible?: boolean; clientId?: string };
   proposalId?: string;
   conversationId?: string;
+  counterOfferAmount?: number | null;
+  counterOfferNote?: string | null;
   title: string;
   items: QuoteItem[];
   subtotal: number;

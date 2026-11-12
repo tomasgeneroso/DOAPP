@@ -17,7 +17,7 @@ import { settleQuote } from '../services/quotePayment.js';
 import { requireKyc } from '../middleware/auth.js';
 import { requirePostWorkRating, requireNotSuspended } from '../middleware/postWorkRating.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
-import { motivoDeItemsInvalidos, totalCobrable } from '../../shared/cotizaciones/items.js';
+import { motivoDeItemsInvalidos, totalCobrable, escalarAlTotal, totalesDeItems } from '../../shared/cotizaciones/items.js';
 import * as socketService from '../services/socket.js';
 import type { AuthRequest } from '../types/index.js';
 
@@ -75,6 +75,40 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
+// GET /api/quotes/by-job/:jobId – las cotizaciones ligadas a un trabajo. El cliente del trabajo ve todas; cada trabajador, solo las suyas.
+// Es lo que muestra la pantalla del trabajo («un trabajo con cotización»).
+router.get('/by-job/:jobId', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const trabajo = await Job.findByPk(req.params.jobId, { attributes: ['id', 'clientId', 'price', 'title'] });
+    if (!trabajo) {
+      res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+      return;
+    }
+    const yo = String(req.user.id);
+    const esElCliente = String(trabajo.clientId) === yo;
+    const where: any = { jobId: trabajo.id, status: { [Op.ne]: 'draft' } };
+    if (esElCliente) where.recipientId = yo;
+    else where.senderId = yo;
+    const cotizaciones = await Quote.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'quoteNumber', 'title', 'total', 'status', 'senderId', 'recipientId', 'counterOfferAmount', 'createdAt'],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'username', 'avatar'] }],
+    });
+    const aceptada = cotizaciones.find((q) => q.status === 'accepted') || null;
+    res.json({
+      success: true,
+      data: cotizaciones,
+      // El precio acordado por cotización (si hay una aceptada): el que va a tener el contrato. El presupuesto publicado no se toca.
+      precioAcordado: aceptada ? Number(aceptada.total) : null,
+      precioPublicado: Number(trabajo.price),
+      esElCliente,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/quotes/:id – get quote detail
 router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -82,7 +116,8 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       include: [
         { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'avatar'] },
         { model: User, as: 'recipient', attributes: ['id', 'name', 'email', 'avatar'] },
-        { model: Job, as: 'job', attributes: ['id', 'title', 'status', 'price'] },
+        // La cotización queda sujeta a las condiciones del trabajo al que está ligada: la pantalla las muestra.
+        { model: Job, as: 'job', attributes: ['id', 'title', 'status', 'price', 'description', 'location', 'category', 'startDate', 'endDate', 'endDateFlexible', 'clientId'] },
       ],
     });
 
@@ -126,6 +161,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       res.status(400).json({ success: false, message: 'Destinatario, título e ítems son requeridos' });
       return;
     }
+    // Por ahora solo se envían cotizaciones ligadas a un trabajo (regla del dueño, 2026-11-12): queda sujeta a sus condiciones y, al aceptarse, fija el precio del contrato.
+    if (!jobId) {
+      res.status(400).json({ success: false, code: 'COTIZACION_SIN_TRABAJO', message: 'Por ahora las cotizaciones se envían ligadas a un trabajo: elegí el trabajo al que corresponde.' });
+      return;
+    }
     // Una cotización enviada tiene que poder cobrarse: cantidades y precios mayores que cero (un borrador puede estar a medio completar).
     const motivoItems = status === 'draft' ? null : motivoDeItemsInvalidos(items);
     if (motivoItems) {
@@ -164,12 +204,21 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       }
       const yo = String(req.user.id);
       const delCliente = String(trabajo.clientId);
-      if (String(recipientId) !== delCliente && yo !== delCliente) {
-        res.status(400).json({ success: false, message: 'Esta cotización no corresponde a ese trabajo.' });
-        return;
-      }
       if (String(recipientId) === yo) {
         res.status(400).json({ success: false, message: 'No podés enviarte una cotización a vos mismo.' });
+        return;
+      }
+      // Cotiza quien quiere hacer el trabajo y la recibe el cliente del trabajo (el que la acepta y paga).
+      if (yo === delCliente) {
+        res.status(400).json({ success: false, message: 'Sos el cliente de este trabajo: las cotizaciones las envían quienes quieren hacerlo.' });
+        return;
+      }
+      if (String(recipientId) !== delCliente) {
+        res.status(400).json({ success: false, message: 'La cotización tiene que ir dirigida al cliente del trabajo.' });
+        return;
+      }
+      if (status !== 'draft' && trabajo.status !== 'open') {
+        res.status(400).json({ success: false, message: 'Este trabajo ya no está abierto: no se puede enviar una cotización.' });
         return;
       }
     }
@@ -528,6 +577,7 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       proposalId = String(propuesta.id);
       if (String(quote.proposalId || '') !== proposalId) await quote.update({ proposalId } as any);
       liquidacion = await settleQuote(job, total);
+      if (quote.conversationId) await _updateQuoteChatMessageStatus(quote.id, quote.conversationId, 'accepted', { proposalId });
     }
 
     // Notify sender (quote accepted notification)
@@ -560,6 +610,142 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       requierePago: liquidacion ? !liquidacion.listoParaContratar : false,
       liquidacion,
     });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/quotes/:id/counter – el destinatario responde con OTRO total en vez de aceptar o rechazar (contraoferta).
+// La cotización queda «rechazada» con el monto propuesto; el emisor puede aceptarlo (/accept-counter) o editarla y reenviarla (PUT /:id).
+router.post('/:id/counter', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const quote = await Quote.findByPk(req.params.id);
+    if (!quote) {
+      res.status(404).json({ success: false, message: 'Cotización no encontrada' });
+      return;
+    }
+    if (String(quote.recipientId) !== String(req.user.id)) {
+      res.status(403).json({ success: false, message: 'Solo el destinatario puede contraofertar' });
+      return;
+    }
+    if (quote.status !== 'sent') {
+      res.status(400).json({ success: false, message: 'Solo se puede contraofertar una cotización pendiente' });
+      return;
+    }
+    if (quote.revisionCount >= 2) {
+      res.status(400).json({ success: false, message: 'Se alcanzó el límite de 2 contraofertas por cotización. Podés aceptarla o rechazarla.' });
+      return;
+    }
+    const monto = Math.round(Number(req.body?.amount) * 100) / 100;
+    if (!totalCobrable(monto)) {
+      res.status(400).json({ success: false, code: 'COTIZACION_SIN_PRECIO', message: 'El monto de la contraoferta tiene que ser mayor que $0.' });
+      return;
+    }
+    if (monto === Math.round(Number(quote.total) * 100) / 100) {
+      res.status(400).json({ success: false, message: 'La contraoferta es igual al total de la cotización: si estás de acuerdo, aceptala.' });
+      return;
+    }
+    const nota = String(req.body?.note ?? '').trim().slice(0, 1000) || null;
+    // Atómico: si dos pedidos llegan juntos, solo uno cambia el estado.
+    const [filas] = await Quote.update(
+      { status: 'rejected', counterOfferAmount: monto, counterOfferNote: nota, rejectionReason: nota ? `Contraoferta: ${nota}` : 'Contraoferta' } as any,
+      { where: { id: quote.id, status: 'sent' } },
+    );
+    if (filas !== 1) {
+      res.status(400).json({ success: false, message: 'Solo se puede contraofertar una cotización pendiente' });
+      return;
+    }
+    if ((quote as any).proposalId) {
+      await Proposal.update({ status: 'rejected' } as any, { where: { id: (quote as any).proposalId, status: 'pending' } as any });
+    }
+    if (quote.conversationId) await _updateQuoteChatMessageStatus(quote.id, quote.conversationId, 'rejected', { counterOfferAmount: monto });
+    await Notification.create({
+      recipientId: quote.senderId,
+      type: 'info',
+      category: 'system',
+      title: 'Contraoferta a tu cotización',
+      message: `${req.user.name} propone ${monto.toLocaleString('es-AR')} ARS por "${quote.title}"${nota ? `: ${nota}` : ''}`,
+      relatedModel: 'Quote',
+      relatedId: quote.id,
+      actionUrl: `/quotes/${quote.id}`,
+      actionText: 'Ver contraoferta',
+      sentVia: ['in_app'],
+    });
+    await quote.reload();
+    res.json({ success: true, message: 'Contraoferta enviada', data: quote });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/quotes/:id/accept-counter – el emisor acepta la contraoferta: la cotización vuelve a «enviada» con el total propuesto y el destinatario la acepta y paga.
+router.post('/:id/accept-counter', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const quote = await Quote.findByPk(req.params.id);
+    if (!quote) {
+      res.status(404).json({ success: false, message: 'Cotización no encontrada' });
+      return;
+    }
+    if (String(quote.senderId) !== String(req.user.id)) {
+      res.status(403).json({ success: false, message: 'Solo quien envió la cotización puede aceptar la contraoferta' });
+      return;
+    }
+    const monto = Number((quote as any).counterOfferAmount);
+    if (quote.status !== 'rejected' || !totalCobrable(monto)) {
+      res.status(400).json({ success: false, message: 'Esta cotización no tiene una contraoferta pendiente' });
+      return;
+    }
+    const nuevosItems = escalarAlTotal(
+      ((quote.items as any[]) || []).map((i) => ({ description: String(i.description), qty: Number(i.qty), unitPrice: Number(i.unitPrice) })),
+      Number(quote.taxRate),
+      (quote.otherTaxes as any[]) || [],
+      monto,
+    );
+    if (!nuevosItems) {
+      res.status(400).json({ success: false, message: 'No se pudo aplicar la contraoferta' });
+      return;
+    }
+    const itemsConImporte = nuevosItems.map((i) => ({ ...i, amount: Math.round(i.qty * i.unitPrice * 100) / 100 }));
+    const { subtotal, total } = totalesDeItems(nuevosItems, Number(quote.taxRate), (quote.otherTaxes as any[]) || []);
+    const [filas] = await Quote.update(
+      {
+        items: itemsConImporte,
+        subtotal,
+        taxAmount: Math.round(subtotal * (Number(quote.taxRate) / 100) * 100) / 100,
+        total,
+        status: 'sent',
+        rejectionReason: null,
+        counterOfferAmount: null,
+        counterOfferNote: null,
+        revisionCount: quote.revisionCount + 1,
+      } as any,
+      { where: { id: quote.id, status: 'rejected' } },
+    );
+    if (filas !== 1) {
+      res.status(400).json({ success: false, message: 'Esta cotización no tiene una contraoferta pendiente' });
+      return;
+    }
+    if ((quote as any).proposalId) {
+      await Proposal.update({ status: 'pending', proposedPrice: total } as any, { where: { id: (quote as any).proposalId, status: 'rejected' } as any });
+    }
+    await quote.reload();
+    if (quote.conversationId) {
+      await _updateQuoteChatMessageStatus(quote.id, quote.conversationId, 'sent', { quoteTotal: total, counterOfferAmount: null });
+      await _postQuoteChatMessage(quote, req.user.id, quote.conversationId, 'revised');
+    }
+    await Notification.create({
+      recipientId: quote.recipientId,
+      type: 'success',
+      category: 'system',
+      title: 'Aceptaron tu contraoferta',
+      message: `${req.user.name} aceptó tu contraoferta de ${total.toLocaleString('es-AR')} ARS por "${quote.title}". Falta que aceptes y pagues.`,
+      relatedModel: 'Quote',
+      relatedId: quote.id,
+      actionUrl: `/quotes/${quote.id}`,
+      actionText: 'Ver cotización',
+      sentVia: ['in_app'],
+    });
+    res.json({ success: true, message: 'Contraoferta aceptada: la cotización quedó con el nuevo total', data: quote });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -813,21 +999,29 @@ async function _updateQuoteChatMessageStatus(
   quoteId: string,
   conversationId: string,
   newStatus: string,
+  extra: Record<string, unknown> = {},
 ): Promise<void> {
   try {
     const messages = await ChatMessage.findAll({
       where: { conversationId },
     });
+    // Las dos partes se enteran aunque no tengan el chat abierto en esta conversación (cada una está en su sala personal).
+    const cotizacion = await Quote.findByPk(quoteId, { attributes: ['senderId', 'recipientId'] });
+    const salas = [`conversation:${conversationId}`];
+    if (cotizacion) salas.push(`user:${cotizacion.senderId}`, `user:${cotizacion.recipientId}`);
 
     for (const msg of messages) {
       if (msg.metadata?.quoteId === quoteId) {
-        const updatedMetadata = { ...msg.metadata, quoteStatus: newStatus };
+        const updatedMetadata = { ...msg.metadata, quoteStatus: newStatus, ...extra };
         await msg.update({ metadata: updatedMetadata });
 
         const io = getIO();
         if (io) {
-          io.to(`conversation:${conversationId}`).emit('message:updated', {
+          // `id` es lo que compara la pantalla del chat (antes solo viajaba `messageId` y el cambio nunca se aplicaba: la tarjeta quedaba «Pendiente» hasta recargar).
+          io.to(salas).emit('message:updated', {
+            id: msg.id,
             messageId: msg.id,
+            conversationId,
             metadata: updatedMetadata,
           });
         }

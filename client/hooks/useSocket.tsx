@@ -309,7 +309,7 @@ export function useSocket() {
       {
         setMessages((prev) =>
           prev.map((msg) =>
-            (msg.id === updatedMessage.id || msg.id === updatedMessage.id || msg.id === (updatedMessage as any).id)
+            (msg.id === updatedMessage.id || msg.id === (updatedMessage as any).messageId)
               ? { ...msg, ...updatedMessage }
               : msg
           )

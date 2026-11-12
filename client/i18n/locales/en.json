@@ -433,7 +433,7 @@
     "jobAttached": "Attached job:",
     "autoContractNote": "If the client accepts the quote, the contract is created automatically.",
     "back": "Back",
-    "attachJob": "Attach a job to this quote (optional)",
+    "attachJob": "Choose the job for this quote (required)",
     "searchJobPlaceholder": "Search job by name...",
     "noResults": "No results",
     "typeToSearch": "Type to search",

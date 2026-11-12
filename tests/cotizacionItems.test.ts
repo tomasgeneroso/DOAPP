@@ -42,3 +42,38 @@ describe('ítems de una cotización', () => {
     expect(totalCobrable('1500.50')).toBe(true);
   });
 });
+
+import { escalarAlTotal, totalesDeItems } from '../shared/cotizaciones/items';
+
+describe('contraoferta: llevar una cotización a otro total', () => {
+  const items = [
+    { description: 'Mano de obra', qty: 1, unitPrice: 10000 },
+    { description: 'Materiales', qty: 2, unitPrice: 2500 },
+    { description: 'Visita', qty: 1, unitPrice: 0 },
+  ];
+
+  it('el resultado suma el total pedido (con el IVA, a lo sumo un centavo de diferencia) y los ítems de $0 quedan en $0', () => {
+    for (const pedido of [12100, 9999.99, 18150, 3333.33, 1]) {
+      const nuevos = escalarAlTotal(items, 21, [], pedido)!;
+      expect(nuevos).not.toBeNull();
+      expect(totalesDeItems(nuevos, 21, []).total).toBeCloseTo(pedido, 1);
+      expect(nuevos.find((i) => i.description === 'Visita')?.unitPrice ?? 0).toBe(0);
+    }
+  });
+
+  it('con otros impuestos también cierra', () => {
+    const nuevos = escalarAlTotal(items, 21, [{ rate: 3 }], 15000)!;
+    expect(totalesDeItems(nuevos, 21, [{ rate: 3 }]).total).toBeCloseTo(15000, 1);
+  });
+
+  it('si no hay un ítem de cantidad 1 para absorber el redondeo, queda un solo ítem «Servicio acordado»', () => {
+    const solo = escalarAlTotal([{ description: 'Cosas', qty: 3, unitPrice: 333.33 }], 21, [], 1000.01)!;
+    expect(totalesDeItems(solo, 21, []).total).toBeCloseTo(1000.01, 1);
+  });
+
+  it('un total pedido en cero, negativo o que no es número se rechaza', () => {
+    expect(escalarAlTotal(items, 21, [], 0)).toBeNull();
+    expect(escalarAlTotal(items, 21, [], -5)).toBeNull();
+    expect(escalarAlTotal(items, 21, [], NaN)).toBeNull();
+  });
+});

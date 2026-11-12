@@ -164,8 +164,8 @@ describe('cotizaciones: aceptar y crear', () => {
       expect(await Proposal.count({ where: { jobId: trabajo.id } })).toBe(1);
     });
 
-    it('sin trabajo: solo se acepta (no hay propuesta ni contrato)', async () => {
-      const q = (await cotizar(trabajador, { recipientId: cliente.id })).body.data;
+    it('sin trabajo (una cotización vieja, de antes de que el trabajo fuera obligatorio): solo se acepta (no hay propuesta ni contrato)', async () => {
+      const q: any = await cotizacionDirecta(trabajador.id, cliente.id, null);
       const r = await aceptar(cliente, q.id);
       expect(r.status).toBe(200);
       expect(r.body.proposalId).toBeNull();
@@ -174,7 +174,7 @@ describe('cotizaciones: aceptar y crear', () => {
     });
 
     it('las reglas de siempre: solo el destinatario, y solo una pendiente', async () => {
-      const q = (await cotizar(trabajador, { recipientId: cliente.id })).body.data;
+      const q: any = await cotizacionDirecta(trabajador.id, cliente.id, null);
       expect((await aceptar(trabajador, q.id)).status).toBe(403);
       expect((await aceptar(intruso, q.id)).status).toBe(ESTADO_PARA_UN_AJENO);
       expect((await aceptar(cliente, '00000000-0000-4000-8000-000000000000')).status).toBe(404);

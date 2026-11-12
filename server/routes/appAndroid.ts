@@ -27,8 +27,11 @@ const NOMBRE_DE_LA_FICHA = 'doapp.apk.json';
 const TIPO_DEL_APK = 'application/vnd.android.package-archive';
 
 /** La carpeta se lee en cada pedido: así se puede cambiar `APK_DIR` sin tocar el código y las pruebas la apuntan a una carpeta temporal. */
-/** Solo staging (y desarrollo): en producción todavía no se ofrece. */
-export const habilitado = (): boolean => entorno() !== 'produccion';
+/**
+ * Solo staging (y desarrollo): en producción todavía no se ofrece. Se mira el entorno (`APP_ENV`) Y el dominio por el que se entra: si el proceso de staging
+ * arrancó sin `APP_ENV=staging` (pasó al cambiar de dominio, 2026-11-12: el botón no aparecía en staging.doapparg.com), igual se ofrece en `staging.…`.
+ */
+export const habilitado = (req?: Request): boolean => entorno() !== 'produccion' || /^staging\./i.test(String(req?.hostname || ''));
 
 export function carpetaDelApk(): string {
   return process.env.APK_DIR || '/var/www/doapp-descargas';
@@ -67,10 +70,10 @@ async function datosDelArchivo(carpeta: string): Promise<{ bytes: number; modifi
   }
 }
 
-router.get('/android/estado', limiteDelEstado, async (_req: Request, res: Response): Promise<void> => {
+router.get('/android/estado', limiteDelEstado, async (req: Request, res: Response): Promise<void> => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    if (!habilitado()) {
+    if (!habilitado(req)) {
       res.json({ success: true, disponible: false, oculto: true });
       return;
     }
@@ -94,9 +97,9 @@ router.get('/android/estado', limiteDelEstado, async (_req: Request, res: Respon
   }
 });
 
-router.get('/android', limiteDeLaDescarga, async (_req: Request, res: Response): Promise<void> => {
+router.get('/android', limiteDeLaDescarga, async (req: Request, res: Response): Promise<void> => {
   const carpeta = carpetaDelApk();
-  const archivo = habilitado() ? await datosDelArchivo(carpeta) : null;
+  const archivo = habilitado(req) ? await datosDelArchivo(carpeta) : null;
   if (!archivo) {
     res.status(404).json({ success: false, code: 'APK-NO-DISPONIBLE', message: 'La app para Android todavía no está disponible para descargar. Probá de nuevo en unos días.' });
     return;

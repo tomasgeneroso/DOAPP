@@ -71,6 +71,7 @@ import useDialog from "../hooks/useDialog";
 import useImageViewer from "../hooks/useImageViewer";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
+import CotizacionesDelTrabajo from "../components/jobDetail/CotizacionesDelTrabajo";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
 import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
@@ -1507,6 +1508,9 @@ export default function JobDetail() {
                   ${Number(job.price || 0).toLocaleString("es-AR")}
                 </div>
               </div>
+
+              {/* Un trabajo con cotización: las cotizaciones ligadas y el precio acordado (visibles solo para el cliente y para quien cotizó). */}
+              {user && job?.id && <CotizacionesDelTrabajo jobId={String(job.id)} />}
 
               {/*
                 Sin protección de pago: va acá arriba, pegado al precio, y no

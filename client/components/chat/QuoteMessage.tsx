@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Check, X, ExternalLink, ArrowRight } from 'lucide-react';
+import { FileText, Check, X, ExternalLink, ArrowRight, Handshake } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import ConfirmModal from '../ui/ConfirmModal';
 
 const STATUS_LABELS: Record<string, string> = {
   sent: 'Pendiente',
+  pending_payment: 'Pago pendiente',
   accepted: 'Aceptada',
   rejected: 'Rechazada',
   expired: 'Vencida',
@@ -16,6 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   sent: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  pending_payment: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   accepted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   expired: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
@@ -35,6 +37,10 @@ interface Props {
       quoteStatus?: string;
       quoteAction?: string;
       jobId?: string;
+      /** La propuesta que dejó la cotización aceptada: por ahí se contrata y se paga. */
+      proposalId?: string;
+      /** El total que propuso quien recibió la cotización (contraoferta). */
+      counterOfferAmount?: number | null;
     };
     createdAt: string;
   };
@@ -43,6 +49,9 @@ interface Props {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const pesos = (n: unknown) => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+
+type Panel = 'rechazar' | 'contraofertar' | null;
 
 export default function QuoteMessage({ message, onRefresh, token }: Props) {
   // Faltaba, y el componente usa `t` en cuatro lugares: cualquiera de los dos
@@ -55,52 +64,93 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(meta.quoteStatus || 'sent');
   const [contractId, setContractId] = useState<string | null>(null);
-  // Aceptar una cotización de un trabajo no crea el contrato: deja la propuesta lista para confirmar (y pagar lo que falte).
-  const [proposalId, setProposalId] = useState<string | null>(null);
-  const [requierePago, setRequierePago] = useState(false);
+  // Aceptar una cotización de un trabajo no crea el contrato: deja la propuesta lista para contratar (y pagar lo que falte).
+  const [proposalId, setProposalId] = useState<string | null>(meta.proposalId || null);
   // Replaces native alert()
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmarPago, setConfirmarPago] = useState(false);
+  const [panel, setPanel] = useState<Panel>(null);
+  const [texto, setTexto] = useState('');
+  const [monto, setMonto] = useState('');
 
   const quoteId = meta.quoteId;
   const hasJobId = !!meta.jobId;
   const isRecipient = (message.sender?.id) !== user?.id;
+  const contraoferta = Number(meta.counterOfferAmount) > 0 ? Number(meta.counterOfferAmount) : 0;
 
-  const handleAccept = async () => {
+  // El estado de la tarjeta lo manda el servidor (aceptaron, rechazaron, contraofertaron): si llega un cambio, la tarjeta lo muestra sin recargar.
+  useEffect(() => {
+    if (meta.quoteStatus) setLocalStatus(meta.quoteStatus);
+  }, [meta.quoteStatus]);
+  useEffect(() => {
+    if (meta.proposalId) setProposalId(meta.proposalId);
+  }, [meta.proposalId]);
+
+  const cabeceras = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  /** Contratar y pagar: aprueba la propuesta (si falta plata, el servidor lo dice) y lleva a Mercado Pago por lo que falte. */
+  const contratarYPagar = async (pid: string) => {
+    const r = await fetch(`${API_URL}/proposals/${pid}/approve`, { method: 'PUT', headers: cabeceras });
+    const d = await r.json();
+    if (r.status === 402 && d.requierePago) {
+      const p = await fetch(`${API_URL}/payments/quote/${pid}`, { method: 'POST', headers: cabeceras });
+      const pd = await p.json();
+      if (pd.success && pd.paymentUrl) {
+        window.location.href = pd.paymentUrl;
+        return;
+      }
+      setNotice(pd.message || t('quote.errorStartingPayment', 'Error al iniciar el pago'));
+      return;
+    }
+    if (d.success) {
+      if (d.contractId) navigate(`/contracts/${d.contractId}/summary`);
+      else onRefresh?.();
+      return;
+    }
+    setNotice(d.message || t('proposals.errorAccepting', 'No se pudo completar la contratación'));
+  };
+
+  /** «Aceptar y pagar»: acepta la cotización (si todavía está pendiente) y sigue con la contratación y el pago. */
+  const aceptarYPagar = async () => {
     if (!quoteId || acting) return;
+    setConfirmarPago(false);
     setActing(true);
     try {
-      const res = await fetch(`${API_URL}/quotes/${quoteId}/accept`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
+      let pid = proposalId;
+      if (localStatus === 'sent') {
+        const res = await fetch(`${API_URL}/quotes/${quoteId}/accept`, { method: 'POST', headers: cabeceras });
+        const data = await res.json();
+        if (!data.success) {
+          setNotice(data.message || t('common.connectionError', 'Error de conexión'));
+          return;
+        }
         setLocalStatus('accepted');
-        if (data.contractId) {
-          setContractId(data.contractId);
-        }
-        if (data.proposalId) {
-          setProposalId(data.proposalId);
-          setRequierePago(data.requierePago === true);
-        }
+        pid = data.proposalId || null;
+        if (pid) setProposalId(pid);
         onRefresh?.();
-      } else {
-        setNotice(data.message || t('common.connectionError', 'Error de conexión'));
+      } else if (!pid) {
+        const res = await fetch(`${API_URL}/quotes/${quoteId}`, { headers: cabeceras });
+        const data = await res.json();
+        pid = data?.data?.proposalId || null;
+        if (pid) setProposalId(pid);
       }
+      if (!pid) {
+        setNotice('Aceptaste la cotización, pero no encontramos la propuesta para seguir con el pago. Abrí el trabajo y contratá desde ahí.');
+        return;
+      }
+      await contratarYPagar(pid);
     } catch {
       setNotice(t('common.connectionError', 'Error de conexión'));
+    } finally {
+      setActing(false);
     }
-    setActing(false);
   };
 
   const handlePay = async () => {
     if (!quoteId || acting) return;
     setActing(true);
     try {
-      const res = await fetch(`${API_URL}/quotes/${quoteId}/pay`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`${API_URL}/quotes/${quoteId}/pay`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success && data.paymentUrl) {
         window.location.href = data.paymentUrl;
@@ -113,27 +163,72 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
     setActing(false);
   };
 
-  const handleReject = async () => {
+  const rechazar = async () => {
     if (!quoteId || acting) return;
-    const reason = window.prompt('Motivo del rechazo (opcional):') ?? undefined;
-    if (reason === null) return; // user cancelled prompt
     setActing(true);
     try {
-      const res = await fetch(`${API_URL}/quotes/${quoteId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason }),
-      });
+      const res = await fetch(`${API_URL}/quotes/${quoteId}/reject`, { method: 'POST', headers: cabeceras, body: JSON.stringify({ reason: texto.trim() || undefined }) });
       const data = await res.json();
       if (data.success) {
         setLocalStatus('rejected');
+        setPanel(null);
+        setTexto('');
         onRefresh?.();
+      } else {
+        setNotice(data.message || t('common.connectionError', 'Error de conexión'));
       }
     } catch {
-      /* sin respuesta: la tarjeta queda como estaba y se puede volver a intentar */
+      setNotice(t('common.connectionError', 'Error de conexión'));
     }
     setActing(false);
   };
+
+  const contraofertar = async () => {
+    if (!quoteId || acting) return;
+    const importe = Number(String(monto).replace(',', '.'));
+    if (!Number.isFinite(importe) || importe <= 0) {
+      setNotice('Escribí el total que proponés pagar (mayor que $0).');
+      return;
+    }
+    setActing(true);
+    try {
+      const res = await fetch(`${API_URL}/quotes/${quoteId}/counter`, { method: 'POST', headers: cabeceras, body: JSON.stringify({ amount: importe, note: texto.trim() || undefined }) });
+      const data = await res.json();
+      if (data.success) {
+        setLocalStatus('rejected');
+        setPanel(null);
+        setTexto('');
+        setMonto('');
+        onRefresh?.();
+      } else {
+        setNotice(data.message || t('common.connectionError', 'Error de conexión'));
+      }
+    } catch {
+      setNotice(t('common.connectionError', 'Error de conexión'));
+    }
+    setActing(false);
+  };
+
+  const aceptarContraoferta = async () => {
+    if (!quoteId || acting) return;
+    setActing(true);
+    try {
+      const res = await fetch(`${API_URL}/quotes/${quoteId}/accept-counter`, { method: 'POST', headers: cabeceras });
+      const data = await res.json();
+      if (data.success) {
+        setLocalStatus('sent');
+        onRefresh?.();
+      } else {
+        setNotice(data.message || t('common.connectionError', 'Error de conexión'));
+      }
+    } catch {
+      setNotice(t('common.connectionError', 'Error de conexión'));
+    }
+    setActing(false);
+  };
+
+  const puedeResponder = isRecipient && localStatus === 'sent' && !!quoteId;
+  const aceptadaPorMi = isRecipient && localStatus === 'accepted' && !!proposalId && !contractId && hasJobId;
 
   return (
     <div className="flex justify-center my-2">
@@ -156,7 +251,7 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
             </p>
             {meta.quoteTotal !== undefined && (
               <p className="text-sky-700 dark:text-sky-400 font-bold text-lg mt-1">
-                ${Number(meta.quoteTotal).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                {pesos(meta.quoteTotal)} ARS
               </p>
             )}
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
@@ -165,20 +260,42 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
           </div>
         </div>
 
-        {/* Con trabajo: la cotización aceptada deja la propuesta lista; el contrato se crea al confirmarla (y pagar lo que falte) */}
-        {localStatus === 'accepted' && proposalId && !contractId && (
-          <div className="mt-3 p-2.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
-            <p className="text-xs font-semibold text-sky-700 dark:text-sky-300 mb-1.5">
-              ✓ Cotización aceptada. {requierePago ? 'Falta abonar la diferencia para contratar.' : 'Falta confirmar la contratación.'}
+        {/* Contraoferta: la ve quien envió la cotización */}
+        {!isRecipient && localStatus === 'rejected' && contraoferta > 0 && (
+          <div className="mt-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg" data-testid="contraoferta-recibida">
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1.5">
+              El cliente propone {pesos(contraoferta)} ARS. Podés aceptarlo o editar la cotización y reenviarla.
             </p>
             <button
-              onClick={() => navigate(`/proposals/${proposalId}`)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 px-3 py-1.5 rounded-lg w-full justify-center"
+              onClick={aceptarContraoferta}
+              disabled={acting}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 px-3 py-1.5 rounded-lg w-full justify-center"
             >
-              <ArrowRight className="h-3.5 w-3.5" />
-              Ir a la propuesta
+              <Handshake className="h-3.5 w-3.5" />
+              Aceptar contraoferta
             </button>
           </div>
+        )}
+        {isRecipient && localStatus === 'rejected' && contraoferta > 0 && (
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Contraofertaste {pesos(contraoferta)} ARS. Esperando la respuesta.</p>
+        )}
+
+        {/* Aceptada: falta contratar y pagar (el servidor ya dejó la propuesta con el precio acordado) */}
+        {aceptadaPorMi && (
+          <div className="mt-3 p-2.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+            <p className="text-xs font-semibold text-sky-700 dark:text-sky-300 mb-1.5">✓ Cotización aceptada. Falta contratar y pagar.</p>
+            <button
+              onClick={aceptarYPagar}
+              disabled={acting}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-50 px-3 py-1.5 rounded-lg w-full justify-center"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+              Continuar con el pago
+            </button>
+          </div>
+        )}
+        {!isRecipient && localStatus === 'accepted' && hasJobId && (
+          <p className="mt-3 text-xs font-semibold text-green-700 dark:text-green-400">✓ Te aceptaron la cotización. Falta que el cliente la pague.</p>
         )}
 
         {/* Contract auto-created banner */}
@@ -197,7 +314,54 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+        {/* Rechazar / contraofertar: un cuadro corto dentro de la tarjeta */}
+        {puedeResponder && panel && (
+          <div className="mt-3 p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg space-y-2" data-testid="panel-respuesta">
+            {panel === 'contraofertar' && (
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Total que proponés pagar (ARS)
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                  placeholder={String(meta.quoteTotal ?? '')}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                />
+              </label>
+            )}
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+              {panel === 'rechazar' ? 'Motivo del rechazo (opcional)' : 'Mensaje (opcional)'}
+              <textarea
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                rows={2}
+                maxLength={1000}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
+            </label>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setPanel(null); setTexto(''); setMonto(''); }}
+                disabled={acting}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={panel === 'rechazar' ? rechazar : contraofertar}
+                disabled={acting}
+                className={`px-3 py-1.5 text-xs font-semibold text-white rounded-lg disabled:opacity-50 ${panel === 'rechazar' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+              >
+                {panel === 'rechazar' ? 'Confirmar rechazo' : 'Enviar contraoferta'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
           {quoteId && (
             <Link
               to={`/quotes/${quoteId}`}
@@ -208,24 +372,34 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
             </Link>
           )}
 
-          {isRecipient && localStatus === 'sent' && quoteId && (
-            <div className="flex items-center gap-2 ml-auto">
+          {puedeResponder && !panel && (
+            <div className="flex flex-wrap items-center gap-2 ml-auto" data-testid="acciones-cotizacion">
               <button
-                onClick={handleReject}
+                onClick={() => setPanel('rechazar')}
                 disabled={acting}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
               >
                 <X className="h-3.5 w-3.5" />
                 Rechazar
               </button>
+              {hasJobId && (
+                <button
+                  onClick={() => setPanel('contraofertar')}
+                  disabled={acting}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50"
+                >
+                  <Handshake className="h-3.5 w-3.5" />
+                  Contraofertar
+                </button>
+              )}
               {hasJobId ? (
                 <button
-                  onClick={handleAccept}
+                  onClick={() => setConfirmarPago(true)}
                   disabled={acting}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg"
                 >
                   <Check className="h-3.5 w-3.5" />
-                  Aceptar cotización
+                  Aceptar y pagar
                 </button>
               ) : (
                 <button
@@ -248,6 +422,15 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmarPago}
+        title="Aceptar y pagar"
+        message={`Aceptás la cotización por ${pesos(meta.quoteTotal)} ARS y seguís con la contratación. Si hay que pagar, te llevamos a Mercado Pago.`}
+        confirmLabel="Aceptar y pagar"
+        onConfirm={aceptarYPagar}
+        onClose={() => setConfirmarPago(false)}
+      />
 
       <ConfirmModal
         open={!!notice}
