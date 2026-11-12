@@ -255,6 +255,22 @@ function ProfessionTab({
             ) : null}
             Si querés, podés sumar hasta 2 fotos o PDF de tu matrícula, título o certificados.
           </p>
+          {/* El número también se pide acá: la tarea «Datos de matrícula» de Inicio se completa con número + documento, y sin este campo quien cargaba el documento
+              en una profesión sin matrícula obligatoria se quedaba con el aviso y nada donde escribir el número. */}
+          <div>
+            <label htmlFor="numeroDeMatricula" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Número de matrícula o título
+            </label>
+            <input
+              id="numeroDeMatricula"
+              type="text"
+              value={licenseNumber}
+              onChange={e => setLicenseNumber(e.target.value)}
+              placeholder={t('settings.licenseNumberPlaceholder')}
+              className="w-full sm:max-w-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Si cargás un documento, anotá acá su número y guardá los cambios.</p>
+          </div>
           <MatriculaArchivos
             token={token}
             frente={licenseDocumentUrl}
