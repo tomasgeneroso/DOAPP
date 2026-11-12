@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { entorno } from '../services/deployInfo.js';
 
 /**
  * Descarga de la app para Android como APK, sin pasar por ninguna tienda (regla del dueño, 2026-11-12: «que se pueda descargar como APK,
@@ -9,6 +10,9 @@ import { promises as fs } from 'fs';
  *
  *  - GET /api/app/android         → el archivo (`doapp.apk`), como descarga;
  *  - GET /api/app/android/estado  → `{ disponible, version, build, tamanoMB, fecha }` (lo lee el botón de la web para saber si ya hay un archivo).
+ *
+ * **Solo en staging por ahora** (regla del dueño, 2026-11-12): en PRODUCCIÓN la ruta responde como si no hubiera archivo y el estado dice `oculto: true` (la web no muestra el botón). Producción y
+ * staging comparten servidor y carpeta, así que lo que decide es el entorno (`APP_ENV`), no el archivo. Para publicarlo en producción se quita `habilitado()`.
  *
  * El APK NO vive en el repositorio ni en la carpeta que reemplaza cada deploy: lo deja el workflow `.github/workflows/android-apk.yml` en una carpeta
  * propia del servidor (`APK_DIR`, por omisión `/var/www/doapp-descargas`), junto con `doapp.apk.json` (versión y fecha). Producción y staging comparten
@@ -23,6 +27,9 @@ const NOMBRE_DE_LA_FICHA = 'doapp.apk.json';
 const TIPO_DEL_APK = 'application/vnd.android.package-archive';
 
 /** La carpeta se lee en cada pedido: así se puede cambiar `APK_DIR` sin tocar el código y las pruebas la apuntan a una carpeta temporal. */
+/** Solo staging (y desarrollo): en producción todavía no se ofrece. */
+export const habilitado = (): boolean => entorno() !== 'produccion';
+
 export function carpetaDelApk(): string {
   return process.env.APK_DIR || '/var/www/doapp-descargas';
 }
@@ -62,9 +69,13 @@ async function datosDelArchivo(carpeta: string): Promise<{ bytes: number; modifi
 
 router.get('/android/estado', limiteDelEstado, async (_req: Request, res: Response): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!habilitado()) {
+      res.json({ success: true, disponible: false, oculto: true });
+      return;
+    }
     const carpeta = carpetaDelApk();
     const archivo = await datosDelArchivo(carpeta);
-    res.setHeader('Cache-Control', 'no-store');
     if (!archivo) {
       res.json({ success: true, disponible: false });
       return;
@@ -85,7 +96,7 @@ router.get('/android/estado', limiteDelEstado, async (_req: Request, res: Respon
 
 router.get('/android', limiteDeLaDescarga, async (_req: Request, res: Response): Promise<void> => {
   const carpeta = carpetaDelApk();
-  const archivo = await datosDelArchivo(carpeta);
+  const archivo = habilitado() ? await datosDelArchivo(carpeta) : null;
   if (!archivo) {
     res.status(404).json({ success: false, code: 'APK-NO-DISPONIBLE', message: 'La app para Android todavía no está disponible para descargar. Probá de nuevo en unos días.' });
     return;

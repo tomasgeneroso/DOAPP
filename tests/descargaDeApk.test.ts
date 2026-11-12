@@ -16,12 +16,14 @@ describe('descarga del APK', () => {
   beforeAll(async () => {
     carpeta = mkdtempSync(join(tmpdir(), 'apk-'));
     process.env.APK_DIR = carpeta;
+    process.env.APP_ENV = 'staging';
     app = express();
     app.use('/api/app', (await import('../server/routes/appAndroid.js')).default);
   });
 
   afterAll(() => {
     delete process.env.APK_DIR;
+    delete process.env.APP_ENV;
     rmSync(carpeta, { recursive: true, force: true });
   });
 
@@ -66,6 +68,18 @@ describe('descarga del APK', () => {
     expect(estado.body.build).toBeNull();
     writeFileSync(join(carpeta, 'doapp.apk.json'), '{no es json');
     expect((await request(app).get('/api/app/android/estado')).body.disponible).toBe(true);
+  });
+
+  it('en PRODUCCIÓN no se ofrece aunque el archivo exista: el estado dice «oculto» y la descarga da 404', async () => {
+    writeFileSync(join(carpeta, 'doapp.apk'), Buffer.alloc(1024, 1));
+    process.env.APP_ENV = 'production';
+    try {
+      const estado = await request(app).get('/api/app/android/estado');
+      expect(estado.body).toMatchObject({ success: true, disponible: false, oculto: true });
+      expect((await request(app).get('/api/app/android')).status).toBe(404);
+    } finally {
+      process.env.APP_ENV = 'staging';
+    }
   });
 
   it('el nombre del archivo es fijo: nada del pedido entra en la ruta del disco', async () => {

@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next';
  */
 interface EstadoDelApk {
   disponible: boolean;
+  /** Producción: todavía no se ofrece (solo staging); no se dibuja nada. */
+  oculto?: boolean;
   version?: string | null;
   tamanoMB?: number;
 }
@@ -36,6 +38,7 @@ export default function DescargarApk({ variante = 'pie' }: { variante?: 'portada
     };
   }, []);
 
+  if (estado?.oculto) return null;
   const apagado = estado?.disponible === false;
   const detalle = estado?.disponible ? [estado.version ? `v${estado.version}` : null, estado.tamanoMB ? `${estado.tamanoMB} MB` : null].filter(Boolean).join(' · ') : '';
   const enPortada = variante === 'portada';
