@@ -1,3 +1,4 @@
+import { motivoDeItemsInvalidos } from '../../shared/cotizaciones/items';
 import { minimoHoy } from '../../shared/fechas/limites';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -231,6 +232,12 @@ export default function QuoteForm() {
     }
     if (!recipientId) {
       setError('Falta el destinatario');
+      return;
+    }
+    // Antes de enviar: nada de ítems en $0 (la cotización no se podría cobrar).
+    const motivoItems = motivoDeItemsInvalidos(items);
+    if (motivoItems) {
+      setError(motivoItems);
       return;
     }
 

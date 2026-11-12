@@ -17,6 +17,7 @@ import { settleQuote } from '../services/quotePayment.js';
 import { requireKyc } from '../middleware/auth.js';
 import { requirePostWorkRating, requireNotSuspended } from '../middleware/postWorkRating.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
+import { motivoDeItemsInvalidos, totalCobrable } from '../../shared/cotizaciones/items.js';
 import * as socketService from '../services/socket.js';
 import type { AuthRequest } from '../types/index.js';
 
@@ -123,6 +124,12 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
     if (!recipientId || !title || !items?.length) {
       res.status(400).json({ success: false, message: 'Destinatario, título e ítems son requeridos' });
+      return;
+    }
+    // Una cotización enviada tiene que poder cobrarse: cantidades y precios mayores que cero (un borrador puede estar a medio completar).
+    const motivoItems = status === 'draft' ? null : motivoDeItemsInvalidos(items);
+    if (motivoItems) {
+      res.status(400).json({ success: false, code: 'COTIZACION_SIN_PRECIO', message: motivoItems });
       return;
     }
     // «Válida hasta» no puede ser un día que ya pasó.
@@ -333,6 +340,14 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
+    if (items) {
+      const motivoItems = motivoDeItemsInvalidos(items);
+      if (motivoItems) {
+        res.status(400).json({ success: false, code: 'COTIZACION_SIN_PRECIO', message: motivoItems });
+        return;
+      }
+    }
+
     let subtotal = quote.subtotal;
     let taxAmount = quote.taxAmount;
     let total = quote.total;
@@ -440,6 +455,12 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
 
     if (quote.status !== 'sent') {
       res.status(400).json({ success: false, message: 'Solo se pueden aceptar cotizaciones pendientes' });
+      return;
+    }
+
+    // Una cotización de $0 no se puede cobrar (Mercado Pago la rechaza con «unit_price invalid»): se frena acá con un mensaje claro.
+    if (!totalCobrable(quote.total)) {
+      res.status(400).json({ success: false, code: 'COTIZACION_SIN_PRECIO', message: 'Esta cotización tiene un total de $0 y no se puede aceptar. Pedile a quien te la envió que la corrija con un precio.' });
       return;
     }
 
@@ -576,6 +597,10 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
     // procesamiento y sin respetar la beta, así que cobraba una tasa que no es la
     // vigente (10%, piso EUR 2 en pesos con la cotización de respaldo) y un total que no
     // coincidía con el de los demás flujos.
+    if (!totalCobrable(quote.total)) {
+      res.status(400).json({ success: false, code: 'COTIZACION_SIN_PRECIO', message: 'Esta cotización tiene un total de $0 y no se puede pagar. Pedile a quien te la envió que la corrija con un precio.' });
+      return;
+    }
     const baseAmount = Number(quote.total);
     const c = await calculateCommission(userId, baseAmount);
     const split = splitFees(baseAmount, c.commission, c.vat);
