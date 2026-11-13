@@ -1,1 +1,10 @@
-<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" rx="64" fill="#0EA5E9"/><g transform="translate(150 150) scale(0.9) translate(-150 -150)"><g transform="translate(-8 0)" fill="#fff" fill-rule="evenodd"><path d="M 40 90 H 90 A 60 60 0 0 1 90 210 H 40 Z M 68 117 V 183 H 88 A 33 33 0 0 0 88 117 Z"/><path d="M 216 90 A 60 60 0 1 1 215.99 90 Z M 216 117 A 33 33 0 1 0 216.01 117 Z"/></g></g></svg>
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="150" cy="150" r="145" fill="#00A8E8"/>
+
+  <!-- Letter D (solid white, wider, touching the O) -->
+  <path d="M 68 70 L 120 70 Q 160 70 160 150 Q 160 230 120 230 L 68 230 Z" fill="white"/>
+
+  <!-- Letter O (solid white) -->
+  <circle cx="215" cy="150" r="60" fill="white"/>
+</svg>

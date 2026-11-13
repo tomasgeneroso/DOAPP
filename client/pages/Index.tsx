@@ -502,85 +502,6 @@ export default function Index() {
           {/* ── SECTION DIVIDER ── */}
           <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
 
-          {/* ③ Trabajos disponibles — preview para visitantes */}
-          <div className="px-3 sm:px-4 py-16 sm:py-20 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <span className="inline-block px-4 py-1.5 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-widest rounded-full border border-sky-500/30 mb-3">
-                  {t('home.rightNow', 'En este momento')}
-                </span>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                  {t('home.availableJobs')}
-                </h2>
-              </div>
-              <Link
-                to="/register"
-                className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
-              >
-                {t('home.seeAll', 'Ver todos')}
-              </Link>
-            </div>
-            {jobsLoading ? (
-              <div className="flex justify-center py-16">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent" />
-              </div>
-            ) : jobs.length === 0 ? (
-              <div className="text-center py-16">
-                <Briefcase className="h-16 w-16 text-slate-700 mx-auto mb-4" />
-                <p className="text-slate-400">{t('home.noJobsYet')}</p>
-              </div>
-            ) : (
-              <>
-                <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {jobs.slice(0, 6).map((job) => (
-                    <Link
-                      key={`visitor-job-${job.id}`}
-                      to="/register"
-                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/60 hover:shadow-xl hover:shadow-sky-900/30"
-                    >
-                      <div className="absolute right-4 top-4 rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
-                        ${job.price.toLocaleString('es-AR')}
-                      </div>
-                      <h3 className="mb-1 pr-20 text-base font-bold text-white group-hover:text-sky-400 transition-colors">
-                        {job.title}
-                      </h3>
-                      {job.client && typeof job.client === 'object' && (
-                        <div className="mb-2 flex items-center gap-1 text-amber-400">
-                          <Star className="h-3.5 w-3.5 fill-current" />
-                          <span className="text-xs text-slate-400">
-                            {(typeof job.client.rating === 'number' ? job.client.rating : parseFloat(job.client.rating as any) || 0).toFixed(1)}
-                          </span>
-                        </div>
-                      )}
-                      <p className="mb-4 line-clamp-2 text-sm text-slate-400">{job.summary}</p>
-                      <div className="mt-auto space-y-1.5 border-t border-slate-700 pt-3">
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="truncate">{[job.neighborhood, job.location, 'Argentina'].filter(Boolean).join(', ')}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>{new Date(job.startDate).toLocaleDateString('es-AR')}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-                <div className="mt-8 text-center sm:hidden">
-                  <Link
-                    to="/register"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
-                  >
-                    {t('home.seeAllJobs', 'Ver todos los trabajos')}
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* ── SECTION DIVIDER ── */}
-          <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
-
           {/* ④ Showcase — Cada detalle, bajo control */}
           <div className="relative px-3 sm:px-4 py-20 sm:py-28 overflow-hidden" style={{ zIndex:1 }}>
             <div className="relative max-w-6xl mx-auto">
@@ -683,6 +604,84 @@ export default function Index() {
               onSearch={handleSearch}
               onSearchChange={handleSearchChange}
             />
+          </div>
+        )}
+
+        {/* Trabajos disponibles: DEBAJO del buscador (pedido del dueño, 2026-11-13). Solo cuando se buscan trabajos; si se buscan perfiles, salen los perfiles. */}
+        {showVisitor && searchType === 'jobs' && (
+          <div className="px-3 sm:px-4 pt-10 pb-16 sm:pb-20 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <span className="inline-block px-4 py-1.5 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-widest rounded-full border border-sky-500/30 mb-3">
+                  {t('home.rightNow', 'En este momento')}
+                </span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
+                  {t('home.availableJobs')}
+                </h2>
+              </div>
+              <Link
+                to="/register"
+                className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+              >
+                {t('home.seeAll', 'Ver todos')}
+              </Link>
+            </div>
+            {jobsLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent" />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-16">
+                <Briefcase className="h-16 w-16 text-slate-700 mx-auto mb-4" />
+                <p className="text-slate-400">{t('home.noJobsYet')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {jobs.slice(0, 6).map((job) => (
+                    <Link
+                      key={`visitor-job-${job.id}`}
+                      to="/register"
+                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/60 hover:shadow-xl hover:shadow-sky-900/30"
+                    >
+                      <div className="absolute right-4 top-4 rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
+                        ${job.price.toLocaleString('es-AR')}
+                      </div>
+                      <h3 className="mb-1 pr-20 text-base font-bold text-white group-hover:text-sky-400 transition-colors">
+                        {job.title}
+                      </h3>
+                      {job.client && typeof job.client === 'object' && (
+                        <div className="mb-2 flex items-center gap-1 text-amber-400">
+                          <Star className="h-3.5 w-3.5 fill-current" />
+                          <span className="text-xs text-slate-400">
+                            {(typeof job.client.rating === 'number' ? job.client.rating : parseFloat(job.client.rating as any) || 0).toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                      <p className="mb-4 line-clamp-2 text-sm text-slate-400">{job.summary}</p>
+                      <div className="mt-auto space-y-1.5 border-t border-slate-700 pt-3">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{[job.neighborhood, job.location, 'Argentina'].filter(Boolean).join(', ')}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>{new Date(job.startDate).toLocaleDateString('es-AR')}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <div className="mt-8 text-center sm:hidden">
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+                  >
+                    {t('home.seeAllJobs', 'Ver todos los trabajos')}
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         )}
 

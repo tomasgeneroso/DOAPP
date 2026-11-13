@@ -95,7 +95,7 @@ export default function Analisis() {
       <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg?v=6" alt="" className="h-7 w-7" aria-hidden="true" />
+            <img src="/logo.svg?v=7" alt="" className="h-7 w-7" aria-hidden="true" />
             <span className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">
               D<span className="text-sky-500">o</span>App
             </span>
