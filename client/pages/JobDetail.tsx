@@ -6,6 +6,7 @@ import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket, useEventoEnVivo } from "../hooks/useSocket";
+import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import {
   ArrowLeft,
   Calendar,
@@ -330,6 +331,11 @@ export default function JobDetail() {
   useEventoEnVivo('socket:reconectado', () => {
     setRefreshKey((prev) => prev + 1);
     setPollKey((k) => k + 1);
+  });
+
+  // Un pago que cambia (la publicación se verificó, le pagaron al trabajador) cambia lo que dice la situación del trabajo.
+  useEventoEnVivo('payment:updated', () => {
+    setRefreshKey((prev) => prev + 1);
   });
 
   // Fetch job data
@@ -1421,6 +1427,8 @@ export default function JobDetail() {
                         <Copy className="h-4 w-4 opacity-60" />
                       )}
                     </button>
+                    {/* En qué está de punta a punta (solo para quien publicó el trabajo): el mismo estado que ve el equipo. */}
+                    <SituacionDeLaOperacion situacion={(job as any).situacion} />
                     {/* Status Badge - Visible para todos */}
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${

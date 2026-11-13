@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { estadoFinal, estadoDelContrato, estadoDelPago, estadoDelPagoDePublicacion, alertaDeLaFila, resumenDePublicacion } from '../shared/admin/resumenDePublicacion.js';
+import { estadoFinal, estadoDelContrato, estadoDelPago, estadoDelPagoDePublicacion, alertaDeLaFila, resumenDePublicacion, rotuloDelEstadoDeUnPago } from '../shared/admin/resumenDePublicacion.js';
 
 /**
  * Qué dice cada fila del panel de publicaciones: ESTADO FINAL, CONTRATO y PAGO (regla del dueño, 2026-11-09).
@@ -126,5 +126,25 @@ describe('la lista de estados finales de la pantalla', () => {
     for (const s of salidas) expect(claves.has(s.clave)).toBe(true);
     // y los rótulos de la lista coinciden con los que devuelve
     for (const s of salidas) expect(ESTADOS_FINALES.find((e) => e.clave === s.clave)?.rotulo).toBe(s.rotulo);
+  });
+});
+
+describe('rotuloDelEstadoDeUnPago: qué dice un pago por sí mismo', () => {
+  it('cada estado de pago tiene un rótulo descriptivo (ninguno dice «Pendiente» a secas)', () => {
+    const estados = ['pending_verification', 'pending', 'processing', 'verified', 'approved', 'held_escrow', 'awaiting_confirmation', 'confirmed_for_payout', 'completed', 'disputed', 'refunded', 'rejected', 'failed', 'cancelled'];
+    for (const e of estados) {
+      const r = rotuloDelEstadoDeUnPago(e);
+      expect(r.rotulo.length).toBeGreaterThan(8);
+      expect(r.rotulo).not.toBe('Pendiente');
+      expect(r.clave).not.toBe('desconocido');
+    }
+  });
+
+  it('lo que pide acción del equipo va en tono «atender»; un estado nuevo no rompe la pantalla', () => {
+    expect(rotuloDelEstadoDeUnPago('pending_verification').tono).toBe('atender');
+    expect(rotuloDelEstadoDeUnPago('confirmed_for_payout').tono).toBe('atender');
+    expect(rotuloDelEstadoDeUnPago('completed').tono).toBe('fin');
+    expect(rotuloDelEstadoDeUnPago('algo_nuevo').rotulo).toBe('Pago: algo_nuevo');
+    expect(rotuloDelEstadoDeUnPago(null).rotulo).toBe('Pago sin estado');
   });
 });

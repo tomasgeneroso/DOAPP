@@ -26,6 +26,8 @@ import { getMyJobs, getWorkerJobs } from '../services/jobs';
 import { Job, AvailabilitySlot, AvailabilitySchedule } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import { estadoDePublicacion } from '../../shared/jobs/estadoDePublicacion';
+import SituacionDeLaOperacion from '../components/SituacionDeLaOperacion';
+import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const DAY_NAMES_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -63,6 +65,10 @@ export default function MyJobsScreen() {
   const availabilitySlotsRef = useRef<AvailabilitySlot[]>([]);
   const isAvailabilityPublicRef = useRef(false);
   const availabilityLocallyModified = useRef(false);
+
+  // Un trabajo, un contrato o un pago que cambian (aunque lo mueva otra persona o un cron) se ven al instante, sin volver a entrar.
+  const recargarTrabajos = useRecargaJuntada(() => { void fetchJobs(); });
+  useEventoEnVivo(['job:updated', 'myjobs:refresh', 'contract:updated', 'payment:updated', 'socket:reconectado'], recargarTrabajos);
 
   const fetchJobs = async () => {
     try {
@@ -358,6 +364,8 @@ export default function MyJobsScreen() {
         </View>
         <ChevronRight size={20} color={themeColors.text.muted} />
       </View>
+      {/* En qué está de punta a punta (el mismo estado que ve el equipo): solo cuando ya hay algo más que contar que «publicado / en revisión». */}
+      {['in_progress', 'completed', 'cancelled'].includes(String(item.status)) && <SituacionDeLaOperacion situacion={(item as any).situacion} />}
 
       <Text style={[styles.jobTitle, { color: themeColors.text.primary }]} numberOfLines={2}>
         {item.title}

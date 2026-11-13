@@ -5,6 +5,7 @@ import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket, useEventoEnVivo } from "@/hooks/useSocket";
+import SituacionDeLaOperacion from "@/components/SituacionDeLaOperacion";
 import { api } from "@/lib/api";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { PaymentModal } from "@/components/payments/PaymentModal";
@@ -154,6 +155,12 @@ export default function ContractDetail() {
 
   // Volvió la conexión después de un corte: se vuelve a pedir el contrato y sus pagos.
   useEventoEnVivo('socket:reconectado', () => {
+    loadContract();
+    loadPayments();
+  });
+
+  // Un pago o el trabajo que cambian (por ejemplo: le pagaron al trabajador) cambian lo que dice la situación.
+  useEventoEnVivo(['payment:updated', 'job:updated'], () => {
     loadContract();
     loadPayments();
   });
@@ -594,6 +601,7 @@ export default function ContractDetail() {
                   >
                     {getStatusLabel(contract.status)}
                   </span>
+                  <SituacionDeLaOperacion situacion={(contract as any).situacion} conExplicacion />
                   <span
                     className={`px-3 py-1 rounded-full font-medium ${getPaymentStatusColor(
                       contract.paymentStatus

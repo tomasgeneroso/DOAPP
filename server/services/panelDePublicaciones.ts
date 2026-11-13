@@ -6,6 +6,7 @@ import { User } from '../models/sql/User.model.js';
 import { conSistema } from '../db/contextoRls.js';
 import { buscarPublicaciones } from './vinculosDeId.js';
 import { resumenDePublicacion } from '../../shared/admin/resumenDePublicacion.js';
+import { situacionParaLaPersona, type SituacionParaLaPersona } from '../../shared/jobs/situacionParaLaPersona.js';
 
 /**
  * El panel de publicaciones del administrador: UNA fila por publicación, con su estado final, el de su contrato y el de su pago, y buscable por cualquier id
@@ -94,6 +95,47 @@ export async function resumenesDeTrabajos(trabajos: any[]): Promise<Map<string, 
   if (trabajos.length === 0) return new Map();
   const { contratosPorTrabajo, pagosPorTrabajo } = await relacionadosDe(trabajos);
   return new Map(trabajos.map((t) => [String(t.id), resumirTrabajo(t, contratosPorTrabajo.get(String(t.id)) ?? [], pagosPorTrabajo.get(String(t.id)) ?? [])]));
+}
+
+const ATRIBUTOS_DEL_TRABAJO = ['id', 'status', 'publicationPaid', 'publicationPaymentId', 'cancellationRequestedAt', 'clientId'];
+
+/**
+ * La situación de cada CONTRATO para quien lo mira (cliente o trabajador): el MISMO estado que ve el equipo, dicho para esa persona (`shared/jobs/situacionParaLaPersona.ts`).
+ * Se mide sobre ese contrato y los pagos de su trabajo (con varios trabajadores, cada uno ve lo suyo). Corre como SISTEMA porque lee pagos de otra persona (el pago de
+ * la publicación es del cliente), pero devuelve solo un rótulo, una explicación y un tono: nunca ids ni montos.
+ */
+export async function situacionesDeContratosParaPersona(contratos: any[], userId: string): Promise<Map<string, SituacionParaLaPersona>> {
+  if (contratos.length === 0) return new Map();
+  return conSistema(async () => {
+    const idsT = [...new Set(contratos.map((c) => String(c.jobId)).filter(Boolean))];
+    const trabajos: any[] = await Job.findAll({ where: { id: { [Op.in]: idsT } } as any, attributes: ATRIBUTOS_DEL_TRABAJO });
+    const { pagosPorTrabajo } = await relacionadosDe(trabajos);
+    const trabajoPorId = new Map<string, any>(trabajos.map((t) => [String(t.id), t]));
+    const salida = new Map<string, SituacionParaLaPersona>();
+    for (const c of contratos) {
+      const t = trabajoPorId.get(String(c.jobId));
+      if (!t) continue;
+      const resumen = resumirTrabajo(t, [c], pagosPorTrabajo.get(String(c.jobId)) ?? []);
+      salida.set(String(c.id), situacionParaLaPersona(resumen, String(c.clientId) === String(userId) ? 'cliente' : 'trabajador'));
+    }
+    return salida;
+  });
+}
+
+/** Lo mismo para TRABAJOS (los que publicó la persona): la situación del trabajo entero, con todos sus contratos y pagos. */
+export async function situacionesDeTrabajosParaPersona(trabajoIds: string[], userId: string): Promise<Map<string, SituacionParaLaPersona>> {
+  const ids = [...new Set(trabajoIds.map(String).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  return conSistema(async () => {
+    const trabajos: any[] = await Job.findAll({ where: { id: { [Op.in]: ids } } as any, attributes: ATRIBUTOS_DEL_TRABAJO });
+    const resumenes = await resumenesDeTrabajos(trabajos);
+    const salida = new Map<string, SituacionParaLaPersona>();
+    for (const t of trabajos) {
+      const r = resumenes.get(String(t.id));
+      if (r) salida.set(String(t.id), situacionParaLaPersona(r, String(t.clientId) === String(userId) ? 'cliente' : 'trabajador'));
+    }
+    return salida;
+  });
 }
 
 export async function panelDePublicaciones(opciones: { q?: string; estado?: string; limite?: number } = {}): Promise<RespuestaDelPanel> {

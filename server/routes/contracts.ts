@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
 import { getEffectiveTier } from '../services/platformPhase.js';
+import { situacionesDeContratosParaPersona } from "../services/panelDePublicaciones.js";
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { config } from '../config/env.js';
@@ -171,6 +172,9 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       limit: limitNum
     });
 
+    // En qué está cada contrato dicho para quien lo mira (el mismo estado que ve el equipo; regla del dueño, 2026-11-12).
+    const situaciones = await situacionesDeContratosParaPersona(contracts, String(req.user.id));
+
     res.json({
       success: true,
       count: contracts.length,
@@ -178,7 +182,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       page: pageNum,
       pages: Math.ceil(total / limitNum),
       hasMore: skip + contracts.length < total,
-      contracts,
+      contracts: contracts.map((c: any) => ({ ...c.toJSON(), situacion: situaciones.get(String(c.id)) ?? null })),
     });
   } catch (error: any) {
     res.status(500).json({
@@ -885,6 +889,11 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
     plano.liquidacion = await liquidacionDelContrato(contract);
+
+    // En qué está el contrato dicho para quien lo mira (el mismo estado que ve el equipo). Un administrador que lo mira ve el estado como lo ve el equipo en sus listas.
+    if (isParticipant) {
+      plano.situacion = (await situacionesDeContratosParaPersona([contract], String(req.user.id))).get(String(contract.id)) ?? null;
+    }
 
     res.json({
       success: true,

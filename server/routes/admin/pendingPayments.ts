@@ -22,6 +22,7 @@ import { pagableDesde } from "../../services/liberacionDeSaldo.js";
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
 import { respaldadosPorLaPublicacion, PAGOS_CON_LA_PLATA_ADENTRO } from "../../services/pagosAlTrabajador.js";
 import { pagosSinVincularPorContrato } from "../../services/vinculoDePagos.js";
+import { resumenesDeTrabajos } from "../../services/panelDePublicaciones.js";
 import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = express.Router();
@@ -116,6 +117,13 @@ interface ContractPaymentRow {
   proofs?: PaymentProofInfo[];
   // Worker payment proof (admin's proof of transfer to worker)
   workerPaymentProofUrl?: string | null;
+  /** Situación de punta a punta del trabajo (la misma cuenta que Publicaciones, Pagos y Contratos). */
+  situacion?: {
+    estadoFinal: { clave: string; rotulo: string };
+    contrato: { clave: string; rotulo: string };
+    pago: { clave: string; rotulo: string };
+    alerta: string | null;
+  } | null;
 }
 
 /**
@@ -395,6 +403,18 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         // Worker payment proof (admin's proof of transfer to worker)
         workerPaymentProofUrl: firstContract.paymentProofUrl || null,
       });
+    }
+
+    // La situación de cada fila, de punta a punta (regla del dueño, 2026-11-12: «todo debe estar con los mismos estados»): la misma cuenta que el panel de
+    // Publicaciones y las listas de Pagos y de Contratos, calculada en cada lectura.
+    const idsDeTrabajos = [...new Set(paymentRows.map((r) => String(r.jobId)).filter(Boolean))];
+    const trabajosDeLaLista: any[] = idsDeTrabajos.length
+      ? await Job.findAll({ where: { id: { [Op.in]: idsDeTrabajos } } as any, attributes: ['id', 'status', 'publicationPaid', 'publicationPaymentId', 'cancellationRequestedAt'] })
+      : [];
+    const resumenes = await resumenesDeTrabajos(trabajosDeLaLista);
+    for (const row of paymentRows) {
+      const r = resumenes.get(String(row.jobId));
+      row.situacion = r ? { estadoFinal: r.estadoFinal, contrato: r.contrato, pago: r.pago, alerta: r.alerta } : null;
     }
 
     // Sort the results

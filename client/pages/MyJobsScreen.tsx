@@ -33,6 +33,7 @@ import {
 import JobsCalendar from "../components/jobs/JobsCalendar";
 import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
+import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import ConfirmModal from "../components/ui/ConfirmModal";
 
 interface Job {
@@ -511,7 +512,7 @@ export default function MyJobsScreen() {
     fetchMyProposals();
   });
   useEventoEnVivo(
-    ['job:updated', 'myjobs:refresh', 'jobs:refresh', 'proposal:new', 'proposal:updated', 'contract:updated', 'socket:reconectado'],
+    ['job:updated', 'myjobs:refresh', 'jobs:refresh', 'proposal:new', 'proposal:updated', 'contract:updated', 'payment:updated', 'socket:reconectado'],
     recargarMisTrabajos,
   );
 
@@ -1047,6 +1048,8 @@ export default function MyJobsScreen() {
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status === "draft" && estaPendienteDePago(job) ? "pending_payment" : job.status)}`}>
                             {job.status === "draft" && estaPendienteDePago(job) ? t('jobs.status.pending_payment', 'Pendiente de Pago') : getStatusLabel(job.status)}
                           </span>
+                          {/* En qué está de punta a punta (el mismo estado que ve el equipo): solo cuando ya hay algo más que contar que «publicado / en revisión». */}
+                          {['in_progress', 'completed', 'cancelled'].includes(job.status) && <SituacionDeLaOperacion situacion={(job as any).situacion} />}
                           {getPaymentStatusBadge(job)}
                           {/* Tipo de entrega */}
                           {job.singleDelivery === false ? (

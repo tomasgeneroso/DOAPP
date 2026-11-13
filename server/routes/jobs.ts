@@ -34,6 +34,7 @@ import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.j
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
+import { situacionesDeTrabajosParaPersona } from "../services/panelDePublicaciones.js";
 import { ErrorResponse } from '../middleware/errorHandler.js';
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
@@ -440,11 +441,15 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
       countMap.set(p.jobId, parseInt(p.get('count'), 10));
     });
 
+    // En qué está cada trabajo dicho para quien lo publicó: el mismo estado que ve el equipo (regla del dueño, 2026-11-12: «todo debe estar con los mismos estados»).
+    const situaciones = await situacionesDeTrabajosParaPersona(jobIds.map(String), String(req.user.id));
+
     // Add proposal counts to jobs
     const jobsWithCounts = jobs.map(job => ({
       ...job.toJSON(),
       proposalCount: countMap.get(job.id) || 0,
-      payment: null
+      payment: null,
+      situacion: situaciones.get(String(job.id)) ?? null,
     }));
 
     res.json({
@@ -871,6 +876,11 @@ router.get("/:id",
     // pantalla le ofrece pagar dos veces lo que ya pagó).
     if (req.user && String((req.user as any).id) === String(job.clientId) && job.pendingNewPrice) {
       jobData.aumentoPendiente = await describirAumentoPendiente(job);
+    }
+
+    // Quien publicó el trabajo ve en qué está de punta a punta (el mismo estado que ve el equipo).
+    if (req.user && String((req.user as any).id) === String(job.clientId)) {
+      jobData.situacion = (await situacionesDeTrabajosParaPersona([String(job.id)], String((req.user as any).id))).get(String(job.id)) ?? null;
     }
 
     res.json({

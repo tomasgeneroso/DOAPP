@@ -189,3 +189,27 @@ export const ESTADOS_FINALES: ReadonlyArray<{ clave: string; rotulo: string; ton
   { clave: 'terminada_sin_contrato', rotulo: 'Terminada, sin contrato', tono: 'fin' },
   { clave: 'cancelada', rotulo: 'Cancelada', tono: 'cancelada' },
 ];
+
+/**
+ * Qué dice UN pago por sí mismo (no la operación entera): en qué paso de la verificación está. La lista de Pagos lo muestra además de la situación de punta a
+ * punta, y es lo que dice un pago que no es de un trabajo (una membresía), donde antes quedaba un «Pendiente» a secas (pedido del dueño, 2026-11-12).
+ */
+export function rotuloDelEstadoDeUnPago(status: string | null | undefined): Rotulo & { tono: TonoDeEstado } {
+  switch (status) {
+    case 'pending_verification': return { clave: 'por_verificar', rotulo: 'Pago por verificar', tono: 'atender' };
+    case 'pending': return { clave: 'pendiente', rotulo: 'Pago sin acreditar', tono: 'espera' };
+    case 'processing': return { clave: 'procesando', rotulo: 'Pago en proceso', tono: 'espera' };
+    case 'verified':
+    case 'approved': return { clave: 'aprobado', rotulo: 'Pago aprobado: falta la garantía', tono: 'atender' };
+    case 'held_escrow': return { clave: 'en_garantia', rotulo: 'Plata en garantía', tono: 'marcha' };
+    case 'awaiting_confirmation': return { clave: 'esperando_confirmacion', rotulo: 'Esperando la confirmación de las partes', tono: 'marcha' };
+    case 'confirmed_for_payout': return { clave: 'listo_para_pagar', rotulo: 'Confirmado: listo para pagar al trabajador', tono: 'atender' };
+    case 'completed': return { clave: 'completado', rotulo: 'Pago completado', tono: 'fin' };
+    case 'disputed': return { clave: 'en_disputa', rotulo: 'Pago en disputa', tono: 'atender' };
+    case 'refunded': return { clave: 'devuelto', rotulo: 'Pago devuelto', tono: 'cancelada' };
+    case 'rejected': return { clave: 'rechazado', rotulo: 'Pago rechazado', tono: 'cancelada' };
+    case 'failed': return { clave: 'fallido', rotulo: 'Pago fallido', tono: 'cancelada' };
+    case 'cancelled': return { clave: 'cancelado', rotulo: 'Pago cancelado', tono: 'cancelada' };
+    default: return { clave: 'desconocido', rotulo: status ? `Pago: ${status}` : 'Pago sin estado', tono: 'espera' };
+  }
+}

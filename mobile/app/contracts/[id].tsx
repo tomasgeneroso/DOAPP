@@ -44,6 +44,7 @@ import EmergencyButton from '../../components/EmergencyButton';
 import EscribirASoporte from '../../components/EscribirASoporte';
 import CompartirContrato from '../../components/CompartirContrato';
 import LiquidacionDelPago from '../../components/LiquidacionDelPago';
+import SituacionDeLaOperacion from '../../components/SituacionDeLaOperacion';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -70,6 +71,8 @@ export default function ContractDetailScreen() {
 
   // El contrato cambió (la otra parte confirmó, empezó solo, se acreditó el pago…) o volvió la conexión: se vuelve a pedir.
   const recargarContrato = useRecargaJuntada(() => fetchContract());
+  // Un pago o el trabajo que cambian (por ejemplo: le pagaron al trabajador) cambian lo que dice la situación.
+  useEventoEnVivo(['payment:updated', 'job:updated'], () => recargarContrato());
   useEventoEnVivo(['contract:updated', 'socket:reconectado'], (datos?: { contractId?: string; reconexion?: boolean }) => {
     if (!datos?.contractId || datos.reconexion || String(datos.contractId) === String(id)) recargarContrato();
   });
@@ -440,6 +443,8 @@ export default function ContractDetailScreen() {
             {getStatusText(contract.status)}
           </Text>
         </View>
+        {/* En qué está de punta a punta, dicho para quien lo mira (el mismo estado que ve el equipo). */}
+        <SituacionDeLaOperacion situacion={(contract as any).situacion} conExplicacion />
 
         {/* Job Info */}
         <TouchableOpacity

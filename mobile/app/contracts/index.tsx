@@ -19,6 +19,7 @@ import { leerLista } from '../../services/respuesta';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import AvisoSinProteccion from '../../components/AvisoSinProteccion';
+import SituacionDeLaOperacion from '../../components/SituacionDeLaOperacion';
 import { puedeReclamar } from '../../../shared/pagos/modoDePago';
 
 type TabType = 'as_client' | 'as_worker';
@@ -35,7 +36,8 @@ export default function ContractsScreen() {
 
   // Cualquier cambio de un contrato mío (o volver la conexión) recarga la lista, una sola vez aunque lleguen varios avisos juntos.
   const recargarContratos = useRecargaJuntada(() => fetchContracts());
-  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'socket:reconectado'], recargarContratos);
+  // También un pago o un trabajo que cambian: la situación (por ejemplo «falta que te paguen») depende de los pagos del trabajo.
+  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'payment:updated', 'job:updated', 'socket:reconectado'], recargarContratos);
 
   const fetchContracts = async () => {
     try {
@@ -164,6 +166,8 @@ export default function ContractsScreen() {
           </View>
           <ChevronRight size={20} color={themeColors.text.muted} />
         </View>
+        {/* En qué está de punta a punta, dicho para quien lo mira (el mismo estado que ve el equipo). */}
+        <SituacionDeLaOperacion situacion={(item as any).situacion} />
 
         <Text
           style={[

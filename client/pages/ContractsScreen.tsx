@@ -7,6 +7,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
+import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
+import type { SituacionParaLaPersona } from "../../shared/jobs/situacionParaLaPersona";
 import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag, Search, Plus } from "lucide-react";
 
 interface Contract {
@@ -31,6 +33,8 @@ interface Contract {
   startDate: string;
   createdAt: string;
   paymentStatus?: string;
+  /** En qué está de punta a punta, dicho para quien lo mira (el mismo estado que ve el equipo). */
+  situacion?: SituacionParaLaPersona | null;
 }
 
 type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'payment';
@@ -91,7 +95,8 @@ export default function ContractsScreen() {
 
   // Cualquier cambio de un contrato mío (o volver la conexión) recarga la lista, una sola vez aunque lleguen varios avisos juntos.
   const recargarContratos = useRecargaJuntada(() => fetchContracts(1, true));
-  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'socket:reconectado'], recargarContratos);
+  // También un pago que cambia: la situación (por ejemplo «falta que te paguen») depende de los pagos del trabajo.
+  useEventoEnVivo(['contract:updated', 'contracts:refresh', 'payment:updated', 'job:updated', 'socket:reconectado'], recargarContratos);
 
   const handleLoadMore = () => {
     fetchContracts(page + 1, false);
@@ -355,6 +360,7 @@ export default function ContractsScreen() {
                           >
                             {getStatusLabel(contract.status)}
                           </span>
+                          <SituacionDeLaOperacion situacion={contract.situacion} />
                           <span className="text-sm text-slate-600 dark:text-slate-400">
                             {isClient ? t('contracts.asClient', 'Como Cliente') : t('contracts.asFreelancer', 'Como Trabajador')}
                           </span>

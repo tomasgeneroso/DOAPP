@@ -10,6 +10,7 @@ import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
 import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
+import { rotuloDelEstadoDeUnPago } from "../../../shared/admin/resumenDePublicacion";
 import {
   CheckCircle,
   XCircle,
@@ -97,6 +98,8 @@ interface ContractPaymentRow {
   paymentRecordStatus?: string;
   /** El pago existe pero quedó suelto (sin contrato): se vincula desde «Gestión de contratos». */
   pagoSinVincular?: boolean;
+  /** Situación de punta a punta del trabajo (la misma cuenta que Publicaciones, Pagos y Contratos). */
+  situacion?: { estadoFinal: { clave: string; rotulo: string }; contrato: { clave: string; rotulo: string }; pago: { clave: string; rotulo: string }; alerta: string | null } | null;
   paymentId?: string;
   proofs?: PaymentProofInfo[];
   // Worker payment proof (admin's proof of transfer to worker)
@@ -1838,18 +1841,17 @@ export default function PendingPayments() {
                                   {payment.situacion.alerta && (
                                     <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {payment.situacion.alerta}</div>
                                   )}
+                                  {/* Y en qué paso está ESTE pago (por verificar, en garantía, listo para pagar…): la lista es de pagos. */}
+                                  <div className="text-[11px] text-gray-500 dark:text-gray-400" data-testid="paso-de-este-pago">Este pago: {rotuloDelEstadoDeUnPago(payment.status).rotulo}</div>
                                 </>
                               ) : (
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                contractStatus === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                                contractStatus === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                              }`}>
-                                {contractStatus === 'completed' ? 'Completado' :
-                                 contractStatus === 'in_progress' ? 'En Progreso' :
-                                 contractStatus === 'awaiting_confirmation' ? 'Esperando Confirm.' :
-                                 contractStatus || 'Pendiente'}
-                              </span>
+                                // Un pago que no es de un trabajo (membresía…): dice en qué paso está, no «Pendiente» a secas.
+                                <span
+                                  data-testid="situacion-del-pago"
+                                  className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${TONOS[rotuloDelEstadoDeUnPago(payment.status).tono]}`}
+                                >
+                                  {rotuloDelEstadoDeUnPago(payment.status).rotulo}
+                                </span>
                               )}
                               {/* Confirmaciones de trabajo */}
                               <div className="flex items-center gap-1 text-xs mt-1">
@@ -2272,6 +2274,15 @@ export default function PendingPayments() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         ID: {payment.jobId.slice(0, 8)}...
                       </div>
+                      {/* Situación de punta a punta: la misma que ven Publicaciones, Pagos y Contratos. */}
+                      {payment.situacion && (
+                        <div className="mt-1 space-y-1" data-testid="situacion-del-pago-trabajador">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONOS[tonoDe(payment.situacion.estadoFinal.clave)]}`}>
+                            {payment.situacion.estadoFinal.rotulo}
+                          </span>
+                          {payment.situacion.alerta && <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {payment.situacion.alerta}</div>}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-900 dark:text-white">

@@ -39,6 +39,7 @@ describe('situación de cada pago en la lista de Pagos', () => {
     app = express();
     app.use(express.json());
     app.use('/api/admin/payments', (await import('../../server/routes/admin/payments.js')).default);
+    app.use('/api/admin/pending-payments', (await import('../../server/routes/admin/pendingPayments.js')).default);
     app.use('/api/admin/contracts', (await import('../../server/routes/admin/contracts.js')).default);
     cliente = await crearUsuario({ role: 'client' });
     trabajador = await crearUsuario({ role: 'doer' });
@@ -113,6 +114,25 @@ describe('situación de cada pago en la lista de Pagos', () => {
     const deLosPagos = await fila(pago.id);
     expect(c.situacion.estadoFinal).toEqual({ clave: 'terminada_falta_pagar', rotulo: 'Terminada: falta pagar al trabajador' });
     expect(c.situacion).toEqual(expect.objectContaining({ estadoFinal: deLosPagos.situacion.estadoFinal, pago: deLosPagos.situacion.pago }));
+  });
+
+  it('la lista de Pagos a trabajadores también dice la situación de punta a punta', async () => {
+    const trabajo: any = await crearTrabajo(cliente.id, { status: 'in_progress' });
+    creados.jobs.push(trabajo.id);
+    const contrato: any = await crearContrato({ jobId: trabajo.id, clientId: cliente.id, doerId: trabajador.id }, { status: 'completed', paymentStatus: 'pending_payout', clientConfirmed: true, doerConfirmed: true });
+    creados.contratos.push(contrato.id);
+    const pago: any = await Payment.create({
+      payerId: cliente.id, recipientId: trabajador.id, contractId: contrato.id, amount: 1000, amountArs: 1000, currency: 'ARS',
+      status: 'confirmed_for_payout', paymentType: 'contract_payment', paymentMethod: 'bank_transfer', platformFee: 0, platformFeePercentage: 0, isEscrow: true,
+    } as any);
+    creados.pagos.push(pago.id);
+
+    const r = await request(app).get('/api/admin/pending-payments?period=monthly').set(con(admin));
+    expect(r.status).toBe(200);
+    const fila = (r.body.report.data as any[]).find((x) => x.contractId === contrato.id);
+    expect(fila).toBeDefined();
+    expect(fila.situacion.estadoFinal.clave).toBe('terminada_falta_pagar');
+    expect(fila.situacion.pago.clave).toBe('falta_pagar_trabajador');
   });
 
   it('un pago que no es de un trabajo (por ejemplo una membresía) no inventa una situación', async () => {
