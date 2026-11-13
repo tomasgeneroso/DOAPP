@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { MapPin } from "lucide-react";
 import { getNeighborhoodSuggestions, type NeighborhoodEntry } from "@/data/argNeighborhoods";
+import type { AvisoDeDireccion } from "@/hooks/useCoherenciaDeDireccion";
 
 interface Props {
   locationValue: string;
@@ -9,6 +10,16 @@ interface Props {
   postalCode: string;
   onNeighborhoodChange: (value: string) => void;
   onPostalCodeChange: (value: string) => void;
+  /**
+   * La persona terminó de elegir o escribir el barrio (eligió uno de la lista, o salió del campo con otro texto): hay que dejar la dirección congruente
+   * (código postal, ciudad y mapa). Si lo eligió de la lista viene el código postal de esa lista.
+   */
+  onNeighborhoodCommit?: (barrio: string, codigoDeLaLista?: string) => void;
+  /** La persona terminó de escribir un código postal distinto: hay que actualizar el barrio, la ciudad y el mapa. */
+  onPostalCodeCommit?: (codigo: string) => void;
+  /** Qué se hizo (o qué no se pudo) al dejar la dirección congruente. */
+  aviso?: AvisoDeDireccion | null;
+  ubicando?: boolean;
   disabled?: boolean;
   inputClassName?: string;
 }
@@ -19,6 +30,10 @@ export default function NeighborhoodAutocomplete({
   postalCode,
   onNeighborhoodChange,
   onPostalCodeChange,
+  onNeighborhoodCommit,
+  onPostalCodeCommit,
+  aviso,
+  ubicando,
   disabled,
   inputClassName,
 }: Props) {
@@ -26,6 +41,11 @@ export default function NeighborhoodAutocomplete({
   const [suggestions, setSuggestions] = useState<NeighborhoodEntry[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // Lo que había en el campo al entrar: solo si al salir es otra cosa se vuelve a ubicar.
+  const barrioAlEntrar = useRef("");
+  const codigoAlEntrar = useRef("");
+  // Elegir de la lista se hace con el botón del mouse apretado, y el campo pierde el foco después: ese blur no es un texto nuevo.
+  const eligiendoDeLaLista = useRef(false);
   const baseInputClass =
     inputClassName ||
     "block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -48,6 +68,7 @@ export default function NeighborhoodAutocomplete({
   };
 
   const handleFocus = () => {
+    barrioAlEntrar.current = neighborhood;
     const results = getNeighborhoodSuggestions(locationValue, neighborhood);
     if (results.length > 0) {
       setSuggestions(results);
@@ -56,14 +77,31 @@ export default function NeighborhoodAutocomplete({
   };
 
   const handleSelect = (entry: NeighborhoodEntry) => {
+    eligiendoDeLaLista.current = true;
     onNeighborhoodChange(entry.neighborhood);
     onPostalCodeChange(entry.postalCode);
     setShowSuggestions(false);
+    onNeighborhoodCommit?.(entry.neighborhood, entry.postalCode);
+  };
+
+  const handleBlur = () => {
+    if (eligiendoDeLaLista.current) {
+      eligiendoDeLaLista.current = false;
+      return;
+    }
+    const escrito = neighborhood.trim();
+    if (escrito.length >= 3 && escrito !== barrioAlEntrar.current.trim()) onNeighborhoodCommit?.(escrito);
+  };
+
+  const handlePostalBlur = () => {
+    const cp = postalCode.trim();
+    if (cp.length >= 4 && cp !== codigoAlEntrar.current.trim()) onPostalCodeCommit?.(cp);
   };
 
   const hasSuggestions = getNeighborhoodSuggestions(locationValue, "").length > 0;
 
   return (
+    <div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* Neighborhood field */}
       <div ref={wrapperRef} className="relative">
@@ -78,10 +116,19 @@ export default function NeighborhoodAutocomplete({
           value={neighborhood}
           onChange={(e) => handleNeighborhoodInput(e.target.value)}
           onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            // Enter confirma el barrio (sale del campo, que lo ubica) sin mandar el formulario.
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
           placeholder={hasSuggestions ? t("location.neighborhoodSuggestPlaceholder", "Escribí para ver sugerencias…") : t("location.neighborhoodPlaceholder", "Ej: Palermo, Villa Crespo")}
           disabled={disabled}
           className={baseInputClass}
           autoComplete="off"
+          data-testid="campo-barrio"
         />
         {showSuggestions && (
           <ul className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg max-h-52 overflow-y-auto">
@@ -111,12 +158,32 @@ export default function NeighborhoodAutocomplete({
           type="text"
           value={postalCode}
           onChange={(e) => onPostalCodeChange(e.target.value.replace(/[^0-9A-Za-z]/g, ""))}
+          onFocus={() => { codigoAlEntrar.current = postalCode; }}
+          onBlur={handlePostalBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
           placeholder={t("location.postalCodePlaceholder", "Ej: C1425 o 1425")}
           maxLength={8}
           disabled={disabled}
           className={baseInputClass}
+          data-testid="campo-codigo-postal"
         />
       </div>
+    </div>
+    {ubicando && <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" role="status">Ubicando la zona en el mapa…</p>}
+    {!ubicando && aviso && (
+      <p
+        className={`mt-2 text-xs ${aviso.tipo === "problema" ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-300"}`}
+        role="status"
+        data-testid="aviso-de-direccion"
+      >
+        {aviso.texto}
+      </p>
+    )}
     </div>
   );
 }

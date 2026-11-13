@@ -1,5 +1,6 @@
 import express, { Response } from "express";
 import { protect, authorize } from "../../middleware/auth.js";
+import { ESTADOS_SIN_PAGO, SQL_ES_UN_INTENTO_ANIDADO, emparejarIntentos, esEstadoSinPago } from "../../../shared/pagos/intentosDePago.js";
 import { AuthRequest } from "../../types/index.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
@@ -306,6 +307,10 @@ router.get(
         ];
         conditions.push(literal(`(${parts.join(" OR ")})`));
       }
+      // Los intentos de pago que no se completaron (se tocó «Pagar» y no se pagó) no se listan por su cuenta cuando después hubo un pago efectivo del mismo
+      // trato: van anidados dentro de ese pago, solo como rastro. Con un filtro de estado puesto se muestran todos (si no, «pendientes» saldría vacío).
+      const sinFiltroDeEstado = !status || status === 'all';
+      if (sinFiltroDeEstado) conditions.push(literal(`NOT ${SQL_ES_UN_INTENTO_ANIDADO}`));
       where[Op.and] = conditions;
 
       // Withdrawals live in a separate model (WithdrawalRequest). When the admin
@@ -422,6 +427,33 @@ router.get(
         }
       }
 
+      // Los intentos de pago sin completar de cada pago efectivo de esta página (rastro, sin dinero).
+      const intentosPorPago = new Map<string, any[]>();
+      if (sinFiltroDeEstado) {
+        const efectivos = realPayments.filter((p: any) => !esEstadoSinPago(p.status));
+        if (efectivos.length > 0) {
+          const candidatos: any[] = await Payment.findAll({
+            where: {
+              status: { [Op.in]: [...ESTADOS_SIN_PAGO] },
+              payerId: { [Op.in]: [...new Set(efectivos.map((p: any) => p.payerId).filter(Boolean))] },
+              paymentType: { [Op.in]: [...new Set(efectivos.map((p: any) => p.paymentType))] },
+            } as any,
+            attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'paymentMethod'],
+            order: [['createdAt', 'ASC']],
+            limit: 500,
+          });
+          const paraEmparejar = (p: any) => ({ id: p.id, status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, createdAt: p.createdAt });
+          const porId = new Map(candidatos.map((c: any) => [c.id, c]));
+          const emparejados = emparejarIntentos(efectivos.map(paraEmparejar), candidatos.map(paraEmparejar));
+          for (const [pagoId, intentos] of emparejados) {
+            intentosPorPago.set(pagoId, intentos.map((i) => {
+              const c: any = porId.get(i.id);
+              return { id: c.id, date: c.createdAt, status: c.status, totalAmount: c.amount, paymentMethod: c.paymentMethod };
+            }));
+          }
+        }
+      }
+
       // Format transactions (only real user transactions)
       const transactions = realPayments.map((payment: any) => {
         const contract = payment.contract;
@@ -530,6 +562,9 @@ router.get(
 
           // Associated job for job_publication payments (enables linking to the publication)
           jobId: paymentToJobMap.get(payment.id)?.id || null,
+
+          // Intentos de pago anteriores que no se completaron (rastro, sin dinero): se muestran anidados a este pago.
+          intentos: intentosPorPago.get(payment.id) ?? [],
 
           // Payment IDs
           paypalOrderId: payment.paypalOrderId,

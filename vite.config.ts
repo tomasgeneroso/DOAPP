@@ -5,8 +5,14 @@ import fs from "fs";
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   envPrefix: ['VITE_', 'FACEBOOK_', 'GOOGLE_'],
+  // En el build, la web llama SIEMPRE a su propio sitio (`/api`, que nginx reenvía al backend), nunca a la dirección que traiga `VITE_API_URL`.
+  // Informe del dueño (2026-11-13): el servidor vuelve a compilar la web con SU `.env`, y el de staging se armó copiando el de producción, con
+  // `VITE_API_URL=https://doapparg.com/api`: la web de STAGING llamaba a la API de PRODUCCIÓN y el navegador la bloqueaba por CORS («Failed to fetch»)
+  // al confirmar un pago, abrir un expediente o aceptar/rechazar un pago. Es un monolito (la web y la API salen del mismo dominio), así que la dirección
+  // relativa es la correcta en producción, en staging y en cualquier dominio nuevo. En desarrollo (`vite`) no se toca: manda el proxy.
+  define: command === 'build' ? { 'import.meta.env.VITE_API_URL': JSON.stringify('/api') } : {},
   server: {
     host: "::",
     port: 5173,
@@ -92,4 +98,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./client"),
     },
   },
-});
+}));

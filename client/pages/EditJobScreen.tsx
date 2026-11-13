@@ -29,6 +29,7 @@ import { aCoordenada } from "@/utils/coordenadas";
 import { getImageUrl } from "@/utils/imageUrl";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
+import { useCoherenciaDeDireccion } from "@/hooks/useCoherenciaDeDireccion";
 import Transicion from "../components/ui/Transicion";
 
 interface FormFieldProps {
@@ -299,15 +300,40 @@ export default function EditJobScreen() {
     return partes.length >= 2 ? { ciudad: partes[0], provincia: partes[partes.length - 1] } : {};
   })();
 
+  /**
+   * Cambiar el barrio o el código postal a mano deja la dirección congruente (pedido del dueño, 2026-11-13): se ubica lo escrito y cambian con ello el mapa, la
+   * ciudad y el código postal (o el barrio); si la calle de antes ya no corresponde, se borra y se avisa.
+   */
+  const coherencia = useCoherenciaDeDireccion({
+    zona: contextoDeCalles,
+    hayCalle: !!addressStreet.trim(),
+    setLocation,
+    setNeighborhood,
+    setPostalCode,
+    setAddressStreet,
+    setAddressNumber,
+    setLatitude,
+    setLongitude,
+    setContextoGeo,
+  });
+
   /** Elegir una dirección exacta completa calle, número, barrio y código postal; un barrio o una localidad, lo que tengan. */
   const completarDesdeLugar = async (l: LugarSugerido) => {
+    coherencia.limpiarAviso();
+    // Otra ciudad o localidad: lo que había (calle, barrio, código postal) era de la anterior y no puede quedar mezclado con la nueva.
+    const cambioLaZona = !!l.ciudad && !!contextoDeCalles.ciudad && l.ciudad.trim().toLowerCase() !== contextoDeCalles.ciudad.trim().toLowerCase();
     setContextoGeo({ provincia: l.provincia || undefined, ciudad: l.ciudad || undefined });
     if (l.calle) {
       setAddressStreet(l.calle);
       setAddressNumber(l.numero);
+    } else if (cambioLaZona) {
+      setAddressStreet("");
+      setAddressNumber("");
     }
     if (l.barrio) setNeighborhood(l.barrio);
+    else if (cambioLaZona || l.calle) setNeighborhood("");
     if (l.codigoPostal) setPostalCode(l.codigoPostal);
+    else if (cambioLaZona || l.calle) setPostalCode("");
     if (!l.barrio || !l.codigoPostal) {
       const d = await detallesDeUbicacion(l.lat, l.lon);
       if (d) {
@@ -738,6 +764,10 @@ export default function EditJobScreen() {
                   postalCode={postalCode}
                   onNeighborhoodChange={setNeighborhood}
                   onPostalCodeChange={setPostalCode}
+              onNeighborhoodCommit={coherencia.completarDesdeBarrio}
+              onPostalCodeCommit={coherencia.completarDesdeCodigoPostal}
+              aviso={coherencia.aviso}
+              ubicando={coherencia.ubicando}
                   disabled={fieldsDisabled}
                 />
                 <FormField

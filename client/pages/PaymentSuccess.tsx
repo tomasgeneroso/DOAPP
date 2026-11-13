@@ -35,6 +35,8 @@ export default function PaymentSuccess() {
     status: "processing",
   });
   const [countdown, setCountdown] = useState(15);
+  // Sube cada vez que la persona toca «Reintentar»: vuelve a confirmar el pago contra el servidor.
+  const [reintento, setReintento] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
   // Log on mount to verify component is rendering
@@ -102,19 +104,34 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
 
         const authToken = localStorage.getItem("token");
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${authToken || ""}`
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            paymentId: payment_id || collection_id,
-            collection_id,
-            preference_id,
-          }),
-        });
+        // Un corte de red (el servidor reiniciándose, un salto de conexión) no tiene que dejar el pago sin confirmar: se reintenta solo unas veces. Confirmar es
+        // seguro de repetir (un pago ya procesado responde lo mismo que la primera vez).
+        let response: Response | undefined;
+        let ultimoError: unknown;
+        for (let intento = 0; intento < 4 && !response; intento++) {
+          if (intento > 0) await new Promise((r) => setTimeout(r, 1500 * intento));
+          try {
+            response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/payments/capture-order`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${authToken || ""}`
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                paymentId: payment_id || collection_id,
+                collection_id,
+                preference_id,
+              }),
+            });
+          } catch (e) {
+            ultimoError = e;
+          }
+        }
+        if (!response) {
+          console.error("❌ Sin conexión con el servidor al confirmar el pago:", ultimoError);
+          throw new Error("No pudimos conectar con DOAPP para confirmar tu pago. Tu pago en Mercado Pago está aprobado: NO pagues de nuevo. Tocá «Reintentar» en unos segundos; si sigue igual, guardá los datos de abajo y escribinos.");
+        }
 
 
         if (!response.ok) {
@@ -174,7 +191,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
 
     confirmPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, reintento]);
 
   // Countdown for auto-redirect
   useEffect(() => {
@@ -244,6 +261,18 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
               </div>
             )}
             <div className="space-y-3">
+              {!confirmation.message?.includes('No se encontraron parámetros') && (
+                <button
+                  onClick={() => {
+                    setConfirmation((prev) => ({ ...prev, status: "processing", message: undefined }));
+                    setReintento((n) => n + 1);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
+                  data-testid="reintentar-confirmacion"
+                >
+                  Reintentar
+                </button>
+              )}
               <button
                 onClick={() => navigate("/")}
                 className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"

@@ -1672,7 +1672,7 @@ export default function JobDetail() {
                   )}
                   <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
                     {(job as any).partialStartAllowed === false
-                      ? `Necesita el equipo completo: no empieza hasta cubrir los ${job.maxWorkers} lugares.`
+                      ? `Necesita los ${job.maxWorkers} trabajadores sí o sí para iniciar el trabajo: no empieza hasta cubrir todos los lugares.`
                       : `Puede empezar igual con menos de ${job.maxWorkers} trabajadores si el dueño lo confirma.`}
                   </p>
                   {isOwnJob &&

@@ -1,5 +1,5 @@
 import { useCambiosDeAdministracion } from "../../hooks/useSocket";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -46,8 +46,26 @@ import {
   AreaChart
 } from "recharts";
 
+/** Un intento de pago que no se completó: se tocó «Pagar» y no se pagó. Solo rastro, sin dinero (anidado al pago que sí se hizo). */
+interface IntentoDePago {
+  id: string;
+  date: string;
+  status: string;
+  totalAmount: number;
+  paymentMethod?: string | null;
+}
+
+const ROTULO_DE_INTENTO: Record<string, string> = {
+  pending: 'Sin pagar',
+  processing: 'Sin completar',
+  failed: 'Fallido',
+  cancelled: 'Cancelado',
+};
+
 interface Transaction {
   id: string;
+  /** Intentos de pago anteriores que no se completaron (rastro). */
+  intentos?: IntentoDePago[];
   /** El contrato al que pertenece el pago (si tiene uno): para ir a gestionarlo. */
   contractId?: string | null;
   date: string;
@@ -1269,7 +1287,8 @@ export default function FinancialTransactions() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedTransactions().map((transaction) => (
-                <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <Fragment key={transaction.id}>
+                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4">
                     <div
                       className="text-xs font-mono text-gray-600 dark:text-gray-400 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
@@ -1455,6 +1474,23 @@ export default function FinancialTransactions() {
                     </div>
                   </td>
                 </tr>
+                {transaction.intentos && transaction.intentos.length > 0 && (
+                  <tr className="bg-gray-50/70 dark:bg-gray-900/30" data-testid="intentos-de-pago">
+                    <td colSpan={20} className="px-6 py-2">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        ↳ {transaction.intentos.length === 1 ? '1 intento de pago anterior' : `${transaction.intentos.length} intentos de pago anteriores`} de esta operación, sin completar (solo rastro, no movieron dinero)
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {transaction.intentos.map((i) => (
+                          <li key={i.id} className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                            {i.id.slice(-8).toUpperCase()} · {new Date(i.date).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {ROTULO_DE_INTENTO[i.status] || i.status}
+                          </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

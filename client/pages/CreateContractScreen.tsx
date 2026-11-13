@@ -41,6 +41,7 @@ import MontoEnPesos from "@/components/ui/MontoEnPesos";
 import { detallesDeUbicacion, sanearCalle, sanearNumeroDePuerta, validarCalleYNumero, type LugarSugerido } from "../../shared/geo/lugares";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
+import { useCoherenciaDeDireccion } from "@/hooks/useCoherenciaDeDireccion";
 
 interface FormFieldProps {
   label: string;
@@ -277,15 +278,40 @@ export default function CreateContractScreen() {
     return partes.length >= 2 ? { ciudad: partes[0], provincia: partes[partes.length - 1] } : {};
   })();
 
+  /**
+   * Cambiar el barrio o el código postal a mano deja la dirección congruente (pedido del dueño, 2026-11-13): se ubica lo escrito y cambian con ello el mapa, la
+   * ciudad y el código postal (o el barrio); si la calle de antes ya no corresponde, se borra y se avisa.
+   */
+  const coherencia = useCoherenciaDeDireccion({
+    zona: contextoDeCalles,
+    hayCalle: !!addressStreet.trim(),
+    setLocation,
+    setNeighborhood,
+    setPostalCode,
+    setAddressStreet,
+    setAddressNumber,
+    setLatitude,
+    setLongitude,
+    setContextoGeo,
+  });
+
   /** Elegir una dirección exacta completa calle, número, barrio y código postal; un barrio o una localidad, lo que tengan. */
   const completarDesdeLugar = async (l: LugarSugerido) => {
+    coherencia.limpiarAviso();
+    // Otra ciudad o localidad: lo que había (calle, barrio, código postal) era de la anterior y no puede quedar mezclado con la nueva.
+    const cambioLaZona = !!l.ciudad && !!contextoDeCalles.ciudad && l.ciudad.trim().toLowerCase() !== contextoDeCalles.ciudad.trim().toLowerCase();
     setContextoGeo({ provincia: l.provincia || undefined, ciudad: l.ciudad || undefined });
     if (l.calle) {
       setAddressStreet(l.calle);
       setAddressNumber(l.numero);
+    } else if (cambioLaZona) {
+      setAddressStreet("");
+      setAddressNumber("");
     }
     if (l.barrio) setNeighborhood(l.barrio);
+    else if (cambioLaZona || l.calle) setNeighborhood("");
     if (l.codigoPostal) setPostalCode(l.codigoPostal);
+    else if (cambioLaZona || l.calle) setPostalCode("");
     // Lo que no vino en la sugerencia se pide por su ubicación (una consulta por elección).
     if (!l.barrio || !l.codigoPostal) {
       const d = await detallesDeUbicacion(l.lat, l.lon);
@@ -920,6 +946,10 @@ export default function CreateContractScreen() {
               postalCode={postalCode}
               onNeighborhoodChange={setNeighborhood}
               onPostalCodeChange={setPostalCode}
+              onNeighborhoodCommit={coherencia.completarDesdeBarrio}
+              onPostalCodeCommit={coherencia.completarDesdeCodigoPostal}
+              aviso={coherencia.aviso}
+              ubicando={coherencia.ubicando}
             />
 
             <FormField
@@ -1144,12 +1174,12 @@ export default function CreateContractScreen() {
                 <fieldset className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                   <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-300">¿La cantidad de trabajadores es imprescindible?</legend>
                   <label className="flex items-start gap-2 py-1 text-sm text-gray-700 dark:text-slate-300">
-                    <input type="radio" name="partialStartAllowed" checked={partialStartAllowed} onChange={() => setPartialStartAllowed(true)} className="mt-0.5" />
-                    <span><strong>No</strong>: puede empezar igual con menos (por ejemplo 1 de {maxWorkers}) si se lo confirmo a quien ya aceptó.</span>
+                    <input type="radio" name="partialStartAllowed" checked={!partialStartAllowed} onChange={() => setPartialStartAllowed(false)} className="mt-0.5" />
+                    <span><strong>Sí</strong>: necesito los {maxWorkers} trabajadores sí o sí para iniciar el trabajo.</span>
                   </label>
                   <label className="flex items-start gap-2 py-1 text-sm text-gray-700 dark:text-slate-300">
-                    <input type="radio" name="partialStartAllowed" checked={!partialStartAllowed} onChange={() => setPartialStartAllowed(false)} className="mt-0.5" />
-                    <span><strong>Sí</strong>: necesito los {maxWorkers} trabajadores; no empieza hasta cubrir todos los lugares.</span>
+                    <input type="radio" name="partialStartAllowed" checked={partialStartAllowed} onChange={() => setPartialStartAllowed(true)} className="mt-0.5" />
+                    <span><strong>No</strong>: puede empezar igual con menos de lo requerido (por ejemplo 1 de {maxWorkers}).</span>
                   </label>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Los trabajadores lo ven antes de postularse.</p>
                 </fieldset>
