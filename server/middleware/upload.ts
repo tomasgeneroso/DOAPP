@@ -374,6 +374,29 @@ export const uploadDailyLogAttachments = multer({
 }).array("archivos", 5);
 
 /**
+ * Fotos de entrega del contrato (pedido del dueño, 2026-11-13): al terminar el trabajo, quien lo hizo puede dejar fotos de cómo quedó. Solo imágenes (no
+ * videos ni documentos: es una prueba de cómo se entregó, no un expediente), hasta 5 por vez y 5 MB cada una; el tope total por contrato lo pone la ruta.
+ * Carpeta propia y PRIVADA (`archivosPrivados.ts`): son fotos del interior de una casa y las ven solo las partes del contrato y el equipo.
+ */
+const DELIVERY_DIR = path.join(UPLOAD_DIR, "delivery");
+
+const deliveryStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    if (!fs.existsSync(DELIVERY_DIR)) fs.mkdirSync(DELIVERY_DIR, { recursive: true });
+    callback(null, DELIVERY_DIR);
+  },
+  filename: (req, file, callback) => {
+    callback(null, generateUniqueFilename(sanitizeFilename(file.originalname)));
+  },
+});
+
+export const uploadDeliveryPhotos = multer({
+  storage: deliveryStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: MAX_IMAGE_SIZE, files: 5 },
+}).array("fotos", 5);
+
+/**
  * Upload middleware for post gallery (images and videos)
  */
 export const uploadPostGallery = multer({

@@ -26,10 +26,12 @@ export interface ReferenciaDelCobro {
  * Una tarjeta de «Cobros pendientes»: plata que figura a nombre de la persona pero todavía no puede usar o retirar.
  *  - `a_favor`: devolución al cliente que espera a que la pasarela libere el pago original (todavía NO está en su saldo).
  *  - `en_liberacion`: ya está en su saldo (por ejemplo lo que cobra un trabajador por un contrato), pero se puede retirar recién desde `disponibleDesde`.
+ *  - `cobro_del_trabajo`: lo que cobra un trabajador de un contrato de UN solo lugar, que paga el equipo (no pasa por su saldo): se ve en espera de liberación con los
+ *    días que faltan y, ya liberado, el trabajador lo PIDE (`POST /api/balance/request-payout`).
  */
 export interface CobroPendiente {
   id: string;
-  tipo: 'a_favor' | 'en_liberacion';
+  tipo: 'a_favor' | 'en_liberacion' | 'cobro_del_trabajo';
   monto: number;
   /** Cómo se llama en la tarjeta («Devolución por una cancelación», «Cobro de un contrato»…). */
   etiqueta: string;
@@ -38,6 +40,10 @@ export interface CobroPendiente {
   disponibleDesde: string | null;
   trabajo: ReferenciaDelCobro | null;
   contrato: ReferenciaDelCobro | null;
+  /** Solo `cobro_del_trabajo`: ¿ya pasaron los plazos? */
+  liberado?: boolean;
+  /** Solo `cobro_del_trabajo`: cuándo lo pidió el trabajador (ISO), si ya lo pidió. */
+  pedidoEl?: string | null;
 }
 
 export const ETIQUETA_DEL_A_FAVOR: Record<MotivoDelAFavor, string> = {

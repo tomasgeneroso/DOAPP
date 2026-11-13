@@ -25,7 +25,8 @@ import { liquidacionDelContrato } from "../services/liquidacionDelContrato.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
-import { uploadDailyLogAttachments } from "../middleware/upload.js";
+import { uploadDailyLogAttachments, uploadDeliveryPhotos } from "../middleware/upload.js";
+import { promises as fsPromesas } from "fs";
 import { logAudit, logEvento, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
@@ -539,6 +540,84 @@ router.post(
         data: buildDailyLog(contrato, esCliente ? 'client' : 'worker'),
       });
     } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+/** Cuántas fotos de entrega puede tener un contrato en total (entre las dos partes). */
+const TOPE_DE_FOTOS_DE_ENTREGA = 8;
+
+/**
+ * @route   POST /api/contracts/:id/delivery-photos
+ * @desc    Dejar fotos de entrega: cómo quedó el trabajo (opcional; se ofrece al tocar «terminé el trabajo»)
+ * @access  Las partes del contrato, con el trabajo en marcha o esperando la confirmación
+ *
+ * Pedido del dueño (2026-11-13). No cambia el estado del contrato ni mueve plata: es una prueba más, con fecha y con autor, que la otra parte ve antes de
+ * confirmar y que el equipo ve si hay un reclamo. Las fotos se guardan en una carpeta privada (solo las partes y el equipo las abren).
+ */
+router.post(
+  "/:id/delivery-photos",
+  protect,
+  uploadDeliveryPhotos,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const archivos = (req.files as Express.Multer.File[]) || [];
+    // Una foto rechazada no se queda en el disco sin que nadie la pueda ver.
+    const descartar = async () => { await Promise.all(archivos.map((a) => fsPromesas.unlink(a.path).catch(() => undefined))); };
+    try {
+      const userId = req.user.id.toString();
+      if (archivos.length === 0) {
+        res.status(400).json({ success: false, code: 'SIN_FOTOS', message: "No llegó ninguna foto. Elegí imágenes (JPG, PNG o WebP)." });
+        return;
+      }
+      const contrato = await Contract.findByPk(req.params.id);
+      if (!contrato) {
+        await descartar();
+        res.status(404).json({ success: false, message: "Contrato no encontrado" });
+        return;
+      }
+      const esCliente = String((contrato as any).clientId) === userId;
+      const esTrabajador = String((contrato as any).doerId) === userId;
+      if (!esCliente && !esTrabajador) {
+        await descartar();
+        res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+        return;
+      }
+      if (!['in_progress', 'awaiting_confirmation'].includes(String(contrato.status))) {
+        await descartar();
+        res.status(409).json({ success: false, code: 'FOTOS_FUERA_DE_TIEMPO', message: "Las fotos de entrega se agregan mientras el trabajo está en marcha o esperando la confirmación." });
+        return;
+      }
+      const actuales = Array.isArray((contrato as any).deliveryPhotos) ? (contrato as any).deliveryPhotos : [];
+      if (actuales.length + archivos.length > TOPE_DE_FOTOS_DE_ENTREGA) {
+        await descartar();
+        res.status(400).json({
+          success: false,
+          code: 'TOPE_DE_FOTOS',
+          message: `Cada contrato admite hasta ${TOPE_DE_FOTOS_DE_ENTREGA} fotos de entrega y ya hay ${actuales.length}.`,
+        });
+        return;
+      }
+
+      const ahora = new Date().toISOString();
+      const nuevas = archivos.map((a) => ({
+        url: `/uploads/delivery/${a.filename}`,
+        nombre: a.originalname,
+        bytes: a.size,
+        subidoPor: (esCliente ? 'client' : 'worker') as 'client' | 'worker',
+        subidoPorId: userId,
+        subidoEl: ahora,
+      }));
+      (contrato as any).deliveryPhotos = [...actuales, ...nuevas];
+      contrato.changed('deliveryPhotos' as any, true);
+      await contrato.save();
+
+      const otraParte = esCliente ? (contrato as any).doerId : (contrato as any).clientId;
+      socketService.notifyUser(String(otraParte), 'contract:delivery-photos', { contractId: contrato.id, cantidad: nuevas.length, por: esCliente ? 'client' : 'worker' });
+
+      res.json({ success: true, fotos: (contrato as any).deliveryPhotos, tope: TOPE_DE_FOTOS_DE_ENTREGA });
+    } catch (error: any) {
+      await descartar();
       res.status(500).json({ success: false, message: error.message });
     }
   },

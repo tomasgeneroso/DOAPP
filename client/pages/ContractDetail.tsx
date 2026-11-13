@@ -16,6 +16,7 @@ import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import DailyLogPanel from "@/components/contracts/DailyLogPanel";
+import FotosDeEntrega, { SelectorDeFotos, subirFotosDeEntrega } from "@/components/contracts/FotosDeEntrega";
 import EmergencyButton from "@/components/contracts/EmergencyButton";
 import ContractReviewsPanel from "@/components/contracts/ContractReviewsPanel";
 import CompartirContrato from "@/components/contracts/CompartirContrato";
@@ -312,6 +313,8 @@ export default function ContractDetail() {
   const [proposedStart, setProposedStart] = useState('');
   const [proposedEnd, setProposedEnd] = useState('');
   const [confirmationNotes, setConfirmationNotes] = useState('');
+  // Fotos de cómo quedó el trabajo, que se ofrecen al tocar «terminé» (opcional; se suben antes de confirmar).
+  const [fotosAlTerminar, setFotosAlTerminar] = useState<File[]>([]);
   // Rejection state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -328,6 +331,17 @@ export default function ContractDetail() {
 
     setConfirmingWork(true);
     try {
+      // Las fotos van primero: la otra parte las ve cuando le llega el aviso de que terminó. Si no se pueden subir, no se confirma y se puede reintentar.
+      if (fotosAlTerminar.length > 0) {
+        try {
+          await subirFotosDeEntrega(id, fotosAlTerminar);
+          setFotosAlTerminar([]);
+        } catch (errorDeFotos: any) {
+          notify(errorDeFotos?.message || t('contracts.fotosDeEntrega.error', 'No se pudieron subir las fotos. Probá de nuevo o confirmá sin fotos.'));
+          setConfirmingWork(false);
+          return;
+        }
+      }
       const response = await api.post(`/contracts/${id}/confirm`, {
         proposedStartTime: proposedStart,
         proposedEndTime: proposedEnd,
@@ -1020,6 +1034,7 @@ export default function ContractDetail() {
                               </div>
                             </div>
                             <textarea placeholder={t('contracts.additionalNotesOptional', 'Additional notes (optional)')} value={confirmationNotes} onChange={(e) => setConfirmationNotes(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm resize-none" rows={2} />
+                            <SelectorDeFotos archivos={fotosAlTerminar} onChange={setFotosAlTerminar} disabled={confirmingWork} yaHay={Array.isArray(contract.deliveryPhotos) ? contract.deliveryPhotos.length : 0} />
                             <div className="flex gap-2">
                               <button onClick={handleProposeHours} disabled={confirmingWork} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
                                 {confirmingWork ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-4 w-4" />}
@@ -1480,6 +1495,15 @@ export default function ContractDetail() {
           )}
 
           {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
+          {(isClient || isDoer) && ['in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
+            <FotosDeEntrega
+              contractId={contract.id}
+              fotos={Array.isArray(contract.deliveryPhotos) ? contract.deliveryPhotos : []}
+              puedeAgregar={['in_progress', 'awaiting_confirmation'].includes(contract.status)}
+              onCambio={loadContract}
+            />
+          )}
+
           {(isClient || isDoer) &&
             ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
             <div className="mb-6">

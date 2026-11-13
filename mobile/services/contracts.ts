@@ -1,5 +1,32 @@
 import { Contract, ApiResponse } from '../types';
-import { get, post, put } from './api';
+import { get, post, put, upload } from './api';
+
+/** Una foto de entrega ya subida al contrato (la lista la devuelve el contrato como `deliveryPhotos`). */
+export interface FotoDeEntrega {
+  url: string;
+  nombre: string;
+  bytes: number;
+  subidoPor: 'client' | 'worker';
+  subidoEl: string;
+}
+
+/** Una foto elegida de la galería, todavía sin subir. */
+export interface FotoElegida {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+/**
+ * Sube las fotos de entrega de un contrato (opcional, al terminar el trabajo; pedido del dueño 2026-11-13). Hasta 5 por vez; el contrato admite 8 en total.
+ * No cambia el estado del contrato ni mueve plata.
+ */
+export async function uploadDeliveryPhotos(contractId: string, fotos: FotoElegida[]): Promise<ApiResponse<{ fotos: FotoDeEntrega[] }>> {
+  const form = new FormData();
+  fotos.slice(0, 5).forEach((f) => form.append('fotos', { uri: f.uri, name: f.name, type: f.type } as any));
+  const r: any = await upload<{ fotos: FotoDeEntrega[] }>(`/contracts/${contractId}/delivery-photos`, form);
+  return r;
+}
 
 /**
  * Servicio para gestión de contratos

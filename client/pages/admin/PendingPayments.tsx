@@ -98,6 +98,8 @@ interface ContractPaymentRow {
   paymentRecordStatus?: string;
   /** El pago existe pero quedó suelto (sin contrato): se vincula desde «Gestión de contratos». */
   pagoSinVincular?: boolean;
+  /** Cuándo el trabajador pidió su cobro (ya estaba liberado). */
+  cobroPedidoEl?: string | null;
   /** Situación de punta a punta del trabajo (la misma cuenta que Publicaciones, Pagos y Contratos). */
   situacion?: { estadoFinal: { clave: string; rotulo: string }; contrato: { clave: string; rotulo: string }; pago: { clave: string; rotulo: string }; alerta: string | null } | null;
   paymentId?: string;
@@ -2274,6 +2276,16 @@ export default function PendingPayments() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         ID: {payment.jobId.slice(0, 8)}...
                       </div>
+                      {/* El trabajador ya pidió su cobro(el pago estaba liberado): el equipo lo ve para pagarlo. */}
+                      {payment.cobroPedidoEl && (
+                        <span
+                          data-testid="cobro-pedido"
+                          className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                          title={`Lo pidió el ${new Date(payment.cobroPedidoEl).toLocaleDateString('es-AR')}`}
+                        >
+                          💸 Pidió el cobro
+                        </span>
+                      )}
                       {/* Situación de punta a punta: la misma que ven Publicaciones, Pagos y Contratos. */}
                       {payment.situacion && (
                         <div className="mt-1 space-y-1" data-testid="situacion-del-pago-trabajador">

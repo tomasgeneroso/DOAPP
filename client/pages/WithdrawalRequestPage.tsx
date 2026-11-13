@@ -27,6 +27,7 @@ import { etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem, type C
 import CobrosPendientes from "../components/CobrosPendientes";
 import { useToast } from "../components/ui/Toast";
 import { esLemon } from "../../shared/pagos/destinoDeRetiro";
+import { diasQueFaltan, RECORDATORIO_DE_LIBERACION } from "../../shared/pagos/cobroEnEspera";
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
@@ -45,6 +46,9 @@ export default function WithdrawalRequestPage() {
   const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
   // Una tarjeta por cada cobro pendiente, con su contrato y su trabajo.
   const [cobros, setCobros] = useState<CobroPendiente[]>([]);
+  // Lo que cobra de trabajos de un solo lugar (lo paga el equipo): en espera de liberación y ya liberado para pedir.
+  const [cobroEnEspera, setCobroEnEspera] = useState(0);
+  const [cobroLiberado, setCobroLiberado] = useState(0);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -75,6 +79,29 @@ export default function WithdrawalRequestPage() {
   const recargarRetiros = useRecargaJuntada(() => loadData());
   useEventoEnVivo(['balance:updated', 'withdrawal:updated', 'payment:updated', 'socket:reconectado'], recargarRetiros);
 
+  // La fecha más próxima en que se libera un cobro de trabajo todavía en espera.
+  const proximaDelTrabajo = cobros
+    .filter((c) => c.tipo === 'cobro_del_trabajo' && !c.liberado && c.disponibleDesde)
+    .map((c) => c.disponibleDesde as string)
+    .sort()[0] ?? null;
+
+  // El trabajador pide el cobro de un contrato ya liberado. No mueve plata: el equipo transfiere (services/cobrosDelTrabajador.ts).
+  const pedirCobro = async (contractId: string) => {
+    try {
+      const res = await fetch('/api/balance/request-payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ contractId }),
+      });
+      const data = await res.json();
+      if (data.success) toast.success('Cobro pedido', data.message);
+      else toast.error('No se pudo pedir el cobro', data.message);
+    } catch {
+      toast.error('No se pudo pedir el cobro', 'Probá de nuevo en un momento.');
+    }
+    await loadData();
+  };
+
   const loadData = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -92,6 +119,8 @@ export default function WithdrawalRequestPage() {
         setProximaLiquidacion(balanceData.proximaLiquidacion || null);
         setAFavorDetalle(Array.isArray(balanceData.aFavorPendienteDetalle) ? balanceData.aFavorPendienteDetalle : []);
         setCobros(Array.isArray(balanceData.cobrosPendientes) ? balanceData.cobrosPendientes : []);
+        setCobroEnEspera(Number(balanceData.cobroDelTrabajoEnEspera) || 0);
+        setCobroLiberado(Number(balanceData.cobroDelTrabajoLiberado) || 0);
         setCuentaDelPerfil(balanceData.cuentaDelPerfil || null);
         setEnfriamientoDelPerfil(balanceData.enfriamientoDelPerfil || null);
         setHorasDeEnfriamiento(Number(balanceData.horasDeEnfriamiento) || 24);
@@ -383,8 +412,22 @@ export default function WithdrawalRequestPage() {
           {enLiberacion > 0 && (
             <p className="mt-2 text-xs text-sky-100">
               + ${enLiberacion.toLocaleString('es-AR')} ya están en tu saldo de DOAPP, pero Mercado Pago todavía no liberó ese pago
-              {proximaLiberacion ? `: los vas a poder retirar desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')}` : ''}.
+              {proximaLiberacion ? `: faltan ${diasQueFaltan(proximaLiberacion)} ${diasQueFaltan(proximaLiberacion) === 1 ? 'día' : 'días'} (los vas a poder retirar desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}.
               {' '}No se retiran solos: cuando llegue la fecha, el retiro lo pedís vos desde esta pantalla.
+            </p>
+          )}
+          {cobroEnEspera > 0 && (
+            <div className="mt-2 text-xs text-sky-100" data-testid="saldo-en-espera">
+              <p>
+                + ${cobroEnEspera.toLocaleString('es-AR')} en espera de liberación por trabajos terminados
+                {proximaDelTrabajo ? `: faltan ${diasQueFaltan(proximaDelTrabajo)} ${diasQueFaltan(proximaDelTrabajo) === 1 ? 'día' : 'días'} (desde el ${fechaDeLiquidacion(proximaDelTrabajo)} lo podés pedir)` : ''}.
+              </p>
+              <p className="mt-1 opacity-90">{RECORDATORIO_DE_LIBERACION}</p>
+            </div>
+          )}
+          {cobroLiberado > 0 && (
+            <p className="mt-2 text-xs text-sky-100" data-testid="cobro-liberado">
+              + ${cobroLiberado.toLocaleString('es-AR')} ya liberados por trabajos terminados: pedí el cobro en la tarjeta de más abajo y el equipo de DOAPP te transfiere a tu cuenta.
             </p>
           )}
           {aFavorPendiente > 0 && (
@@ -434,7 +477,7 @@ export default function WithdrawalRequestPage() {
         </div>
       </div>
 
-      <CobrosPendientes cobros={cobros} />
+      <CobrosPendientes cobros={cobros} onPedirCobro={pedirCobro} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Request Form */}

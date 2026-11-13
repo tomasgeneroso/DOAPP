@@ -274,6 +274,15 @@ export class Contract extends Model {
   deliveries!: Delivery[];
 
   /**
+   * Fotos de entrega (pedido del dueño, 2026-11-13): las que deja quien terminó el trabajo para mostrar cómo quedó. Solo las ven las partes del contrato y el
+   * equipo. Cada una guarda quién la subió y cuándo (una foto sin autor no sirve de prueba). Hasta `TOPE_DE_FOTOS_DE_ENTREGA` por contrato.
+   */
+  @Default([])
+  @AllowNull(false)
+  @Column({ type: DataType.JSONB, field: 'delivery_photos' })
+  deliveryPhotos!: Array<{ url: string; nombre: string; bytes: number; subidoPor: 'client' | 'worker'; subidoPorId: string; subidoEl: string }>;
+
+  /**
    * Control diario del trabajo, dia por dia.
    *
    * Es opcional a proposito: nadie esta obligado a marcar nada. Sirve para dos
@@ -381,6 +390,10 @@ export class Contract extends Model {
   // Payment verification fields (for admin payout)
   @Column(DataType.STRING)
   paymentProofUrl?: string;
+
+  /** Cuándo el trabajador pidió el cobro de este contrato terminado (solo se puede pedir con el pago liberado; el pago lo hace el equipo). */
+  @Column(DataType.DATE)
+  payoutRequestedAt?: Date | null;
 
   @ForeignKey(() => User)
   @Column(DataType.UUID)

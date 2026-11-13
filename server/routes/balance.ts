@@ -86,7 +86,12 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const detalleDelAFavor = pendiente.monto > 0 ? await aFavorPendienteDetalle(String(req.user.id)) : [];
     // Las tarjetas de «Cobros pendientes»: lo a favor pendiente y lo que está en liberación, cada una con su contrato y su trabajo.
     const { cobrosPendientes } = await import('../services/liberacionDeSaldo.js');
-    const cobros = pendiente.monto > 0 || retirable.enLiberacion > 0 ? await cobrosPendientes(String(req.user.id)) : [];
+    const cobrosDelSaldo = pendiente.monto > 0 || retirable.enLiberacion > 0 ? await cobrosPendientes(String(req.user.id)) : [];
+    // Lo que cobra de un trabajo de UN solo lugar (lo paga el equipo, no pasa por su saldo): en espera de liberación o, ya liberado, para pedir (services/cobrosDelTrabajador.ts).
+    const { cobrosDelTrabajo } = await import('../services/cobrosDelTrabajador.js');
+    const delTrabajo = await cobrosDelTrabajo(String(req.user.id));
+    const cobros = [...cobrosDelSaldo, ...delTrabajo];
+    const sumar = (l: Array<{ monto: number }>) => Math.round(l.reduce((s, c) => s + (Number(c.monto) || 0), 0) * 100) / 100;
     res.status(200).json({
       success: true,
       cuentaDelPerfil: perfil
@@ -102,6 +107,10 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       proximaLiquidacion: pendiente.proximaLiquidacion,
       aFavorPendienteDetalle: detalleDelAFavor,
       cobrosPendientes: cobros,
+      // Resumen de lo que cobra de trabajos de un solo lugar: en espera de liberación y ya liberado (para pedir el cobro).
+      cobroDelTrabajoEnEspera: sumar(delTrabajo.filter((c) => !c.liberado)),
+      cobroDelTrabajoLiberado: sumar(delTrabajo.filter((c) => c.liberado && !c.pedidoEl)),
+      cobroDelTrabajoPedido: sumar(delTrabajo.filter((c) => !!c.pedidoEl)),
       // El saldo LIBERADO que puede usar ya para pagar una publicación (T&C 7.9): sin lo que está en liberación ni lo reservado para un retiro.
       saldoParaPagar: await (await import('../services/creditoDePublicacion.js')).saldoLiberadoUsable(String(req.user.id)),
       // Lo pendiente de cada publicación cancelada (`jobId` → monto): se puede usar para volver a publicar ESA publicación y ninguna otra.
@@ -118,6 +127,31 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       success: false,
       message: error.message || "Error al obtener saldo"
     });
+  }
+});
+
+/**
+ * El trabajador pide el cobro de un contrato terminado de un solo lugar, cuando ya se liberó (pedido del dueño, 2026-11-13).
+ * POST /api/balance/request-payout   { contractId }
+ * No mueve plata: deja una marca y avisa al equipo, que paga con todos sus controles (services/cobrosDelTrabajador.ts).
+ */
+router.post("/request-payout", protect, requireKyc, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const contractId = String(req.body?.contractId ?? '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) {
+      res.status(400).json({ success: false, code: 'CONTRATO_INVALIDO', message: 'Falta indicar de qué contrato pedís el cobro.' });
+      return;
+    }
+    const { pedirElCobro } = await import('../services/cobrosDelTrabajador.js');
+    const r = await pedirElCobro(String(req.user.id), contractId);
+    if ('code' in r) {
+      res.status(r.status).json({ success: false, code: r.code, message: r.message, disponibleDesde: r.disponibleDesde });
+      return;
+    }
+    res.status(200).json({ success: true, message: 'Pediste el cobro. El equipo de DOAPP te transfiere a tu cuenta y te avisamos cuando se acredite.', pedidoEl: r.pedidoEl, monto: r.monto });
+  } catch (error: any) {
+    console.error('Error al pedir el cobro:', error);
+    res.status(500).json({ success: false, message: error.message || 'No se pudo pedir el cobro' });
   }
 });
 

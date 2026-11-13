@@ -117,6 +117,8 @@ interface ContractPaymentRow {
   proofs?: PaymentProofInfo[];
   // Worker payment proof (admin's proof of transfer to worker)
   workerPaymentProofUrl?: string | null;
+  /** Cuándo el trabajador pidió su cobro (solo se puede pedir con el pago ya liberado), o null. El equipo lo paga como siempre. */
+  cobroPedidoEl?: string | null;
   /** Situación de punta a punta del trabajo (la misma cuenta que Publicaciones, Pagos y Contratos). */
   situacion?: {
     estadoFinal: { clave: string; rotulo: string };
@@ -402,6 +404,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         proofs: paymentProofs,
         // Worker payment proof (admin's proof of transfer to worker)
         workerPaymentProofUrl: firstContract.paymentProofUrl || null,
+        cobroPedidoEl: (firstContract as any).payoutRequestedAt ? new Date((firstContract as any).payoutRequestedAt).toISOString() : null,
       });
     }
 

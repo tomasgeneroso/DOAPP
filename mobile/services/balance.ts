@@ -19,8 +19,12 @@ interface BalanceData {
   proximaLiquidacion?: string | null;
   /** Cada cosa a favor pendiente, con su motivo y la fecha en que pasa al saldo. */
   aFavorPendienteDetalle?: AFavorPendienteItem[];
-  /** Una tarjeta por cada cobro pendiente (a favor pendiente o en liberación), con su contrato y su trabajo. */
+  /** Una tarjeta por cada cobro pendiente (a favor pendiente, en liberación o cobro de un trabajo), con su contrato y su trabajo. */
   cobrosPendientes?: CobroPendiente[];
+  /** Lo que cobra de trabajos de un solo lugar (lo paga el equipo): en espera de liberación, ya liberado para pedir, y ya pedido. */
+  cobroDelTrabajoEnEspera?: number;
+  cobroDelTrabajoLiberado?: number;
+  cobroDelTrabajoPedido?: number;
 }
 
 interface BalanceSummary {
@@ -59,6 +63,13 @@ export async function requestWithdrawal(data: {
   cbu: string;
 }): Promise<ApiResponse<{ withdrawal: WithdrawalRequest }>> {
   return post<{ withdrawal: WithdrawalRequest }>('/balance/withdraw', data);
+}
+
+/**
+ * El trabajador pide el cobro de un contrato terminado de un solo lugar, cuando ya se liberó. No mueve plata: el equipo de DOAPP transfiere.
+ */
+export async function requestPayout(contractId: string): Promise<ApiResponse<{ pedidoEl: string; monto: number }>> {
+  return post<{ pedidoEl: string; monto: number }>('/balance/request-payout', { contractId });
 }
 
 /**

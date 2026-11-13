@@ -202,12 +202,12 @@ export default function HomeScreen() {
       <Text style={[styles.heroSubtitle, { color: themeColors.text.secondary }]}>
         {user
           ? '¿Listo para empezar un nuevo proyecto o buscar oportunidades?'
-          : 'En DoApp, conectamos personas que necesitan servicios con quienes saben hacerlos. Garantizamos que el trabajo se complete o te devolvemos el dinero.'}
+          : 'Changas, arreglos y trabajos de todo tipo, con todo acordado por escrito. El trabajo se termina y el pago llega.'}
       </Text>
 
       {!user && (
         <Text style={[styles.heroSmallText, { color: themeColors.text.muted }]}>
-          Garantizamos que el trabajo se termine y que el pago sea efectuado en tiempo y forma. Publicá un trabajo, negociá directamente con la persona y pagá automáticamente solo cuando todo esté verificado.
+          Publicá lo que necesitás o encontrá trabajos: lo que se acuerda queda por escrito, tu pago queda guardado en DOAPP y se libera cuando el trabajo está terminado.
         </Text>
       )}
 

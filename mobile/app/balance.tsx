@@ -32,7 +32,8 @@ import { useTheme } from '../context/ThemeContext';
 import { esAFavorPendiente, etiquetaDelAFavor, fechaDeLiquidacion, type AFavorPendienteItem, type CobroPendiente } from '../../shared/pagos/aFavorPendiente';
 import CobrosPendientes from '../components/CobrosPendientes';
 import { useAuth } from '../context/AuthContext';
-import { getBalance, getTransactions, requestWithdrawal, getWithdrawals } from '../services/balance';
+import { getBalance, getTransactions, requestWithdrawal, getWithdrawals, requestPayout } from '../services/balance';
+import { diasQueFaltan, RECORDATORIO_DE_LIBERACION } from '../../shared/pagos/cobroEnEspera';
 import { extraerFacturas, pedirDireccionDeDescarga } from '../services/facturas';
 import { get } from '../services/api';
 import { BalanceTransaction, WithdrawalRequest, Invoice } from '../types';
@@ -53,6 +54,9 @@ export default function BalanceScreen() {
   const [proximaLiquidacion, setProximaLiquidacion] = useState<string | null>(null);
   const [aFavorDetalle, setAFavorDetalle] = useState<AFavorPendienteItem[]>([]);
   const [cobros, setCobros] = useState<CobroPendiente[]>([]);
+  // Lo que cobra de trabajos de un solo lugar (lo paga el equipo): en espera de liberación y ya liberado para pedir.
+  const [cobroEnEspera, setCobroEnEspera] = useState(0);
+  const [cobroLiberado, setCobroLiberado] = useState(0);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -75,6 +79,21 @@ export default function BalanceScreen() {
   const recargarSaldo = useRecargaJuntada(() => fetchData());
   useEventoEnVivo(['balance:updated', 'withdrawal:updated', 'payment:updated', 'socket:reconectado'], recargarSaldo);
 
+  // El trabajador pide el cobro de un contrato ya liberado. No mueve plata: el equipo transfiere.
+  const pedirCobro = async (contractId: string) => {
+    try {
+      const res: any = await requestPayout(contractId);
+      Alert.alert(res?.success ? 'Cobro pedido' : 'No se pudo pedir el cobro', res?.message || (res?.success ? 'El equipo de DOAPP te transfiere a tu cuenta.' : 'Probá de nuevo en un momento.'));
+    } catch (e: any) {
+      Alert.alert('No se pudo pedir el cobro', e?.message || 'Probá de nuevo en un momento.');
+    }
+    await fetchData();
+  };
+
+  // La fecha más próxima en que se libera un cobro de trabajo todavía en espera.
+  const proximaDelTrabajo =
+    cobros.filter((c) => c.tipo === 'cobro_del_trabajo' && !c.liberado && c.disponibleDesde).map((c) => c.disponibleDesde as string).sort()[0] ?? null;
+
   const fetchData = async () => {
     try {
       const [balanceRes, transactionsRes, withdrawalsRes, invoicesRes] = await Promise.all([
@@ -93,6 +112,8 @@ export default function BalanceScreen() {
         setProximaLiquidacion(balanceRes.data.proximaLiquidacion || null);
         setAFavorDetalle(balanceRes.data.aFavorPendienteDetalle || []);
         setCobros(balanceRes.data.cobrosPendientes || []);
+        setCobroEnEspera(balanceRes.data.cobroDelTrabajoEnEspera || 0);
+        setCobroLiberado(balanceRes.data.cobroDelTrabajoLiberado || 0);
         setPendingBalance(balanceRes.data.pendingBalance || 0);
       }
 
@@ -326,7 +347,29 @@ export default function BalanceScreen() {
               <Clock size={14} color="rgba(255,255,255,0.8)" />
               <Text style={styles.pendingText}>
                 En liberación: {formatPrice(enLiberacion)}
-                {proximaLiberacion ? ` (desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}
+                {proximaLiberacion ? ` (faltan ${diasQueFaltan(proximaLiberacion)} ${diasQueFaltan(proximaLiberacion) === 1 ? 'día' : 'días'}; desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}
+              </Text>
+            </View>
+          )}
+
+          {cobroEnEspera > 0 && (
+            <View style={{ marginTop: 6 }} testID="saldo-en-espera">
+              <View style={styles.pendingRow}>
+                <Clock size={14} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.pendingText}>
+                  En espera de liberación (trabajos terminados): {formatPrice(cobroEnEspera)}
+                  {proximaDelTrabajo ? ` · faltan ${diasQueFaltan(proximaDelTrabajo)} ${diasQueFaltan(proximaDelTrabajo) === 1 ? 'día' : 'días'}` : ''}
+                </Text>
+              </View>
+              <Text style={[styles.pendingText, { marginTop: 2, opacity: 0.9 }]}>{RECORDATORIO_DE_LIBERACION}</Text>
+            </View>
+          )}
+
+          {cobroLiberado > 0 && (
+            <View style={styles.pendingRow} testID="cobro-liberado">
+              <Clock size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.pendingText}>
+                Ya liberado por trabajos terminados: {formatPrice(cobroLiberado)}. Pedí el cobro en la tarjeta de abajo.
               </Text>
             </View>
           )}
@@ -349,7 +392,7 @@ export default function BalanceScreen() {
           </TouchableOpacity>
         </View>
 
-        <CobrosPendientes cobros={cobros} />
+        <CobrosPendientes cobros={cobros} onPedirCobro={pedirCobro} />
 
         {/* Withdraw Form */}
         {showWithdrawForm && (

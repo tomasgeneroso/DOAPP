@@ -146,6 +146,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
    * camino a un contrato vivo.
    */
   { label: 'jobs.payment_mode', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
+  { label: 'contracts.payout_requested_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS payout_requested_at TIMESTAMPTZ` },
+  { label: 'contracts.delivery_photos', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS delivery_photos JSONB NOT NULL DEFAULT '[]'::jsonb` },
   { label: 'contracts.payment_mode', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
   // Vencimiento de la orden de pago al terminar. Una orden abierta para siempre
   // es plata que nadie reclama y un contrato que nunca cierra.

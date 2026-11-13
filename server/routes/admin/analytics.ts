@@ -6,7 +6,8 @@ import { Dispute } from "../../models/sql/Dispute.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { AuditLog } from "../../models/sql/AuditLog.model.js";
-import { protect } from "../../middleware/auth.js";
+import { protect, authorize } from "../../middleware/auth.js";
+import { estadisticasDeTrabajos } from "../../services/estadisticasDeTrabajos.js";
 import { requirePermission } from "../../middleware/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
@@ -17,6 +18,18 @@ const router = express.Router();
 
 router.use(protect);
 router.use(requirePermission("admin:analytics"));
+
+// @route   GET /api/admin/analytics/trabajos
+// @desc    Cuántos trabajos hay en cada situación (realizados, sin terminar, sin pagar, sin publicar, publicados y sin comenzar, pausados…) y cómo van los contratos
+// @access  Solo el dueño (pedido del dueño, 2026-11-13). Solo cuenta: no trae ids, montos ni datos de personas.
+router.get("/trabajos", authorize("owner"), async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    res.json({ success: true, data: await estadisticasDeTrabajos() });
+  } catch (error: any) {
+    logger.error("analytics", `Error al contar los trabajos por situación: ${error?.message}`);
+    res.status(500).json({ success: false, message: "No se pudieron calcular las estadísticas de trabajos." });
+  }
+});
 
 // @route   GET /api/admin/analytics/overview
 // @desc    Resumen general de métricas

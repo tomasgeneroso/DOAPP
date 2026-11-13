@@ -208,6 +208,8 @@ export interface NotificationPreferences {
 }
 
 export interface Contract {
+  /** Fotos de entrega que dejaron las partes (solo las ven ellas y el equipo). */
+  deliveryPhotos?: Array<{ url: string; nombre: string; bytes: number; subidoPor: 'client' | 'worker'; subidoEl: string }>;
   /**
    * Con protección de pago ('escrow', el normal) o sin ella ('on_completion').
    * Sale de shared/pagos/modoDePago.ts, que es donde vive la regla de hasta

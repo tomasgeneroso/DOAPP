@@ -31,7 +31,8 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
+import { getContract, confirmContract, rejectConfirmation, uploadDeliveryPhotos, type FotoElegida } from '../../services/contracts';
+import FotosDeEntrega, { SelectorDeFotos } from '../../components/FotosDeEntrega';
 import { leerClave } from '../../services/respuesta';
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
@@ -65,6 +66,8 @@ export default function ContractDetailScreen() {
   const [proposedEndDate, setProposedEndDate] = useState('');
   const [proposedEndTime, setProposedEndTime] = useState('');
   const [confirmNotes, setConfirmNotes] = useState('');
+  // Fotos de cómo quedó el trabajo, que se ofrecen al confirmar las horas (opcional; se suben antes de confirmar).
+  const [fotosAlTerminar, setFotosAlTerminar] = useState<FotoElegida[]>([]);
   // Rejection
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -131,6 +134,16 @@ export default function ContractDetailScreen() {
 
     setConfirming(true);
     try {
+      // Las fotos van primero: la otra parte las ve cuando le llega el aviso. Si no se pueden subir, no se confirma y se puede reintentar.
+      if (fotosAlTerminar.length > 0) {
+        const subida = await uploadDeliveryPhotos(id!, fotosAlTerminar);
+        if (!subida.success) {
+          Alert.alert('No se pudieron subir las fotos', subida.message || 'Probá de nuevo o confirmá sin fotos.');
+          setConfirming(false);
+          return;
+        }
+        setFotosAlTerminar([]);
+      }
       const response = await confirmContract(id!, {
         proposedStartTime: startISO,
         proposedEndTime: endISO,
@@ -662,6 +675,16 @@ export default function ContractDetailScreen() {
           </>
         )}
 
+        {/* Fotos de entrega: cómo quedó el trabajo (opcional, al terminar). Evidencia, no dinero. */}
+        {(isClient || isDoer) && ['in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
+          <FotosDeEntrega
+            contractId={contract.id || ''}
+            fotos={contract.deliveryPhotos || []}
+            puedeAgregar={['in_progress', 'awaiting_confirmation'].includes(contract.status)}
+            onCambio={fetchContract}
+          />
+        )}
+
         {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
         {(isClient || isDoer) &&
           ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
@@ -786,6 +809,7 @@ export default function ContractDetailScreen() {
                   </View>
                 </View>
                 <TextInput style={[styles.hoursInput, styles.notesInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={confirmNotes} onChangeText={setConfirmNotes} placeholder="Notas (opcional)" placeholderTextColor={themeColors.text.muted} multiline />
+                <SelectorDeFotos fotos={fotosAlTerminar} onChange={setFotosAlTerminar} disabled={confirming} yaHay={(contract.deliveryPhotos || []).length} />
                 <View style={styles.hoursActions}>
                   <TouchableOpacity style={[styles.confirmButton, { flex: 1 }, confirming && styles.buttonDisabled]} onPress={handleProposeHours} disabled={confirming}>
                     {confirming ? <ActivityIndicator color="#fff" /> : (

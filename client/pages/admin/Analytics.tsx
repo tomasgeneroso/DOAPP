@@ -2,6 +2,7 @@ import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
+import EstadisticasDeTrabajos from "../../components/admin/EstadisticasDeTrabajos";
 import {
   TrendingUp,
   Users,
@@ -98,6 +99,9 @@ export default function Analytics() {
           <option value="90d">Últimos 90 días</option>
         </select>
       </div>
+
+      {/* Trabajos por situación: solo la ve el dueño (la tarjeta se oculta sola para los demás). */}
+      <EstadisticasDeTrabajos />
 
       {/* Stats Grid */}
       {stats && (

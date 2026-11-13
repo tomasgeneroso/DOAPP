@@ -8,6 +8,7 @@ import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "luc
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
 import type { Job } from "@/types";
+import { POLITICAS } from "../../shared/constants/policies";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
 import { useAdvertisements } from "../hooks/useAdvertisements";
 import Advertisement from "../components/Advertisement";
@@ -374,19 +375,32 @@ export default function Index() {
             <p className="pointer-events-none relative z-10 mx-auto mt-3 max-w-lg text-sm text-slate-400">
               {t('home.subtitleSecond')}
             </p>
+            {/* Tres sellos y la oferta de lanzamiento (textos del documento «Mensajes y textos»; los números salen de POLITICAS). */}
+            <ul className="pointer-events-none relative z-10 mt-5 flex flex-wrap justify-center gap-2" data-testid="sellos-de-la-portada">
+              {[t('home.sello1'), t('home.sello2'), t('home.sello3')].map((s) => (
+                <li key={s} className="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs font-medium text-slate-200 sm:text-sm">{s}</li>
+              ))}
+            </ul>
+            <p className="pointer-events-none relative z-10 mx-auto mt-3 max-w-lg text-xs text-slate-400 sm:text-sm" data-testid="oferta-de-lanzamiento">
+              {t('home.oferta', {
+                cupo: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES.toLocaleString('es-AR'),
+                contratos: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
+                meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO,
+              })}
+            </p>
             <div className="relative z-10 mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-sm sm:max-w-none sm:w-auto px-4 sm:px-0">
               <Link
-                to="/login"
+                to="/register"
                 className="w-full sm:w-auto text-center rounded-xl bg-orange-500 px-6 sm:px-10 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
               >
-                {t('home.publishJob')}
+                {t('home.registerFree')}
               </Link>
-              <Link
-                to="/register"
+              <a
+                href="#como-funciona"
                 className="w-full sm:w-auto text-center rounded-xl border-2 border-slate-600 px-6 sm:px-10 py-4 text-base font-semibold text-slate-300 hover:border-sky-500 hover:text-white transition-all duration-200"
               >
-                {t('home.ctaSeeJobs', 'Ver trabajos disponibles')}
-              </Link>
+                {t('home.howItWorksCta')}
+              </a>
             </div>
             {/* Scroll indicator */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
@@ -399,7 +413,7 @@ export default function Index() {
           <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
 
           {/* ① How it works — unified tabbed section */}
-          <div className="px-3 sm:px-4 py-16 sm:py-20 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
+          <div id="como-funciona" className="px-3 sm:px-4 py-16 sm:py-20 max-w-6xl mx-auto scroll-mt-16" style={{ position:'relative', zIndex:1 }}>
             {/* Heading */}
             <div className="text-center mb-10">
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
@@ -459,7 +473,7 @@ export default function Index() {
                   { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />, title: t('home.step1Worker'), desc: t('home.step1WorkerDesc') },
                   { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />, title: t('home.step2Worker'), desc: t('home.step2WorkerDesc') },
                   { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />, title: t('home.step3Worker'), desc: t('home.step3WorkerDesc') },
-                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />, title: t('home.step4Worker'), desc: t('home.step4WorkerDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />, title: t('home.step4Worker'), desc: t('home.step4WorkerDesc', { dias: POLITICAS.DIAS_LIBERACION_PAGO, horas: POLITICAS.AUTO_CONFIRMACION_HORAS }) },
                 ];
                 const steps = howItWorksTab === 'client' ? clientSteps : workerSteps;
                 return (

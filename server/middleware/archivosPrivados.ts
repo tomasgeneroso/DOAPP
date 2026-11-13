@@ -30,7 +30,7 @@ import { estaBaneadoAhora } from './auth.js';
  * app (cookie httpOnly o Bearer): un <img> del navegador manda la cookie solo.
  */
 
-export const CARPETAS_PRIVADAS = ['dni', 'payment-proofs', 'worker-payment-proofs', 'invoices', 'receipts', 'license-docs'] as const;
+export const CARPETAS_PRIVADAS = ['dni', 'payment-proofs', 'worker-payment-proofs', 'invoices', 'receipts', 'delivery', 'license-docs'] as const;
 type CarpetaPrivada = (typeof CARPETAS_PRIVADAS)[number];
 
 const ROLES_QUE_VEN_ARCHIVOS_PRIVADOS = ['owner', 'super_admin', 'admin', 'support', 'dpo'];
@@ -101,6 +101,15 @@ async function esElDuenoDelArchivo(user: any, carpeta: CarpetaPrivada, archivo: 
       for (const p of pruebas) {
         const pago: any = await Payment.findByPk(p.paymentId, { attributes: ['payerId', 'recipientId'] });
         if (pago && [String(pago.payerId), String(pago.recipientId)].includes(String(user.id))) return true;
+      }
+      return false;
+    }
+    case 'delivery': {
+      // Fotos de entrega del contrato: las ven las dos partes (el equipo entra por el rol, más abajo).
+      const { Contract } = await import('../models/sql/Contract.model.js');
+      for (const url of urls) {
+        const contrato: any = await Contract.findOne({ where: { deliveryPhotos: { [Op.contains]: [{ url }] } } as any, attributes: ['clientId', 'doerId'] });
+        if (contrato && [String(contrato.clientId), String(contrato.doerId)].includes(String(user.id))) return true;
       }
       return false;
     }
