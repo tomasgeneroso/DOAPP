@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, useNavigationType } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,15 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   useScrollDepth();
+
+  // Los textos legales abren siempre desde el principio (pedido del dueño, 2026-11-15: desde el pie de la página se abrían a mitad de camino, con el scroll
+  // de la página anterior). No se toca si la dirección trae un ancla (#…) ni al volver atrás, donde el navegador devuelve a la persona a donde estaba.
+  const tipoDeNavegacion = useNavigationType();
+  useEffect(() => {
+    const esLegal = /^\/(legal|terms|privacy)(\/|$)/.test(location.pathname);
+    if (!esLegal || location.hash || tipoDeNavegacion === "POP") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.hash, tipoDeNavegacion]);
 
   // Registro en pasos: mientras falte verificar la identidad y completar los datos, la persona sigue ese recorrido (en vez de entrar a la app
   // a medio registrar). Se dejan abiertas las pantallas del propio recorrido, los textos legales y la ayuda.

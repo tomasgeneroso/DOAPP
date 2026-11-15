@@ -3,7 +3,7 @@ import MisPublicacionesSinPublicar from "../components/jobs/MisPublicacionesSinP
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslation, Trans } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
@@ -375,13 +375,8 @@ export default function Index() {
             <p className="pointer-events-none relative z-10 mx-auto mt-3 max-w-lg text-sm text-slate-400">
               {t('home.subtitleSecond')}
             </p>
-            {/* Tres sellos y la oferta de lanzamiento (textos del documento «Mensajes y textos»; los números salen de POLITICAS). */}
-            <ul className="pointer-events-none relative z-10 mt-5 flex flex-wrap justify-center gap-2" data-testid="sellos-de-la-portada">
-              {[t('home.sello1'), t('home.sello2'), t('home.sello3')].map((s) => (
-                <li key={s} className="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs font-medium text-slate-200 sm:text-sm">{s}</li>
-              ))}
-            </ul>
-            <p className="pointer-events-none relative z-10 mx-auto mt-3 max-w-lg text-xs text-slate-400 sm:text-sm" data-testid="oferta-de-lanzamiento">
+            {/* La oferta de lanzamiento (los números salen de POLITICAS). Los tres sellos de antes («Todo por escrito», «Terminado y pagado», «Terminás y cobrás») se sacaron: pedido del dueño, 2026-11-15. */}
+            <p className="pointer-events-none relative z-10 mx-auto mt-5 max-w-lg text-xs text-slate-400 sm:text-sm" data-testid="oferta-de-lanzamiento">
               {t('home.oferta', {
                 cupo: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES.toLocaleString('es-AR'),
                 contratos: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO,
@@ -402,11 +397,6 @@ export default function Index() {
                 {t('home.howItWorksCta')}
               </a>
             </div>
-            {/* Scroll indicator */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
-              <span className="text-xs text-slate-500 uppercase tracking-widest">Scroll</span>
-              <div className="w-px h-8 bg-gradient-to-b from-slate-500 to-transparent" />
-            </div>
           </div>
 
           {/* ── SECTION DIVIDER ── */}
@@ -419,9 +409,6 @@ export default function Index() {
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
                 {t('home.howItWorks')}
               </h2>
-              <p className="mt-3 text-slate-400 text-sm sm:text-base">
-                {t('home.howItWorksSubtitle')}
-              </p>
             </div>
 
             {/* Tabs */}
@@ -452,10 +439,6 @@ export default function Index() {
 
             {/* Steps */}
             <div className="bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-700 transition-colors duration-300">
-              <p className="text-center text-slate-400 mb-8 text-sm">
-                {howItWorksTab === 'client' ? t('home.needServiceDesc') : t('home.offerServicesDesc')}
-              </p>
-
               {(() => {
                 const stepColors = [
                   { bg: 'bg-gradient-to-br from-sky-500 to-sky-600', badge: 'bg-sky-600', arrow: 'text-sky-400' },
@@ -516,18 +499,15 @@ export default function Index() {
           {/* ── SECTION DIVIDER ── */}
           <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
 
-          {/* ④ Showcase — Cada detalle, bajo control */}
+          {/* ④ Showcase — «Así se ve un trabajo en DoApp» */}
           <div className="relative px-3 sm:px-4 py-20 sm:py-28 overflow-hidden" style={{ zIndex:1 }}>
             <div className="relative max-w-6xl mx-auto">
               <div className="text-center mb-10">
                 <span className="inline-block px-4 py-1.5 bg-orange-500/20 text-orange-400 text-xs font-bold uppercase tracking-widest rounded-full border border-orange-500/30 mb-4">
                   {t('home.showcaseBadge', 'Así se ve un trabajo en DoApp')}
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                  <Trans i18nKey="home.showcaseTitle" components={{ hl: <span className="text-sky-400" /> }} defaults="Cada detalle, bajo <hl>control</hl>" />
-                </h2>
-                <p className="mt-3 text-slate-400 max-w-lg mx-auto text-sm sm:text-base">
-                  {t('home.showcaseSubtitle', 'Publicá lo que necesitás, elegí al mejor profesional y pagá de forma segura.')}
+                <p className="mt-3 text-slate-200 max-w-lg mx-auto text-lg sm:text-xl font-semibold">
+                  {t('home.showcaseSubtitle', 'Publicá lo que necesitás, elegí con quién trabajar.')}
                 </p>
               </div>
               {/*
