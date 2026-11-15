@@ -38,7 +38,6 @@ import {
   MoreVertical,
   Headphones,
   ClipboardList,
-  ShieldCheck,
   FileText,
 } from "lucide-react";
 import type { Job } from "@/types";
@@ -78,6 +77,7 @@ import AvisoSinProteccion from "../components/pagos/AvisoSinProteccion";
 import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
+import DetallesDelPago from "../components/jobs/DetallesDelPago";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
 export default function JobDetail() {
@@ -93,6 +93,8 @@ export default function JobDetail() {
   const [empezando, setEmpezando] = useState(false);
   const isAdmin = !!(user as any)?.adminRole;
   const [adminPayment, setAdminPayment] = useState<any>(null);
+  // «Detalles del pago» de MI publicación (lo ve quien publicó el trabajo; el equipo usa adminPayment, que además trae el comprobante).
+  const [detallePago, setDetallePago] = useState<any>(null);
   const lastPathRef = useRef(location.pathname);
   const [applying, setApplying] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -451,6 +453,19 @@ export default function JobDetail() {
     };
     fetchAdminPayment();
   }, [id, token, isAdmin, refreshKey]);
+
+  // Quien publicó el trabajo ve sus propios «Detalles del pago» (cuándo se aprobó el pago y el trabajo, y si fue automático o por un administrador).
+  const idDeQuienPublico = (job as any)?.client?.id ?? (job as any)?.clientId ?? (typeof (job as any)?.client === "string" ? (job as any).client : undefined);
+  const esQuienPublico = !!user?.id && !!idDeQuienPublico && String(idDeQuienPublico) === String(user.id);
+  useEffect(() => {
+    if (!id || !token || isAdmin || !esQuienPublico) return;
+    let vivo = true;
+    fetch(`/api/jobs/${id}/payment-details`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo && d?.success) setDetallePago(d.data?.detalle ?? null); })
+      .catch(() => { /* el panel es un extra: si falla, no se muestra */ });
+    return () => { vivo = false; };
+  }, [id, token, isAdmin, esQuienPublico, refreshKey, job?.status]);
 
   // Check if current user has already applied to this job
   useEffect(() => {
@@ -2418,49 +2433,11 @@ export default function JobDetail() {
               )}
             </div>
 
-            {/* Admin: publication payment + proof details */}
-            {isAdmin && adminPayment && (
-              <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                  <h2 className="text-lg font-bold text-indigo-900 dark:text-indigo-200">
-                    {t("jobs.detail.adminPaymentTitle", "Detalles de pago (admin)")}
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Estado del pago</p>
-                    <p className="font-medium text-slate-900 dark:text-white">
-                      {adminPayment.publicationPaid ? 'Pagado' : (adminPayment.payment?.status || 'Esperando pago')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.amount', 'Monto')}</p>
-                    <p className="font-medium text-slate-900 dark:text-white">
-                      ${Number(adminPayment.payment?.amount || adminPayment.price || 0).toLocaleString('es-AR')} ARS
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.commission', 'Comisión')}</p>
-                    <p className="font-medium text-slate-900 dark:text-white">
-                      ${Number(adminPayment.payment?.platformFee || 0).toLocaleString('es-AR')} ({Number(adminPayment.payment?.platformFeePercentage || 0).toFixed(1)}%)
-                    </p>
-                  </div>
-                  {adminPayment.payment?.paymentMethod && (
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.method', 'Método')}</p>
-                      <p className="font-medium text-slate-900 dark:text-white">{adminPayment.payment.paymentMethod}</p>
-                    </div>
-                  )}
-                  {adminPayment.client?.name && (
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.payer', 'Pagador')}</p>
-                      <p className="font-medium text-slate-900 dark:text-white">{adminPayment.client.name}</p>
-                    </div>
-                  )}
-                </div>
-
+            {/* Detalles del pago: plegable. Lo ve el equipo (con el comprobante y los enlaces) y quien publicó el trabajo. */}
+            {(isAdmin ? adminPayment?.detalle : detallePago) && (
+              <DetallesDelPago detalle={isAdmin ? adminPayment.detalle : detallePago} paraEquipo={isAdmin}>
+                {isAdmin && adminPayment && (
+                  <>
                 {/* Proof */}
                 {adminPayment.proof ? (
                   <div className="mt-4">
@@ -2495,7 +2472,9 @@ export default function JobDetail() {
                     </Link>
                   )}
                 </div>
-              </div>
+                  </>
+                )}
+              </DetallesDelPago>
             )}
 
             {/* Description */}

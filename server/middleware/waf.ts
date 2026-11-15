@@ -24,8 +24,11 @@ const WAF_CONFIG = {
   // Rate limiting por IP
   rateLimit: {
     windowMs: 60 * 1000, // 1 minuto
-    maxRequests: 100,    // máximo 100 requests por minuto por IP
-    blockDuration: 5 * 60 * 1000, // 5 minutos de bloqueo
+    // 2026-11-14 (pedido del dueño, «dar más intentos»): con 100 por minuto, abrir el panel o dos pestañas con avisos en vivo y fotos ya lo pasaba y la
+    // persona quedaba 5 minutos afuera con un cartel en inglés. 600 sigue frenando a un script (10 por segundo, sostenido) y no a una persona.
+    maxRequests: 600,    // máximo 600 requests por minuto por IP
+    blockDuration: 60 * 1000, // 1 minuto de bloqueo
+    autoBlacklistAfter: 20, // veces que se pasa del tope antes de quedar en la lista negra
   },
 
   // Rate limiting específico por endpoint
@@ -876,7 +879,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     logWafEvent(req, 'RATE_LIMIT', 'IP is temporarily blocked', true);
     return res.status(429).json({
       success: false,
-      message: 'Too many requests. Please try again later.',
+      message: 'Hiciste demasiados pedidos seguidos. Esperá un minuto y volvé a probar.',
       retryAfter: Math.ceil((ipState.blockedUntil - now) / 1000),
     });
   }
@@ -929,16 +932,16 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     wafStats.blockedRequests++;
     wafStats.rateLimitBlocks++;
 
-    // Auto-blacklist after 5 violations
-    if (ipState.violations >= 5) {
+    // Lista negra automática tras pasarse del tope muchas veces
+    if (ipState.violations >= WAF_CONFIG.rateLimit.autoBlacklistAfter) {
       blacklistIP(ip);
-      logWafEvent(req, 'AUTO_BLACKLIST', 'IP auto-blacklisted after 5 violations', true);
+      logWafEvent(req, 'AUTO_BLACKLIST', `IP auto-blacklisted after ${WAF_CONFIG.rateLimit.autoBlacklistAfter} violations`, true);
     }
 
     logWafEvent(req, 'RATE_LIMIT', `Exceeded ${WAF_CONFIG.rateLimit.maxRequests} requests/min`, true);
     return res.status(429).json({
       success: false,
-      message: 'Too many requests. Please try again later.',
+      message: 'Hiciste demasiados pedidos seguidos. Esperá un minuto y volvé a probar.',
       retryAfter: WAF_CONFIG.rateLimit.blockDuration / 1000,
     });
   }

@@ -4,8 +4,11 @@
  * anidar esos dos intentos al pago efectivo, solo para mostrar el rastro».
  *
  * Cada vez que alguien toca «Pagar» se crea un pago `pending` con su preferencia de Mercado Pago; si no lo completa, queda ahí para siempre. Un intento es un
- * pago SIN dinero (nunca llegó a pagarse) que tiene, de la misma persona y del mismo trabajo o contrato y del mismo tipo, otro pago POSTERIOR que sí avanzó. Ese
- * pago posterior es el efectivo y lleva a los intentos anidados; los intentos no se listan por su cuenta.
+ * pago SIN dinero (nunca llegó a pagarse) que tiene, de la misma persona y del mismo trabajo o contrato y del mismo tipo, otro pago POSTERIOR. Ese pago posterior
+ * es el que cuenta y lleva a los intentos anidados; los intentos no se listan por su cuenta.
+ *
+ * El que cuenta es el pago efectivo más cercano que vino después; si ninguno avanzó (pasa mientras el último pago todavía no se confirmó: en revisión, o
+ * confirmado en Mercado Pago pero sin procesar acá), cuenta el ÚLTIMO de todos y los anteriores son sus intentos (pedido del dueño, 2026-11-13, pantalla «Pagos»).
  */
 
 /** Estados de un pago en el que nunca entró dinero. */
@@ -37,17 +40,18 @@ export function esDelMismoTrato(intento: PagoParaEmparejar, pago: PagoParaEmpare
 }
 
 /**
- * A cada intento sin pago le toca el pago efectivo MÁS CERCANO que vino después. Devuelve, por id del pago efectivo, sus intentos (del más viejo al más nuevo).
- * Un intento sin pago efectivo posterior no aparece en el resultado (sigue listándose por su cuenta).
+ * A cada intento sin pago le toca el pago efectivo MÁS CERCANO que vino después o, si no hay, el último pago posterior (aunque tampoco esté pagado).
+ * Devuelve, por id del pago que cuenta, sus intentos (del más viejo al más nuevo). Un intento sin ningún pago posterior no aparece en el resultado (sigue
+ * listándose por su cuenta).
  */
 export function emparejarIntentos(pagos: PagoParaEmparejar[], intentos: PagoParaEmparejar[]): Map<string, PagoParaEmparejar[]> {
-  const efectivos = pagos.filter((p) => !esEstadoSinPago(p.status));
   const salida = new Map<string, PagoParaEmparejar[]>();
   for (const intento of [...intentos].sort((a, b) => instante(a.createdAt) - instante(b.createdAt))) {
     if (!esEstadoSinPago(intento.status)) continue;
-    const dueño = efectivos
+    const posteriores = pagos
       .filter((p) => p.id !== intento.id && instante(p.createdAt) > instante(intento.createdAt) && esDelMismoTrato(intento, p))
-      .sort((a, b) => instante(a.createdAt) - instante(b.createdAt))[0];
+      .sort((a, b) => instante(a.createdAt) - instante(b.createdAt));
+    const dueño = posteriores.find((p) => !esEstadoSinPago(p.status)) ?? posteriores[posteriores.length - 1];
     if (!dueño) continue;
     salida.set(dueño.id, [...(salida.get(dueño.id) ?? []), intento]);
   }
@@ -55,8 +59,8 @@ export function emparejarIntentos(pagos: PagoParaEmparejar[], intentos: PagoPara
 }
 
 /**
- * La condición SQL equivalente (para no listar los intentos ni contarlos en el total): un pago sin dinero al que le sigue, del mismo trato, uno que sí avanzó.
- * Se usa dentro de una consulta sobre `payments` con el alias "Payment".
+ * La condición SQL equivalente (para no listar los intentos ni contarlos en el total): un pago sin dinero al que le sigue, del mismo trato, otro pago (pagado o
+ * no: el último es el que cuenta). Se usa dentro de una consulta sobre `payments` con el alias "Payment".
  */
 export const SQL_ES_UN_INTENTO_ANIDADO = `(
   "Payment"."status"::text IN (${ESTADOS_SIN_PAGO.map((e) => `'${e}'`).join(', ')})
@@ -65,7 +69,6 @@ export const SQL_ES_UN_INTENTO_ANIDADO = `(
     WHERE ok.payer_id = "Payment"."payer_id"
       AND ok.payment_type::text = "Payment"."payment_type"::text
       AND ok.id <> "Payment"."id"
-      AND ok.status::text NOT IN (${ESTADOS_SIN_PAGO.map((e) => `'${e}'`).join(', ')})
       AND ok.created_at > "Payment"."created_at"
       AND (
         (COALESCE(ok.job_id::text, ok.metadata->>'jobId') IS NOT NULL

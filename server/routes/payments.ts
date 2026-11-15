@@ -870,7 +870,12 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     // Verify user is the payer
     if (payment.payerId !== userId) {
       console.error("❌ [CAPTURE] Unauthorized - PayerId:", payment.payerId, "vs UserId:", userId);
-      res.status(403).json({ success: false, message: "Unauthorized" });
+      // Con varias cuentas de prueba en el mismo navegador, la sesión de una pisa la de la otra: el pago es de una cuenta y quien confirma es otra.
+      res.status(403).json({
+        success: false,
+        code: 'PAGO_DE_OTRA_CUENTA',
+        message: 'Este pago lo hizo otra cuenta de DOAPP y ahora estás con una distinta (en el mismo navegador, entrar con otra cuenta cierra la anterior). Cerrá sesión, entrá con la cuenta que pagó y volvé a abrir esta página. El pago está aprobado: NO pagues de nuevo.',
+      });
       return;
     }
 

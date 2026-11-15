@@ -430,7 +430,8 @@ router.get(
       // Los intentos de pago sin completar de cada pago efectivo de esta página (rastro, sin dinero).
       const intentosPorPago = new Map<string, any[]>();
       if (sinFiltroDeEstado) {
-        const efectivos = realPayments.filter((p: any) => !esEstadoSinPago(p.status));
+        // El pago que cuenta es el último de cada operación, esté pagado o todavía no (si el último sigue sin confirmar, los anteriores son sus intentos).
+        const efectivos = realPayments;
         if (efectivos.length > 0) {
           const candidatos: any[] = await Payment.findAll({
             where: {

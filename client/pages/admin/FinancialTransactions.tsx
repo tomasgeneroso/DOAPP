@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getImageUrl } from "@/utils/imageUrl";
 import { COMMISSION_RATES } from "../../../shared/constants/membershipPricing";
 import { MINIMUM_COMMISSION_EUR } from "../../../shared/pricing/minimums";
+import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
 import ExcelJS from "exceljs";
 import {
   DollarSign,
@@ -1483,7 +1484,7 @@ export default function FinancialTransactions() {
                       <ul className="mt-1 space-y-0.5">
                         {transaction.intentos.map((i) => (
                           <li key={i.id} className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                            {i.id.slice(-8).toUpperCase()} · {new Date(i.date).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {ROTULO_DE_INTENTO[i.status] || i.status}
+                            {i.id.slice(-8).toUpperCase()} · {new Date(i.date).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {rotuloDelMetodo((i as any).paymentMethod) ?? 'Método sin dato'} · {ROTULO_DE_INTENTO[i.status] || i.status}
                           </li>
                         ))}
                       </ul>

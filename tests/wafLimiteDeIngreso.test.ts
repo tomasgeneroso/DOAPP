@@ -17,7 +17,17 @@ describe('límite de ingresos por minuto del WAF', () => {
   });
 
   it('el aviso al llegar al tope está en español (no «Too many requests…»)', () => {
-    expect(waf).not.toMatch(/Too many requests to this endpoint/);
+    expect(waf).not.toMatch(/Too many requests/);
     expect(waf).toMatch(/Demasiados intentos seguidos/);
+    expect(waf).toMatch(/demasiados pedidos seguidos/);
+  });
+
+  it('el tope general por IP aguanta el uso normal del panel (pedido del dueño 2026-11-14: «dar más intentos»)', () => {
+    const tope = /rateLimit:\s*\{[^}]*maxRequests:\s*(\d+)/.exec(waf);
+    const bloqueo = /rateLimit:\s*\{[^}]*blockDuration:\s*(\d+)\s*\*\s*1000/.exec(waf);
+    const lista = /autoBlacklistAfter:\s*(\d+)/.exec(waf);
+    expect(Number(tope![1])).toBeGreaterThanOrEqual(600);
+    expect(Number(bloqueo![1])).toBeLessThanOrEqual(60);
+    expect(Number(lista![1])).toBeGreaterThanOrEqual(20);
   });
 });

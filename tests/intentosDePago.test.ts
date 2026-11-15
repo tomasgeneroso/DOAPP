@@ -41,9 +41,23 @@ describe('emparejarIntentos', () => {
     expect(emparejarIntentos([c, d], [c, d]).get('d')!.map((i) => i.id)).toEqual(['c']);
   });
 
-  it('si no hay ningún pago efectivo, los intentos quedan sueltos (se listan solos)', () => {
-    const todos = [pago('a', 'pending', 46), pago('b', 'pending', 51)];
+  it('si ninguno se pagó (el último todavía en revisión), cuenta el ÚLTIMO y los anteriores son sus intentos', () => {
+    const todos = [pago('a', 'pending', 46), pago('b', 'pending', 51), pago('c', 'pending', 57)];
+    const m = emparejarIntentos(todos, todos);
+    expect([...m.keys()]).toEqual(['c']);
+    expect(m.get('c')!.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+
+  it('un intento sin ningún pago posterior queda suelto (se lista solo)', () => {
+    const todos = [pago('a', 'pending', 46)];
     expect(emparejarIntentos(todos, todos).size).toBe(0);
+  });
+
+  it('un pago efectivo más cercano gana sobre un intento posterior', () => {
+    const todos = [pago('a', 'pending', 10), pago('ok', 'completed', 20), pago('z', 'pending', 30)];
+    const m = emparejarIntentos(todos, todos);
+    expect(m.get('ok')!.map((i) => i.id)).toEqual(['a']);
+    expect(m.has('z')).toBe(false);
   });
 
   it('con varios pagos efectivos, cada intento va al más cercano que vino después', () => {
@@ -59,5 +73,7 @@ describe('emparejarIntentos', () => {
       expect(SQL_ES_UN_INTENTO_ANIDADO).toContain(`'${e}'`);
     }
     expect(esEstadoSinPago('held_escrow')).toBe(false);
+    // y no exige que el pago posterior esté pagado (el último cuenta aunque siga en revisión)
+    expect(SQL_ES_UN_INTENTO_ANIDADO).not.toMatch(/ok\.status/);
   });
 });

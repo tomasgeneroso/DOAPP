@@ -35,6 +35,7 @@ import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
 import { situacionesDeTrabajosParaPersona } from "../services/panelDePublicaciones.js";
+import { detalleDelPagoDeLaPublicacion } from "../services/detalleDelPagoDeLaPublicacion.js";
 import { ErrorResponse } from '../middleware/errorHandler.js';
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
@@ -462,6 +463,23 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// @route   GET /api/jobs/:id/payment-details
+// @desc    «Detalles del pago» de MI publicación: monto, comisión, método y cuándo y cómo se aprobó el pago y el trabajo (automático o por un administrador)
+// @access  Private (solo quien publicó el trabajo; el equipo usa /api/admin/jobs/:id/payment)
+router.get("/:id/payment-details", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+    if (!job || String(job.clientId) !== String(req.user.id)) {
+      res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+      return;
+    }
+    const { detalle } = await detalleDelPagoDeLaPublicacion(job, { verNombres: false });
+    res.json({ success: true, data: { detalle } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 

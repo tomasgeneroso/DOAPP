@@ -2,6 +2,8 @@ import { Router, Response } from "express";
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
 import { Payment, RESOLVED_PAYMENT_STATUSES, needsVerification } from "../../models/sql/Payment.model.js";
+import { ESTADOS_SIN_PAGO, SQL_ES_UN_INTENTO_ANIDADO, emparejarIntentos } from "../../../shared/pagos/intentosDePago.js";
+import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js";
 import { User } from "../../models/sql/User.model.js";
@@ -30,6 +32,16 @@ import fs from "fs";
 import { ErrorResponse } from '../../middleware/errorHandler.js';
 
 const router = Router();
+
+/**
+ * Cómo se pagó, para los rótulos de la lista. Antes todo pago sin id de Mercado Pago figuraba como «Transferencia Bancaria», aunque se hubiera pagado por
+ * Mercado Pago y todavía no estuviera confirmado: ahora manda lo que se eligió al pagar (`payments.payment_method`) y, si no está, el id de la pasarela.
+ */
+function metodoDelPago(payment: { mercadopagoPaymentId?: string | null; paymentMethod?: string | null }): string {
+  if (payment.mercadopagoPaymentId || payment.paymentMethod === 'mercadopago') return 'MercadoPago';
+  if (!payment.paymentMethod || payment.paymentMethod === 'bank_transfer') return 'Transferencia Bancaria';
+  return rotuloDelMetodo(payment.paymentMethod) ?? 'Transferencia Bancaria';
+}
 
 // Multer for admin-uploaded client payment proofs
 const clientProofStorage = multer.diskStorage({
@@ -751,6 +763,11 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       where.paymentType = paymentType;
     }
 
+    // Los intentos de pago sin completar (se tocó «Pagar» varias veces) no se listan por su cuenta: van anidados bajo el último pago de esa operación
+    // (pedido del dueño, 2026-11-13). Con una búsqueda o un filtro de otro estado se ven todos (el pago que los lleva podría quedar fuera del resultado).
+    const ocultaIntentos = !(search && String(search).trim()) && (!status || ['all', 'unverified', 'pending'].includes(String(status)));
+    if (ocultaIntentos) where[Op.and] = [literal(`NOT ${SQL_ES_UN_INTENTO_ANIDADO}`)];
+
     // Date range filter
     if (dateFrom || dateTo) {
       where.createdAt = {};
@@ -858,9 +875,9 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
           ...paymentObj,
           job: job?.toJSON(),
           // Información clave para el admin
-          paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+          paymentMethod: metodoDelPago(payment),
           hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
-          isMercadoPago: !!payment.mercadopagoPaymentId,
+          isMercadoPago: metodoDelPago(payment) === 'MercadoPago',
           displayInfo: {
             title: job?.title || 'Publicación de trabajo',
             type: payment.paymentType,
@@ -878,9 +895,9 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
         return {
           ...paymentObj,
           // Información clave para el admin
-          paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+          paymentMethod: metodoDelPago(payment),
           hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
-          isMercadoPago: !!payment.mercadopagoPaymentId,
+          isMercadoPago: metodoDelPago(payment) === 'MercadoPago',
           displayInfo: {
             title: paymentObj.contract?.job?.title || 'Contrato',
             type: payment.paymentType,
@@ -897,9 +914,9 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
 
       return {
         ...paymentObj,
-        paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+        paymentMethod: metodoDelPago(payment),
         hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
-        isMercadoPago: !!payment.mercadopagoPaymentId
+        isMercadoPago: metodoDelPago(payment) === 'MercadoPago'
       };
     }));
 
@@ -974,6 +991,29 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       : [];
     const resumenes = await resumenesDeTrabajos(trabajosDeLaPagina);
 
+    // Los intentos de pago anteriores de cada pago de esta página: solo rastro (nunca movieron dinero).
+    const intentosPorPago = new Map<string, any[]>();
+    if (ocultaIntentos && payments.length > 0) {
+      const candidatos: any[] = await Payment.findAll({
+        where: {
+          status: { [Op.in]: [...ESTADOS_SIN_PAGO] },
+          payerId: { [Op.in]: [...new Set((payments as any[]).map((p) => p.payerId).filter(Boolean))] },
+          paymentType: { [Op.in]: [...new Set((payments as any[]).map((p) => p.paymentType))] },
+        } as any,
+        attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'paymentMethod', 'mercadopagoPaymentId'],
+        order: [['createdAt', 'ASC']],
+        limit: 500,
+      });
+      const paraEmparejar = (p: any) => ({ id: String(p.id), status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, createdAt: p.createdAt });
+      const porId = new Map<string, any>(candidatos.map((c) => [String(c.id), c]));
+      for (const [pagoId, intentos] of emparejarIntentos((payments as any[]).map(paraEmparejar), candidatos.map(paraEmparejar))) {
+        intentosPorPago.set(pagoId, intentos.map((i) => {
+          const c = porId.get(i.id);
+          return { id: String(c.id), createdAt: c.createdAt, status: c.status, amount: c.amount, paymentMethod: c.paymentMethod };
+        }));
+      }
+    }
+
     const conComprobantes = paymentsWithJobs.map((row: any) => {
       const adminProofs = delAdminPorPago.get(String(row.id)) ?? [];
       const idTrabajo = trabajoDeCadaPago.get(String(row.id)) ?? null;
@@ -983,6 +1023,7 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
         adminProofs,
         hasProof: Boolean(row.hasProof) || adminProofs.length > 0,
         comprobanteDuplicado: repetidas.get(String(row.id)) ?? null,
+        intentos: intentosPorPago.get(String(row.id)) ?? [],
         enlaces: enlacesDe(row, originalPorId.get(String(row.id)) ?? row),
         situacion: resumen ? { trabajoId: idTrabajo, estadoFinal: resumen.estadoFinal, contrato: resumen.contrato, pago: resumen.pago, alerta: resumen.alerta } : null,
       };
@@ -1106,7 +1147,7 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
     // Add summary info for admin
     paymentData.adminSummary = {
       requiresAction: needsVerification(payment.status),
-      paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+      paymentMethod: metodoDelPago(payment),
       mercadopagoId: payment.mercadopagoPaymentId,
       amount: payment.amount,
       currency: payment.currency,

@@ -11,6 +11,7 @@ import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
 import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
 import { rotuloDelEstadoDeUnPago } from "../../../shared/admin/resumenDePublicacion";
+import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
 import {
   CheckCircle,
   XCircle,
@@ -1764,7 +1765,8 @@ export default function PendingPayments() {
                         const commissionPercentage = workerAmount > 0 ? ((commission / workerAmount) * 100).toFixed(1) : '0';
 
                         return (
-                        <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <React.Fragment key={payment.id}>
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2">
                               {payment.isMercadoPago ? (
@@ -2103,6 +2105,33 @@ export default function PendingPayments() {
                             </div>
                           </td>
                         </tr>
+                        {/* Los intentos de pago anteriores de esta operación (se tocó «Pagar» y no se completó): van debajo del pago, del más nuevo al más viejo, solo como rastro. */}
+                        {Array.isArray(payment.intentos) && payment.intentos.length > 0 && (
+                          <tr className="bg-gray-50/70 dark:bg-gray-900/30" data-testid="intentos-de-pago">
+                            <td colSpan={appSubFilter === "rejected" ? 11 : 10} className="px-4 pb-3 pt-1">
+                              <div className="ml-6 space-y-1 border-l-2 border-gray-300 pl-3 dark:border-gray-600">
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  ↳ {payment.intentos.length === 1 ? '1 intento de pago anterior' : `${payment.intentos.length} intentos de pago anteriores`} de esta operación, sin completar (solo rastro, no movieron dinero)
+                                </p>
+                                {[...payment.intentos].reverse().map((intento: any, posicion: number) => (
+                                  <div
+                                    key={intento.id}
+                                    data-testid="intento-de-pago"
+                                    className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                  >
+                                    <span className="font-semibold text-gray-800 dark:text-gray-100">Intento de pago {payment.intentos.length - posicion}</span>
+                                    <span>{new Date(intento.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span>${Number(intento.amount || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span data-testid="metodo-del-intento">{rotuloDelMetodo(intento.paymentMethod) ?? "Método sin dato"}</span>
+                                    <span>{rotuloDelEstadoDeUnPago(intento.status).rotulo}</span>
+                                    <IdBadge id={intento.id} />
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       );})
                     )}
                   </tbody>

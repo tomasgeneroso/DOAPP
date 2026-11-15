@@ -392,6 +392,12 @@ describe('POST /api/payments/capture-order: sólo se da por pagado lo que Mercad
     // 403 sin RLS; con RLS la base ni siquiera le muestra el pago ajeno y la ruta contesta 404. Las dos cosas dicen «no»: lo que importa es
     // que el pago queda pendiente y nada se activa.
     expect([403, 404]).toContain(r.status);
+    // Y cuando la base sí muestra el pago, el texto le dice qué pasó (antes: «Unauthorized», en inglés y sin salida).
+    if (r.status === 403) {
+      expect(r.body.code).toBe('PAGO_DE_OTRA_CUENTA');
+      expect(r.body.message).toMatch(/otra cuenta/i);
+      expect(r.body.message).toMatch(/NO pagues de nuevo/);
+    }
     expect(await estadoDe(id)).toBe('pending');
     await nadaSeActivo('pagador');
   });

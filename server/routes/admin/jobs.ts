@@ -7,6 +7,7 @@ import { Contract } from '../../models/sql/Contract.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { Payment } from '../../models/sql/Payment.model.js';
 import { PaymentProof } from '../../models/sql/PaymentProof.model.js';
+import { detalleDelPagoDeLaPublicacion } from '../../services/detalleDelPagoDeLaPublicacion.js';
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from '../../utils/sanitizer.js';
 import { logAudit } from '../../utils/auditLog.js';
@@ -1002,9 +1003,13 @@ router.get(
         }
       }
 
+      // Cuándo y cómo se aprobó el pago y el trabajo (automático o por un administrador), con nombres: es la vista del equipo.
+      const { detalle } = await detalleDelPagoDeLaPublicacion(job, { verNombres: true });
+
       res.json({
         success: true,
         data: {
+          detalle,
           jobId: job.id,
           status: job.status,
           price: Number(job.price) || 0,
