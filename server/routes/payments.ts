@@ -351,6 +351,10 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         paymentMethod: "mercadopago",
         mercadopagoPreferenceId: mpPayment.paymentId,
         description: `Publicación: ${job.title}`,
+        // De qué trabajo es: cada intento queda atado a su trabajo desde que se crea (antes solo el último, a través del trabajo), así los intentos sin
+        // completar se reconocen y se anidan bajo el último pago en las listas del equipo.
+        jobId: job.id,
+        metadata: { jobId: String(job.id), userId, paymentType: 'job_publication' },
         platformFee: publicationCost,
         platformFeePercentage: commissionResult.rate,
         processingCharge: split.processingCharge,

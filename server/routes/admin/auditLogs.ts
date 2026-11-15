@@ -4,7 +4,9 @@ import { requirePermission } from "../../middleware/permissions.js";
 import { AuditLog } from "../../models/sql/AuditLog.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { leerMetadata } from "../../utils/auditLog.js";
-import { Op } from "sequelize";
+import { Op, literal } from "sequelize";
+import { relacionadosParaElRegistro, type RelacionadosDelRegistro } from "../../services/busquedaEnRegistroDeAcciones.js";
+import { parecePedazoDeId } from "../../services/vinculosDeId.js";
 
 const router = Router();
 
@@ -42,12 +44,34 @@ router.get("/", protect, requirePermission("audit:read"), async (req: AuthReques
         where.createdAt[Op.lt] = end;
       }
     }
+    // Qué se incluyó al buscar por un id (para decírselo a quien busca): el objeto, sus pagos, contratos, personas…
+    let incluido: RelacionadosDelRegistro['resumen'] | null = null;
     if (search) {
-      where[Op.or] = [
-        { description: { [Op.iLike]: `%${search}%` } },
-        { action: { [Op.iLike]: `%${search}%` } },
-        { targetIdentifier: { [Op.iLike]: `%${search}%` } },
+      const texto = String(search).trim().slice(0, 100);
+      const escapado = texto.replace(/[%_\\]/g, "\\$&");
+      const condiciones: any[] = [
+        { description: { [Op.iLike]: `%${escapado}%` } },
+        { action: { [Op.iLike]: `%${escapado}%` } },
+        { targetIdentifier: { [Op.iLike]: `%${escapado}%` } },
       ];
+      // Un pedazo de id (del principio, del medio o del final: las pantallas muestran unos con los primeros 8 y otros con los últimos 8): el id del objeto
+      // sobre el que se actuó, y todo lo que está relacionado con él (publicación ↔ pagos ↔ contratos ↔ personas), también lo que se escribió antes.
+      if (parecePedazoDeId(texto) && texto.length >= 4) {
+        condiciones.push(literal(`CAST("AuditLog"."targetId" AS TEXT) ILIKE '%${texto.toLowerCase()}%'`));
+        condiciones.push(literal(`CAST("AuditLog"."performedBy" AS TEXT) ILIKE '%${texto.toLowerCase()}%'`));
+        condiciones.push(literal(`"AuditLog"."metadata"::text ILIKE '%${texto.toLowerCase()}%'`));
+        const rel = await relacionadosParaElRegistro(texto);
+        if (rel.ids.length) {
+          incluido = rel.resumen;
+          condiciones.push({ targetId: { [Op.in]: rel.ids } });
+          // Lo que HICIERON las personas relacionadas (por ejemplo, un cliente que cancela su publicación)
+          if (rel.personas.length) condiciones.push({ performedBy: { [Op.in]: rel.personas } });
+          // Ids relacionados escritos dentro de la metadata (un asiento sobre un pago puede nombrar el trabajo o el contrato ahí). Los ids ya son UUID válidos.
+          const enMetadata = rel.ids.slice(0, 150).map((id) => `'%${id}%'`).join(', ');
+          condiciones.push(literal(`"AuditLog"."metadata"::text ILIKE ANY (ARRAY[${enMetadata}])`));
+        }
+      }
+      where[Op.or] = condiciones;
     }
 
     const pageNum = Math.max(1, Number(page) || 1);
@@ -87,6 +111,7 @@ router.get("/", protect, requirePermission("audit:read"), async (req: AuthReques
       success: true,
       data: {
         logs,
+        incluido,
         pagination: { total: count, page: pageNum, limit: limitNum, pages: Math.ceil(count / limitNum) },
       },
     });

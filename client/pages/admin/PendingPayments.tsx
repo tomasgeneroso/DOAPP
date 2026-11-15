@@ -299,6 +299,13 @@ export default function PendingPayments() {
   // Proof viewer modal (in-page image/PDF + message the payer)
   const [proofViewer, setProofViewer] = useState<{ url: string; title: string; userId?: string; userName?: string; paymentId?: string } | null>(null);
   const [proofImgError, setProofImgError] = useState(false);
+  // Subir un comprobante a cualquier pago (sin aprobarlo): lo sube el equipo y queda como «comprobante de verificación».
+  const [subirComprobanteA, setSubirComprobanteA] = useState<any | null>(null);
+  const [comprobanteArchivo, setComprobanteArchivo] = useState<File | null>(null);
+  const [comprobanteReferencia, setComprobanteReferencia] = useState("");
+  const [comprobanteNota, setComprobanteNota] = useState("");
+  const [comprobanteSubiendo, setComprobanteSubiendo] = useState(false);
+  const [comprobanteMensaje, setComprobanteMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [proofChatConvId, setProofChatConvId] = useState<string | null>(null);
   const [proofChatInput, setProofChatInput] = useState('');
   const [proofChatSending, setProofChatSending] = useState(false);
@@ -421,6 +428,47 @@ export default function PendingPayments() {
       console.error("Error loading verification payments:", error);
     } finally {
       setVerificationLoading(false);
+    }
+  };
+
+  const abrirSubirComprobante = (payment: any) => {
+    setSubirComprobanteA(payment);
+    setComprobanteArchivo(null);
+    setComprobanteReferencia("");
+    setComprobanteNota("");
+    setComprobanteMensaje(null);
+  };
+
+  const subirComprobanteDeAdministracion = async () => {
+    if (!subirComprobanteA || !comprobanteArchivo || comprobanteSubiendo) return;
+    setComprobanteSubiendo(true);
+    setComprobanteMensaje(null);
+    try {
+      const token = localStorage.getItem("token");
+      const fd = new FormData();
+      fd.append("file", comprobanteArchivo);
+      const subida = await (await fetch("/api/admin/payments/upload-proof", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd })).json();
+      if (!subida.success || !subida.url) {
+        setComprobanteMensaje({ ok: false, texto: subida.message || "No se pudo subir el archivo." });
+        return;
+      }
+      const guardado = await (
+        await fetch(`/api/admin/payments/${subirComprobanteA.id}/admin-proof`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ fileUrl: subida.url, fileName: subida.originalName || comprobanteArchivo.name, fileSize: subida.size || comprobanteArchivo.size, bankReference: comprobanteReferencia, notes: comprobanteNota }),
+        })
+      ).json();
+      if (!guardado.success) {
+        setComprobanteMensaje({ ok: false, texto: guardado.message || "No se pudo guardar el comprobante." });
+        return;
+      }
+      setComprobanteMensaje({ ok: true, texto: guardado.proof?.comprobanteDuplicado ? "Comprobante guardado. ⚠️ Ese número de operación ya figura en otro pago." : "Comprobante guardado ✓" });
+      await reloadActive();
+    } catch {
+      setComprobanteMensaje({ ok: false, texto: "Error de red al subir el comprobante." });
+    } finally {
+      setComprobanteSubiendo(false);
     }
   };
 
@@ -1988,6 +2036,16 @@ export default function PendingPayments() {
                                 title="Ver proceso / timeline"
                               >
                                 <History className="h-4 w-4" />
+                              </button>
+                              {/* Subir un comprobante a este pago (sin aprobarlo): queda a la vista junto al del cliente. */}
+                              <button
+                                onClick={() => abrirSubirComprobante(payment)}
+                                className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                                title="Subir un comprobante a este pago"
+                                aria-label="Subir un comprobante a este pago"
+                                data-testid="subir-comprobante"
+                              >
+                                <Upload className="h-4 w-4" />
                               </button>
                               {/* Show approve/reject buttons for pending payments */}
                               {appSubFilter === "pending" && (
@@ -3612,6 +3670,67 @@ export default function PendingPayments() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subir un comprobante a un pago */}
+      {subirComprobanteA && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !comprobanteSubiendo && setSubirComprobanteA(null)} data-testid="modal-subir-comprobante">
+          <div role="dialog" aria-modal="true" aria-label="Subir un comprobante" className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Subir un comprobante</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Pago {String(subirComprobanteA.id).slice(-8).toUpperCase()} · {subirComprobanteA.payer?.name || "—"} · ${Number(subirComprobanteA.amount || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <button onClick={() => setSubirComprobanteA(null)} disabled={comprobanteSubiendo} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="comprobante-archivo">Archivo (imagen o PDF)</label>
+            <input
+              id="comprobante-archivo"
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => setComprobanteArchivo(e.target.files?.[0] ?? null)}
+              className="mb-3 block w-full text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-white dark:text-gray-200"
+            />
+            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="comprobante-referencia">N° de operación (opcional)</label>
+            <input
+              id="comprobante-referencia"
+              type="text"
+              value={comprobanteReferencia}
+              onChange={(e) => setComprobanteReferencia(e.target.value)}
+              className="mb-3 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="comprobante-nota">Nota (opcional)</label>
+            <textarea
+              id="comprobante-nota"
+              value={comprobanteNota}
+              onChange={(e) => setComprobanteNota(e.target.value)}
+              rows={2}
+              className="mb-3 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Subir un comprobante no aprueba ni rechaza el pago: queda guardado junto al del cliente.</p>
+            {comprobanteMensaje && (
+              <p role="status" className={`mb-3 text-sm ${comprobanteMensaje.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid="mensaje-comprobante">{comprobanteMensaje.texto}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSubirComprobanteA(null)} disabled={comprobanteSubiendo} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                {comprobanteMensaje?.ok ? "Cerrar" : "Cancelar"}
+              </button>
+              <button
+                onClick={subirComprobanteDeAdministracion}
+                disabled={!comprobanteArchivo || comprobanteSubiendo || comprobanteMensaje?.ok === true}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                data-testid="guardar-comprobante"
+              >
+                {comprobanteSubiendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Guardar comprobante
+              </button>
             </div>
           </div>
         </div>

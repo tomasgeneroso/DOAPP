@@ -47,6 +47,8 @@ export default function AuditLogs() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  // Qué se incluyó al buscar por un id: el objeto y todo lo relacionado (publicación ↔ pagos ↔ contratos ↔ personas).
+  const [incluido, setIncluido] = useState<{ publicaciones: number; pagos: number; contratos: number; personas: number; propuestas: number; otros: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +65,7 @@ export default function AuditLogs() {
         setLogs(data.data.logs || []);
         setPages(data.data.pagination?.pages || 1);
         setTotal(data.data.pagination?.total || 0);
+        setIncluido(data.data.incluido || null);
       }
     } catch (err) {
       console.error('Error loading audit logs:', err);
@@ -105,7 +108,7 @@ export default function AuditLogs() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por acción, descripción o ID..."
+            placeholder="Buscar por acción, descripción o ID (de publicación, persona, pago, contrato…)"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
         </div>
@@ -116,6 +119,18 @@ export default function AuditLogs() {
           {SEVERITIES.map((s) => <option key={s} value={s}>{s === 'all' ? 'Toda severidad' : s}</option>)}
         </select>
       </div>
+
+      {incluido && (
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400" data-testid="busqueda-incluye">
+          Al buscar por un ID se incluye todo lo relacionado: {[
+            incluido.publicaciones ? `${incluido.publicaciones} ${incluido.publicaciones === 1 ? 'publicación' : 'publicaciones'}` : null,
+            incluido.pagos ? `${incluido.pagos} ${incluido.pagos === 1 ? 'pago' : 'pagos'}` : null,
+            incluido.contratos ? `${incluido.contratos} ${incluido.contratos === 1 ? 'contrato' : 'contratos'}` : null,
+            incluido.propuestas ? `${incluido.propuestas} ${incluido.propuestas === 1 ? 'propuesta' : 'propuestas'}` : null,
+            incluido.personas ? `${incluido.personas} ${incluido.personas === 1 ? 'persona' : 'personas'}` : null,
+          ].filter(Boolean).join(', ') || 'solo ese ID'}.
+        </p>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
         {loading ? (

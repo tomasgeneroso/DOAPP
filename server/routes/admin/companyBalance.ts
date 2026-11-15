@@ -439,11 +439,11 @@ router.get(
               payerId: { [Op.in]: [...new Set(efectivos.map((p: any) => p.payerId).filter(Boolean))] },
               paymentType: { [Op.in]: [...new Set(efectivos.map((p: any) => p.paymentType))] },
             } as any,
-            attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'paymentMethod'],
+            attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'description', 'paymentMethod'],
             order: [['createdAt', 'ASC']],
             limit: 500,
           });
-          const paraEmparejar = (p: any) => ({ id: p.id, status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, createdAt: p.createdAt });
+          const paraEmparejar = (p: any) => ({ id: p.id, status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, descripcion: p.description, monto: p.amount, createdAt: p.createdAt });
           const porId = new Map(candidatos.map((c: any) => [c.id, c]));
           const emparejados = emparejarIntentos(efectivos.map(paraEmparejar), candidatos.map(paraEmparejar));
           for (const [pagoId, intentos] of emparejados) {

@@ -154,6 +154,14 @@ export default function MyJobsScreen() {
     return viewParam === "calendar" ? "calendar" : "list";
   });
   const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "pending_approval" | "draft" | "completed" | "disputed" | "cancelled">("all");
+  // Una cuenta de «trabajador» que publicó algo y todavía no se postuló a nada arranca viendo lo que publicó, no una lista vacía de postulaciones.
+  useEffect(() => {
+    if (loading || loadingProposals || searchParams.get("tab")) return;
+    if (mainTab === "applied" && proposals.length === 0 && jobs.length > 0) setMainTab("published");
+    // Solo al terminar de cargar: después la persona elige la pestaña que quiera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingProposals]);
+
   // Eliminar un trabajo desde su tarjeta (solo los que no tienen plata de por medio: sin pagar o ya cancelados).
   const [trabajoAEliminar, setTrabajoAEliminar] = useState<Job | null>(null);
   const [eliminando, setEliminando] = useState(false);
@@ -921,7 +929,8 @@ export default function MyJobsScreen() {
 
         {/* Main Tabs */}
         <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
-          {!isWorkerOnly && (
+          {/* Quien publicó un trabajo lo ve siempre, aunque su cuenta sea de «trabajador» (antes la pestaña se escondía y la publicación parecía perdida). */}
+          {(!isWorkerOnly || jobs.length > 0) && (
             <button
               onClick={() => setMainTab("published")}
               className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
@@ -934,7 +943,7 @@ export default function MyJobsScreen() {
               {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
             </button>
           )}
-          {!isClientOnly && (
+          {(!isClientOnly || proposals.length > 0) && (
             <button
               onClick={() => setMainTab("applied")}
               className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${

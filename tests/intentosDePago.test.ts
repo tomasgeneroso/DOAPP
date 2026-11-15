@@ -67,6 +67,26 @@ describe('emparejarIntentos', () => {
     expect(m.get('p2')!.map((i) => i.id)).toEqual(['b']);
   });
 
+  it('los intentos viejos que nunca supieron de qué trabajo eran se reconocen por la misma descripción y el mismo monto', () => {
+    const viejo = (id: string, min: number, over: Record<string, unknown> = {}) => pago(id, 'pending', min, { jobId: null, descripcion: 'Publicación: prueba staging', monto: 10560.99, ...over });
+    // el último sí quedó atado a su trabajo; los dos anteriores no
+    const todos = [viejo('a', 46), viejo('b', 51), viejo('c', 57, { jobId: 'j1' })];
+    const m = emparejarIntentos(todos, todos);
+    expect([...m.keys()]).toEqual(['c']);
+    expect(m.get('c')!.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+
+  it('sin descripción igual o con otro monto no se mezclan (ni con un intento que sí sabe su trabajo)', () => {
+    const base = { jobId: null, descripcion: 'Publicación: A', monto: 100 };
+    const todos = [
+      pago('a', 'pending', 10, { ...base, descripcion: 'Publicación: B' }),
+      pago('b', 'pending', 11, { ...base, monto: 200 }),
+      pago('c', 'pending', 12, { ...base, jobId: 'otro' }),
+      pago('ultimo', 'pending', 20, { ...base, jobId: 'j1' }),
+    ];
+    expect(emparejarIntentos(todos, todos).size).toBe(0);
+  });
+
   it('la condición SQL usa los mismos estados sin pago', () => {
     for (const e of ['pending', 'processing', 'failed', 'cancelled']) {
       expect(esEstadoSinPago(e)).toBe(true);

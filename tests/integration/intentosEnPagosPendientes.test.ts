@@ -71,6 +71,24 @@ describe('GET /api/admin/payments/pending: intentos de pago anidados', () => {
     expect(pagination.total).toBeGreaterThanOrEqual(1);
   });
 
+  it('intentos viejos sin trabajo guardado (como los de staging) también se anidan: misma descripción y mismo monto', async () => {
+    const otro = await crearTrabajo(cliente.id, { status: 'pending_payment' });
+    try {
+      const sinTrabajo = { metadata: {}, description: 'Publicación: prueba staging viejo', amount: 777.77, amountArs: 777.77 };
+      const a = await crear('pending', 30, sinTrabajo);
+      const b = await crear('pending', 25, sinTrabajo);
+      // el último sí está atado a su trabajo, como pasaba antes: lo apunta el trabajo y por eso tiene job_id
+      const c = await crear('pending', 20, { ...sinTrabajo, metadata: { jobId: otro.id }, jobId: otro.id });
+      const { data } = await listar('&status=unverified');
+      const propias = data.filter((p) => [a.id, b.id, c.id].includes(p.id));
+      expect(propias.map((p) => p.id)).toEqual([c.id]);
+      expect(propias[0].intentos.map((i: any) => i.id)).toEqual([a.id, b.id]);
+      expect(propias[0].intentos[0].paymentMethod).toBe('mercadopago');
+    } finally {
+      await Job.destroy({ where: { id: otro.id }, force: true });
+    }
+  });
+
   it('una búsqueda por el id de un intento lo encuentra (no se esconde cuando se lo busca)', async () => {
     const { data } = await listar(`&status=all&search=${pagos[0]}`);
     expect(data.map((p) => p.id)).toContain(pagos[0]);

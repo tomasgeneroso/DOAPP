@@ -538,6 +538,71 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
 });
 
 /**
+ * El equipo sube un comprobante a un pago (pedido del dueño, 2026-11-15: «en gestión de pagos permitir además subir un comprobante»), sin tener que aprobarlo.
+ * Se guarda como comprobante de verificación (kind='admin_verification', no activo): no pisa el recibo del cliente, se ve aparte en la lista y en el visor.
+ * Subir un comprobante NO cambia el estado del pago: aprobar o rechazar sigue siendo otra acción.
+ * POST /api/admin/payments/:paymentId/admin-proof   { fileUrl (de /upload-proof), fileName?, fileSize?, bankReference?, notes? }
+ */
+router.post("/:paymentId/admin-proof", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+    const { fileUrl, fileName, fileSize, bankReference, notes } = req.body || {};
+    // Solo un archivo que acaba de subirse por /upload-proof: la dirección no puede apuntar a otro lado.
+    if (typeof fileUrl !== 'string' || !/^\/uploads\/payment-proofs\/[\w.\-]+$/.test(fileUrl)) {
+      res.status(400).json({ success: false, message: "Subí el archivo del comprobante primero." });
+      return;
+    }
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    const referencia = String(bankReference || '').trim().slice(0, 120);
+    const repetida = referencia
+      ? (await referenciasRepetidas([{ paymentId, bankReference: referencia }]).catch(() => new Map<string, ReferenciaRepetida>())).get(paymentId) ?? null
+      : null;
+    const ext = (fileUrl.split('.').pop() || 'jpg').toLowerCase();
+    const fileType = ['pdf', 'png', 'jpeg', 'jpg'].includes(ext) ? ext : 'jpg';
+    const existingCount = await PaymentProof.count({ where: { paymentId } });
+
+    const proof = await PaymentProof.create({
+      paymentId,
+      userId: req.user!.id,
+      kind: 'admin_verification',
+      uploadedByRole: 'admin',
+      sequence: existingCount + 1,
+      fileUrl,
+      fileType,
+      fileName: String(fileName || fileUrl.split('/').pop() || 'comprobante').slice(0, 255),
+      fileSize: Number(fileSize) || 0,
+      bankReference: referencia || null,
+      status: 'approved',
+      verifiedBy: req.user!.id,
+      verifiedAt: new Date(),
+      notes: [referencia ? `Referencia: ${referencia}` : null, repetida ? `⚠ ${describirReferenciaRepetida(repetida)}` : null, String(notes || '').trim().slice(0, 1500) || null].filter(Boolean).join(' | ') || null,
+      isActive: false,
+      uploadedAt: new Date(),
+    } as any);
+
+    void logAudit({
+      req, action: 'payment.proof_upload', category: 'payment', severity: 'low',
+      description: `Subió un comprobante al pago ${paymentId}${referencia ? ` (referencia ${referencia})` : ''}`,
+      targetModel: 'Payment', targetId: paymentId, metadata: { proofId: proof.id, fileUrl, comprobanteDuplicado: repetida ? true : undefined },
+    });
+
+    res.status(201).json({ success: true, message: 'Comprobante guardado.', proof: { id: proof.id, fileUrl, fileType, bankReference: referencia || null, comprobanteDuplicado: repetida ?? null } });
+  } catch (error: any) {
+    console.error("Error subiendo el comprobante de un pago:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al guardar el comprobante" });
+  }
+});
+
+/**
  * List every proof + note for a payment (receipts and notes), ordered by upload.
  * GET /api/admin/payments/:paymentId/proofs
  */
@@ -1000,11 +1065,11 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
           payerId: { [Op.in]: [...new Set((payments as any[]).map((p) => p.payerId).filter(Boolean))] },
           paymentType: { [Op.in]: [...new Set((payments as any[]).map((p) => p.paymentType))] },
         } as any,
-        attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'paymentMethod', 'mercadopagoPaymentId'],
+        attributes: ['id', 'status', 'payerId', 'paymentType', 'jobId', 'contractId', 'metadata', 'createdAt', 'amount', 'description', 'paymentMethod', 'mercadopagoPaymentId'],
         order: [['createdAt', 'ASC']],
         limit: 500,
       });
-      const paraEmparejar = (p: any) => ({ id: String(p.id), status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, createdAt: p.createdAt });
+      const paraEmparejar = (p: any) => ({ id: String(p.id), status: p.status, payerId: p.payerId, paymentType: p.paymentType, jobId: p.jobId, metadataJobId: p.metadata?.jobId, contractId: p.contractId, descripcion: p.description, monto: p.amount, createdAt: p.createdAt });
       const porId = new Map<string, any>(candidatos.map((c) => [String(c.id), c]));
       for (const [pagoId, intentos] of emparejarIntentos((payments as any[]).map(paraEmparejar), candidatos.map(paraEmparejar))) {
         intentosPorPago.set(pagoId, intentos.map((i) => {

@@ -24,19 +24,29 @@ export interface PagoParaEmparejar {
   jobId?: string | null;
   metadataJobId?: string | null;
   contractId?: string | null;
+  /** «Publicación: <título>»: sirve para reconocer los intentos viejos que nunca quedaron atados a su trabajo. */
+  descripcion?: string | null;
+  monto?: number | string | null;
   createdAt: Date | string;
 }
 
 const instante = (d: Date | string): number => new Date(d).getTime();
 const trabajoDe = (p: PagoParaEmparejar): string => String(p.jobId || p.metadataJobId || '');
 
-/** ¿Este intento y este pago son del mismo trabajo o contrato, de la misma persona y del mismo tipo? */
+/**
+ * ¿Este intento y este pago son del mismo trabajo o contrato, de la misma persona y del mismo tipo?
+ *
+ * Los pagos de publicación hechos antes del 2026-11-15 se guardaban SIN el trabajo (ni `job_id` ni la metadata): solo el último quedaba apuntado desde el trabajo.
+ * Para esos intentos —los que no saben de qué trabajo son— vale la misma descripción («Publicación: <título>») y el mismo monto de la misma persona.
+ */
 export function esDelMismoTrato(intento: PagoParaEmparejar, pago: PagoParaEmparejar): boolean {
   if (!intento.payerId || String(intento.payerId) !== String(pago.payerId)) return false;
   if (String(intento.paymentType || '') !== String(pago.paymentType || '')) return false;
   const trabajo = trabajoDe(intento);
   if (trabajo && trabajo === trabajoDe(pago)) return true;
-  return !!intento.contractId && String(intento.contractId) === String(pago.contractId || '');
+  if (!!intento.contractId && String(intento.contractId) === String(pago.contractId || '')) return true;
+  const descripcion = String(intento.descripcion || '').trim();
+  return !trabajo && !intento.contractId && descripcion !== '' && descripcion === String(pago.descripcion || '').trim() && Number(intento.monto) === Number(pago.monto);
 }
 
 /**
@@ -74,6 +84,13 @@ export const SQL_ES_UN_INTENTO_ANIDADO = `(
         (COALESCE(ok.job_id::text, ok.metadata->>'jobId') IS NOT NULL
           AND COALESCE(ok.job_id::text, ok.metadata->>'jobId') = COALESCE("Payment"."job_id"::text, "Payment"."metadata"->>'jobId'))
         OR (ok.contract_id IS NOT NULL AND ok.contract_id = "Payment"."contract_id")
+        OR (
+          COALESCE("Payment"."job_id"::text, "Payment"."metadata"->>'jobId') IS NULL
+          AND "Payment"."contract_id" IS NULL
+          AND COALESCE("Payment"."description", '') <> ''
+          AND ok.description = "Payment"."description"
+          AND ok.amount = "Payment"."amount"
+        )
       )
   )
 )`;
