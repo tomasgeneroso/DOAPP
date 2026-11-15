@@ -37,6 +37,7 @@ export default function MontoEnPesos({
         placeholder={placeholder}
         disabled={disabled}
         className={className}
+        data-guia={name ? `campo-${name}` : undefined}
       />
       {name && <input type="hidden" name={name} value={value} />}
     </>

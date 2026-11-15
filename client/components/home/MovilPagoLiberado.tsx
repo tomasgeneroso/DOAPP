@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, ChevronLeft, Check, Star } from "lucide-react";
+import { ShieldCheck, ChevronLeft, Check, Star, Pause, Play } from "lucide-react";
 
 /**
  * El teléfono del hero: el recorrido de un trabajo, de la postulación al cobro.
@@ -10,11 +10,13 @@ import { ShieldCheck, ChevronLeft, Check, Star } from "lucide-react";
  *
  * Qué se mueve (pedido del dueño, 2026-11-15): una barra con tres etapas —«te postulaste al trabajo», «trabajando», «pago terminado»— que va pasando de
  * gris a verde sola, una etapa tras otra. Debajo, el «Pago liberado» queda en gris y, cuando la barra se completa, se pone en verde. Después de un rato
- * vuelve a empezar. No hay botones: es una imagen que se mueve, no una pantalla para tocar.
+ * vuelve a empezar.
  *
- * Va DETRÁS del texto del hero (el texto lleva `pointer-events-none`, ver Index.tsx).
+ * «Reducir movimiento» del sistema NO lo detiene (el dueño lo tiene activado en su equipo, vio el teléfono quieto y creyó que no tenía movimiento). En su lugar lleva un
+ * botón de PAUSA —lo que pide la accesibilidad para lo que se mueve solo—: quien no quiera ver el movimiento lo detiene con un toque. Pausado queda fijo en el estado
+ * final, que cuenta la historia completa en una sola imagen.
  *
- * Con `prefers-reduced-motion` no hay ciclo: queda fijo en el estado final, que cuenta la historia completa en una sola imagen.
+ * Va DETRÁS del texto del hero (el texto lleva `pointer-events-none`, ver Index.tsx); el botón de pausa sí recibe toques.
  */
 
 /** Cuántas etapas están cumplidas: 0 = todo gris … 3 = barra completa y pago liberado. */
@@ -26,12 +28,10 @@ const MS_MOSTRANDO_RESULTADO = 5200;
 
 export default function MovilPagoLiberado({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
-  // Con «reducir movimiento» no hay ciclo: se arranca directamente en el estado final.
-  const sinMovimiento =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const [cumplidas, setCumplidas] = useState<Cumplidas>(sinMovimiento ? 3 : 0);
+  // Pausado: el ciclo se detiene y queda el estado final (la historia completa en una sola imagen).
+  const [pausado, setPausado] = useState(false);
+  const sinMovimiento = pausado;
+  const [cumplidas, setCumplidas] = useState<Cumplidas>(0);
   /**
    * `montado` es la entrada: el teléfono sube y aparece una vez. `vueltas` cuenta los ciclos y sirve de `key` en el cartel del pago, para que su
    * celebración corra de nuevo cada vez que se completa (con la misma key React reusa el nodo y la animación no se repite).
@@ -40,13 +40,17 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
   const [vueltas, setVueltas] = useState(0);
 
   useEffect(() => {
-    if (sinMovimiento) return;
     const id = requestAnimationFrame(() => setMontado(true));
     return () => cancelAnimationFrame(id);
-  }, [sinMovimiento]);
+  }, []);
+
+  // Al pausar queda el estado final; al reanudar, el ciclo empieza de nuevo.
+  useEffect(() => {
+    setCumplidas(pausado ? 3 : 0);
+  }, [pausado]);
 
   useEffect(() => {
-    if (sinMovimiento) return;
+    if (pausado) return;
     // Un solo temporizador por etapa: encadenarlos con setTimeout anidados deja temporizadores huérfanos si se desmonta a mitad del ciclo.
     const espera = cumplidas === 0 ? MS_ANTES_DE_EMPEZAR : cumplidas === 3 ? MS_MOSTRANDO_RESULTADO : MS_ENTRE_ETAPAS;
     const id = setTimeout(() => {
@@ -55,7 +59,7 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
       setCumplidas(siguiente);
     }, espera);
     return () => clearTimeout(id);
-  }, [cumplidas, sinMovimiento]);
+  }, [cumplidas, pausado]);
 
   const etapas = [
     t("home.movilPaso1", "Te postulaste al trabajo"),
@@ -77,7 +81,7 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
         className={`relative w-[280px] rounded-[2.5rem] border-[10px] border-slate-950 bg-slate-950 shadow-2xl shadow-black/60 ring-1 ring-white/10 ${
           sinMovimiento
             ? ""
-            : `transition-[opacity,transform] duration-[900ms] ease-out ${montado ? "opacity-100" : "opacity-0"} motion-safe:animate-[flotar_7s_ease-in-out_infinite]`
+            : `transition-[opacity,transform] duration-[900ms] ease-out ${montado ? "opacity-100" : "opacity-0"} animate-[flotar_7s_ease-in-out_infinite]`
         }`}
         style={{
           // La inclinación convive con la flotación: el keyframe la repite en cada paso para no pelearse con este transform.
@@ -162,7 +166,7 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
               data-liberado={completo}
               className={`mt-5 rounded-xl border px-3 py-2.5 transition-colors duration-700 ${
                 completo ? "border-emerald-500/40 bg-emerald-500/10" : "border-slate-700 bg-slate-800/60"
-              } ${completo && !sinMovimiento ? "motion-safe:animate-[celebrar_900ms_ease-out]" : ""}`}
+              } ${completo && !sinMovimiento ? "animate-[celebrar_900ms_ease-out]" : ""}`}
             >
               <p className={`flex items-center gap-1.5 text-[11px] font-semibold transition-colors duration-700 ${completo ? "text-emerald-300" : "text-slate-400"}`}>
                 <ShieldCheck className="h-3 w-3" aria-hidden="true" />
@@ -171,7 +175,7 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
               {/* Con `key` el nodo se reemplaza y el fundido corre de nuevo; sin ella el texto cambia de golpe. */}
               <p
                 key={completo ? `liberado-${vueltas}` : "por-liberar"}
-                className="mt-0.5 text-[10px] leading-snug text-slate-400 motion-safe:animate-[entrarTexto_520ms_ease-out]"
+                className="mt-0.5 text-[10px] leading-snug text-slate-400 animate-[entrarTexto_520ms_ease-out]"
               >
                 {completo
                   ? t("home.movilPagoLiberadoTexto", "Se acreditaron $96.000 en el saldo de Matías.")
@@ -181,6 +185,20 @@ export default function MovilPagoLiberado({ className = "" }: { className?: stri
           </div>
         </div>
       </div>
+
+      {/* Pausa: lo que se mueve solo se puede detener (accesibilidad). Va fuera del teléfono para que no tape nada. */}
+      <button
+        type="button"
+        onClick={() => setPausado((p) => !p)}
+        aria-pressed={pausado}
+        aria-label={pausado ? "Reanudar la animación del teléfono" : "Pausar la animación del teléfono"}
+        title={pausado ? "Reanudar la animación" : "Pausar la animación"}
+        data-testid="pausa-del-movil"
+        className="relative z-10 mx-auto mt-5 flex w-fit items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-[11px] font-medium text-slate-300 hover:text-white"
+      >
+        {pausado ? <Play className="h-3 w-3" aria-hidden="true" /> : <Pause className="h-3 w-3" aria-hidden="true" />}
+        {pausado ? "Reanudar" : "Pausar"}
+      </button>
     </div>
   );
 }

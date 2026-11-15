@@ -77,7 +77,7 @@ export function SuspendedNotice({ until }: { until?: string | null }) {
       <Ban className="h-5 w-5 mt-0.5 flex-shrink-0" aria-hidden="true" />
       <div>
         <p className="font-semibold">
-          {t("ladder.suspendedTitle", "No podés postularte hasta el {{fecha}}", { fecha: fecha(hasta) })}
+          {t("ladder.suspendedTitle", "Volvés a poder postularte el {{fecha}}", { fecha: fecha(hasta) })}
         </p>
         <p className="text-xs mt-1 text-red-800 dark:text-red-200">
           {t(

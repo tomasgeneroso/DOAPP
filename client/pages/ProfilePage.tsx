@@ -21,6 +21,8 @@ import { mostrarRating, periodoDelRating } from '../../shared/rating/display';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import TrabajosPublicados from '../components/profile/TrabajosPublicados';
+import Pestanas from '../components/ui/Pestanas';
+import { ofreceServicios } from '../../shared/cuenta/capacidades';
 import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -674,28 +676,15 @@ export default function ProfilePage() {
                         {user.name}
                         {(user as any).dniVerified && <VerifiedBadge size={22} />}
                       </h1>
-                      {/* Active mode badges (public — visible to all viewers) */}
-                      {(() => {
-                        const role = (user as any).role;
-                        const showWorker = role === 'doer' || role === 'both';
-                        const showClient = role === 'client' || role === 'both' || role === 'user' || !role;
-                        return (
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
-                            {showWorker && (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                                <Briefcase className="w-3.5 h-3.5" />
-                                {t('profile.workerMode', 'Modo trabajador')}
-                              </span>
-                            )}
-                            {showClient && (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 dark:bg-sky-900/30 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
-                                <Users className="w-3.5 h-3.5" />
-                                {t('profile.clientMode', 'Modo cliente')}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      {/* Una sola cuenta para todo: la insignia pública dice solo si ofrece sus servicios como profesional (shared/cuenta/capacidades.ts). */}
+                      {ofreceServicios((user as any).role) && (
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300" data-testid="insignia-ofrece-servicios">
+                            <Briefcase className="w-3.5 h-3.5" />
+                            {t('profile.offeringBadge', 'Ofrece sus servicios')}
+                          </span>
+                        </div>
+                      )}
                       {(user as any).credibility && (
                         <div className="mb-3">
                           <CredibilityBadge credibility={(user as any).credibility} variant="compact" />
@@ -879,12 +868,12 @@ export default function ProfilePage() {
               {!(user as any).dniVerified && diditEncendido(currentUser) && (
                 <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                   <p className="font-semibold mb-1">Tu identidad todavía no está verificada</p>
-                  <p className="mb-1">Hasta que la verifiques, tu cuenta tiene funciones limitadas:</p>
+                  <p className="mb-1">Con tu identidad verificada vas a poder:</p>
                   <ul className="list-disc pl-5 space-y-0.5 text-xs">
-                    <li>Podés <strong>crear</strong> trabajos, pero no <strong>publicarlos</strong>.</li>
-                    <li>No podés <strong>postularte</strong> a trabajos.</li>
-                    <li>No podés <strong>cobrar</strong> ni <strong>retirar</strong> dinero.</li>
-                    <li>Sí podés navegar y <strong>escribir en el blog</strong>.</li>
+                    <li><strong>Publicar</strong> los trabajos que creás.</li>
+                    <li><strong>Postularte</strong> a trabajos.</li>
+                    <li><strong>Cobrar</strong> y <strong>retirar</strong> dinero.</li>
+                    <li>Mientras tanto, ya podés crear borradores, navegar y <strong>escribir en el blog</strong>.</li>
                   </ul>
                 </div>
               )}
@@ -1102,54 +1091,30 @@ export default function ProfilePage() {
             {/* Right Column - Content with Tabs */}
             <div className="lg:col-span-2 space-y-6">
               {/* Tabs */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 flex gap-2">
-                <button
-                  onClick={() => setMainTab('jobs')}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                    mainTab === 'jobs'
-                      ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  {t('profile.jobsTab', 'Trabajos')}
-                </button>
-                <button
-                  onClick={() => setMainTab('posts')}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                    mainTab === 'posts'
-                      ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  {t('profile.publicationsTab', 'Publicaciones')}
-                </button>
-              </div>
+              <Pestanas
+                tamano="grande"
+                ariaLabel="Secciones del perfil"
+                testid="pestanas-del-perfil"
+                valor={mainTab}
+                onCambiar={setMainTab}
+                opciones={[
+                  { id: 'jobs' as const, texto: t('profile.jobsTab', 'Trabajos'), icono: <Briefcase className="w-4 h-4" /> },
+                  { id: 'posts' as const, texto: t('profile.publicationsTab', 'Publicaciones'), icono: <FileText className="w-4 h-4" /> },
+                ]}
+              />
 
               {/* Trabajos: los que hizo como profesional y los que publicó como cliente */}
               {mainTab === 'jobs' && (
-                <div className="flex gap-2" role="tablist" aria-label="Tipo de trabajos">
-                  {([
+                <Pestanas
+                  ariaLabel="Tipo de trabajos"
+                  testid="pestanas-de-trabajos"
+                  valor={jobsView}
+                  onCambiar={setJobsView}
+                  opciones={[
                     { id: 'trabajados' as const, texto: 'Trabajados' },
                     { id: 'publicados' as const, texto: 'Publicados' },
-                  ]).map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={jobsView === v.id}
-                      onClick={() => setJobsView(v.id)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                        jobsView === v.id
-                          ? 'bg-sky-600 border-sky-600 text-white'
-                          : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {v.texto}
-                    </button>
-                  ))}
-                </div>
+                  ]}
+                />
               )}
 
               {mainTab === 'jobs' && jobsView === 'publicados' && user?.id && (
@@ -1216,8 +1181,8 @@ export default function ProfilePage() {
                       </p>
                       {isOwnProfile() && !selectedCategory && (
                         <div className="flex flex-wrap gap-3 mt-4 justify-center">
-                          {/* Worker action: explore jobs to apply */}
-                          {((user as any).role === 'doer' || (user as any).role === 'both') && (
+                          {/* Explorar trabajos para postularse: para todas las cuentas */}
+                          {(
                             <Link
                               to="/#trabajos-disponibles"
                               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
@@ -1226,8 +1191,8 @@ export default function ProfilePage() {
                               {t('profile.exploreJobs', 'Explore available jobs')}
                             </Link>
                           )}
-                          {/* Client action: publish / view own publications */}
-                          {((user as any).role === 'client' || (user as any).role === 'both' || (user as any).role === 'user' || !(user as any).role) && (
+                          {/* Publicar un trabajo: para todas las cuentas */}
+                          {(
                             <Link
                               to="/contracts/create"
                               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
@@ -1358,6 +1323,17 @@ export default function ProfilePage() {
 
               {/* Posts Section */}
               {mainTab === 'posts' && (
+              <>
+              <Pestanas
+                ariaLabel="Tipo de publicaciones"
+                testid="pestanas-de-publicaciones"
+                valor={viewMode}
+                onCambiar={setViewMode}
+                opciones={[
+                  { id: 'posts' as const, texto: t('profile.postsTab', 'Posts') },
+                  { id: 'articles' as const, texto: t('profile.articles', 'Artículos') },
+                ]}
+              />
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
@@ -1369,28 +1345,6 @@ export default function ProfilePage() {
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         {posts.length} {t('profile.publicationsCount', 'publications')}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setViewMode('posts')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          viewMode === 'posts'
-                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        Posts
-                      </button>
-                      <button
-                        onClick={() => setViewMode('articles')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          viewMode === 'articles'
-                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {t('profile.articles', 'Articles')}
-                      </button>
                     </div>
                   </div>
                   {/* Create buttons - only on own profile */}
@@ -1517,6 +1471,7 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
+              </>
               )}
 
             </div>

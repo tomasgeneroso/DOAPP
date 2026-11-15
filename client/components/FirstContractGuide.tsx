@@ -1,65 +1,27 @@
-import { useState, useEffect } from "react";
-import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import {
-  CheckCircle,
-  Circle,
-  ChevronDown,
-  ChevronUp,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { CheckCircle, Circle, ChevronDown, ChevronUp, X, Sparkles } from "lucide-react";
+import { useGuiaPasoAPaso } from "./guias/GuiaPasoAPaso";
+import { GUIAS, ORDEN_DE_GUIAS, guiaHecha, type IdDeGuia } from "./guias/guias";
 
-interface GuideStep {
-  id: string;
-  label: string;
-  description: string;
-  link?: string;
-  linkLabel?: string;
-  check: (user: any, location: string) => boolean;
-}
-
-const STEPS: GuideStep[] = [
-  {
-    id: "profile",
-    label: "Completa tu perfil",
-    description: "Agrega foto, bio y datos de contacto para generar confianza.",
-    link: "/settings",
-    linkLabel: "Ir a configuración",
-    check: (user) => !!(user?.avatar && user?.bio),
-  },
-  {
-    id: "browse",
-    label: "Explorá trabajos disponibles",
-    description: "Buscá publicaciones que se ajusten a tus habilidades.",
-    link: "/",
-    linkLabel: "Ver trabajos",
-    check: (_user, loc) => loc === "/",
-  },
-  {
-    id: "apply",
-    label: "Enviá tu primera propuesta",
-    description: "Postúlate a un trabajo o creá tu primera publicación.",
-    link: "/",
-    linkLabel: "Empezar",
-    check: (user) => (user?.completedJobs ?? 0) > 0,
-  },
-  {
-    id: "contract",
-    label: "Completá tu primer contrato",
-    description: "¡Cerrá tu primer trabajo y empezá a construir tu reputación!",
-    check: (user) => (user?.completedJobs ?? 0) > 0,
-  },
-];
+/**
+ * «Tu guía de inicio»: por ahora solo dos caminos (pedido del dueño, 2026-11-15): publicar un trabajo y conocer el menú de la cuenta. Cada uno abre una guía paso a paso
+ * (components/guias): marca con un aro el lugar exacto y la persona toca el botón de verdad, con ayuda.
+ */
+const DESCRIPCION: Record<IdDeGuia, { texto: string; boton: string }> = {
+  publicar: { texto: "Te mostramos el camino para publicar tu trabajo, paso a paso.", boton: "Mostrame el camino" },
+  menu: { texto: "Tu perfil, tus trabajos y la configuración, a un toque de distancia.", boton: "Mostrame el menú" },
+};
 
 const STORAGE_KEY = "fcg_dismissed";
-const BROWSE_VISITED_KEY = "fcg_browse_visited";
 
 export default function FirstContractGuide() {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
+  const { iniciar, guiaActiva, version } = useGuiaPasoAPaso();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -69,61 +31,53 @@ export default function FirstContractGuide() {
     }
   });
 
-  // Mark "browse" step as visited
-  useEffect(() => {
-    if (location.pathname === "/") {
-      localStorage.setItem(BROWSE_VISITED_KEY, "1");
-    }
-  }, [location.pathname]);
-
   if (!isAuthenticated || !user) return null;
 
-  // En el panel de administración la guía del primer contrato no corresponde (y tapaba la esquina de las pantallas de trabajo).
+  // En el panel de administración la guía de inicio no corresponde (y tapaba la esquina de las pantallas de trabajo).
   if (location.pathname.startsWith("/admin")) return null;
 
-  // Don't show if user has completed first contract
+  // Quien ya completó un contrato no la necesita.
   if ((user.completedJobs ?? 0) > 0) return null;
 
   if (dismissed) return null;
 
-  const browseVisited = localStorage.getItem(BROWSE_VISITED_KEY) === "1";
+  // `version` cambia al terminar una guía: así se redibuja con el paso marcado.
+  void version;
+  const hechas = ORDEN_DE_GUIAS.map((id) => guiaHecha(user.id, id));
+  const completedCount = hechas.filter(Boolean).length;
+  const total = ORDEN_DE_GUIAS.length;
+  const progress = Math.round((completedCount / total) * 100);
 
-  const stepStatus = STEPS.map((step) => {
-    if (step.id === "browse") return browseVisited;
-    return step.check(user, location.pathname);
-  });
-
-  const completedCount = stepStatus.filter(Boolean).length;
-  const progress = Math.round((completedCount / STEPS.length) * 100);
-
-  // Auto-dismiss once all done (should be covered by completedJobs check above, safety net)
-  if (completedCount === STEPS.length) return null;
+  // Con las dos guías vistas, la lista se va sola.
+  if (completedCount === total) return null;
 
   const handleDismiss = () => {
-    localStorage.setItem(STORAGE_KEY, "1");
+    try {
+      localStorage.setItem(STORAGE_KEY, "1");
+    } catch {
+      /* sin almacenamiento: se cierra por esta visita */
+    }
     setDismissed(true);
   };
 
+  const empezar = (id: IdDeGuia) => {
+    setExpanded(false);
+    iniciar(id);
+  };
+
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-40 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" data-testid="guia-de-inicio">
       {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500 to-indigo-500 cursor-pointer"
-        onClick={() => setExpanded((e) => !e)}
-      >
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500 to-indigo-500 cursor-pointer" onClick={() => setExpanded((e) => !e)}>
         <div className="flex items-center gap-2 text-white">
           <Sparkles className="h-4 w-4" />
-          <span className="font-semibold text-sm">{t('firstContract.startGuide', 'Tu guía de inicio')}</span>
+          <span className="font-semibold text-sm">{t("firstContract.startGuide", "Tu guía de inicio")}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-white/80 text-xs font-medium">
-            {completedCount}/{STEPS.length}
+            {completedCount}/{total}
           </span>
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 text-white" />
-          ) : (
-            <ChevronUp className="h-4 w-4 text-white" />
-          )}
+          {expanded ? <ChevronDown className="h-4 w-4 text-white" /> : <ChevronUp className="h-4 w-4 text-white" />}
           {/* Cerrar sin tener que desplegar la guía */}
           <button
             type="button"
@@ -142,51 +96,31 @@ export default function FirstContractGuide() {
 
       {/* Progress bar */}
       <div className="h-1.5 bg-slate-100 dark:bg-slate-700">
-        <div
-          className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-500"
-          style={{ width: `${progress}%` }}
-        />
+        <div className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }} />
       </div>
 
-      {/* Steps */}
+      {/* Caminos */}
       {expanded && (
         <div className="px-4 py-3 space-y-3">
-          {STEPS.map((step, i) => {
-            const done = stepStatus[i];
+          {ORDEN_DE_GUIAS.map((id, i) => {
+            const done = hechas[i];
             return (
-              <div key={step.id} className="flex items-start gap-3">
+              <div key={id} className="flex items-start gap-3" data-testid={`guia-${id}`}>
                 <div className="mt-0.5 shrink-0">
-                  {done ? (
-                    <CheckCircle className="h-5 w-5 text-emerald-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-slate-300 dark:text-slate-600" />
-                  )}
+                  {done ? <CheckCircle className="h-5 w-5 text-emerald-500" /> : <Circle className="h-5 w-5 text-slate-300 dark:text-slate-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-medium ${
-                      done
-                        ? "line-through text-slate-400 dark:text-slate-500"
-                        : "text-slate-800 dark:text-slate-100"
-                    }`}
+                  <p className={`text-sm font-medium ${done ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}`}>{GUIAS[id].titulo}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{DESCRIPCION[id].texto}</p>
+                  <button
+                    type="button"
+                    onClick={() => empezar(id)}
+                    disabled={guiaActiva === id}
+                    className="mt-1.5 rounded-lg bg-sky-500 px-3 py-1 text-xs font-semibold text-white hover:bg-sky-600 disabled:opacity-60"
+                    data-testid={`empezar-guia-${id}`}
                   >
-                    {step.label}
-                  </p>
-                  {!done && (
-                    <>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {step.description}
-                      </p>
-                      {step.link && (
-                        <Link
-                          to={step.link}
-                          className="inline-block mt-1 text-xs text-sky-600 dark:text-sky-400 hover:underline font-medium"
-                        >
-                          {step.linkLabel} →
-                        </Link>
-                      )}
-                    </>
-                  )}
+                    {done ? "Verlo de nuevo" : DESCRIPCION[id].boton}
+                  </button>
                 </div>
               </div>
             );
@@ -204,14 +138,9 @@ export default function FirstContractGuide() {
 
       {/* Collapsed summary */}
       {!expanded && (
-        <div
-          className="px-4 py-2 cursor-pointer"
-          onClick={() => setExpanded(true)}
-        >
+        <div className="px-4 py-2 cursor-pointer" onClick={() => setExpanded(true)}>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {completedCount === 0
-              ? "Seguí estos pasos para tu primer contrato"
-              : `${STEPS.length - completedCount} pasos restantes`}
+            {completedCount === 0 ? "Te acompañamos paso a paso" : `${total - completedCount} ${total - completedCount === 1 ? "camino por recorrer" : "caminos por recorrer"}`}
           </p>
         </div>
       )}

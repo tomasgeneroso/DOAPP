@@ -10,6 +10,7 @@ import { useScrollDepth } from "@/hooks/useScrollDepth";
 import KycWelcomeModal from "../KycWelcomeModal";
 import AvisoCorreoSinConfirmar from "../AvisoCorreoSinConfirmar";
 import PendingPostWorkRatingGate from "../user/PendingPostWorkRatingGate";
+import { desplazarSuave, desplazarAElemento } from "../../utils/desplazamientoSuave";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
@@ -18,14 +19,42 @@ export default function Layout() {
   const location = useLocation();
   useScrollDepth();
 
-  // Los textos legales abren siempre desde el principio (pedido del dueño, 2026-11-15: desde el pie de la página se abrían a mitad de camino, con el scroll
-  // de la página anterior). No se toca si la dirección trae un ancla (#…) ni al volver atrás, donde el navegador devuelve a la persona a donde estaba.
+  // Cada pantalla nueva abre desde el principio, con un desplazamiento suave (pedido del dueño, 2026-11-15: los textos legales abrían a mitad de camino, con el scroll
+  // de la página anterior, y todo saltaba de golpe). No se toca si la dirección trae un ancla (#…) ni al volver atrás, donde el navegador devuelve a la persona a donde estaba.
   const tipoDeNavegacion = useNavigationType();
   useEffect(() => {
-    const esLegal = /^\/(legal|terms|privacy)(\/|$)/.test(location.pathname);
-    if (!esLegal || location.hash || tipoDeNavegacion === "POP") return;
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (location.hash || tipoDeNavegacion === "POP") return;
+    desplazarSuave(0);
   }, [location.pathname, location.hash, tipoDeNavegacion]);
+
+  // Los enlaces a un lugar de la misma página («Cómo funciona», «#trabajos-disponibles») llevan hasta ahí con el mismo desplazamiento suave.
+  useEffect(() => {
+    const alTocar = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const enlace = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!enlace || (enlace.target && enlace.target !== "_self")) return;
+      let destino: URL;
+      try {
+        destino = new URL(enlace.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (destino.origin !== window.location.origin || destino.pathname !== window.location.pathname || !destino.hash || destino.hash === "#") return;
+      let id = destino.hash.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        /* queda como vino */
+      }
+      const el = document.getElementById(id);
+      if (!el) return;
+      e.preventDefault();
+      desplazarAElemento(el);
+      window.history.pushState(window.history.state, "", destino.hash);
+    };
+    document.addEventListener("click", alTocar);
+    return () => document.removeEventListener("click", alTocar);
+  }, []);
 
   // Registro en pasos: mientras falte verificar la identidad y completar los datos, la persona sigue ese recorrido (en vez de entrar a la app
   // a medio registrar). Se dejan abiertas las pantallas del propio recorrido, los textos legales y la ayuda.

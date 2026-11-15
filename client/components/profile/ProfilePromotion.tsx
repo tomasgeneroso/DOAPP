@@ -149,7 +149,7 @@ export default function ProfilePromotion() {
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-300">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Todavía no podés promocionarte</p>
+            <p className="font-medium">Podés promocionarte cuando cumplas lo siguiente</p>
             {/* Se puede comprar visibilidad, no reputación. */}
             <p className="text-xs mt-0.5">{opts.motivoNoElegible}</p>
           </div>

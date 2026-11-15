@@ -47,10 +47,10 @@ describe('teléfono de la portada', () => {
 });
 
 describe('textos legales', () => {
-  it('abren desde el principio (salvo ancla o volver atrás)', () => {
+  it('abren desde el principio, con desplazamiento suave (salvo ancla o volver atrás): toda pantalla nueva abre arriba', () => {
     const layout = leer('client/components/app/Layout.tsx');
     expect(layout).toMatch(/useNavigationType/);
-    expect(layout).toMatch(/\(legal\|terms\|privacy\)/);
-    expect(layout).toMatch(/window\.scrollTo\(/);
+    expect(layout).toMatch(/location\.hash \|\| tipoDeNavegacion === "POP"/);
+    expect(layout).toMatch(/desplazarSuave\(0\)/);
   });
 });

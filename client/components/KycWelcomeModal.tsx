@@ -56,12 +56,12 @@ export default function KycWelcomeModal() {
         </p>
 
         <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3 text-sm text-amber-800 dark:text-amber-300 mb-4">
-          <p className="font-semibold mb-1">Hasta verificarte, tu cuenta está limitada:</p>
+          <p className="font-semibold mb-1">Con tu identidad verificada vas a poder:</p>
           <ul className="list-disc pl-5 space-y-0.5 text-xs">
-            <li>Podés <strong>crear</strong> trabajos, pero no <strong>publicarlos</strong>.</li>
-            <li>No podés <strong>postularte</strong> a trabajos.</li>
-            <li>No podés <strong>cobrar</strong> ni <strong>retirar</strong> dinero.</li>
-            <li>Sí podés navegar y <strong>escribir en el blog</strong>.</li>
+            <li><strong>Publicar</strong> los trabajos que creás.</li>
+            <li><strong>Postularte</strong> a trabajos.</li>
+            <li><strong>Cobrar</strong> y <strong>retirar</strong> dinero.</li>
+            <li>Mientras tanto, ya podés crear borradores, navegar y <strong>escribir en el blog</strong>.</li>
           </ul>
         </div>
 

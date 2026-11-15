@@ -49,8 +49,23 @@ export interface EntradaDelDetalle {
     createdAt?: Date | string | null;
   };
   pagador?: string | null;
+  /** Los comprobantes que tiene el pago (no las notas): los sube el cliente o el equipo. */
+  comprobantes?: { cuando: Date | string | null; porElEquipo: boolean }[];
   /** El equipo ve el nombre de quien aprobó; la persona que publicó, solo «un administrador». */
   verNombres: boolean;
+}
+
+/** Un hecho de la historia del pago y del trabajo. */
+export interface EventoDeHistoria {
+  clave: 'pago_iniciado' | 'comprobante' | 'pago_aprobado' | 'trabajo_aprobado' | 'trabajo_no_aprobado' | 'trabajo_cancelado' | 'pendiente_pago' | 'pendiente_trabajo';
+  titulo: string;
+  texto: string;
+  /** Cuándo pasó (ISO). Los hechos que todavía no pasaron no tienen fecha. */
+  cuando: string | null;
+  /** Cómo fue, cuando corresponde (automático o por un administrador). */
+  modo?: ModoDeAprobacion;
+  /** Lo que todavía falta: va arriba de todo, antes de lo más reciente. */
+  pendiente?: boolean;
 }
 
 export interface DetalleDelPagoDeLaPublicacion {
@@ -66,6 +81,8 @@ export interface DetalleDelPagoDeLaPublicacion {
   pagoAprobado: AprobacionDelDetalle;
   trabajoAprobado: AprobacionDelDetalle;
   cancelado: { cuando: string | null; motivo: string | null } | null;
+  /** La historia completa, de lo más reciente a lo más viejo (lo que todavía falta, arriba de todo). */
+  historia: EventoDeHistoria[];
 }
 
 const iso = (d: Date | string | null | undefined): string | null => {
@@ -139,12 +156,55 @@ function aprobacionDelTrabajo(e: EntradaDelDetalle): AprobacionDelDetalle {
   return { modo: 'pendiente', cuando: null, quien: null, texto: 'Todavía no se aprobó: primero tiene que confirmarse el pago.' };
 }
 
+/** Orden lógico de la cadena (el más nuevo primero), para desempatar hechos con la misma fecha. */
+const RANGO_DE_LA_CADENA: Record<EventoDeHistoria['clave'], number> = {
+  pendiente_trabajo: 9,
+  pendiente_pago: 8,
+  trabajo_cancelado: 7,
+  trabajo_no_aprobado: 6,
+  trabajo_aprobado: 5,
+  pago_aprobado: 4,
+  comprobante: 3,
+  pago_iniciado: 1,
+};
+
+function armarLaHistoria(e: EntradaDelDetalle, d: Omit<DetalleDelPagoDeLaPublicacion, 'historia'>): EventoDeHistoria[] {
+  const hechos: EventoDeHistoria[] = [];
+  if (d.pagoCreado) hechos.push({ clave: 'pago_iniciado', titulo: 'Pago iniciado', texto: `Se generó el pago${d.metodo ? ` (${d.metodo})` : ''}.`, cuando: d.pagoCreado });
+  for (const c of e.comprobantes ?? []) {
+    hechos.push({ clave: 'comprobante', titulo: c.porElEquipo ? 'Comprobante subido por el equipo' : 'Comprobante subido', texto: c.porElEquipo ? 'Lo subió una persona del equipo.' : 'Lo subió quien pagó.', cuando: iso(c.cuando) });
+  }
+  const pa = d.pagoAprobado;
+  if (pa.modo === 'automatico' || pa.modo === 'administrador' || (pa.modo === 'sin_dato' && pa.cuando)) {
+    hechos.push({ clave: 'pago_aprobado', titulo: 'Pago aprobado', texto: pa.texto, cuando: pa.cuando, modo: pa.modo });
+  } else if (pa.modo === 'pendiente') {
+    hechos.push({ clave: 'pendiente_pago', titulo: 'Pago por aprobar', texto: pa.texto, cuando: null, pendiente: true, modo: 'pendiente' });
+  }
+  const ta = d.trabajoAprobado;
+  if (ta.modo === 'automatico' || ta.modo === 'administrador') {
+    hechos.push({ clave: 'trabajo_aprobado', titulo: 'Trabajo aprobado', texto: ta.texto, cuando: ta.cuando, modo: ta.modo });
+  } else if (ta.modo === 'no_llego' && ta.cuando) {
+    hechos.push({ clave: 'trabajo_no_aprobado', titulo: 'Trabajo no aprobado', texto: ta.texto, cuando: ta.cuando, modo: 'no_llego' });
+  } else if (ta.modo === 'pendiente' && e.trabajo.status !== 'cancelled') {
+    hechos.push({ clave: 'pendiente_trabajo', titulo: 'Trabajo por aprobar', texto: ta.texto, cuando: null, pendiente: true, modo: 'pendiente' });
+  }
+  if (d.cancelado) {
+    hechos.push({ clave: 'trabajo_cancelado', titulo: 'Trabajo cancelado', texto: d.cancelado.motivo || 'El trabajo se canceló.', cuando: d.cancelado.cuando });
+  }
+  const instante = (h: EventoDeHistoria) => (h.cuando ? new Date(h.cuando).getTime() : Number.NEGATIVE_INFINITY);
+  return hechos.sort((a, b) => {
+    if (!!a.pendiente !== !!b.pendiente) return a.pendiente ? -1 : 1;
+    const dif = instante(b) - instante(a);
+    return dif !== 0 ? dif : RANGO_DE_LA_CADENA[b.clave] - RANGO_DE_LA_CADENA[a.clave];
+  });
+}
+
 export function armarDetalleDelPagoDeLaPublicacion(e: EntradaDelDetalle): DetalleDelPagoDeLaPublicacion {
   const p = e.pago;
   const monto = num(p?.amount ?? e.trabajo.price);
   const comision = num(p?.platformFee);
   const tasa = num(p?.platformFeePercentage);
-  return {
+  const base = {
     estadoDelPago: e.trabajo.publicationPaid ? 'Pagado' : p ? rotuloDelEstadoDeUnPago(p.status).rotulo : 'Esperando pago',
     monto,
     comision,
@@ -156,4 +216,5 @@ export function armarDetalleDelPagoDeLaPublicacion(e: EntradaDelDetalle): Detall
     trabajoAprobado: aprobacionDelTrabajo(e),
     cancelado: e.trabajo.status === 'cancelled' ? { cuando: iso(e.trabajo.cancelledAt), motivo: e.trabajo.cancellationReason ?? null } : null,
   };
+  return { ...base, historia: armarLaHistoria(e, base) };
 }

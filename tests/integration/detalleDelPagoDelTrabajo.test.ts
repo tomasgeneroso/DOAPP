@@ -32,7 +32,7 @@ describe('GET /api/jobs/:id/payment-details', () => {
     trabajo = await crearTrabajo(dueno.id, { status: 'pending_payment' });
     pago = await Payment.create({
       payerId: dueno.id, recipientId: null, amount: 10560.99, amountArs: 10560.99, currency: 'ARS', status: 'completed', paymentType: 'job_publication',
-      paymentMethod: 'mercadopago', platformFee: 0, platformFeePercentage: 0, mercadopagoVerifiedAt: new Date('2026-11-13T21:57:00Z'),
+      paymentMethod: 'mercadopago', platformFee: 0, platformFeePercentage: 0, mercadopagoVerifiedAt: new Date('2026-11-13T21:57:00Z'), createdAt: new Date('2026-11-13T21:46:00Z'),
       metadata: { jobId: trabajo.id, userId: dueno.id, paymentType: 'job_publication' },
     } as any);
     // El trabajo lo aprobó un administrador un día después del fin y se canceló solo por fecha vencida.
@@ -64,6 +64,8 @@ describe('GET /api/jobs/:id/payment-details', () => {
     expect(d.cancelado.motivo).toMatch(/Ningún trabajador/);
     expect(d.metodo).toBe('Mercado Pago');
     expect(d.monto).toBeCloseTo(10560.99, 2);
+    // la historia viene de lo más reciente a lo más viejo
+    expect(d.historia.map((h: any) => h.clave)).toEqual(['trabajo_cancelado', 'trabajo_aprobado', 'pago_aprobado', 'pago_iniciado']);
   });
 
   it('otra persona no lo ve (404, no se confirma ni que existe)', async () => {

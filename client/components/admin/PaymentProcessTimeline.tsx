@@ -17,7 +17,7 @@ interface Props {
   onEscrow: (paymentId: string) => void; // verified -> held_escrow
   onPayout: (paymentId: string) => void; // held_escrow -> confirmed_for_payout
   onReject: (payment: any) => void;
-  onViewProof: (payment: any) => void;
+  onViewProof: (payment: any, comprobante?: any) => void;
   onClose: () => void;
 }
 
@@ -31,6 +31,8 @@ export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscr
   };
   const cur = rank(status);
   const proof = payment?.proofs?.[0];
+  // Los comprobantes que subió el equipo (no aprueban ni rechazan: solo quedan registrados), del más viejo al más nuevo.
+  const delEquipo: any[] = Array.isArray(payment?.adminProofs) ? payment.adminProofs : [];
   const isRejected = status === 'rejected';
 
   const steps: Step[] = [
@@ -50,6 +52,14 @@ export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscr
       current: false,
       at: proof?.uploadedAt,
     },
+    ...delEquipo.map((c, i): Step => ({
+      key: `equipo-${c.id ?? i}`,
+      label: delEquipo.length > 1 ? `Comprobante subido por el equipo (${i + 1})` : 'Comprobante subido por el equipo',
+      description: `Lo subió una persona del equipo${c.bankReference ? ` · N° de operación ${c.bankReference}` : ''}. No aprueba ni rechaza el pago.`,
+      done: true,
+      current: false,
+      at: c.uploadedAt,
+    })),
     {
       key: 'verified',
       label: 'Comprobante verificado',
@@ -121,6 +131,12 @@ export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscr
                 {/* Attached proof at the verification step — opens the in-app viewer */}
                 {s.key === 'proof' && proof && (
                   <button type="button" onClick={() => onViewProof(payment)} className="mt-1 inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                    Ver comprobante <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+
+                {s.key.startsWith('equipo-') && (
+                  <button type="button" onClick={() => onViewProof(payment, delEquipo.find((c, i) => s.key === `equipo-${c.id ?? i}`))} className="mt-1 inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
                     Ver comprobante <ArrowRight className="w-3 h-3" />
                   </button>
                 )}

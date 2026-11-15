@@ -73,7 +73,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
     {
       icono: Undo2,
       titulo: t("authHero.cancelTitle", "Si cancelás,"),
-      resaltado: t("authHero.cancelHighlight", "no perdés todo"),
+      resaltado: t("authHero.cancelHighlight", "podés recibir tu dinero de vuelta"),
       cuerpo: t(
         "authHero.cancelBody",
         "Mientras no haya un trabajador elegido, el precio y la comisión vuelven. Elegís si quedan como saldo o te los devolvemos.",

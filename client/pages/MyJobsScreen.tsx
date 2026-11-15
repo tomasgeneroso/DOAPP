@@ -35,6 +35,7 @@ import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
 import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import { ofreceServicios } from "../../shared/cuenta/capacidades";
 
 interface Job {
   id: string;
@@ -132,9 +133,6 @@ type ViewMode = "list" | "calendar";
 export default function MyJobsScreen() {
   const { t } = useTranslation();
   const { user, token, refreshUser } = useAuth();
-  const isClientOnly = user?.role === 'client' || user?.role === 'user';
-  const isWorkerOnly = user?.role === 'doer';
-  const isWorker = user?.role === 'doer' || user?.role === 'both';
   const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -144,10 +142,10 @@ export default function MyJobsScreen() {
   const [loadingProposals, setLoadingProposals] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>(() => {
     const tabParam = searchParams.get("tab");
-    // Workers default to "applied"; clients can only see "published"
-    if (tabParam === "applied" && (user?.role === 'doer' || user?.role === 'both')) return "applied";
-    if (user?.role === 'doer') return "applied";
-    return "published";
+    // Quien ofrece sus servicios arranca en sus postulaciones; el resto, en sus publicaciones (se puede cambiar de pestaña).
+    if (tabParam === "applied") return "applied";
+    if (tabParam === "published") return "published";
+    return ofreceServicios(user?.role) ? "applied" : "published";
   });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const viewParam = searchParams.get("view");
@@ -929,8 +927,7 @@ export default function MyJobsScreen() {
 
         {/* Main Tabs */}
         <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
-          {/* Quien publicó un trabajo lo ve siempre, aunque su cuenta sea de «trabajador» (antes la pestaña se escondía y la publicación parecía perdida). */}
-          {(!isWorkerOnly || jobs.length > 0) && (
+          {/* Las dos pestañas son para todas las cuentas: una sola cuenta para todo (shared/cuenta/capacidades.ts). */}
             <button
               onClick={() => setMainTab("published")}
               className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
@@ -942,8 +939,6 @@ export default function MyJobsScreen() {
               <Briefcase className="h-5 w-5" />
               {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
             </button>
-          )}
-          {(!isClientOnly || proposals.length > 0) && (
             <button
               onClick={() => setMainTab("applied")}
               className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
@@ -955,7 +950,6 @@ export default function MyJobsScreen() {
               <Send className="h-5 w-5" />
               {t('jobs.myApplications', 'Mis Postulaciones')} ({proposals.length})
             </button>
-          )}
         </div>
 
         {/* Calendar View */}

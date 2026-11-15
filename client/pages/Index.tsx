@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { desplazarAElemento } from "../utils/desplazamientoSuave";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
@@ -97,7 +98,7 @@ export default function Index() {
       const element = document.getElementById(location.hash.substring(1));
       if (element) {
         setTimeout(() => {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          desplazarAElemento(element);
         }, 100);
       }
     }

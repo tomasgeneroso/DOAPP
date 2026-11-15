@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
+import { Instagram, Facebook } from 'lucide-react';
 import Transicion from "../components/ui/Transicion";
+import { REDES_SOCIALES } from "../../shared/constants/redesSociales";
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
@@ -365,6 +367,45 @@ const ContactPage: React.FC = () => {
               support@doapparg.com
             </a>
           </p>
+        </div>
+
+        {/* Redes oficiales */}
+        <div className="mt-8 text-center" data-testid="redes-de-contacto">
+          <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">{t('contact.followUs', 'También estamos en redes')}</p>
+          <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <a
+              href={REDES_SOCIALES.instagram.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Instagram de DOAPP: ${REDES_SOCIALES.instagram.usuario}`}
+              data-testid="enlace-instagram"
+              className="inline-flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-gray-900 shadow-sm transition-colors hover:border-pink-300 hover:bg-pink-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:border-pink-700 dark:hover:bg-pink-900/20"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 text-white">
+                <Instagram className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="text-left">
+                <span className="block text-xs text-gray-500 dark:text-gray-400">{REDES_SOCIALES.instagram.nombre}</span>
+                <span className="block text-sm font-semibold">{REDES_SOCIALES.instagram.usuario}</span>
+              </span>
+            </a>
+            <a
+              href={REDES_SOCIALES.facebook.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Facebook de DOAPP: ${REDES_SOCIALES.facebook.usuario}`}
+              data-testid="enlace-facebook"
+              className="inline-flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-gray-900 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1877F2] text-white">
+                <Facebook className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="text-left">
+                <span className="block text-xs text-gray-500 dark:text-gray-400">{REDES_SOCIALES.facebook.nombre}</span>
+                <span className="block text-sm font-semibold">{REDES_SOCIALES.facebook.usuario}</span>
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

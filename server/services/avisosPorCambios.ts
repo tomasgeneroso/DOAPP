@@ -16,6 +16,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Proposal } from '../models/sql/Proposal.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
+import { PaymentProof } from '../models/sql/PaymentProof.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { WithdrawalRequest } from '../models/sql/WithdrawalRequest.model.js';
 import { Dispute } from '../models/sql/Dispute.model.js';
@@ -106,7 +107,7 @@ const COTIZACIONES: Fuente = {
 
 const PAGOS: Fuente = {
   modelo: Payment as never,
-  columnas: ['id', 'payerId', 'recipientId', 'contractId', 'status'],
+  columnas: ['id', 'payerId', 'recipientId', 'contractId', 'jobId', 'status'],
   avisos: async (p: Fila) => {
     const usuarios = [p.payerId, p.recipientId];
     const avisos: Aviso[] = [
@@ -115,8 +116,30 @@ const PAGOS: Fuente = {
       { usuarios, evento: 'dashboard:refresh' },
       delAdministrador('payment', p.id),
     ];
+    // La pantalla del trabajo muestra su pago («Detalles del pago»): se entera del cambio, la vea quien la vea.
+    if (p.jobId) avisos.push({ usuarios: [p.payerId], evento: 'job:updated', datos: { jobId: String(p.jobId) }, clave: String(p.jobId) }, delAdministrador('job', p.jobId));
     // La pantalla del contrato muestra sus pagos (garantía, liberación): se entera del cambio.
     if (p.contractId) avisos.push(...avisosDeContrato(String(p.contractId), await participantesDelContrato(p.contractId)));
+    return avisos;
+  },
+};
+
+/**
+ * Comprobantes y notas de un pago (los que sube el cliente y los que sube el equipo): el pago los muestra en su línea de tiempo, en el visor y en «Detalles del pago».
+ * Antes agregar un comprobante no avisaba a nadie: la pantalla seguía mostrando lo de antes hasta recargar (regla del dueño, 2026-11-15: toda la app sincronizada siempre).
+ */
+const COMPROBANTES: Fuente = {
+  modelo: PaymentProof as never,
+  columnas: ['id', 'paymentId', 'status', 'isActive', 'kind'],
+  avisos: async (f: Fila) => {
+    const pago: Fila | null = f.paymentId ? ((await conSistema(() => Payment.findByPk(String(f.paymentId), { attributes: ['id', 'payerId', 'recipientId', 'contractId', 'jobId'], raw: true }))) as unknown as Fila | null) : null;
+    if (!pago) return [delAdministrador('payment', f.paymentId)];
+    const usuarios = [pago.payerId, pago.recipientId];
+    const avisos: Aviso[] = [
+      { usuarios, evento: 'payment:updated', datos: { paymentId: String(pago.id), contractId: pago.contractId }, clave: String(pago.id) },
+      delAdministrador('payment', pago.id),
+    ];
+    if (pago.jobId) avisos.push({ usuarios: [pago.payerId], evento: 'job:updated', datos: { jobId: String(pago.jobId) }, clave: String(pago.jobId) }, delAdministrador('job', pago.jobId));
     return avisos;
   },
 };
@@ -251,6 +274,7 @@ export function instalarAvisosPorCambios(): void {
     PROPUESTAS,
     COTIZACIONES,
     PAGOS,
+    COMPROBANTES,
     ASIENTOS_DE_SALDO,
     RETIROS,
     PEDIDOS_DE_REEMBOLSO,

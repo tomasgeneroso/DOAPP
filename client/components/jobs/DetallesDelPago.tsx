@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, ShieldCheck, Receipt } from "lucide-react";
 import Transicion from "../ui/Transicion";
-import type { AprobacionDelDetalle, DetalleDelPagoDeLaPublicacion, ModoDeAprobacion } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
+import type { DetalleDelPagoDeLaPublicacion, ModoDeAprobacion } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
 
 /**
  * «Detalles del pago» de una publicación, plegable. Lo ve el equipo (con más cosas adentro: comprobante y enlaces, por `children`) y la persona que publicó el
@@ -25,19 +25,6 @@ const COLOR_DEL_MODO: Record<ModoDeAprobacion, string> = {
 const cuando = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const pesos = (n: number): string => `$${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-function Paso({ titulo, aprobacion, testid }: { titulo: string; aprobacion: AprobacionDelDetalle; testid: string }) {
-  return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/60" data-testid={testid}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-slate-900 dark:text-white">{titulo}</span>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${COLOR_DEL_MODO[aprobacion.modo]}`}>{ROTULO_DEL_MODO[aprobacion.modo]}</span>
-      </div>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{aprobacion.texto}</p>
-      {aprobacion.cuando && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{cuando(aprobacion.cuando)}</p>}
-    </li>
-  );
-}
 
 function Dato({ rotulo, valor, testid }: { rotulo: string; valor: ReactNode; testid?: string }) {
   return (
@@ -97,20 +84,28 @@ export default function DetallesDelPago({
             La <strong>comisión</strong> es el importe en pesos que cobra DOAPP; la <strong>tasa</strong> es el porcentaje del precio con el que se calculó ese importe. Si la tasa es 0 %, no se cobró comisión.
           </p>
 
-          <ol className="space-y-2" aria-label="Cómo se aprobó">
-            <li className="text-sm text-slate-700 dark:text-slate-200" data-testid="pago-creado">
-              <span className="font-semibold">Pago iniciado:</span> {cuando(detalle.pagoCreado)}
-            </li>
-            <Paso titulo="Pago aprobado" aprobacion={detalle.pagoAprobado} testid="pago-aprobado" />
-            <Paso titulo="Trabajo aprobado" aprobacion={detalle.trabajoAprobado} testid="trabajo-aprobado" />
-            {detalle.cancelado && (
-              <li className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-200" data-testid="trabajo-cancelado">
-                <span className="font-semibold">Trabajo cancelado</span>
-                {detalle.cancelado.cuando ? ` · ${cuando(detalle.cancelado.cuando)}` : ""}
-                {detalle.cancelado.motivo && <p className="mt-0.5">{detalle.cancelado.motivo}</p>}
-              </li>
-            )}
-          </ol>
+          {/* La historia, de lo más reciente a lo más viejo (lo que todavía falta, arriba de todo) */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Historia</h3>
+            <ol className="relative ml-2 border-l border-slate-200 dark:border-slate-700" aria-label="Historia del pago y del trabajo, de lo más reciente a lo más viejo" data-testid="historia-del-pago">
+              {detalle.historia.map((h, i) => (
+                <li key={`${h.clave}-${i}`} className="mb-4 ml-5 last:mb-0" data-testid={`evento-${h.clave}`} data-pendiente={h.pendiente ? "true" : "false"}>
+                  <span
+                    className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white dark:ring-slate-800 ${
+                      h.pendiente ? "bg-amber-400" : h.clave === "trabajo_cancelado" || h.clave === "trabajo_no_aprobado" ? "bg-rose-500" : "bg-emerald-500"
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white">{h.titulo}</span>
+                    {h.modo && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${COLOR_DEL_MODO[h.modo]}`}>{ROTULO_DEL_MODO[h.modo]}</span>}
+                  </div>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{h.texto}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{h.cuando ? cuando(h.cuando) : "Todavía no pasó"}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
 
           {children}
         </div>

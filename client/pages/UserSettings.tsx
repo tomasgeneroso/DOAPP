@@ -669,6 +669,7 @@ export default function UserSettings() {
                 return (
                   <button
                     key={tab.id}
+                    data-guia={`pestana-${tab.id}`}
                     onClick={() => setActiveTab(tab.id as TabType)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
                       activeTab === tab.id
@@ -737,7 +738,7 @@ export default function UserSettings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                         Foto de perfil
                       </label>
-                      <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-600 dark:text-sky-400 border border-sky-300 dark:border-sky-700 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                      <label data-guia="perfil-foto" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-600 dark:text-sky-400 border border-sky-300 dark:border-sky-700 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
                         <Upload className="h-4 w-4" />
                         {avatarUploading ? 'Subiendo...' : 'Cambiar foto'}
                         <input
@@ -829,6 +830,7 @@ export default function UserSettings() {
                       {t('settings.basic.bio')}
                     </label>
                     <textarea
+                      data-guia="perfil-bio"
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       rows={4}

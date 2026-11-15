@@ -78,6 +78,7 @@ import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
+import ImagenProtegida from "../components/ui/ImagenProtegida";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
 export default function JobDetail() {
@@ -2448,7 +2449,7 @@ export default function JobDetail() {
                       </a>
                     ) : (
                       <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="block">
-                        <img src={getImageUrl(adminPayment.proof.fileUrl)} alt={t('jobs.adminPayment.proofAlt', 'Comprobante')} className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
+                        <ImagenProtegida src={getImageUrl(adminPayment.proof.fileUrl)} alt={t('jobs.adminPayment.proofAlt', 'Comprobante')} className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
                       </a>
                     )}
                   </div>
@@ -2818,7 +2819,8 @@ export default function JobDetail() {
                           )}
                         </p>
                       </div>
-                      {(user?.role === 'doer' || user?.role === 'both') && (
+                      {/* Cotizar después de postularse: para cualquier cuenta (una sola cuenta para todo) */}
+                      {(
                         <button
                           onClick={() => {
                             const clientId = typeof job.client === 'object' ? (job.client?.id || job.client?.id) : job.postedBy;

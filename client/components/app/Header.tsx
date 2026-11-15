@@ -331,6 +331,7 @@ export default function Header() {
                 onClick={toggleMenu}
                 className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 aria-label="Menú de usuario"
+                data-guia="menu-usuario"
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
               >
@@ -412,6 +413,7 @@ export default function Header() {
                     </Link>
                     <Link
                       to="/settings"
+                      data-guia="menu-configuracion"
                       onClick={() => handleNavClick('/settings')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"

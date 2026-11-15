@@ -73,6 +73,44 @@ describe('trabajo aprobado', () => {
   });
 });
 
+describe('historia (de lo más reciente a lo más viejo)', () => {
+  const claves = (d: ReturnType<typeof armarDetalleDelPagoDeLaPublicacion>) => d.historia.map((h) => h.clave);
+
+  it('pago aprobado solo, trabajo aprobado por un administrador y cancelado: la cancelación arriba y el inicio del pago abajo', () => {
+    const d = armarDetalleDelPagoDeLaPublicacion(base({
+      pago: { mercadopagoVerifiedAt: T0 },
+      trabajo: { status: 'cancelled', reviewedAt: T1, reviewedByName: 'Ana Admin', cancelledAt: new Date('2026-11-14T22:11:00Z'), cancellationReason: 'Cancelado automáticamente: la fecha ya pasó.' },
+    }));
+    expect(claves(d)).toEqual(['trabajo_cancelado', 'trabajo_aprobado', 'pago_aprobado', 'pago_iniciado']);
+    const fechas = d.historia.map((h) => new Date(h.cuando as string).getTime());
+    expect([...fechas].sort((a, b) => b - a)).toEqual(fechas);
+    expect(d.historia[0].texto).toMatch(/la fecha ya pasó/);
+    expect(d.historia[1]).toMatchObject({ modo: 'administrador' });
+    expect(d.historia[2]).toMatchObject({ modo: 'automatico' });
+  });
+
+  it('lo que todavía falta va arriba de todo, sin fecha', () => {
+    const d = armarDetalleDelPagoDeLaPublicacion(base({ pago: { status: 'pending_verification' }, trabajo: { status: 'pending_payment', publicationPaid: false } }));
+    expect(d.historia[0]).toMatchObject({ clave: 'pendiente_pago', pendiente: true, cuando: null });
+    expect(d.historia.some((h) => h.clave === 'pendiente_trabajo')).toBe(true);
+    expect(d.historia[d.historia.length - 1].clave).toBe('pago_iniciado');
+  });
+
+  it('los comprobantes entran en su lugar, con quién los subió', () => {
+    const d = armarDetalleDelPagoDeLaPublicacion({ ...base({ pago: { mercadopagoVerifiedAt: T1 } }), comprobantes: [{ cuando: T0, porElEquipo: false }, { cuando: new Date('2026-11-14T10:00:00Z'), porElEquipo: true }] });
+    // a igual fecha (T0) manda el orden de la cadena: el trabajo publicado, después el comprobante, después el inicio del pago
+    expect(claves(d)).toEqual(['pago_aprobado', 'comprobante', 'trabajo_aprobado', 'comprobante', 'pago_iniciado']);
+    const comprobantes = d.historia.filter((h) => h.clave === 'comprobante');
+    expect(comprobantes.map((c) => c.titulo)).toEqual(['Comprobante subido por el equipo', 'Comprobante subido']);
+  });
+
+  it('un trabajo rechazado o cancelado sin aprobación no dice que se aprobó solo', () => {
+    const d = armarDetalleDelPagoDeLaPublicacion(base({ trabajo: { status: 'cancelled', cancelledAt: T1 } }));
+    expect(claves(d)).not.toContain('trabajo_aprobado');
+    expect(claves(d)).toContain('trabajo_cancelado');
+  });
+});
+
 describe('importes y método', () => {
   it('la comisión es el importe y la tasa es el porcentaje (dos datos distintos)', () => {
     const d = armarDetalleDelPagoDeLaPublicacion(base({ pago: { platformFee: 1056.1, platformFeePercentage: 10 } }));

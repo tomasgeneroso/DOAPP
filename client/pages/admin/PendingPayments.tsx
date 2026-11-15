@@ -12,6 +12,7 @@ import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
 import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
 import { rotuloDelEstadoDeUnPago } from "../../../shared/admin/resumenDePublicacion";
 import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
+import ImagenProtegida from "../../components/ui/ImagenProtegida";
 import {
   CheckCircle,
   XCircle,
@@ -2864,13 +2865,13 @@ export default function PendingPayments() {
       {/* Payment process timeline */}
       {timelinePayment && (
         <PaymentProcessTimeline
-          payment={timelinePayment}
+          payment={verificationPayments.find((p: any) => p.id === timelinePayment.id) ?? timelinePayment}
           busy={approvingPaymentId === timelinePayment.id}
           onVerify={(p) => { setTimelinePayment(null); handleApproveVerificationPayment(p.id, p); }}
           onEscrow={(id) => { setTimelinePayment(null); handleVerifyEscrow(id); }}
           onPayout={(id) => { setTimelinePayment(null); handleConfirmForPayout(id); }}
           onReject={(p) => { setTimelinePayment(null); handleRejectVerificationPayment(p.id, p); }}
-          onViewProof={(p) => { setTimelinePayment(null); openProofViewer(p.proofs?.[0]?.fileUrl || '', `Comprobante · ${p.payer?.name || ''}`, p.payer?.id, p.payer?.name, p.id); }}
+          onViewProof={(p, c) => { setTimelinePayment(null); openProofViewer((c ?? p.proofs?.[0] ?? p.adminProofs?.[0])?.fileUrl || '',`Comprobante · ${p.payer?.name || ''}`, p.payer?.id, p.payer?.name, p.id); }}
           onClose={() => setTimelinePayment(null)}
         />
       )}
@@ -3779,23 +3780,7 @@ export default function PendingPayments() {
                         <FileText className="h-6 w-6" /> Abrir PDF del comprobante
                       </a>
                     ) : (
-                      <>
-                        <img
-                          src={url}
-                          alt={label}
-                          className="w-full rounded-lg object-contain max-h-[50vh] bg-gray-100 dark:bg-gray-900"
-                          onError={(e) => {
-                            const t = e.target as HTMLImageElement;
-                            t.style.display = 'none';
-                            const sib = t.nextElementSibling as HTMLElement | null;
-                            if (sib) sib.style.display = 'block';
-                          }}
-                        />
-                        <div style={{ display: 'none' }} className="text-center py-6 text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg">
-                          No se pudo cargar la imagen (el archivo puede no existir).
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-1 text-sky-600 dark:text-sky-400 hover:underline">Abrir en pestaña nueva</a>
-                        </div>
-                      </>
+                      <ImagenProtegida src={url} alt={label} testid="comprobante-imagen" className="w-full rounded-lg object-contain max-h-[50vh] bg-gray-100 dark:bg-gray-900" />
                     )}
                     {r.caption && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-line">{r.caption}</p>}
                   </div>
@@ -3831,7 +3816,7 @@ export default function PendingPayments() {
                                 {isPdf ? (
                                   <div className="w-14 h-14 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded"><FileText className="h-6 w-6 text-red-500" /></div>
                                 ) : (
-                                  <img src={getImageUrl(n.fileUrl)} alt="nota" className="w-14 h-14 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                                  <ImagenProtegida src={getImageUrl(n.fileUrl)} alt="nota" className="w-14 h-14 object-cover rounded" />
                                 )}
                               </a>
                             ) : (

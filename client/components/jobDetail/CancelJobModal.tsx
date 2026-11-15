@@ -220,7 +220,7 @@ export default function CancelJobModal({
               <p className="text-sm text-red-200">
                 {t("jobs.cancelWarningCommission", "By cancelling the listing")}{" "}
                 <span className="font-bold">
-                  {t("jobs.willLoseCommission", "you will lose the commission paid")}
+                  {t("jobs.willLoseCommission", "the publication commission already paid stays applied to the job")}
                 </span>{" "}
                 (${publicationAmount?.toLocaleString("es-AR")} ARS).{" "}
                 {t("common.cannotBeUndone", "This action cannot be undone.")}

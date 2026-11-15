@@ -29,31 +29,9 @@ interface OnboardingContextType {
 const OnboardingContext = createContext<OnboardingContextType | null>(null);
 
 // Define onboarding steps
+// Por ahora la visita guiada solo muestra dos cosas (pedido del dueño, 2026-11-15): el camino para publicar un trabajo y el menú del usuario. Para recorrerlos paso a paso,
+// con ayuda, está «Tu guía de inicio» (components/guias).
 const ONBOARDING_STEPS: OnboardingStep[] = [
-  {
-    id: 'welcome',
-    title: 'onboarding.welcome.title',
-    description: 'onboarding.welcome.desc',
-    targetSelector: '[data-onboarding="logo"]',
-    position: 'bottom',
-    page: '/',
-  },
-  {
-    id: 'search',
-    title: 'onboarding.search.title',
-    description: 'onboarding.search.desc',
-    targetSelector: '[data-onboarding="search"] input',
-    position: 'bottom',
-    page: '/',
-  },
-  {
-    id: 'jobs',
-    title: 'onboarding.jobs.title',
-    description: 'onboarding.jobs.desc',
-    targetSelector: '[data-onboarding="jobs-list-title"]',
-    position: 'bottom',
-    page: '/',
-  },
   {
     id: 'create-job',
     title: 'onboarding.createJob.title',
@@ -115,8 +93,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     if (shouldShowOnboarding && location.pathname === '/') {
       // Wait for DOM to be ready - check for key elements before showing
       const checkAndActivate = () => {
-        const logoElement = document.querySelector('[data-onboarding="logo"]');
-        const searchElement = document.querySelector('[data-onboarding="search"]');
+        const logoElement = document.querySelector('[data-onboarding="create-job"]');
+        const searchElement = document.querySelector('[data-onboarding="profile-menu"]');
 
         // If key elements exist, activate onboarding
         if (logoElement || searchElement) {

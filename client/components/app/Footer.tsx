@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Globe } from "lucide-react";
+import { Mail, MapPin, Phone, Facebook, Instagram, Globe } from "lucide-react";
+import { REDES_SOCIALES } from "../../../shared/constants/redesSociales";
 import { useTranslation } from "react-i18next";
 import { features } from "../../../shared/featureFlags";
 import { useAuth } from "../../hooks/useAuth";
@@ -32,45 +33,26 @@ export default function Footer() {
               {t('footer.description')}
             </p>
             <div className="flex gap-3">
+              {/* Solo las cuentas oficiales de DOAPP (shared/constants/redesSociales.ts): antes los íconos llevaban a la portada de cada red, no a la cuenta. */}
               <a
-                href="https://facebook.com"
+                href={REDES_SOCIALES.facebook.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="DoApp en Facebook"
-                title="Facebook"
+                aria-label={`DoApp en Facebook: ${REDES_SOCIALES.facebook.usuario}`}
+                title={`Facebook · ${REDES_SOCIALES.facebook.usuario}`}
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Facebook className="h-5 w-5" />
               </a>
               <a
-                href="https://twitter.com"
+                href={REDES_SOCIALES.instagram.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="DoApp en X (Twitter)"
-                title="X (Twitter)"
-                className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
-              >
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="DoApp en Instagram"
-                title="Instagram"
+                aria-label={`DoApp en Instagram: ${REDES_SOCIALES.instagram.usuario}`}
+                title={`Instagram · ${REDES_SOCIALES.instagram.usuario}`}
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Instagram className="h-5 w-5" />
-              </a>
-              <a
-                href="https://linkedin.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="DoApp en LinkedIn"
-                title="LinkedIn"
-                className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
-              >
-                <Linkedin className="h-5 w-5" />
               </a>
             </div>
             <DescargarApk variante="pie" />

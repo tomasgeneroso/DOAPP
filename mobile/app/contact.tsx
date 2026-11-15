@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CheckCircle2 } from 'lucide-react-native';
+import { CheckCircle2, Instagram, Facebook } from 'lucide-react-native';
+import { REDES_SOCIALES } from '../../shared/constants/redesSociales';
 import Pantalla from '../components/Pantalla';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -108,6 +109,29 @@ export default function ContactoScreen() {
       <TouchableOpacity style={[styles.boton, enviando && { opacity: 0.6 }]} onPress={enviar} disabled={enviando}>
         {enviando ? <ActivityIndicator color="#fff" /> : <Text style={styles.botonTexto}>Enviar mensaje</Text>}
       </TouchableOpacity>
+
+      {/* Redes oficiales */}
+      <Text style={[styles.redesTitulo, { color: themeColors.text.secondary }]}>También estamos en redes</Text>
+      <View style={styles.redes}>
+        <TouchableOpacity
+          onPress={() => Linking.openURL(REDES_SOCIALES.instagram.url)}
+          accessibilityRole="link"
+          accessibilityLabel={`Instagram de DOAPP: ${REDES_SOCIALES.instagram.usuario}`}
+          style={[styles.red, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}
+        >
+          <View style={[styles.redIcono, { backgroundColor: '#D6249F' }]}><Instagram size={18} color="#fff" /></View>
+          <Text style={{ color: themeColors.text.primary, fontWeight: fontWeight.semibold }}>{REDES_SOCIALES.instagram.usuario}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => Linking.openURL(REDES_SOCIALES.facebook.url)}
+          accessibilityRole="link"
+          accessibilityLabel={`Facebook de DOAPP: ${REDES_SOCIALES.facebook.usuario}`}
+          style={[styles.red, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}
+        >
+          <View style={[styles.redIcono, { backgroundColor: '#1877F2' }]}><Facebook size={18} color="#fff" /></View>
+          <Text style={{ color: themeColors.text.primary, fontWeight: fontWeight.semibold }}>{REDES_SOCIALES.facebook.usuario}</Text>
+        </TouchableOpacity>
+      </View>
     </Pantalla>
   );
 }
@@ -122,6 +146,10 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: borderRadius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   boton: { backgroundColor: colors.primary[600], borderRadius: borderRadius.lg, height: 50, justifyContent: 'center', alignItems: 'center', marginTop: spacing.lg, alignSelf: 'stretch' },
   botonTexto: { color: '#fff', fontSize: fontSize.base, fontWeight: fontWeight.semibold },
+  redesTitulo: { fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.xl, marginBottom: spacing.sm },
+  redes: { gap: spacing.sm },
+  red: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderRadius: borderRadius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  redIcono: { width: 34, height: 34, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   exito: { alignItems: 'center', paddingTop: spacing['2xl'] },
   exitoTitulo: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, marginTop: spacing.lg },
   exitoTexto: { fontSize: fontSize.base, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },

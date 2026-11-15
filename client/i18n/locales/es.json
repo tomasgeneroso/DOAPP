@@ -827,7 +827,7 @@
       "resume": "Reanudar trabajo",
       "cancel": "Cancelar trabajo",
       "contactSupport": "Contactar soporte",
-      "cantCancel": "Cancelación tardía: faltan menos de 24 h para el inicio y ya hay un trabajador seleccionado. La mitad del precio se le paga a él por el día que reservó y la otra mitad vuelve a tu favor: si Mercado Pago todavía no liberó el pago original queda como «a favor pendiente» y pasa a tu saldo cuando lo libere. La comisión de publicación y el costo de procesamiento del pago no se devuelven. Retirar ese saldo a tu banco no tiene costo.",
+      "cantCancel": "Cancelación tardía: faltan menos de 24 h para el inicio y ya hay un trabajador seleccionado. La mitad del precio se le paga a él por el día que reservó y la otra mitad vuelve a tu favor: si Mercado Pago todavía no liberó el pago original queda como «a favor pendiente» y pasa a tu saldo cuando lo libere. Lo que vuelve a tu favor lo podés retirar a tu banco sin costo; la comisión de publicación y el costo de procesamiento del pago quedan aplicados.",
       "timeToCancel": "Tiempo restante para cancelar con devolución completa:",
       "publishedReceiving": "Este trabajo está publicado y recibiendo propuestas",
       "cancelAndRefund": "Cancelar y obtener reembolso",
@@ -1093,7 +1093,7 @@
     "publishing": "Publicando...",
     "reasonMinLength": "El motivo debe tener al menos 10 caracteres",
     "redirectToContract": "Redirigir al contrato",
-    "remember24hCancel": "Podés cancelar hasta que empiece el trabajo. Con más de 24 horas de anticipación el precio vuelve a tu favor (si Mercado Pago todavía no liberó el pago original queda como «a favor pendiente» y pasa a tu saldo cuando lo libere); con menos, la mitad va al trabajador que reservó el día. La comisión no se devuelve porque ya hay un trabajador seleccionado.",
+    "remember24hCancel": "Podés cancelar hasta que empiece el trabajo. Con más de 24 horas de anticipación el precio vuelve a tu favor (si Mercado Pago todavía no liberó el pago original queda como «a favor pendiente» y pasa a tu saldo cuando lo libere); con menos, la mitad va al trabajador que reservó el día. La comisión queda aplicada porque ya hay un trabajador seleccionado.",
     "reportProblem": "Reportar problema",
     "reschedule": "Reprogramar",
     "reschedulingNoApplicants": "Reprogramando trabajo sin postulantes",
@@ -1137,7 +1137,7 @@
     "viewFullContract": "Ver contrato completo",
     "waitingPaymentVerification": "Esperando la verificación del pago",
     "weHandlePayment": "Gracias por confiar en DoApp, nos aseguramos de que el pago llegue a destino.",
-    "willLoseCommission": "perderás la comisión pagada",
+    "willLoseCommission": "la comisión de publicación ya abonada queda aplicada al trabajo",
     "willReactivateAutomatically": "El trabajo se reactivará automáticamente",
     "willResumeAutomatically": "El trabajo se reanudará automáticamente",
     "workerAssigned": "Trabajador asignado",
@@ -1206,23 +1206,23 @@
     "byTasks": "Por tareas",
     "tasksToComplete": "Tareas a completar",
     "empty": {
-      "allTitle": "�Tu primer contrato te espera!",
-      "allDesc": "Explora los trabajos disponibles y post�late, o publica tu propio trabajo para recibir propuestas.",
+      "allTitle": "¡Tu primer contrato te espera!",
+      "allDesc": "Explorá los trabajos disponibles y postulate, o publicá tu propio trabajo para recibir propuestas.",
       "activeTitle": "Sin contratos activos",
-      "activeDesc": "Cuando tengas contratos en curso, aparecer�n aqu�.",
+      "activeDesc": "Cuando tengas contratos en curso, van a aparecer acá.",
       "completedTitle": "Sin contratos completados",
-      "completedDesc": "Los contratos que completes se mostrar�n aqu� como parte de tu historial."
+      "completedDesc": "Los contratos que completes se van a mostrar acá como parte de tu historial."
     },
     "asClient": "Como Cliente",
     "asFreelancer": "Como Trabajador",
     "created": "Creado",
     "report": "Reportar",
     "reportProblem": "Reportar un problema",
-    "loadMore": "Cargar m�s",
+    "loadMore": "Cargar más",
     "totalPrice": "Precio total",
     "deliveryTypes": {
       "byTasks": "Por tareas",
-      "singleDelivery": "Entrega �nica"
+      "singleDelivery": "Entrega única"
     },
     "filter": {
       "active": "Activos",
@@ -1535,7 +1535,7 @@
     "autoSelectionLabel": "Selección automática:",
     "autoSelectionDesc": "Si no seleccionás un trabajador a tiempo, se asignará automáticamente al primer postulante.",
     "cancellationLabel": "Cancelación:",
-    "cancellationDesc": "Si cancelás el trabajo después de publicarlo, perderás la comisión de publicación pagada.",
+    "cancellationDesc": "Podés cancelar cuando quieras: mientras no haya un trabajador elegido, el precio y la comisión vuelven a tu favor.",
     "publishing": "Publicando...",
     "bankingNotConfigured": "Datos bancarios no configurados",
     "bankingNotConfiguredDesc": "Para recibir pagos por tus trabajos",
@@ -2079,12 +2079,12 @@
       "desc": "Como propietario de un trabajo, puedes agregar tareas secuenciales para guiar al trabajador. Las tareas muestran progreso hasta el 90%"
     },
     "createJob": {
-      "title": "Publicar un Trabajo",
-      "desc": "Si necesitas contratar a alguien, publica tu trabajo desde aquí. Recibirás propuestas de profesionales interesados"
+      "title": "Publicá tu trabajo",
+      "desc": "Publicá lo que necesitás desde acá y recibí propuestas de profesionales interesados."
     },
     "profile": {
-      "title": "Tu Menú de Usuario",
-      "desc": "Desde aquí accedes a tu perfil, dashboard, mensajes, contratos, configuración y más"
+      "title": "Tu menú de usuario",
+      "desc": "Desde acá llegás a tu perfil, tus trabajos, tus mensajes, la configuración y más."
     }
   },
   "payments": {

@@ -9,6 +9,7 @@ import { RastreadorDeRuta } from "./utils/rutaAnterior";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import FirstContractGuide from "./components/FirstContractGuide";
+import { GuiaPasoAPasoProvider } from "./components/guias/GuiaPasoAPaso";
 import StagingBar from "./components/StagingBar";
 import { useEffect, lazy, Suspense } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
@@ -178,6 +179,7 @@ export default function App() {
               <SeoDeRuta />
               <RastreadorDeRuta />
               <OnboardingProvider>
+              <GuiaPasoAPasoProvider>
                 <OnboardingTooltip />
                 <FirstContractGuide />
                 {/*
@@ -788,6 +790,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>
+              </GuiaPasoAPasoProvider>
               </OnboardingProvider>
             </BrowserRouter>
           </ToastProvider>
