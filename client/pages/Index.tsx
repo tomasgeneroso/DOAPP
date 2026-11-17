@@ -841,7 +841,7 @@ export default function Index() {
                   {t('home.beFirstToPublish', 'Be the first to publish!')}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-6">
-                  {t('home.noJobsYetDesc', 'No jobs published yet. Take the opportunity to be the first to offer your services or post what you need.')}
+                  {t('home.noJobsYetDesc', 'Be the first to offer your services or post what you need.')}
                 </p>
                 {user ? (
                   <Link

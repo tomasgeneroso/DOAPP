@@ -671,7 +671,7 @@ export default function JobDetailScreen() {
           <View style={[styles.infoBox, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <Info size={18} color={themeColors.text.secondary} />
             <Text style={[styles.infoBoxText, { color: themeColors.text.secondary }]}>
-              Aún no hay contrato activo para este trabajo
+              El contrato va a aparecer acá cuando haya un trabajador elegido
             </Text>
           </View>
         )}

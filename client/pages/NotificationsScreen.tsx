@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import Pestanas from '../components/ui/Pestanas';
 import {
   Bell,
   Check,
@@ -368,35 +369,16 @@ export default function NotificationsScreen() {
 
           {/* Filters and Actions */}
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setFilter('unread')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                  filter === 'unread'
-                    ? 'bg-sky-500 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {t('notifications.unread', 'Unread')}
-                {unreadCount > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                    filter === 'unread' ? 'bg-white/20 text-white' : 'bg-red-500 text-white'
-                  }`}>
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === 'all'
-                    ? 'bg-sky-500 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {t('common.all')}
-              </button>
-            </div>
+            <Pestanas
+              className="w-fit"
+              ariaLabel="Filtrar notificaciones"
+              valor={filter}
+              onCambiar={setFilter}
+              opciones={[
+                { id: 'unread' as const, texto: t('notifications.unread', 'Unread'), insignia: unreadCount > 0 ? unreadCount : undefined },
+                { id: 'all' as const, texto: t('common.all') },
+              ]}
+            />
 
             {unreadCount > 0 && (
               <button

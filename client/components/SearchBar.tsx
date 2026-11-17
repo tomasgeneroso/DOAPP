@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import Pestanas from './ui/Pestanas';
 import { useTranslation } from "react-i18next";
 import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users, Loader2 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
@@ -283,40 +284,17 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
         {/* Search Type Toggle */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('home.searchLabel')}</span>
-          <div className="relative flex bg-slate-100 dark:bg-slate-700 rounded-md p-0.5">
-            {/* Sliding pill indicator */}
-            <div
-              className={`absolute inset-y-0.5 w-[calc(50%-2px)] rounded-md bg-white dark:bg-slate-600 shadow-sm transition-all duration-200 ease-in-out ${
-                searchType === 'users' ? 'left-[calc(50%+1px)]' : 'left-0.5'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => { setSearchType('jobs'); analytics.filterApply('search_type', 'jobs', 'search_bar'); }}
-              className={`relative z-10 flex items-center justify-center gap-1 px-2 py-1 w-1/2 rounded-md text-xs font-medium transition-colors duration-200 ${
-                searchType === 'jobs'
-                  ? 'text-sky-600 dark:text-sky-400'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title={t('search.jobsTooltip', 'Search available jobs by category, location or description')}
-            >
-              <Briefcase className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t('home.jobsTab')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSearchType('users'); analytics.filterApply('search_type', 'users', 'search_bar'); }}
-              className={`relative z-10 flex items-center justify-center gap-1 px-2 py-1 w-1/2 rounded-md text-xs font-medium transition-colors duration-200 ${
-                searchType === 'users'
-                  ? 'text-sky-600 dark:text-sky-400'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title={t('search.usersTooltip', 'Search professionals by username or skills')}
-            >
-              <Users className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">{t('home.profilesTab')}</span>
-            </button>
-          </div>
+          <Pestanas
+            tamano="compacto"
+            className="w-fit"
+            ariaLabel="Qué buscar"
+            valor={searchType}
+            onCambiar={(id) => { setSearchType(id); analytics.filterApply('search_type', id, 'search_bar'); }}
+            opciones={[
+              { id: 'jobs' as const, texto: t('home.jobsTab'), icono: <Briefcase className="h-3.5 w-3.5" />, titulo: t('search.jobsTooltip', 'Search available jobs by category, location or description') },
+              { id: 'users' as const, texto: t('home.profilesTab'), icono: <Users className="h-3.5 w-3.5 shrink-0" />, titulo: t('search.usersTooltip', 'Search professionals by username or skills') },
+            ]}
+          />
         </div>
 
         {/* Main Search Bar */}

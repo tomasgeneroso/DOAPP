@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactElement } from "react";
 import ImageEditorModal from "../components/profile/ImageEditorModal";
+import { achicarSiPesaDeMas } from "../utils/imagenes";
 
 export interface OpcionesDeEdicion {
   /** Proporción fija (ancho / alto). Sin esto, la persona elige: original, 1:1, 4:3 o 16:9. */
@@ -84,7 +85,7 @@ export function useEditorDeFotos() {
       cropShape={pendiente.opciones.cropShape}
       title={pendiente.titulo}
       outputType={pendiente.file.type === "image/png" ? "image/png" : "image/jpeg"}
-      onUseOriginal={() => cerrar(pendiente.file)}
+      onUseOriginal={() => void achicarSiPesaDeMas(pendiente.file).then(cerrar)}
       onCancel={() => cerrar(null)}
       onConfirm={(blob) => cerrar(new File([blob], conExtension(pendiente.file.name, blob.type), { type: blob.type, lastModified: Date.now() }))}
     />

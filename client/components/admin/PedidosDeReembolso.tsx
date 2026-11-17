@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Pestanas from "../ui/Pestanas";
 import { Link } from "react-router-dom";
 import { Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -108,19 +109,16 @@ export default function PedidosDeReembolso({ onContar }: { onContar?: (pendiente
         <h3 id="pedidos-reembolso-titulo" className="text-base font-semibold text-slate-900 dark:text-white">
           Pedidos de reembolso de clientes
         </h3>
-        <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-sm" role="tablist">
-          {(["pending", "resolved"] as const).map((v) => (
-            <button
-              key={v}
-              role="tab"
-              aria-selected={vista === v}
-              onClick={() => setVista(v)}
-              className={`px-3 py-1.5 ${vista === v ? "bg-sky-500 text-white" : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"}`}
-            >
-              {v === "pending" ? "Pendientes" : "Resueltos"}
-            </button>
-          ))}
-        </div>
+        <Pestanas
+          className="w-fit"
+          ariaLabel="Pedidos pendientes o resueltos"
+          valor={vista}
+          onCambiar={setVista}
+          opciones={[
+            { id: "pending" as const, texto: "Pendientes" },
+            { id: "resolved" as const, texto: "Resueltos" },
+          ]}
+        />
       </div>
 
       <Transicion mostrar={!!error}>

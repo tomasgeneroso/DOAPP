@@ -82,8 +82,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
 
                   {aFavor ? (
                     <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
-                      Todavía no es saldo: no lo podés usar ni retirar.
-                      {c.disponibleDesde ? ` Pasa a tu saldo el ${fechaDeLiquidacion(c.disponibleDesde)}.` : ''}
+                      {c.disponibleDesde ? `Pasa a tu saldo el ${fechaDeLiquidacion(c.disponibleDesde)}: desde ahí lo podés usar o retirar.` : 'Pasa a tu saldo cuando se libere el pago: desde ahí lo podés usar o retirar.'}
                     </p>
                   ) : (
                     <p className="mt-3 text-xs text-gray-600 dark:text-gray-400" data-testid="detalle-del-cobro">

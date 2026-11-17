@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import Pestanas from "../../components/ui/Pestanas";
 import { useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Loader2 } from 'lucide-react';
@@ -42,24 +43,13 @@ export default function AdminPublicaciones() {
       <Helmet><title>Publicaciones · Administración</title></Helmet>
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Publicaciones</h1>
-        <div role="tablist" aria-label="Vistas de publicaciones" className="mt-3 flex gap-1 border-b border-slate-200 dark:border-slate-700">
-          {VISTAS.map((v) => (
-            <button
-              key={v.clave}
-              role="tab"
-              type="button"
-              aria-selected={vista === v.clave}
-              onClick={() => elegir(v.clave)}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                vista === v.clave
-                  ? 'border-sky-500 text-sky-700 dark:text-sky-300'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              {v.rotulo}
-            </button>
-          ))}
-        </div>
+        <Pestanas
+          className="mt-3"
+          ariaLabel="Vistas de publicaciones"
+          valor={vista}
+          onCambiar={elegir}
+          opciones={VISTAS.map((v) => ({ id: v.clave, texto: v.rotulo }))}
+        />
       </div>
 
       {vista === 'general' && <PanelGeneralDePublicaciones />}

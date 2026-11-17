@@ -293,7 +293,7 @@ export default function ContractsScreen() {
           <View style={styles.emptyContainer}>
             <FileText size={48} color={themeColors.text.muted} />
             <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>
-              No tienes contratos
+              Tus contratos van a aparecer acá apenas cierres un trabajo
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
               {activeTab === 'as_client'

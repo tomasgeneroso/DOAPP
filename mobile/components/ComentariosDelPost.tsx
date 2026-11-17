@@ -99,7 +99,7 @@ export default function ComentariosDelPost({ postId }: { postId: string }) {
       {!!error && <Text style={{ color: colors.danger[600], marginBottom: spacing.sm }}>{error}</Text>}
 
       {lista === null && !error && <ActivityIndicator color={colors.primary[600]} style={{ marginTop: spacing.md }} />}
-      {lista !== null && lista.length === 0 && <Text style={{ color: themeColors.text.muted }}>Todavía no hay comentarios.</Text>}
+      {lista !== null && lista.length === 0 && <Text style={{ color: themeColors.text.muted }}>¡Sé el primero en comentar!</Text>}
 
       {(lista || []).map((c) => (
         <View key={c.id} style={[styles.comentario, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>

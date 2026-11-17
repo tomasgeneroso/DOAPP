@@ -332,7 +332,7 @@ export default function PortfolioManager() {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No tienes trabajos en tu portafolio
+            Sumá tu primer trabajo al portafolio
           </h3>
           <p className="text-gray-600 dark:text-gray-400">
             Comienza agregando tus proyectos y trabajos realizados

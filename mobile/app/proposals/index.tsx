@@ -259,7 +259,7 @@ export default function ProposalsScreen() {
           <View style={styles.emptyContainer}>
             <FileText size={48} color={themeColors.text.muted} />
             <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>
-              No tienes propuestas
+              Cuando haya propuestas, las vas a ver acá
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
               Cuando apliques a trabajos, tus propuestas aparecerán aquí

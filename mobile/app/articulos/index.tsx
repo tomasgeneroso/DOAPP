@@ -106,7 +106,7 @@ export default function ArticulosScreen() {
         </ScrollView>
       )}
 
-      {!cargando && !error && articulos.length === 0 && <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay artículos para mostrar.</Text>}
+      {!cargando && !error && articulos.length === 0 && <Text style={[styles.vacio, { color: themeColors.text.muted }]}>Los artículos nuevos aparecen acá.</Text>}
 
       {articulos.map((a) => (
         <TouchableOpacity

@@ -70,6 +70,8 @@ export function GuiaPasoAPasoProvider({ children }: { children: ReactNode }) {
   const [indice, setIndice] = useState(0);
   const [version, setVersion] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
+  // Mientras hay una ventana abierta (editor de fotos, confirmaciones) la guía se esconde y espera: antes quedaba ENCIMA de la ventana y se pisaban.
+  const [oculta, setOculta] = useState(false);
   const faltaDesde = useRef<number | null>(null);
   const yaMostrado = useRef<string | null>(null);
 
@@ -119,6 +121,8 @@ export function GuiaPasoAPasoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!paso) return undefined;
     const seguir = () => {
+      const hayVentana = !!document.querySelector('[role="dialog"][aria-modal="true"]');
+      setOculta((previo) => (previo === hayVentana ? previo : hayVentana));
       const enLaRuta = !paso.ruta || paso.ruta.test(location.pathname);
       const el = enLaRuta ? document.querySelector(paso.objetivo) : null;
       if (visible(el)) {
@@ -182,7 +186,8 @@ export function GuiaPasoAPasoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!guiaActiva) return undefined;
     const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') salir();
+      // Con una ventana abierta, Escape es de la ventana: la guía no se cierra por detrás.
+      if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-modal="true"]')) salir();
     };
     window.addEventListener('keydown', alTeclear);
     return () => window.removeEventListener('keydown', alTeclear);
@@ -194,7 +199,7 @@ export function GuiaPasoAPasoProvider({ children }: { children: ReactNode }) {
   const esElUltimo = !!guia && indice >= guia.pasos.length - 1;
 
   const capa =
-    guia && paso ? (
+    guia && paso && !oculta ? (
       <>
         {rect && (
           <div

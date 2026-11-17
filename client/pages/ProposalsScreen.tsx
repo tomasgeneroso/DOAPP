@@ -1,8 +1,9 @@
 import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { useAuth } from "../hooks/useAuth";
 import { useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { SkeletonProposalCard } from "../components/ui/Skeleton";
@@ -38,6 +39,7 @@ export default function ProposalsScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const type = searchParams.get("type") || "sent";
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,79 +172,37 @@ export default function ProposalsScreen() {
         </div>
 
         {/* Type Toggle */}
-        <div className="mb-6 flex gap-2">
-          <Link
-            to="/proposals?type=sent"
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              type === "sent"
-                ? "bg-sky-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('proposals.sent', 'Enviadas')}
-          </Link>
-          <Link
-            to="/proposals?type=received"
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              type === "received"
-                ? "bg-sky-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('proposals.received', 'Recibidas')}
-          </Link>
-        </div>
+        <Pestanas
+          className="mb-4"
+          ariaLabel="Propuestas enviadas o recibidas"
+          valor={type === "received" ? ("received" as const) : ("sent" as const)}
+          onCambiar={(id) => navigate(`/proposals?type=${id}`)}
+          opciones={[
+            { id: "sent" as const, texto: t('proposals.sent', 'Enviadas') },
+            { id: "received" as const, texto: t('proposals.received', 'Recibidas') },
+          ]}
+        />
 
         {/* Filters */}
-        <div className="mb-6 flex gap-2 flex-wrap">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "all"
-                ? "bg-violet-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('common.all', 'Todas')}
-          </button>
-          <button
-            onClick={() => setFilter("pending")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "pending"
-                ? "bg-violet-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('proposals.filter.pending', 'Pendientes')}
-          </button>
-          <button
-            onClick={() => setFilter("approved")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "approved"
-                ? "bg-violet-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('proposals.filter.approved', 'Aprobadas')}
-          </button>
-          <button
-            onClick={() => setFilter("rejected")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "rejected"
-                ? "bg-violet-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('proposals.filter.rejected', 'Rechazadas')}
-          </button>
-        </div>
+        <Pestanas
+          className="mb-6"
+          ariaLabel="Filtrar propuestas"
+          valor={filter}
+          onCambiar={setFilter}
+          opciones={[
+            { id: "all" as const, texto: t('common.all', 'Todas') },
+            { id: "pending" as const, texto: t('proposals.filter.pending', 'Pendientes') },
+            { id: "approved" as const, texto: t('proposals.filter.approved', 'Aprobadas') },
+            { id: "rejected" as const, texto: t('proposals.filter.rejected', 'Rechazadas') },
+          ]}
+        />
 
         {/* Proposals List */}
         {filteredProposals.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600 dark:text-slate-400">
-              {t('proposals.noProposals', 'No tienes propuestas en este momento')}
+              {t('proposals.noProposals', 'Cuando haya propuestas, las vas a ver acá')}
             </p>
           </div>
         ) : (

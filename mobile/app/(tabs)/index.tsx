@@ -696,7 +696,7 @@ export default function HomeScreen() {
         ListEmptyComponent={
           <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
             <Package size={48} color={themeColors.text.muted} strokeWidth={1.5} />
-            <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>No hay trabajos disponibles</Text>
+            <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>Los trabajos nuevos aparecen acá: volvé en un rato</Text>
             <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
               {(searchQuery || activeFilterCount > 0) ? 'Probá con otros filtros de búsqueda' : 'Vuelve a intentar más tarde'}
             </Text>

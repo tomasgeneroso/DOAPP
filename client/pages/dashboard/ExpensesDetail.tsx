@@ -167,7 +167,7 @@ export default function ExpensesDetail() {
           {gastos.length === 0 ? (
             <div className="rounded-xl bg-white dark:bg-slate-800 p-12 text-center border border-slate-200 dark:border-slate-700">
               <TrendingDown className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No hay gastos registrados</h3>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Tus gastos van a aparecer acá</h3>
               <p className="text-slate-600 dark:text-slate-400">Cuando pagues una publicación, un contrato o la membresía, vas a verlo acá.</p>
             </div>
           ) : (

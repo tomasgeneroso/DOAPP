@@ -436,7 +436,7 @@ export default function MessagesScreen() {
                           </TouchableOpacity>
                         ))
                       ) : (
-                        <Text style={[styles.noResults, { color: themeColors.text.muted, padding: spacing.lg }]}>No hay trabajos disponibles</Text>
+                        <Text style={[styles.noResults, { color: themeColors.text.muted, padding: spacing.lg }]}>Los trabajos nuevos aparecen acá: volvé en un rato</Text>
                       )}
                     </View>
                   )}

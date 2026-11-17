@@ -386,7 +386,7 @@ export default function DisputeDetailScreen() {
             {!dispute.messages || dispute.messages.length === 0 ? (
               <View style={styles.emptyMessages}>
                 <Text style={[styles.emptyMessagesText, { color: themeColors.text.muted }]}>
-                  No hay mensajes aún
+                  Cuando haya mensajes, los vas a ver acá
                 </Text>
               </View>
             ) : (

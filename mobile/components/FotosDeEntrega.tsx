@@ -100,7 +100,7 @@ export default function FotosDeEntrega({ contractId, fotos, puedeAgregar, onCamb
     <View style={[styles.panel, { backgroundColor: tema.card, borderColor: tema.border }]} testID="fotos-de-entrega">
       <Text style={[styles.panelTitulo, { color: tema.text.primary }]}>Fotos de entrega{fotos.length > 0 ? ` (${fotos.length})` : ''}</Text>
       {fotos.length === 0 ? (
-        <Text style={[styles.ayuda, { color: tema.text.secondary }]}>Todavía no hay fotos. Quien termina el trabajo puede dejar fotos de cómo quedó.</Text>
+        <Text style={[styles.ayuda, { color: tema.text.secondary }]}>Quien termina el trabajo puede dejar fotos de cómo quedó.</Text>
       ) : (
         <View style={styles.grilla}>
           {fotos.map((f, i) => (

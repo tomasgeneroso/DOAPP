@@ -591,7 +591,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
-                No hay mensajes aún. ¡Envía el primero!
+                Escribí el primer mensaje para empezar la conversación
               </Text>
             </View>
           }
@@ -626,7 +626,7 @@ export default function ChatScreen() {
                 )}
               />
             ) : (
-              <Text style={[{ fontSize: fontSize.sm, color: themeColors.text.muted, textAlign: 'center', padding: spacing.md }]}>No hay trabajos disponibles</Text>
+              <Text style={[{ fontSize: fontSize.sm, color: themeColors.text.muted, textAlign: 'center', padding: spacing.md }]}>Los trabajos nuevos aparecen acá: volvé en un rato</Text>
             )}
           </View>
         )}

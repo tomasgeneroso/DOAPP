@@ -555,7 +555,7 @@ export default function BalanceScreen() {
               <View style={styles.emptyContainer}>
                 <Wallet size={48} color={themeColors.text.muted} />
                 <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
-                  No hay transacciones
+                  Tus movimientos van a aparecer acá
                 </Text>
               </View>
             ) : (
@@ -604,7 +604,7 @@ export default function BalanceScreen() {
               <View style={styles.emptyContainer}>
                 <CreditCard size={48} color={themeColors.text.muted} />
                 <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
-                  No hay retiros
+                  Cuando pidas un retiro, lo vas a seguir desde acá
                 </Text>
               </View>
             ) : (
@@ -645,7 +645,7 @@ export default function BalanceScreen() {
               <View style={styles.emptyContainer}>
                 <FileText size={48} color={themeColors.text.muted} />
                 <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
-                  No hay facturas
+                  Tus facturas van a aparecer acá
                 </Text>
               </View>
             ) : (

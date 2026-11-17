@@ -331,7 +331,7 @@ export default function SearchScreen() {
           <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
             <Text style={styles.emptyIcon}>{searchQuery || selectedCategory ? '🔍' : '💡'}</Text>
             <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>
-              {searchQuery || selectedCategory ? 'No encontramos resultados' : 'No hay trabajos disponibles'}
+              {searchQuery || selectedCategory ? 'No encontramos resultados' : 'Los trabajos nuevos aparecen acá: volvé en un rato'}
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
               {searchQuery || selectedCategory ? 'Probá con otros términos o categorías' : 'Volvé a intentar más tarde'}

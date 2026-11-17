@@ -66,7 +66,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
 
             <Text style={[styles.detalle, { color: tema.text.secondary }]} testID="detalle-del-cobro">
               {aFavor
-                ? `Todavía no es saldo: no lo podés usar ni retirar.${c.disponibleDesde ? ` Pasa a tu saldo el ${fechaDeLiquidacion(c.disponibleDesde)}.` : ''}`
+                ? (c.disponibleDesde ? `Pasa a tu saldo el ${fechaDeLiquidacion(c.disponibleDesde)}: desde ahí lo podés usar o retirar.` : 'Pasa a tu saldo cuando se libere el pago: desde ahí lo podés usar o retirar.')
                 : `${!delTrabajo ? 'Ya está en tu saldo, pero todavía no lo podés retirar. ' : ''}${texto?.detalle ?? ''}`}
             </Text>
 

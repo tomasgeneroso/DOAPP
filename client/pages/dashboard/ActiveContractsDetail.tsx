@@ -207,7 +207,7 @@ export default function ActiveContractsDetail() {
             <div className="rounded-xl bg-white dark:bg-slate-800 p-12 text-center border border-slate-200 dark:border-slate-700">
               <Briefcase className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                No tienes contratos activos
+                Tus contratos activos van a aparecer acá
               </h3>
               <p className="text-slate-600 dark:text-slate-400 mb-6">
                 Cuando tengas contratos en curso aparecerán aquí

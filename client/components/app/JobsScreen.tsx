@@ -313,7 +313,7 @@ export const JobsScreen: React.FC = () => {
               <span className="text-4xl">📋</span>
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              No hay trabajos disponibles
+              Los trabajos nuevos aparecen acá: volvé en un rato
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-8">
               en este momento.

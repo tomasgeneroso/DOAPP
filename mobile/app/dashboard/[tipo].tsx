@@ -88,7 +88,7 @@ export default function DetalleDelTablero() {
         </Text>
       )}
 
-      {r.cantidad === 0 && !cargando && <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay contratos para mostrar.</Text>}
+      {r.cantidad === 0 && !cargando && <Text style={[styles.vacio, { color: themeColors.text.muted }]}>Cuando haya contratos, los vas a ver acá.</Text>}
 
       {r.contratos.map((c) => {
         const id = String(c.id || c._id);

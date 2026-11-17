@@ -46,7 +46,7 @@ export default function EditJobScreen() {
         const j = res.job;
         const clientId = typeof j.client === 'string' ? j.client : j.client?.id;
         if (clientId !== user?.id) {
-          setError('No tenés permiso para editar este trabajo');
+          setError('Solo quien publicó el trabajo puede editarlo');
           return;
         }
         setTitle(j.title || '');

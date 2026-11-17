@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, FormEvent, ChangeEvent } from "reac
 import BetaNotice from '../components/BetaNotice';
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { useAuth } from "../hooks/useAuth";
 import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
@@ -567,43 +568,16 @@ export default function LoginScreen() {
 
           <TokenExpiredNotice />
 
-          <div className="mb-4 border-b border-gray-200 dark:border-slate-700">
-            <ul
-              className="flex -mb-px text-sm font-medium text-center"
-              role="tablist"
-            >
-              <li className="flex-1" role="presentation">
-                <button
-                  className={`w-full inline-block p-3 sm:p-4 border-b-2 rounded-t-lg transition-colors ${
-                    mode === "login"
-                      ? "border-sky-600 text-sky-600"
-                      : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
-                  }`}
-                  onClick={() => setMode("login")}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "login"}
-                >
-                  {t('auth.loginButton')}
-                </button>
-              </li>
-              <li className="flex-1" role="presentation">
-                <button
-                  className={`w-full inline-block p-3 sm:p-4 border-b-2 rounded-t-lg transition-colors ${
-                    mode === "register"
-                      ? "border-sky-600 text-sky-600"
-                      : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
-                  }`}
-                  onClick={() => setMode("register")}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "register"}
-                >
-                  {t('auth.registerButton')}
-                </button>
-              </li>
-            </ul>
-          </div>
+          <Pestanas
+            className="mb-4"
+            ariaLabel="Ingresar o crear una cuenta"
+            valor={mode}
+            onCambiar={setMode}
+            opciones={[
+              { id: "login" as const, texto: t('auth.loginButton') },
+              { id: "register" as const, texto: t('auth.registerButton') },
+            ]}
+          />
 
           {opcionesSociales}
 

@@ -5,6 +5,7 @@ import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
 import { puedeReclamar } from "../../shared/pagos/modoDePago";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
@@ -245,38 +246,17 @@ export default function ContractsScreen() {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 flex gap-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "all"
-                ? "bg-sky-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('common.all', 'Todos')}
-          </button>
-          <button
-            onClick={() => setFilter("active")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "active"
-                ? "bg-sky-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('contracts.filter.active', 'Activos')}
-          </button>
-          <button
-            onClick={() => setFilter("completed")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === "completed"
-                ? "bg-sky-500 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t('contracts.filter.completed', 'Completados')}
-          </button>
-        </div>
+        <Pestanas
+          className="mb-6"
+          ariaLabel="Filtrar contratos"
+          valor={filter}
+          onCambiar={setFilter}
+          opciones={[
+            { id: "all" as const, texto: t('common.all', 'Todos') },
+            { id: "active" as const, texto: t('contracts.filter.active', 'Activos') },
+            { id: "completed" as const, texto: t('contracts.filter.completed', 'Completados') },
+          ]}
+        />
 
         {/* Contracts List */}
         {filteredContracts.length === 0 ? (

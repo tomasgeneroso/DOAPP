@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import Pestanas from "../../components/ui/Pestanas";
 import { useTranslation } from 'react-i18next';
 import { useAuth } from "../../hooks/useAuth";
 import usePerformance, { clientPerformanceMonitor } from "../../hooks/usePerformance";
@@ -232,30 +233,15 @@ export default function PerformanceMonitor() {
       </Transicion>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-        <button
-          onClick={() => setActiveTab('server')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === 'server'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Server className="h-4 w-4" />
-          Servidor
-        </button>
-        <button
-          onClick={() => setActiveTab('client')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === 'client'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Monitor className="h-4 w-4" />
-          Cliente (Web Vitals)
-        </button>
-      </div>
+      <Pestanas
+        ariaLabel="Servidor o cliente"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={[
+          { id: 'server' as const, texto: 'Servidor', icono: <Server className="h-4 w-4" /> },
+          { id: 'client' as const, texto: 'Cliente (Web Vitals)', icono: <Monitor className="h-4 w-4" /> },
+        ]}
+      />
 
       {activeTab === 'server' && serverData && (
         <>

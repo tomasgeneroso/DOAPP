@@ -1,6 +1,7 @@
 import { minimoHoy } from "../../shared/fechas/limites";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -653,25 +654,19 @@ export default function FinancePanel() {
       <BienvenidaAlCentro usuarioId={user?.id} alIr={(p) => setTab(p)} />
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5">
-        {([
-          ["finanzas", t("finance.tabFinances", "Finanzas"), BarChart3],
-          ["impuestos", t("finance.tabTaxes", "Impuestos y Obligaciones"), Landmark],
-          ["reputacion", t("finance.tabReputation", "Reputación"), Star],
-          ["crecimiento", t("finance.tabGrowth", "Crecimiento"), TrendingUp],
-          ["profesional", t("finance.tabProfessional", "Profesionalización"), BadgeCheck],
-        ] as const).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id as typeof tab)}
-            className={`flex-1 min-w-[140px] inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors ${
-              tab === id ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
-      </div>
+      <Pestanas
+        className="mb-6"
+        ariaLabel="Secciones del Centro Profesional"
+        valor={tab}
+        onCambiar={setTab}
+        opciones={[
+          { id: "finanzas" as const, texto: t("finance.tabFinances", "Finanzas"), icono: <BarChart3 className="h-4 w-4" /> },
+          { id: "impuestos" as const, texto: t("finance.tabTaxes", "Impuestos y Obligaciones"), icono: <Landmark className="h-4 w-4" /> },
+          { id: "reputacion" as const, texto: t("finance.tabReputation", "Reputación"), icono: <Star className="h-4 w-4" /> },
+          { id: "crecimiento" as const, texto: t("finance.tabGrowth", "Crecimiento"), icono: <TrendingUp className="h-4 w-4" /> },
+          { id: "profesional" as const, texto: t("finance.tabProfessional", "Profesionalización"), icono: <BadgeCheck className="h-4 w-4" /> },
+        ]}
+      />
 
       <GuiaDeLaPestana pestana={tab} usuarioId={user?.id} />
 

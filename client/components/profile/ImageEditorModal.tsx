@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import Cropper, { Area } from 'react-easy-crop';
 import { RotateCw, RotateCcw, ZoomIn, ZoomOut, X, Check, Loader2, Crosshair } from 'lucide-react';
+import { codificarConTope } from '../../utils/imagenes';
 
 interface ImageEditorModalProps {
   /** Object URL or data URL of the picked image */
@@ -77,9 +78,8 @@ async function getCroppedBlob(imageSrc: string, pixelCrop: Area, rotation: numbe
   }
   octx.drawImage(rotated, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, out.width, out.height);
 
-  return new Promise((resolve, reject) => {
-    out.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Canvas is empty'))), type, type === 'image/jpeg' ? 0.9 : undefined);
-  });
+  // Nunca más pesada que lo que acepta el servidor: si no entra, pasa a JPEG y se achica (ver utils/imagenes.ts).
+  return codificarConTope(out, type);
 }
 
 type Proporcion = 'orig' | '1:1' | '4:3' | '16:9';

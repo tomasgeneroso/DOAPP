@@ -1,4 +1,5 @@
 import { Suspense, lazy } from "react";
+import Pestanas from "../components/ui/Pestanas";
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Loader2, Calculator, TrendingUp, LogOut, ShieldCheck, BookOpen } from "lucide-react";
@@ -127,24 +128,13 @@ export default function Analisis() {
           </div>
         </div>
 
-        <div className="container mx-auto flex gap-1 px-4">
-          {PESTANAS.map(({ id, icono: Icono, texto, ayuda }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setParams({ tab: id }, { replace: true })}
-              title={ayuda}
-              aria-current={pestana === id}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                pestana === id
-                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
-            >
-              <Icono className="h-4 w-4" aria-hidden="true" />
-              {texto}
-            </button>
-          ))}
+        <div className="container mx-auto px-4 py-2">
+          <Pestanas
+            ariaLabel="Secciones del análisis"
+            valor={pestana}
+            onCambiar={(id) => setParams({ tab: id }, { replace: true })}
+            opciones={PESTANAS.map(({ id, icono: Icono, texto, ayuda }) => ({ id, texto, titulo: ayuda, icono: <Icono className="h-4 w-4" aria-hidden="true" /> }))}
+          />
         </div>
       </header>
 

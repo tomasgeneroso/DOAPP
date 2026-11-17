@@ -798,7 +798,7 @@ export default function MyJobsScreen() {
           <View style={styles.emptyContainer}>
             <Briefcase size={48} color={themeColors.text.muted} />
             <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>
-              No tienes trabajos
+              Tus trabajos van a aparecer acá apenas publiques o te postules
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
               {activeTab === 'published'

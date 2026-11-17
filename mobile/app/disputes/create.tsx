@@ -193,7 +193,7 @@ export default function CreateDisputeScreen() {
             ) : contracts.length === 0 ? (
               <View style={[styles.noContracts, { backgroundColor: colors.warning[50], borderColor: colors.warning[200] }]}>
                 <Text style={[styles.noContractsText, { color: colors.warning[700] }]}>
-                  No tienes contratos activos para disputar
+                  Cuando tengas un contrato activo, vas a poder abrir un reclamo desde acá
                 </Text>
               </View>
             ) : (

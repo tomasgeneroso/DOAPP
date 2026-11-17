@@ -891,7 +891,7 @@ export default function MessagesScreen() {
                           <p className="text-xs text-slate-500 mt-0.5">${Number(job.price).toLocaleString('es-AR')}{job.location && ` · ${job.location}`}</p>
                         </button>
                       )) : (
-                        <p className="text-sm text-slate-500 text-center py-3">No hay trabajos disponibles</p>
+                        <p className="text-sm text-slate-500 text-center py-3">Los trabajos nuevos aparecen acá: volvé en un rato</p>
                       )}
                     </div>
                   )}
@@ -1097,7 +1097,7 @@ export default function MessagesScreen() {
                           </button>
                         ))
                       ) : (
-                        <p className="text-sm text-slate-500 text-center py-4">No hay trabajos disponibles</p>
+                        <p className="text-sm text-slate-500 text-center py-4">Los trabajos nuevos aparecen acá: volvé en un rato</p>
                       )}
                     </div>
                   )}

@@ -134,7 +134,7 @@ export default function FotosDeEntrega({ contractId, fotos, puedeAgregar, onCamb
       </h3>
 
       {fotos.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500">{t("contracts.fotosDeEntrega.vacio", "Todavía no hay fotos. Quien termina el trabajo puede dejar fotos de cómo quedó.")}</p>
+        <p className="mt-1 text-sm text-gray-500">{t("contracts.fotosDeEntrega.vacio", "Quien termina el trabajo puede dejar fotos de cómo quedó.")}</p>
       ) : (
         <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-2">
           {fotos.map((f, i) => {

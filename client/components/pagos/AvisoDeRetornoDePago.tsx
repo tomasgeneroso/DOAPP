@@ -84,7 +84,7 @@ export default function AvisoDeRetornoDePago({ confirmado, onActualizar, textoCo
     texto = "Volviste de Mercado Pago y lo estamos registrando; puede tardar unos segundos. No hace falta que hagas nada ni que pagues de nuevo.";
   } else {
     tono = "ambar";
-    titulo = "Todavía no vemos tu pago reflejado";
+    titulo = "Estamos esperando que tu pago se refleje";
     texto = "No lo pagues de nuevo. Apenas se registre te avisamos con una notificación y un email. Si pasan más de unas horas, escribinos desde el Centro de ayuda.";
   }
 

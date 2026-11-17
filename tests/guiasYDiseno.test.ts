@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { GUIAS, ORDEN_DE_GUIAS } from '../client/components/guias/guias';
 import { duracionPara } from '../client/utils/desplazamientoSuave';
@@ -91,5 +92,94 @@ describe('textos en positivo', () => {
     for (const frase of ['no perdés todo', 'perderás la comisión', 'No podés postularte hasta', 'Todavía no podés promocionarte', 'Hasta verificarte, tu cuenta está limitada']) {
       expect(textos + leer('client/components/CancellationLadder.tsx') + leer('client/components/profile/ProfilePromotion.tsx')).not.toContain(frase);
     }
+  });
+});
+
+describe('pestañas: un solo diseño en toda la app', () => {
+  /** Todos los .tsx del cliente. */
+  const archivos = (): string[] => {
+    return execSync('git ls-files -z client', { maxBuffer: 1e8 }).toString().split('\0').filter((f) => f.endsWith('.tsx'));
+  };
+
+  it('nadie arma sus propias pestañas: solo components/ui/Pestanas (el carrusel de fotos tiene sus puntos, que no son pestañas de contenido)', () => {
+    const permitidos = new Set(['client/components/ui/Pestanas.tsx', 'client/components/jobDetail/CarruselDeFotos.tsx']);
+    const propios = archivos().filter((f) => !permitidos.has(f) && /role="(tab|tablist)"/.test(leer(f)));
+    expect(propios).toEqual([]);
+  });
+
+  it('ni barras subrayadas hechas a mano (-mb-px + border-b-2)', () => {
+    const subrayadas = archivos().filter((f) => /-mb-px/.test(leer(f)) && /border-b-2/.test(leer(f)));
+    expect(subrayadas).toEqual([]);
+  });
+
+  it('la barra de pestañas de administración es la misma de toda la app', () => {
+    const f = leer('client/components/admin/Pestanas.tsx');
+    expect(f).toContain('import Pestanas from "../ui/Pestanas"');
+    expect(f).not.toMatch(/role="tab"/);
+  });
+
+  it('el color de la pestaña elegida es el celeste de siempre (no violeta, verde ni naranja según la pantalla)', () => {
+    const f = leer('client/components/ui/Pestanas.tsx');
+    expect(f).toContain('bg-sky-100 text-sky-700');
+    expect(f).not.toMatch(/purple|violet|emerald|orange/);
+  });
+});
+
+describe('redes oficiales', () => {
+  it('Instagram, Facebook, X y LinkedIn con las cuentas del dueño, en un solo lugar', async () => {
+    const { REDES_SOCIALES, ORDEN_DE_REDES } = await import('../shared/constants/redesSociales');
+    expect(REDES_SOCIALES.instagram.url).toBe('https://www.instagram.com/doapparg');
+    expect(REDES_SOCIALES.facebook.url).toBe('https://www.facebook.com/profile.php?id=61593201473371');
+    expect(REDES_SOCIALES.x).toMatchObject({ usuario: '@DoAppArgentina', url: 'https://x.com/DoAppArgentina' });
+    expect(REDES_SOCIALES.linkedin.url).toBe('https://www.linkedin.com/in/doapp/');
+    expect([...ORDEN_DE_REDES]).toEqual(['instagram', 'facebook', 'x', 'linkedin']);
+  });
+
+  it('el pie, el contacto, la app y los datos para buscadores usan esas cuentas (nada de enlaces a la portada de cada red)', () => {
+    const pie = leer('client/components/app/Footer.tsx');
+    expect(pie).toContain('REDES_SOCIALES.x.url');
+    expect(pie).toContain('REDES_SOCIALES.linkedin.url');
+    expect(pie).not.toMatch(/href="https:\/\/(twitter|linkedin|instagram|facebook)\.com"/);
+    expect(leer('client/pages/ContactPage.tsx')).toContain('ORDEN_DE_REDES');
+    expect(leer('mobile/app/contact.tsx')).toContain('ORDEN_DE_REDES');
+    const html = leer('index.html');
+    expect(html).toContain('https://x.com/DoAppArgentina');
+    expect(html).toContain('https://www.linkedin.com/in/doapp/');
+    expect(html).not.toContain('twitter.com/doapparg');
+  });
+});
+
+describe('fotos', () => {
+  it('lo que se sube nunca pasa del tope: el editor y «usar original» pasan por utils/imagenes', () => {
+    expect(leer('client/components/profile/ImageEditorModal.tsx')).toContain('codificarConTope(out, type)');
+    expect(leer('client/hooks/useEditorDeFotos.tsx')).toContain('achicarSiPesaDeMas');
+    expect(leer('client/utils/imagenes.ts')).toMatch(/TOPE_DE_IMAGEN_BYTES = 4 \* 1024 \* 1024/);
+  });
+
+  it('el error de la foto se ve junto a la foto', () => {
+    expect(leer('client/pages/UserSettings.tsx')).toContain('error-de-la-foto');
+  });
+
+  it('la guía se esconde mientras hay una ventana abierta', () => {
+    expect(leer('client/components/guias/GuiaPasoAPaso.tsx')).toContain('[role="dialog"][aria-modal="true"]');
+  });
+});
+
+describe('vacíos y avisos en positivo (barrido 2026-11-17)', () => {
+  const todo = (): string => {
+    const archivos = execSync('git ls-files -z client mobile/app mobile/components', { maxBuffer: 1e8 }).toString().split('\0').filter((f) => /\.(tsx|json)$/.test(f) && !f.includes('/admin/') && !f.includes('en.json'));
+    return archivos.map((f) => leer(f)).join('\n');
+  };
+
+  it('las pantallas de la cuenta no abren con «No tenés / No tienes / No hay» a secas: dicen qué va a aparecer', () => {
+    const t = todo();
+    for (const frase of ['No tienes contratos', 'No tienes trabajos', 'No tienes propuestas', 'No tienes aplicaciones', 'No tienes postulaciones', 'No tienes notificaciones', 'No hay trabajos disponibles', 'No hay transacciones', 'No hay mensajes aún', 'Todavía no es saldo']) {
+      expect(t).not.toContain(frase);
+    }
+  });
+
+  it('la portada deja solo «Sé el primero en ofrecer tus servicios o publicá lo que necesitás»', () => {
+    const es = JSON.parse(leer('client/i18n/locales/es.json')).home as Record<string, string>;
+    expect(es.noJobsYetDesc).toBe('Sé el primero en ofrecer tus servicios o publicá lo que necesitás');
   });
 });

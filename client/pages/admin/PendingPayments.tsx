@@ -13,6 +13,7 @@ import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralD
 import { rotuloDelEstadoDeUnPago } from "../../../shared/admin/resumenDePublicacion";
 import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
 import ImagenProtegida from "../../components/ui/ImagenProtegida";
+import Pestanas from "../../components/ui/Pestanas";
 import {
   CheckCircle,
   XCircle,
@@ -1413,66 +1414,21 @@ export default function PendingPayments() {
       </div>
 
       {/* Main Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex gap-6">
-          <button
-            onClick={() => setActiveTab("app")}
-            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-              activeTab === "app"
-                ? "border-purple-500 text-purple-600 dark:text-purple-400"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-            }`}
-          >
-            <DollarSign className="h-5 w-5" />
-            Pagos a la App
-            {verificationPayments.length > 0 && appSubFilter === "pending" && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                {verificationPayments.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("workers")}
-            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-              activeTab === "workers"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-            }`}
-          >
-            <Users className="h-5 w-5" />
-            Pagos a Trabajadores
-            {summary && summary.totalContracts > 0 && workersSubFilter === "pending" && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
-                {summary.totalContracts}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("refunds")}
-            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-              activeTab === "refunds"
-                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-            }`}
-          >
-            <ArrowDownCircle className="h-5 w-5" />
-            Devoluciones
-            {pedidosDeReembolsoPendientes > 0 && (
-              <span
-                className="ml-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                title="Pedidos de reembolso de clientes sin resolver"
-              >
-                {pedidosDeReembolsoPendientes} {pedidosDeReembolsoPendientes === 1 ? 'pedido' : 'pedidos'}
-              </span>
-            )}
-            {refunds.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                {refunds.length}
-              </span>
-            )}
-          </button>
-        </nav>
-      </div>
+      <Pestanas
+        ariaLabel="Secciones de pagos"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={[
+          { id: "app" as const, texto: "Pagos a la App", icono: <DollarSign className="h-5 w-5" />, insignia: verificationPayments.length > 0 && appSubFilter === "pending" ? verificationPayments.length : undefined },
+          { id: "workers" as const, texto: "Pagos a Trabajadores", icono: <Users className="h-5 w-5" />, insignia: summary && summary.totalContracts > 0 && workersSubFilter === "pending" ? summary.totalContracts : undefined },
+          {
+            id: "refunds" as const,
+            texto: "Devoluciones",
+            icono: <ArrowDownCircle className="h-5 w-5" />,
+            insignia: pedidosDeReembolsoPendientes > 0 ? `${pedidosDeReembolsoPendientes} ${pedidosDeReembolsoPendientes === 1 ? 'pedido' : 'pedidos'}` : refunds.length > 0 ? refunds.length : undefined,
+          },
+        ]}
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -1496,145 +1452,33 @@ export default function PendingPayments() {
 
       {/* Sub-filters for active tab */}
       {activeTab === "app" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Estado:</span>
-          <button
-            onClick={() => setAppSubFilter("all")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "all"
-                ? "bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-100"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <FileText className="h-3.5 w-3.5" />
-              Todos
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("pending")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "pending"
-                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <AlertCircle className="h-3.5 w-3.5" />
-              Pendiente Verificación
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("verified")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "verified"
-                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Verificado
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("escrow")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "escrow"
-                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <DollarSign className="h-3.5 w-3.5" />
-              En Escrow
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("confirmed")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "confirmed"
-                ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Confirmado para Pago
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("disputed")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "disputed"
-                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <XCircle className="h-3.5 w-3.5" />
-              En Disputa
-            </span>
-          </button>
-          <button
-            onClick={() => setAppSubFilter("rejected")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              appSubFilter === "rejected"
-                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <Ban className="h-3.5 w-3.5" />
-              Rechazados
-            </span>
-          </button>
-        </div>
+        <Pestanas
+          ariaLabel="Estado de los pagos a la app"
+          valor={appSubFilter}
+          onCambiar={setAppSubFilter}
+          opciones={[
+            { id: "all" as const, texto: "Todos", icono: <FileText className="h-3.5 w-3.5" /> },
+            { id: "pending" as const, texto: "Pendiente Verificación", icono: <Clock className="h-3.5 w-3.5" /> },
+            { id: "verified" as const, texto: "Verificado", icono: <CheckCircle className="h-3.5 w-3.5" /> },
+            { id: "escrow" as const, texto: "En Escrow", icono: <DollarSign className="h-3.5 w-3.5" /> },
+            { id: "confirmed" as const, texto: "Confirmado para Pago", icono: <CheckCircle className="h-3.5 w-3.5" /> },
+            { id: "disputed" as const, texto: "En Disputa", icono: <XCircle className="h-3.5 w-3.5" /> },
+            { id: "rejected" as const, texto: "Rechazados", icono: <Ban className="h-3.5 w-3.5" /> },
+          ]}
+        />
       )}
 
       {activeTab === "workers" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Estado:</span>
-          <button
-            onClick={() => setWorkersSubFilter("pending")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              workersSubFilter === "pending"
-                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" />
-              Pendiente de Pago
-            </span>
-          </button>
-          <button
-            onClick={() => setWorkersSubFilter("paid")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              workersSubFilter === "paid"
-                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Pagados
-            </span>
-          </button>
-          <button
-            onClick={() => setWorkersSubFilter("disputed")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              workersSubFilter === "disputed"
-                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <XCircle className="h-3.5 w-3.5" />
-              En Disputa
-            </span>
-          </button>
-        </div>
+        <Pestanas
+          ariaLabel="Estado de los pagos a trabajadores"
+          valor={workersSubFilter}
+          onCambiar={setWorkersSubFilter}
+          opciones={[
+            { id: "pending" as const, texto: "Pendiente de Pago", icono: <Clock className="h-3.5 w-3.5" /> },
+            { id: "paid" as const, texto: "Pagados", icono: <CheckCircle className="h-3.5 w-3.5" /> },
+            { id: "disputed" as const, texto: "En Disputa", icono: <XCircle className="h-3.5 w-3.5" /> },
+          ]}
+        />
       )}
 
       {/* Advanced Filters - Collapsible (controlled so a re-fetch/re-render

@@ -35,6 +35,7 @@ import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import { estadoDePublicacion } from "../../shared/jobs/estadoDePublicacion";
 import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import Pestanas from "../components/ui/Pestanas";
 import { ofreceServicios } from "../../shared/cuenta/capacidades";
 
 interface Job {
@@ -925,32 +926,18 @@ export default function MyJobsScreen() {
           )}
         </div>
 
-        {/* Main Tabs */}
-        <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
-          {/* Las dos pestañas son para todas las cuentas: una sola cuenta para todo (shared/cuenta/capacidades.ts). */}
-            <button
-              onClick={() => setMainTab("published")}
-              className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
-                mainTab === "published"
-                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <Briefcase className="h-5 w-5" />
-              {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
-            </button>
-            <button
-              onClick={() => setMainTab("applied")}
-              className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
-                mainTab === "applied"
-                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <Send className="h-5 w-5" />
-              {t('jobs.myApplications', 'Mis Postulaciones')} ({proposals.length})
-            </button>
-        </div>
+        {/* Main Tabs: las dos son para todas las cuentas (una sola cuenta para todo, shared/cuenta/capacidades.ts) */}
+        <Pestanas
+          className="mb-6"
+          tamano="grande"
+          ariaLabel="Mis publicaciones y mis postulaciones"
+          valor={mainTab}
+          onCambiar={setMainTab}
+          opciones={[
+            { id: "published" as const, texto: t('jobs.myPublications', 'Mis Publicaciones'), icono: <Briefcase className="h-5 w-5" />, insignia: jobs.length },
+            { id: "applied" as const, texto: t('jobs.myApplications', 'Mis Postulaciones'), icono: <Send className="h-5 w-5" />, insignia: proposals.length },
+          ]}
+        />
 
         {/* Calendar View */}
         {viewMode === "calendar" && (
@@ -1004,7 +991,7 @@ export default function MyJobsScreen() {
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <Briefcase className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  {t('jobs.noJobs', 'No tienes trabajos en este momento')}
+                  {t('jobs.noJobs', 'Tus trabajos van a aparecer acá')}
                 </p>
                 <Link
                   to="/contracts/create"
@@ -1247,7 +1234,7 @@ export default function MyJobsScreen() {
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <Send className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  {t('jobs.noApplications', 'No tienes postulaciones')}
+                  {t('jobs.noApplications', 'Cuando te postules a un trabajo, lo vas a ver acá')}
                 </p>
                 <Link
                   to="/"

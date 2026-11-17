@@ -11,7 +11,7 @@ type Estado = { fase: "cargando" } | { fase: "lista"; url: string } | { fase: "e
 
 const MENSAJES: Record<number, string> = {
   401: "El servidor no recibió tu sesión para mostrar este archivo. Cerrá sesión, volvé a entrar y probá de nuevo.",
-  403: "No tenés permiso para ver este archivo.",
+  403: "Este archivo lo ven solo las partes del trabajo y el equipo de DOAPP.",
   404: "El archivo no está en el servidor (se registró pero no se encontró el archivo).",
 };
 

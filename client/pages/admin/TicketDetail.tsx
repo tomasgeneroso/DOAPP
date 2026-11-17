@@ -1,4 +1,5 @@
 import { useCambiosDeAdministracion } from "../../hooks/useSocket";
+import Pestanas from "../../components/ui/Pestanas";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from "react-router-dom";
@@ -297,40 +298,15 @@ export default function TicketDetail() {
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
           {/* Tabs */}
-          <div className="flex border-b border-slate-200 dark:border-slate-700">
-            <button
-              onClick={() => setActiveTab("conversation")}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "conversation"
-                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-              }`}
-            >
-              <MessageSquare className="h-4 w-4" />
-              Conversación
-              {publicMessages.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
-                  {publicMessages.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("notes")}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "notes"
-                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-              }`}
-            >
-              <Lock className="h-4 w-4" />
-              Notas internas
-              {internalNotes.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs">
-                  {internalNotes.length}
-                </span>
-              )}
-            </button>
-          </div>
+          <Pestanas
+            ariaLabel="Conversación y notas internas"
+            valor={activeTab}
+            onCambiar={setActiveTab}
+            opciones={[
+              { id: "conversation" as const, texto: "Conversación", icono: <MessageSquare className="h-4 w-4" />, insignia: publicMessages.length > 0 ? publicMessages.length : undefined },
+              { id: "notes" as const, texto: "Notas internas", icono: <Lock className="h-4 w-4" />, insignia: internalNotes.length > 0 ? internalNotes.length : undefined },
+            ]}
+          />
 
           {/* Messages */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">

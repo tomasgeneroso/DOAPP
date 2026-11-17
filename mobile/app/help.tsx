@@ -387,7 +387,7 @@ export default function HelpScreen() {
         <View style={[styles.emptyState, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <AlertTriangle size={40} color={themeColors.text.muted} />
           <Text style={[styles.emptyStateText, { color: themeColors.text.muted }]}>
-            No tienes disputas
+            ¡Todo en orden! No tenés disputas abiertas
           </Text>
         </View>
       ) : (
@@ -415,7 +415,7 @@ export default function HelpScreen() {
         <View style={[styles.emptyState, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <MessageSquare size={40} color={themeColors.text.muted} />
           <Text style={[styles.emptyStateText, { color: themeColors.text.muted }]}>
-            No tienes tickets
+            Sin consultas abiertas: si necesitás ayuda, escribinos desde acá
           </Text>
         </View>
       ) : (

@@ -167,7 +167,7 @@ export default function EarningsDetail() {
             <div className="rounded-xl bg-white dark:bg-slate-800 p-12 text-center border border-slate-200 dark:border-slate-700">
               <TrendingUp className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                No hay ingresos registrados
+                Tus ingresos van a aparecer acá
               </h3>
               <p className="text-slate-600 dark:text-slate-400 mb-6">
                 Completa contratos para empezar a generar ingresos

@@ -296,7 +296,7 @@ export default function TicketDetail() {
                 })
             ) : (
               <div className="p-8 text-center text-slate-500">
-                No hay mensajes aún
+                Escribí el primer mensaje para empezar la conversación
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { usePermissions } from "../hooks/usePermissions";
@@ -212,61 +213,19 @@ export default function HelpPage() {
         )}
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
-          <div className="flex border-b border-slate-200 dark:border-slate-700">
-            <button
-              onClick={() => { setActiveTab('overview'); setStatusFilter('all'); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'overview'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <HelpCircle className="h-4 w-4" />
-                {t('help.overview', 'Overview')}
-              </span>
-            </button>
-            <button
-              onClick={() => { setActiveTab('disputes'); setStatusFilter('all'); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'disputes'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-              title={t('help.disputesTooltip', 'Disputes are claims related to contracts and specific jobs')}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {t('help.myDisputes', 'My Disputes')}
-                {openDisputes > 0 && (
-                  <span className="px-1.5 py-0.5 text-xs bg-orange-500 text-white rounded-full">
-                    {openDisputes}
-                  </span>
-                )}
-              </span>
-            </button>
-            <button
-              onClick={() => { setActiveTab('tickets'); setStatusFilter('all'); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'tickets'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-              title={t('help.ticketsTooltip', 'Tickets are for reporting bugs, requesting features, or general inquiries')}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <Ticket className="h-4 w-4" />
-                {t('help.myTickets', 'My Tickets')}
-                {openTickets > 0 && (
-                  <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full">
-                    {openTickets}
-                  </span>
-                )}
-              </span>
-            </button>
-          </div>
+        <Pestanas
+          className="mb-4"
+          ariaLabel="Secciones de ayuda"
+          valor={activeTab}
+          onCambiar={(id) => { setActiveTab(id); setStatusFilter('all'); }}
+          opciones={[
+            { id: 'overview' as const, texto: t('help.overview', 'Overview'), icono: <HelpCircle className="h-4 w-4" /> },
+            { id: 'disputes' as const, texto: t('help.myDisputes', 'My Disputes'), icono: <AlertCircle className="h-4 w-4" />, insignia: openDisputes > 0 ? openDisputes : undefined },
+            { id: 'tickets' as const, texto: t('help.myTickets', 'My Tickets'), icono: <Ticket className="h-4 w-4" />, insignia: openTickets > 0 ? openTickets : undefined },
+          ]}
+        />
 
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
           {/* Tab Content */}
           <div className="p-4">
             {/* Overview Tab */}

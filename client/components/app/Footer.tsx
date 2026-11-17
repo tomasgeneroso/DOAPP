@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Mail, MapPin, Phone, Facebook, Instagram, Globe } from "lucide-react";
+import { Mail, MapPin, Phone, Facebook, Instagram, Linkedin, Globe } from "lucide-react";
+import IconoX from "../ui/IconoX";
 import { REDES_SOCIALES } from "../../../shared/constants/redesSociales";
 import { useTranslation } from "react-i18next";
 import { features } from "../../../shared/featureFlags";
@@ -53,6 +54,26 @@ export default function Footer() {
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Instagram className="h-5 w-5" />
+              </a>
+              <a
+                href={REDES_SOCIALES.x.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`DoApp en X: ${REDES_SOCIALES.x.usuario}`}
+                title={`X · ${REDES_SOCIALES.x.usuario}`}
+                className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
+              >
+                <IconoX className="h-5 w-5" />
+              </a>
+              <a
+                href={REDES_SOCIALES.linkedin.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`DoApp en LinkedIn: ${REDES_SOCIALES.linkedin.usuario}`}
+                title={`LinkedIn · ${REDES_SOCIALES.linkedin.usuario}`}
+                className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
+              >
+                <Linkedin className="h-5 w-5" />
               </a>
             </div>
             <DescargarApk variante="pie" />

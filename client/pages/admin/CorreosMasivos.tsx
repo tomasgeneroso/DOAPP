@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import Pestanas from "../../components/ui/Pestanas";
 import { Helmet } from 'react-helmet-async';
 import { Edit2, FileText, Loader2, Mail, Plus, Trash2, Users } from 'lucide-react';
 import { useCambiosDeAdministracion } from '../../hooks/useSocket';
@@ -120,17 +121,13 @@ export default function CorreosMasivos() {
           {aviso && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">{aviso}</div>}
         </Transicion>
 
-        <div role="tablist" aria-label="Secciones" className="mb-5 flex gap-1 border-b border-slate-200 dark:border-slate-700">
-          {PESTANAS.map((t) => {
-            const Icono = t.icono;
-            const activa = pestana === t.id;
-            return (
-              <button key={t.id} role="tab" aria-selected={activa} type="button" onClick={() => setPestana(t.id)} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium ${activa ? 'border-sky-600 text-sky-700 dark:text-sky-300' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}>
-                <Icono className="h-4 w-4" aria-hidden="true" /> {t.texto}
-              </button>
-            );
-          })}
-        </div>
+        <Pestanas
+          className="mb-5"
+          ariaLabel="Secciones"
+          valor={pestana}
+          onCambiar={setPestana}
+          opciones={PESTANAS.map((p) => ({ id: p.id, texto: p.texto, icono: <p.icono className="h-4 w-4" aria-hidden="true" /> }))}
+        />
 
         {cargando ? (
           <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-sky-600" aria-label="Cargando" /></div>

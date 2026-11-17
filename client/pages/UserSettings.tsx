@@ -304,6 +304,8 @@ export default function UserSettings() {
 
   // Avatar upload
   const [avatarUploading, setAvatarUploading] = useState(false);
+  // El aviso de la foto va JUNTO a la foto: el cartel de arriba de la página quedaba fuera de la vista y el error pasaba desapercibido.
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   // Handle tab from URL query parameter
@@ -474,6 +476,7 @@ export default function UserSettings() {
     // Rotar, centrar y recortar antes de subirla (cancelar = no cambia la foto)
     const file = await editarFoto(elegido, { aspect: 1, cropShape: 'round', titulo: 'Editar foto de perfil' });
     if (!file) return;
+    setAvatarError(null);
     setAvatarPreview(URL.createObjectURL(file));
     setAvatarUploading(true);
     try {
@@ -486,14 +489,27 @@ export default function UserSettings() {
         body: formData,
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.avatar) {
         await refreshUser();
-        setMessage({ type: 'success', text: 'Foto de perfil actualizada' });
+        // Se comprueba que la foto guardada de verdad se pueda mostrar: así, si el servidor no la entrega, se dice acá y no al actualizar la página.
+        const seMuestra = await new Promise<boolean>((resolve) => {
+          const prueba = new Image();
+          prueba.onload = () => resolve(true);
+          prueba.onerror = () => resolve(false);
+          prueba.src = `${getImageUrl(data.avatar)}${String(data.avatar).includes('?') ? '&' : '?'}v=${Date.now()}`;
+        });
+        if (seMuestra) {
+          setMessage({ type: 'success', text: 'Foto de perfil actualizada' });
+        } else {
+          setAvatarError('La foto se subió, pero el servidor no pudo mostrarla todavía. Probá actualizar la página; si sigue sin verse, escribinos desde Ayuda y lo resolvemos.');
+        }
       } else {
-        throw new Error(data.message || 'Error al subir imagen');
+        throw new Error(data.message || 'No se pudo subir la imagen');
       }
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Error al subir imagen' });
+      const texto = err.message || 'No se pudo subir la imagen';
+      setAvatarError(texto);
+      setMessage({ type: 'error', text: texto });
       setAvatarPreview(null);
     } finally {
       setAvatarUploading(false);
@@ -750,6 +766,11 @@ export default function UserSettings() {
                         />
                       </label>
                       <p className="text-xs text-slate-400 mt-1">{t('settings.avatarHint5mb')}</p>
+                      {avatarError && (
+                        <p role="alert" data-testid="error-de-la-foto" className="mt-2 max-w-sm rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                          {avatarError}
+                        </p>
+                      )}
                     </div>
                   </div>
 

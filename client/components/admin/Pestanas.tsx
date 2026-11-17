@@ -1,5 +1,6 @@
-import { useRef, type ComponentType, type ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import Pestanas from "../ui/Pestanas";
 
 export interface Pestana {
   id: string;
@@ -25,53 +26,20 @@ export function usePestana(pestanas: Pestana[], porDefecto?: string): [string, (
   return [actual, cambiar];
 }
 
-/** Barra de pestañas accesible (flechas izquierda/derecha, Inicio y Fin) para los paneles de administración. */
+/**
+ * La barra de pestañas de los paneles de administración. Es EL MISMO componente que usa el resto de la app (components/ui/Pestanas): antes tenía su propio diseño
+ * subrayado y el panel se veía distinto del resto (pedido del dueño, 2026-11-17: congruencia de diseño en toda la app).
+ */
 export function BarraDePestanas({ pestanas, actual, onCambiar, etiqueta }: { pestanas: Pestana[]; actual: string; onCambiar: (id: string) => void; etiqueta: string }) {
-  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  const alTeclear = (e: React.KeyboardEvent, i: number) => {
-    let destino = -1;
-    if (e.key === "ArrowRight") destino = (i + 1) % pestanas.length;
-    else if (e.key === "ArrowLeft") destino = (i - 1 + pestanas.length) % pestanas.length;
-    else if (e.key === "Home") destino = 0;
-    else if (e.key === "End") destino = pestanas.length - 1;
-    if (destino < 0) return;
-    e.preventDefault();
-    onCambiar(pestanas[destino].id);
-    refs.current[pestanas[destino].id]?.focus();
-  };
-
   return (
-    <div role="tablist" aria-label={etiqueta} className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700">
-      {pestanas.map((p, i) => {
-        const activa = p.id === actual;
-        const Icono = p.icono;
-        return (
-          <button
-            key={p.id}
-            ref={(el) => { refs.current[p.id] = el; }}
-            role="tab"
-            id={`pestana-${p.id}`}
-            aria-selected={activa}
-            aria-controls={`panel-${p.id}`}
-            tabIndex={activa ? 0 : -1}
-            onClick={() => onCambiar(p.id)}
-            onKeyDown={(e) => alTeclear(e, i)}
-            className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              activa
-                ? "border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300"
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            {Icono && <Icono className="h-4 w-4" />}
-            {p.rotulo}
-            {p.insignia !== undefined && p.insignia !== "" && (
-              <span className="rounded-full bg-slate-200 px-1.5 text-[11px] font-semibold tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-200">{p.insignia}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
+    <Pestanas
+      ariaLabel={etiqueta}
+      valor={actual}
+      onCambiar={onCambiar}
+      className="mb-4"
+      conPanel
+      opciones={pestanas.map((p) => ({ id: p.id, texto: p.rotulo, insignia: p.insignia, icono: p.icono ? <p.icono className="h-4 w-4" /> : undefined }))}
+    />
   );
 }
 

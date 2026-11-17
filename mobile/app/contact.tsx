@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CheckCircle2, Instagram, Facebook } from 'lucide-react-native';
-import { REDES_SOCIALES } from '../../shared/constants/redesSociales';
+import { CheckCircle2, Instagram, Facebook, Linkedin } from 'lucide-react-native';
+import { REDES_SOCIALES, ORDEN_DE_REDES } from '../../shared/constants/redesSociales';
 import Pantalla from '../components/Pantalla';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -113,24 +113,24 @@ export default function ContactoScreen() {
       {/* Redes oficiales */}
       <Text style={[styles.redesTitulo, { color: themeColors.text.secondary }]}>También estamos en redes</Text>
       <View style={styles.redes}>
-        <TouchableOpacity
-          onPress={() => Linking.openURL(REDES_SOCIALES.instagram.url)}
-          accessibilityRole="link"
-          accessibilityLabel={`Instagram de DOAPP: ${REDES_SOCIALES.instagram.usuario}`}
-          style={[styles.red, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}
-        >
-          <View style={[styles.redIcono, { backgroundColor: '#D6249F' }]}><Instagram size={18} color="#fff" /></View>
-          <Text style={{ color: themeColors.text.primary, fontWeight: fontWeight.semibold }}>{REDES_SOCIALES.instagram.usuario}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => Linking.openURL(REDES_SOCIALES.facebook.url)}
-          accessibilityRole="link"
-          accessibilityLabel={`Facebook de DOAPP: ${REDES_SOCIALES.facebook.usuario}`}
-          style={[styles.red, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}
-        >
-          <View style={[styles.redIcono, { backgroundColor: '#1877F2' }]}><Facebook size={18} color="#fff" /></View>
-          <Text style={{ color: themeColors.text.primary, fontWeight: fontWeight.semibold }}>{REDES_SOCIALES.facebook.usuario}</Text>
-        </TouchableOpacity>
+        {ORDEN_DE_REDES.map((id) => {
+          const red = REDES_SOCIALES[id];
+          const color = { instagram: '#D6249F', facebook: '#1877F2', x: '#000000', linkedin: '#0A66C2' }[id];
+          const icono =
+            id === 'instagram' ? <Instagram size={18} color="#fff" /> : id === 'facebook' ? <Facebook size={18} color="#fff" /> : id === 'linkedin' ? <Linkedin size={18} color="#fff" /> : <Text style={styles.logoX}>X</Text>;
+          return (
+            <TouchableOpacity
+              key={id}
+              onPress={() => Linking.openURL(red.url)}
+              accessibilityRole="link"
+              accessibilityLabel={`${red.nombre} de DOAPP: ${red.usuario}`}
+              style={[styles.red, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}
+            >
+              <View style={[styles.redIcono, { backgroundColor: color }]}>{icono}</View>
+              <Text style={{ color: themeColors.text.primary, fontWeight: fontWeight.semibold }}>{red.usuario}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </Pantalla>
   );
@@ -149,6 +149,7 @@ const styles = StyleSheet.create({
   redesTitulo: { fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.xl, marginBottom: spacing.sm },
   redes: { gap: spacing.sm },
   red: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderRadius: borderRadius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  logoX: { color: '#fff', fontSize: 16, fontWeight: '800' },
   redIcono: { width: 34, height: 34, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   exito: { alignItems: 'center', paddingTop: spacing['2xl'] },
   exitoTitulo: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, marginTop: spacing.lg },

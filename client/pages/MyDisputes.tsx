@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
+import Pestanas from '../components/ui/Pestanas';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
@@ -159,45 +160,19 @@ export default function MyDisputes() {
         </div>
 
         {/* Tabs */}
+        <Pestanas
+          className="mb-4"
+          ariaLabel="Tipo de disputas"
+          valor={activeTab}
+          onCambiar={setActiveTab}
+          opciones={[
+            { id: 'all' as const, texto: t('myDisputes.tabAll', 'Todas'), insignia: disputes.length },
+            { id: 'contracts' as const, texto: t('myDisputes.tabContracts', 'Contratos'), icono: <Briefcase className="h-4 w-4" />, insignia: contractDisputes.length },
+            { id: 'other' as const, texto: t('myDisputes.tabOther', 'Otros'), icono: <Bug className="h-4 w-4" />, insignia: otherDisputes.length },
+          ]}
+        />
+
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
-          <div className="flex border-b border-slate-200 dark:border-slate-700">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'all'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              {t('myDisputes.tabAll', 'Todas')} ({disputes.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('contracts')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'contracts'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <Briefcase className="h-4 w-4" />
-                {t('myDisputes.tabContracts', 'Contratos')} ({contractDisputes.length})
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('other')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'other'
-                  ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <Bug className="h-4 w-4" />
-                {t('myDisputes.tabOther', 'Otros')} ({otherDisputes.length})
-              </span>
-            </button>
-          </div>
 
           {/* Status Filter */}
           <div className="p-4 border-b border-slate-200 dark:border-slate-700">
@@ -226,7 +201,7 @@ export default function MyDisputes() {
               <div className="p-8 text-center">
                 <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  {activeTab !== 'all' ? t('myDisputes.noDisputesInCategory', 'No tienes disputas en esta categoría') : t('myDisputes.noDisputes', 'No tienes disputas')}
+                  {activeTab !== 'all' ? t('myDisputes.noDisputesInCategory', '¡Todo en orden! No tenés disputas en esta categoría') : t('myDisputes.noDisputes', '¡Todo en orden! No tenés disputas abiertas')}
                 </p>
                 <Link
                   to="/disputes/create"

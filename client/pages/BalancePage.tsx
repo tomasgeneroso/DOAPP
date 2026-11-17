@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
+import Pestanas from "../components/ui/Pestanas";
 import { useAuth } from "../hooks/useAuth";
 import { useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { POLITICAS } from "../../shared/constants/policies";
@@ -339,29 +340,20 @@ export default function BalancePage() {
           )}
 
           {/* Tabs */}
+          <Pestanas
+            className="mb-4"
+            ariaLabel="Tipo de movimientos"
+            valor={activeTab}
+            onCambiar={handleTabChange}
+            opciones={[
+              { id: "all" as const, texto: t('common.all', 'Todas') },
+              { id: "refund" as const, texto: t('balance.type.refund', 'Reembolsos') },
+              { id: "payment" as const, texto: t('balance.type.payment', 'Pagos') },
+              { id: "bonus" as const, texto: t('balance.type.bonus', 'Bonus') },
+            ]}
+          />
+
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="border-b border-slate-200 dark:border-slate-700">
-              <nav className="flex -mb-px">
-                {[
-                  { id: "all", label: t('common.all', 'Todas') },
-                  { id: "refund", label: t('balance.type.refund', 'Reembolsos') },
-                  { id: "payment", label: t('balance.type.payment', 'Pagos') },
-                  { id: "bonus", label: t('balance.type.bonus', 'Bonus') },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id as typeof activeTab)}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                      activeTab === tab.id
-                        ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                        : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </nav>
-            </div>
 
             {/* Transactions List */}
             <div className="p-6">
@@ -369,7 +361,7 @@ export default function BalancePage() {
                 <div className="text-center py-12">
                   <Wallet className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                   <p className="text-slate-600 dark:text-slate-400">
-                    {t('balance.noTransactions', 'No hay transacciones registradas')}
+                    {t('balance.noTransactions', 'Tus movimientos van a aparecer acá')}
                   </p>
                 </div>
               ) : (
@@ -433,7 +425,7 @@ export default function BalancePage() {
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           {esAFavorPendiente(transaction)
-                            ? t('balance.notBalanceYet', 'Todavía no es saldo')
+                            ? t('balance.notBalanceYet', 'Pasa a saldo cuando se libere')
                             : `${t('balance.balanceLabel', 'Saldo')}: $${transaction.balanceAfter.toLocaleString("es-AR")}`}
                         </p>
                       </div>
