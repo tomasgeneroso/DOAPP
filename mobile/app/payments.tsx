@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -234,19 +235,13 @@ export default function PaymentsScreen() {
       </View>
 
       {/* Filter Tabs */}
-      <View style={[styles.filterRow, { borderBottomColor: themeColors.border }]}>
-        {filters.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterTab, filter === f.key && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => changeFilter(f.key)}
-          >
-            <Text style={[styles.filterText, { color: filter === f.key ? colors.primary[600] : themeColors.text.muted }]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <Pestanas
+        estilo={MARGEN_DE_PESTANAS}
+        etiqueta="Filtrar pagos"
+        valor={filter}
+        onCambiar={changeFilter}
+        opciones={filters.map((f) => ({ id: f.key, texto: f.label }))}
+      />
 
       {payments.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -284,19 +279,7 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   topBarTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  filterRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  filterText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContent: { padding: spacing.md, gap: spacing.sm },
   paymentItem: {
     flexDirection: 'row',

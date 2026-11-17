@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../../components/ui/Pestanas';
 import { useEventoEnVivo, useRecargaJuntada } from '../../hooks/useSocket';
 import {
   View,
@@ -251,34 +252,16 @@ export default function ContractsScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'as_client' && styles.tabActive]}
-          onPress={() => setActiveTab('as_client')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: activeTab === 'as_client' ? themeColors.primary[600] : themeColors.text.muted },
-            ]}
-          >
-            Como cliente
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'as_worker' && styles.tabActive]}
-          onPress={() => setActiveTab('as_worker')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: activeTab === 'as_worker' ? themeColors.primary[600] : themeColors.text.muted },
-            ]}
-          >
-            Como trabajador
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <Pestanas
+        estilo={MARGEN_DE_PESTANAS}
+        etiqueta="Contratos como cliente o como trabajador"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={[
+          { id: 'as_client' as const, texto: 'Como cliente' },
+          { id: 'as_worker' as const, texto: 'Como trabajador' },
+        ]}
+      />
 
       <FlatList
         data={filteredContracts}
@@ -347,25 +330,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.primary[600],
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
+  },
   listContent: {
     padding: spacing.lg,
     paddingBottom: spacing['3xl'],

@@ -31,6 +31,7 @@ export default function SelectorDeTipoDeCuenta({ tipo, onTipo, rubros, cualquier
   return (
     <View style={styles.bloque}>
       <Text style={[styles.label, { color: tema.text.secondary }]}>¿Cómo vas a usar DOAPP?</Text>
+      <Text style={{ color: tema.text.muted, fontSize: fontSize.xs, marginBottom: spacing.sm }}>Solo sirve para personalizar tu muro: podés publicar y trabajar igual, elijas lo que elijas.</Text>
       <View style={styles.fila} accessibilityRole="radiogroup">
         {OPCIONES.map((o) => {
           const activo = tipo === o.id;

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../components/ui/Pestanas';
 import { useEventoEnVivo, useRecargaJuntada } from '../hooks/useSocket';
 import {
   View,
@@ -467,85 +468,49 @@ export default function BalanceScreen() {
         )}
 
         {/* Tabs */}
-        <View style={[styles.tabsContainer, { borderColor: themeColors.border }]}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'transactions' && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => setActiveTab('transactions')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === 'transactions' ? themeColors.primary[600] : themeColors.text.muted },
-              ]}
-            >
-              Transacciones
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'withdrawals' && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => setActiveTab('withdrawals')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === 'withdrawals' ? themeColors.primary[600] : themeColors.text.muted },
-              ]}
-            >
-              Retiros
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'invoices' && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => setActiveTab('invoices')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === 'invoices' ? themeColors.primary[600] : themeColors.text.muted },
-              ]}
-            >
-              Facturas
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Pestanas
+          estilo={MARGEN_DE_PESTANAS}
+          etiqueta="Movimientos, retiros y facturas"
+          valor={activeTab}
+          onCambiar={setActiveTab}
+          opciones={[
+            { id: 'transactions' as const, texto: 'Transacciones' },
+            { id: 'withdrawals' as const, texto: 'Retiros' },
+            { id: 'invoices' as const, texto: 'Facturas' },
+          ]}
+        />
 
         {/* Transaction Filters */}
         {activeTab === 'transactions' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
-            {([
-              { key: 'all', label: 'Todos' },
-              { key: 'income', label: '↓ Ingresos' },
-              { key: 'expense', label: '↑ Egresos' },
-            ] as { key: typeof txFilter; label: string }[]).map(f => (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.filterChip, txFilter === f.key && { backgroundColor: themeColors.primary[600], borderColor: themeColors.primary[600] }, { borderColor: themeColors.border }]}
-                onPress={() => setTxFilter(f.key)}
-              >
-                <Text style={[styles.filterChipText, { color: txFilter === f.key ? '#fff' : themeColors.text.secondary }]}>{f.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <Pestanas
+            tamano="compacto"
+            estilo={MARGEN_DE_PESTANAS}
+            etiqueta="Filtrar movimientos"
+            valor={txFilter}
+            onCambiar={setTxFilter}
+            opciones={[
+              { id: 'all' as const, texto: 'Todos' },
+              { id: 'income' as const, texto: '↓ Ingresos' },
+              { id: 'expense' as const, texto: '↑ Egresos' },
+            ]}
+          />
         )}
 
         {/* Withdrawal Filters */}
         {activeTab === 'withdrawals' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
-            {([
-              { key: 'all', label: 'Todos' },
-              { key: 'pending', label: 'En proceso' },
-              { key: 'completed', label: 'Completados' },
-              { key: 'rejected', label: 'Rechazados' },
-            ] as { key: typeof withdrawalFilter; label: string }[]).map(f => (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.filterChip, withdrawalFilter === f.key && { backgroundColor: themeColors.primary[600], borderColor: themeColors.primary[600] }, { borderColor: themeColors.border }]}
-                onPress={() => setWithdrawalFilter(f.key)}
-              >
-                <Text style={[styles.filterChipText, { color: withdrawalFilter === f.key ? '#fff' : themeColors.text.secondary }]}>{f.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <Pestanas
+            tamano="compacto"
+            estilo={MARGEN_DE_PESTANAS}
+            etiqueta="Filtrar retiros"
+            valor={withdrawalFilter}
+            onCambiar={setWithdrawalFilter}
+            opciones={[
+              { id: 'all' as const, texto: 'Todos' },
+              { id: 'pending' as const, texto: 'En proceso' },
+              { id: 'completed' as const, texto: 'Completados' },
+              { id: 'rejected' as const, texto: 'Rechazados' },
+            ]}
+          />
         )}
 
         {/* Transactions List */}
@@ -821,22 +786,6 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.7,
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    marginBottom: spacing.lg,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
   listContainer: {
     gap: spacing.md,
   },
@@ -950,24 +899,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: fontWeight.medium,
     color: colors.primary[600],
-  },
-  filterRow: {
-    marginBottom: spacing.sm,
-  },
-  filterContent: {
-    paddingHorizontal: spacing.xs,
-    gap: spacing.sm,
-    flexDirection: 'row',
-  },
-  filterChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    marginRight: spacing.xs,
-  },
-  filterChipText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
   },
 });

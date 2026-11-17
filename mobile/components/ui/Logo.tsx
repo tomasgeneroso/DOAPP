@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
+import { LogoDoApp } from './IconosDeMarca';
 
 interface LogoProps {
   size?: 'small' | 'medium' | 'large' | 'xlarge';
@@ -50,26 +51,8 @@ export default function Logo({ size = 'medium', showText = true, onPress, style 
 
   const content = (
     <View style={[styles.container, style]}>
-      {/* Logo Icon - DO */}
-      <View
-        style={[
-          styles.iconContainer,
-          {
-            width: sizeConfig.container,
-            height: sizeConfig.container,
-            borderRadius: sizeConfig.borderRadius,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.iconText,
-            { fontSize: sizeConfig.iconText },
-          ]}
-        >
-          DO
-        </Text>
-      </View>
+      {/* El logo de siempre: el círculo celeste con la D y la O (el mismo de la web) */}
+      <LogoDoApp size={sizeConfig.container} />
 
       {/* Logo Text - APP */}
       {showText && (
@@ -111,17 +94,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-  },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.primary[500],
-  },
-  iconText: {
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: -1,
-  },
+  },
   appText: {
     fontWeight: '900',
     color: colors.primary[600],

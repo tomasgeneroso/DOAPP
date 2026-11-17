@@ -20,6 +20,19 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+/**
+ * Lo que dice la app cuando NO hay conexión con el servidor. El sistema responde en inglés y en seco («Failed to fetch», «Network request failed») y la persona no sabe
+ * qué hacer (reporte del dueño, 2026-11-17: «quiero registrarme y dice failed to fetch»). Cualquier otro error pasa tal cual.
+ */
+export function mensajeDeRed(error: { message?: string } | null | undefined): string {
+  const original = String(error?.message ?? '');
+  if (/failed to fetch|network request failed|load failed|networkerror|network error/i.test(original)) {
+    const pista = __DEV__ && Platform.OS === 'web' ? ` (En desarrollo la app apunta a ${API_URL}: ¿está encendido el servidor?)` : '';
+    return `No pudimos conectar con DOAPP. Revisá tu conexión a internet y probá de nuevo.${pista}`;
+  }
+  return original;
+}
+
 // Keys para almacenamiento seguro
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
@@ -211,7 +224,7 @@ async function request<T>(
     const isTimeout = error.name === 'AbortError';
     return {
       success: false,
-      message: isTimeout ? 'Tiempo de espera agotado. Verifica tu conexión.' : (error.message || 'Error de conexión'),
+      message: isTimeout ? 'Tiempo de espera agotado. Verifica tu conexión.' : (mensajeDeRed(error) || 'Error de conexión'),
       error: isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
     };
   }
@@ -336,7 +349,7 @@ export async function upload<T>(
     console.error('Upload Error:', error);
     return {
       success: false,
-      message: error.message || 'Error de conexión',
+      message: mensajeDeRed(error) || 'Error de conexión',
       error: 'NETWORK_ERROR',
     };
   }

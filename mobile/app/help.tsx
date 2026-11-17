@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -140,25 +141,6 @@ export default function HelpScreen() {
   );
   const openTickets = tickets.filter(t =>
     !['resolved', 'closed'].includes(t.status)
-  );
-
-  const renderTabButton = (tab: TabType, label: string, count?: number) => (
-    <TouchableOpacity
-      key={tab}
-      style={[
-        styles.tabButton,
-        activeTab === tab && { backgroundColor: colors.primary[500] }
-      ]}
-      onPress={() => setActiveTab(tab)}
-    >
-      <Text style={[
-        styles.tabButtonText,
-        { color: activeTab === tab ? '#fff' : themeColors.text.secondary }
-      ]}>
-        {label}
-        {count !== undefined && count > 0 && ` (${count})`}
-      </Text>
-    </TouchableOpacity>
   );
 
   const renderOverview = () => (
@@ -457,11 +439,17 @@ export default function HelpScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
-        {renderTabButton('overview', 'Inicio')}
-        {renderTabButton('disputes', 'Disputas', openDisputes.length)}
-        {renderTabButton('tickets', 'Tickets', openTickets.length)}
-      </View>
+      <Pestanas
+        estilo={MARGEN_DE_PESTANAS}
+        etiqueta="Secciones de ayuda"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={[
+          { id: 'overview' as const, texto: 'Inicio' },
+          { id: 'disputes' as const, texto: 'Disputas', insignia: openDisputes.length > 0 ? openDisputes.length : undefined },
+          { id: 'tickets' as const, texto: 'Tickets', insignia: openTickets.length > 0 ? openTickets.length : undefined },
+        ]}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -505,25 +493,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
     textAlign: 'center',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-  },
-  tabButtonText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
+  },
   scrollContent: {
     padding: spacing.lg,
     paddingBottom: spacing['3xl'],

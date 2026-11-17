@@ -29,6 +29,9 @@ export default function SelectorDeTipoDeCuenta({ tipo, onTipo, rubros, cualquier
         <legend className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
           ¿Cómo vas a usar DOAPP? <span className="text-red-500">*</span>
         </legend>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid="nota-tipo-de-cuenta">
+          Solo sirve para personalizar tu muro: podés publicar y trabajar igual, elijas lo que elijas.
+        </p>
         <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo de cuenta">
           {OPCIONES.map(({ id, titulo, detalle, Icono }) => {
             const activo = tipo === id;

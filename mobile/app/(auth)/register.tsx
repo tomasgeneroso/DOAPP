@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Pestanas from '../../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -176,24 +177,16 @@ export default function RegisterScreen() {
             </View>
 
             {/* Tabs */}
-            <View style={[styles.tabs, { borderBottomColor: themeColors.border }]}>
-              <Link href="/(auth)/login" asChild>
-                <TouchableOpacity style={styles.tab}>
-                  <Text style={[styles.tabText, { color: themeColors.text.muted }]}>Iniciar Sesión</Text>
-                </TouchableOpacity>
-              </Link>
-              <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-                <Text style={[styles.tabText, styles.tabTextActive]}>Registrarme</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Error */}
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorIcon}>⚠</Text>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            <Pestanas
+              estilo={{ marginBottom: 16 }}
+              etiqueta="Ingresar o crear una cuenta"
+              valor={'register' as 'login' | 'register'}
+              onCambiar={(id) => { if (id === 'login') router.replace('/(auth)/login'); }}
+              opciones={[
+                { id: 'login' as const, texto: 'Iniciar Sesión' },
+                { id: 'register' as const, texto: 'Registrarme' },
+              ]}
+            />
 
             {/* Form */}
             {/* Google y X primero, el formulario después */}
@@ -349,28 +342,39 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              {/* Terms checkbox */}
+              {/* Términos: casilla + UNA sola frase que se corta sola; los dos enlaces van dentro del mismo texto (antes cada pedazo era una caja suelta y quedaba todo separado) */}
               <View style={styles.termsContainer}>
                 <TouchableOpacity
                   onPress={() => setTermsAccepted(!termsAccepted)}
                   activeOpacity={0.7}
-                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: termsAccepted }}
+                  accessibilityLabel="Acepto los Términos y Condiciones y la Política de Privacidad"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <View style={[styles.checkbox, { borderColor: themeColors.border }, termsAccepted && styles.checkboxChecked]}>
                     {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
                   </View>
-                  <Text style={[styles.termsText, { color: themeColors.text.secondary }]}>
-                    Acepto los{' '}
+                </TouchableOpacity>
+                <Text style={[styles.termsText, { color: themeColors.text.secondary }]}>
+                  Acepto los{' '}
+                  <Text style={styles.termsLink} accessibilityRole="link" onPress={() => router.push('/legal/terms' as any)}>
+                    Términos y Condiciones
+                  </Text>{' '}
+                  y la{' '}
+                  <Text style={styles.termsLink} accessibilityRole="link" onPress={() => router.push('/legal/privacy' as any)}>
+                    Política de Privacidad
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => router.push('/legal/terms' as any)} activeOpacity={0.7}>
-                  <Text style={styles.termsLink}>Términos y Condiciones</Text>
-                </TouchableOpacity>
-                <Text style={[styles.termsText, { color: themeColors.text.secondary }]}> y la </Text>
-                <TouchableOpacity onPress={() => router.push('/legal/privacy' as any)} activeOpacity={0.7}>
-                  <Text style={styles.termsLink}>Política de Privacidad</Text>
-                </TouchableOpacity>
+                </Text>
               </View>
+
+              {/* Error: justo arriba del botón, donde la persona está mirando al tocarlo */}
+              {error ? (
+                <View style={styles.errorContainer} accessibilityRole="alert">
+                  <Text style={styles.errorIcon}>⚠</Text>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
@@ -443,29 +447,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
     textAlign: 'center',
-  },
-  tabs: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    marginBottom: spacing.lg,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.primary[600],
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
-  tabTextActive: {
-    color: colors.primary[600],
-  },
+  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -542,7 +524,7 @@ const styles = StyleSheet.create({
   },
   termsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginVertical: spacing.md,
   },
   checkbox: {
@@ -566,6 +548,7 @@ const styles = StyleSheet.create({
   termsText: {
     flex: 1,
     fontSize: fontSize.sm,
+    lineHeight: 20,
   },
   termsLink: {
     color: colors.primary[600],

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Pestanas from '../../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -96,24 +97,16 @@ export default function LoginScreen() {
             </View>
 
             {/* Tabs */}
-            <View style={[styles.tabs, { borderBottomColor: themeColors.border }]}>
-              <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-                <Text style={[styles.tabText, styles.tabTextActive]}>Iniciar Sesión</Text>
-              </TouchableOpacity>
-              <Link href="/(auth)/register" asChild>
-                <TouchableOpacity style={styles.tab}>
-                  <Text style={[styles.tabText, { color: themeColors.text.muted }]}>Registrarme</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-
-            {/* Error */}
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorIcon}>⚠</Text>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            <Pestanas
+              estilo={{ marginBottom: 16 }}
+              etiqueta="Ingresar o crear una cuenta"
+              valor={'login' as 'login' | 'register'}
+              onCambiar={(id) => { if (id === 'register') router.replace('/(auth)/register'); }}
+              opciones={[
+                { id: 'login' as const, texto: 'Iniciar Sesión' },
+                { id: 'register' as const, texto: 'Registrarme' },
+              ]}
+            />
 
             {/* Form */}
             {/* Google y X primero, el formulario después */}
@@ -163,6 +156,14 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Error: justo arriba del botón, donde la persona está mirando al tocarlo */}
+              {error ? (
+                <View style={styles.errorContainer} accessibilityRole="alert">
+                  <Text style={styles.errorIcon}>⚠</Text>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
@@ -239,29 +240,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
     textAlign: 'center',
-  },
-  tabs: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    marginBottom: spacing.lg,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.primary[600],
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
-  tabTextActive: {
-    color: colors.primary[600],
-  },
+  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',

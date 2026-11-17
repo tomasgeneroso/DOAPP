@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -583,26 +584,19 @@ export default function HomeScreen() {
       {isAuthenticated && renderParaMi()}
 
       {/* Tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
+      <View style={styles.buscarFila}>
         <Text style={[styles.tabsLabel, { color: themeColors.text.secondary }]}>Buscar:</Text>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'jobs' && styles.tabActive]}
-          onPress={() => setActiveTab('jobs')}
-        >
-          <Briefcase size={16} color={activeTab === 'jobs' ? themeColors.primary[600] : themeColors.text.secondary} strokeWidth={2} />
-          <Text style={[styles.tabText, { color: themeColors.text.secondary }, activeTab === 'jobs' && styles.tabTextActive]}>
-            Trabajos
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'users' && styles.tabActive]}
-          onPress={() => setActiveTab('users')}
-        >
-          <User size={16} color={activeTab === 'users' ? themeColors.primary[600] : themeColors.text.secondary} strokeWidth={2} />
-          <Text style={[styles.tabText, { color: themeColors.text.secondary }, activeTab === 'users' && styles.tabTextActive]}>
-            Perfiles
-          </Text>
-        </TouchableOpacity>
+        <Pestanas
+          tamano="compacto"
+          estilo={{ flex: 1 }}
+          etiqueta="Qué buscar"
+          valor={activeTab}
+          onCambiar={setActiveTab}
+          opciones={[
+            { id: 'jobs' as const, texto: 'Trabajos', icono: <Briefcase size={14} color={themeColors.text.secondary} strokeWidth={2} /> },
+            { id: 'users' as const, texto: 'Perfiles', icono: <User size={14} color={themeColors.text.secondary} strokeWidth={2} /> },
+          ]}
+        />
       </View>
 
       {/* Search & Filters */}
@@ -774,42 +768,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
   },
-  // Tabs
-  tabsContainer: {
+  // Tabs
+  buscarFila: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.card.light,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.slate[100],
-    gap: spacing.md,
+    paddingVertical: spacing.sm,
   },
   tabsLabel: {
     fontSize: fontSize.sm,
     color: colors.slate[600],
     fontWeight: fontWeight.medium,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  tabActive: {
-    backgroundColor: colors.primary[50],
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    color: colors.slate[600],
-    fontWeight: fontWeight.medium,
-  },
-  tabTextActive: {
-    color: colors.primary[600],
-    fontWeight: fontWeight.semibold,
-  },
+  },
   // Search & Filters
   searchSection: {
     paddingHorizontal: spacing.lg,

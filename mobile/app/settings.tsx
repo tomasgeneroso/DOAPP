@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -235,28 +236,19 @@ export default function SettingsScreen() {
       </View>
 
       {/* Tab Selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabScroll, { borderBottomColor: themeColors.border }]} contentContainerStyle={styles.tabRow}>
-        {([
-          { key: 'general' as SettingsTab, label: 'General' },
-          { key: 'verificacion' as SettingsTab, label: 'Verificación' },
-          { key: 'seguridad' as SettingsTab, label: 'Seguridad' },
-          { key: 'banking' as SettingsTab, label: 'Bancaria' },
-          { key: 'address' as SettingsTab, label: 'Dirección' },
-        ]).map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tab, activeTab === t.key && { borderBottomColor: colors.primary[600] }]}
-            onPress={() => setActiveTab(t.key)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: activeTab === t.key }}
-          >
-            <Text style={[styles.tabText, { color: activeTab === t.key ? colors.primary[600] : themeColors.text.muted }]}>
-              {t.label}
-            </Text>
-            {tabDotFor(t.key)}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <Pestanas
+        estilo={MARGEN_DE_PESTANAS}
+        etiqueta="Secciones de configuración"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={([
+          { id: 'general' as SettingsTab, texto: 'General' },
+          { id: 'verificacion' as SettingsTab, texto: 'Verificación' },
+          { id: 'seguridad' as SettingsTab, texto: 'Seguridad' },
+          { id: 'banking' as SettingsTab, texto: 'Bancaria' },
+          { id: 'address' as SettingsTab, texto: 'Dirección' },
+        ]).map((o) => ({ ...o, extra: tabDotFor(o.id) }))}
+      />
 
       <ScrollView
         ref={scrollRef}
@@ -826,27 +818,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     textAlign: 'center',
     marginTop: spacing.lg,
-  },
-  tabScroll: {
-    flexGrow: 0,
-    borderBottomWidth: 1,
-  },
-  tabRow: {
-    flexDirection: 'row',
-  },
-  tab: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
+  },
   inputGroup: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,

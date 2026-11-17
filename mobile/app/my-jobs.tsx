@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Pestanas, { MARGEN_DE_PESTANAS } from '../components/ui/Pestanas';
 import {
   View,
   Text,
@@ -464,24 +465,16 @@ export default function MyJobsScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'published' && styles.tabActive]}
-          onPress={() => setActiveTab('published')}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'published' ? themeColors.primary[600] : themeColors.text.muted }]}>
-            Publicados ({publishedJobs.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'applied' && styles.tabActive]}
-          onPress={() => setActiveTab('applied')}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'applied' ? themeColors.primary[600] : themeColors.text.muted }]}>
-            Aplicados ({appliedJobs.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <Pestanas
+        estilo={MARGEN_DE_PESTANAS}
+        etiqueta="Mis publicaciones y mis postulaciones"
+        valor={activeTab}
+        onCambiar={setActiveTab}
+        opciones={[
+          { id: 'published' as const, texto: 'Publicados', insignia: publishedJobs.length },
+          { id: 'applied' as const, texto: 'Aplicados', insignia: appliedJobs.length },
+        ]}
+      />
 
       {viewMode === 'calendar' ? (
         <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}
@@ -851,25 +844,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.primary[600],
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
+  },
   listContent: {
     padding: spacing.lg,
     paddingBottom: spacing['3xl'],
