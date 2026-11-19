@@ -5,6 +5,9 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
+        // Ingresar ↔ Registrarme: un fundido corto en vez del deslizamiento de la pila (pedido del dueño, 2026-11-17: «debe ser todo suave»).
+        animation: 'fade',
+        animationDuration: 220,
       }}
     >
       <Stack.Screen name="login" />

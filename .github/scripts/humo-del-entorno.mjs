@@ -49,7 +49,8 @@ await prueba('las imágenes se piden por /api/archivo y llegan a la aplicación 
   const sinRuta = await pedir('/api/archivo');
   if (sinRuta.estado !== 400 || !esJson(sinRuta.tipo)) return `sin ruta: estado ${sinRuta.estado}, tipo ${sinRuta.tipo} (¿la ruta no existe o la atiende otra capa?)`;
   const noExiste = await pedir('/api/archivo?ruta=avatars%2Fno-existe-humo.png');
-  if (esHtmlDeNginx(noExiste) || !esJson(noExiste.tipo)) return `archivo inexistente: estado ${noExiste.estado}, tipo ${noExiste.tipo}: lo contestó una capa de afuera`;
+  // Un archivo que no existe puede terminar en el 404 de Express (HTML con charset) o en JSON: lo que NO puede es ser la página del nginx.
+  if (esHtmlDeNginx(noExiste)) return `archivo inexistente: estado ${noExiste.estado}: lo contestó el nginx, no la aplicación`;
 });
 
 await prueba('una dirección /api que termina en .png llega a la aplicación o se reconoce como del nginx (informativo)', async () => {
