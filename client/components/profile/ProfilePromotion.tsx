@@ -12,9 +12,16 @@ import { getImageUrl } from '../../utils/imageUrl';
  * que imaginarse qué se compra, y lo que se compra es precisamente cómo se ve.
  */
 
-interface Dia { start: string; end: string; label: string; weekday: string; ocupada: boolean }
+interface Dia { start: string; end: string; label: string; weekday: string; ocupada: boolean; agotada?: boolean; precioEur?: number; precioArs?: number }
+interface Factor { clave: string; etiqueta: string; valor: number; explicacion: string }
+interface Desglose { neto: number; iva: number; procesamiento: number; ivaProcesamiento: number; total: number }
 interface Options {
   precioDiaEur: number;
+  precioBaseEur?: number;
+  topeEur?: number;
+  perfilesPorDia?: number;
+  factores?: Factor[];
+  pisoPorImpresionesEur?: number | null;
   precioDiaArs: number;
   eurArs: number;
   elegible: boolean;
@@ -32,6 +39,7 @@ interface Promo {
 }
 
 const ars = (n: number) => 'ARS $' + Math.round(n).toLocaleString('es-AR');
+const arsConCentavos = (n: number) => 'ARS $' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** La tarjeta tal cual se ve en el muro, para que no haya sorpresas. */
 export function PromotedCard({ p }: { p: Options['preview'] }) {
@@ -69,6 +77,36 @@ export function PromotedCard({ p }: { p: Options['preview'] }) {
   );
 }
 
+/** «¿Por qué este precio?»: los factores con sus números, en palabras. Lo que se ve acá es el mismo cálculo que hace el servidor. */
+function PorQueEstePrecio({ opts }: { opts: Options }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!opts.factores || opts.factores.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 text-sm" data-testid="por-que-este-precio">
+      <button type="button" onClick={() => setAbierto((v) => !v)} aria-expanded={abierto} className="flex w-full items-center justify-between px-3 py-2 text-left font-medium text-slate-800 dark:text-slate-200">
+        ¿Por qué este precio?
+        <span aria-hidden="true" className={`transition-transform ${abierto ? 'rotate-180' : ''}`}>⌄</span>
+      </button>
+      {abierto && (
+        <div className="space-y-2 border-t border-slate-100 px-3 py-3 text-slate-600 dark:border-slate-700 dark:text-slate-400">
+          <p>
+            Cada día parte de € {(opts.precioBaseEur ?? 1).toLocaleString('es-AR')} (sin IVA) y sube con lo que vale esa visibilidad, hasta un tope de € {(opts.topeEur ?? 10).toLocaleString('es-AR')}. Hoy:
+          </p>
+          <ul className="space-y-1">
+            {opts.factores.map((f) => (
+              <li key={f.clave}>
+                <strong className="text-slate-800 dark:text-slate-200">{f.etiqueta} ×{f.valor.toLocaleString('es-AR')}</strong>: {f.explicacion}
+              </li>
+            ))}
+          </ul>
+          {opts.pisoPorImpresionesEur != null && <p>Además, un día nunca vale menos que sus impresiones reales: € {opts.pisoPorImpresionesEur.toLocaleString('es-AR')}.</p>}
+          <p className="text-xs">El precio de cada día se ve en el calendario. A eso se le suma el IVA y el costo de procesamiento del pago, y lo ves desglosado antes de pagar.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePromotion() {
   const [opts, setOpts] = useState<Options | null>(null);
   const [mine, setMine] = useState<Promo[]>([]);
@@ -76,6 +114,8 @@ export default function ProfilePromotion() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Lo que se va a pagar por los días elegidos (precio + IVA + costo de procesamiento), calculado por el servidor.
+  const [cotizacion, setCotizacion] = useState<{ netoArs: number; desglose: Desglose } | null>(null);
 
   const load = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -95,10 +135,58 @@ export default function ProfilePromotion() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (elegidas.length === 0) {
+      setCotizacion(null);
+      return;
+    }
+    let vigente = true;
+    const espera = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const r = await fetch('/api/profile-promotion/cotizar', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ dias: elegidas }) });
+        const d = await r.json();
+        if (vigente && d.success) setCotizacion(d.data);
+      } catch {
+        /* sin cotización: se muestra la estimación de los días */
+      }
+    }, 250);
+    return () => {
+      vigente = false;
+      clearTimeout(espera);
+    };
+  }, [elegidas]);
+
   const toggle = (start: string) =>
     setElegidas((prev) =>
       prev.includes(start) ? prev.filter((s) => s !== start) : [...prev, start],
     );
+
+  /** Crea la orden de Mercado Pago de esos días reservados y lleva a la persona a pagarla. */
+  const pagar = async (ids: string[]) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/profile-promotion/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.paymentUrl) {
+        setMsg({ ok: true, text: data.message || 'Te llevamos a Mercado Pago…' });
+        window.location.href = data.data.paymentUrl;
+        return;
+      }
+      setMsg({ ok: false, text: data.message || 'No se pudo iniciar el pago' });
+      await load();
+    } catch (err: any) {
+      setMsg({ ok: false, text: err.message || 'Error de conexión' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const reservar = async () => {
     setSaving(true);
@@ -112,9 +200,9 @@ export default function ProfilePromotion() {
       });
       const data = await res.json();
       if (data.success) {
-        setMsg({ ok: true, text: data.message });
         setElegidas([]);
-        await load();
+        // Reservados los días, se sigue directo al pago (antes decía «falta el pago» y no había cómo pagar).
+        await pagar(data.data?.ids ?? []);
       } else {
         setMsg({ ok: false, text: data.message || 'No se pudo reservar' });
       }
@@ -130,7 +218,10 @@ export default function ProfilePromotion() {
   }
   if (!opts) return null;
 
-  const total = elegidas.length * opts.precioDiaArs;
+  const porFecha = new Map(opts.dias.map((d) => [d.start, d]));
+  // Mientras llega la cotización del servidor se muestra la suma de los días (sin IVA).
+  const netoEstimado = elegidas.reduce((s, start) => s + (porFecha.get(start)?.precioArs ?? opts.precioDiaArs), 0);
+  const total = cotizacion?.desglose.total ?? netoEstimado;
 
   return (
     <div className="space-y-5">
@@ -170,7 +261,7 @@ export default function ProfilePromotion() {
               interna y está explicada en las políticas; ponerlo acá hace que
               el usuario sienta que paga en moneda extranjera, y no es así. */}
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {ars(opts.precioDiaArs)} por día
+            desde € {opts.precioDiaEur.toLocaleString('es-AR', { maximumFractionDigits: 2 })} por día + IVA
           </p>
         </div>
 
@@ -185,17 +276,31 @@ export default function ProfilePromotion() {
         />
       </div>
 
+      <PorQueEstePrecio opts={opts} />
+
       {elegidas.length > 0 && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2" data-testid="resumen-de-la-promocion">
           <div className="flex justify-between text-sm">
             <span className="text-slate-600 dark:text-slate-400">
-              {elegidas.length} {elegidas.length === 1 ? 'día' : 'días'} × {ars(opts.precioDiaArs)}
+              {elegidas.length} {elegidas.length === 1 ? 'día' : 'días'}
             </span>
-            <span className="font-semibold text-slate-900 dark:text-white">{ars(total)}</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{arsConCentavos(cotizacion?.desglose.neto ?? netoEstimado)}</span>
           </div>
+          {cotizacion && (
+            <>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600 dark:text-slate-400">IVA (21 %)</span>
+                <span className="text-slate-900 dark:text-white">{arsConCentavos(cotizacion.desglose.iva)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600 dark:text-slate-400">Costo de procesamiento del pago (con IVA)</span>
+                <span className="text-slate-900 dark:text-white">{arsConCentavos(cotizacion.desglose.procesamiento + cotizacion.desglose.ivaProcesamiento)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between text-base font-bold border-t border-slate-200 dark:border-slate-700 pt-2">
             <span className="text-slate-900 dark:text-white">Total a pagar</span>
-            <span className="text-amber-600 dark:text-amber-400">{ars(total)}</span>
+            <span className="text-amber-600 dark:text-amber-400">{cotizacion ? arsConCentavos(total) : '… calculando'}</span>
           </div>
           <button
             onClick={() => void reservar()}
@@ -203,7 +308,7 @@ export default function ProfilePromotion() {
             className="w-full mt-1 px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Reservar y pagar
+            Reservar y pagar con Mercado Pago
           </button>
         </div>
       )}
@@ -212,6 +317,21 @@ export default function ProfilePromotion() {
         <p className={`text-sm ${msg.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
           {msg.text}
         </p>
+      )}
+
+      {mine.some((p) => p.paymentStatus !== 'paid' && p.status === 'pending' && new Date(p.endDate) > new Date()) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20" data-testid="promociones-sin-pagar">
+          <p className="font-medium text-amber-900 dark:text-amber-200">Tenés días reservados que todavía no pagaste</p>
+          <button
+            type="button"
+            onClick={() => void pagar(mine.filter((p) => p.paymentStatus !== 'paid' && p.status === 'pending' && new Date(p.endDate) > new Date()).map((p) => p.id))}
+            disabled={saving}
+            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Pagar los días reservados
+          </button>
+        </div>
       )}
 
       {mine.length > 0 && (

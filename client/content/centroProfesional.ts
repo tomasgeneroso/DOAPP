@@ -18,6 +18,13 @@ export interface GuiaDePestana {
   glosario?: Array<{ termino: string; significa: string }>;
 }
 
+/**
+ * El aviso que SIEMPRE se ve en el Centro Profesional (pedido del dueño, 2026-11-19): DOAPP es una herramienta de ayuda; no garantiza ni controla que los documentos
+ * (licencias, matrículas, seguros, constancias) sean verdaderos o estén vigentes, y no reemplaza a un especialista. No se puede cerrar.
+ */
+export const AVISO_DE_HERRAMIENTA =
+  'DOAPP es solo una herramienta de ayuda para el trabajador: no se hace cargo de documentos falsificados ni de licencias, matrículas, seguros u otros papeles inválidos o vencidos, y no reemplaza el asesoramiento profesional. Chequeá siempre con un especialista (contador, abogado o el organismo que corresponda).';
+
 export const AVISO_ORIENTATIVO =
   'Esto es orientativo y no reemplaza a un contador: ante cualquier duda sobre tus obligaciones, consultalo con él.';
 
@@ -25,6 +32,8 @@ export interface PasoDeBienvenida {
   titulo: string;
   texto: string;
   pestana: PestanaDelCentro;
+  /** Si el paso apunta a una parte puntual de la pestaña, el `id` de esa parte (la pantalla baja hasta ahí). */
+  ancla?: string;
 }
 
 export const QUE_ES_EL_CENTRO =
@@ -34,7 +43,7 @@ export const PASOS_DE_BIENVENIDA: PasoDeBienvenida[] = [
   { titulo: 'Mirá tus números', texto: 'En «Finanzas» ves lo que facturaste este mes y en el año, y podés ponerte una meta mensual.', pestana: 'finanzas' },
   { titulo: 'Cargá tu situación fiscal', texto: 'En «Impuestos y Obligaciones» indicás si sos monotributista y en qué categoría: así te avisa cuánto te falta para el tope.', pestana: 'impuestos' },
   { titulo: 'Cuidá tu reputación', texto: 'En «Reputación» ves cómo te califican y qué insignias tenés; es lo que más pesa cuando un cliente elige.', pestana: 'reputacion' },
-  { titulo: 'Descargá el resumen para tu contador', texto: 'Al final de «Finanzas» bajás tu facturación del año en CSV o PDF, lista para llevársela a tu contador.', pestana: 'finanzas' },
+  { titulo: 'Descargá el resumen para tu contador', texto: 'Al final de «Finanzas» bajás tu facturación del año en CSV o PDF, lista para llevársela a tu contador.', pestana: 'finanzas', ancla: 'descarga-del-resumen' },
 ];
 
 export const GUIAS: Record<PestanaDelCentro, GuiaDePestana> = {

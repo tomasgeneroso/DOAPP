@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Pestanas from "../components/ui/Pestanas";
@@ -170,6 +171,7 @@ export default function HelpPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               {t('help.title', 'Help Center & Support')}
+              <InfoIcono ayuda="Centro de ayuda" className="ml-2" />
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               {t('help.subtitle', 'Manage your tickets, disputes, and get help')}

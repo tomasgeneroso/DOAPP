@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Desplegable from "../components/ui/Desplegable";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -694,12 +695,12 @@ export default function Dashboard() {
           {/* My Ratings Section */}
           {user && (
             <div className="mt-8">
-              <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                  {t('dashboard.myRatings', 'My ratings')}
-                </h2>
+              <Desplegable
+                clave={`doapp:desplegable:mis-puntuaciones:${user.id}`}
+                titulo={<>{t('dashboard.myRatings', 'My ratings')}</>}
+              >
                 <MultipleRatings user={user} showAll={true} />
-              </div>
+              </Desplegable>
             </div>
           )}
 

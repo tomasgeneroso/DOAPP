@@ -21,6 +21,7 @@ import TrabajosDeEjemplo from "../components/home/TrabajosDeEjemplo";
 import MovilPagoLiberado from "../components/home/MovilPagoLiberado";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
+import PerfilesDestacados from "../components/home/PerfilesDestacados";
 import ParaMi, { parametrosParaMi, tieneAlgoParaMi } from "../components/home/ParaMi";
 import { TarjetaDePerfil, type Tarjeta } from "./Profesionales";
 
@@ -829,6 +830,9 @@ export default function Index() {
 
             {/* Para mí: mis rubros y mi zona (solo quien ofrece servicios y los cargó) */}
             {(user.role === 'doer' || user.role === 'both') && <ParaMi perfil={user as any} activo={paraMi} onCambiar={setParaMi} />}
+
+            {/* Perfiles que pagaron días de promoción (siempre con la marca «Promocionado») */}
+            <PerfilesDestacados excluirId={user.id} />
 
             {jobsLoading ? (
               <div className="flex justify-center py-12">

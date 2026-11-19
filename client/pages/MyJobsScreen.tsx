@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -754,6 +755,7 @@ export default function MyJobsScreen() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
               {t('jobs.myJobs', 'Agenda Do')}
+              <InfoIcono ayuda="Mis trabajos" className="ml-2" />
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
               {t('jobs.myJobsSubtitle', 'Administra tus trabajos publicados y postulaciones')}
@@ -928,8 +930,9 @@ export default function MyJobsScreen() {
         </div>
 
         {/* Main Tabs: las dos son para todas las cuentas (una sola cuenta para todo, shared/cuenta/capacidades.ts) */}
+        <div className="mb-6 flex items-center gap-2">
         <Pestanas
-          className="mb-6"
+          className="flex-1"
           tamano="grande"
           ariaLabel="Mis publicaciones y mis postulaciones"
           valor={mainTab}
@@ -939,6 +942,8 @@ export default function MyJobsScreen() {
             { id: "applied" as const, texto: t('jobs.myApplications', 'Mis Postulaciones'), icono: <Send className="h-5 w-5" />, insignia: proposals.length },
           ]}
         />
+        <InfoIcono ayuda={mainTab === "published" ? "Mis publicaciones" : "Mis aplicaciones"} />
+        </div>
 
         {/* Calendar View */}
         {viewMode === "calendar" && (

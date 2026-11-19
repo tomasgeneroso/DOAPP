@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { getImageUrl } from '@/utils/imageUrl';
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -56,9 +57,9 @@ import ZonaDeTrabajo, { type Zona } from "../components/perfil/ZonaDeTrabajo";
 import SelectorDeRubros from "../components/perfil/SelectorDeRubros";
 import { ubicarDireccion } from "../../shared/geo/ubicar";
 
-type TabType = "basic" | "membership" | "promotion" | "verification" | "security" | "profession" | "address" | "banking" | "interests" | "notifications" | "help";
+type TabType = "basic" | "membership" | "promotion" | "verification" | "security" | "profession" | "address" | "banking" | "notifications" | "help";
 
-const PESTANAS_VALIDAS: TabType[] = ["basic", "membership", "promotion", "verification", "security", "profession", "address", "banking", "interests", "notifications", "help"];
+const PESTANAS_VALIDAS: TabType[] = ["basic", "membership", "promotion", "verification", "security", "profession", "address", "banking", "notifications", "help"];
 
 const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
   basic: "Información Básica",
@@ -69,7 +70,6 @@ const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
   profession: "Profesión",
   address: "Domicilio y zona de trabajo",
   banking: "Banca",
-  interests: "Intereses",
   notifications: "Notificaciones",
   help: "Ayuda",
 };
@@ -371,7 +371,6 @@ export default function UserSettings() {
   const [taxId, setTaxId] = useState("");
 
   // Interests
-  const [interests, setInterests] = useState<string[]>([]);
   // Rubros y zona de trabajo (pedido del dueño, 2026-11-12)
   const [workCategories, setWorkCategories] = useState<string[]>([]);
   const [workAny, setWorkAny] = useState(false);
@@ -422,7 +421,6 @@ export default function UserSettings() {
       setDni(user.dni || "");
       setTaxStatus(user.legalInfo?.taxStatus || "freelancer");
       setTaxId(user.legalInfo?.taxId || "");
-      setInterests(user.interests || []);
       setWorkCategories(user.workCategories || []);
       setWorkAny(!!user.workAnyCategory);
       setWorkRadiusKm(user.workRadiusKm ?? null);
@@ -579,7 +577,6 @@ export default function UserSettings() {
           // El DNI viaja aparte (es la clave de la cuenta; el servidor valida que no se repita). Verificado con Didit no se manda.
           ...(dni && !user?.dniVerified ? { dni } : {}),
           legalInfo: { taxStatus, taxId },
-          interests,
           workCategories,
           workAnyCategory: workAny,
           workRadiusKm,
@@ -610,13 +607,6 @@ export default function UserSettings() {
     }
   };
 
-  const toggleInterest = (categoryId: string) => {
-    setInterests((prev) =>
-      prev.includes(categoryId)
-        ? prev.filter((id) => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
 
   // A tab lights up when any unfinished task declares it as its owner, so
   // adding a task to the registry lights the whole trail with no extra wiring.
@@ -641,7 +631,6 @@ export default function UserSettings() {
     { id: "profession", label: "Profesión", icon: Briefcase },
     { id: "address", label: "Domicilio y zona", icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
-    { id: "interests", label: t('settings.tabs.interests'), icon: Tag },
     { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
     { id: "help", label: t('settings.tabs.help'), icon: HelpCircle },
   ];
@@ -654,6 +643,7 @@ export default function UserSettings() {
       <div className="container mx-auto max-w-6xl py-8 px-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
           {t('settings.pageTitle')}
+          <InfoIcono ayuda="Configuración" className="ml-2" />
         </h1>
 
         <Transicion mostrar={!!message}>
@@ -1110,7 +1100,7 @@ export default function UserSettings() {
                       />
                     </div>
                   </div>
-                  <ZonaDeTrabajo ciudad={city} provincia={state} radioKm={workRadiusKm} onRadio={setWorkRadiusKm} zonas={workZones} onZonas={setWorkZones} />
+                  <ZonaDeTrabajo ciudad={city} provincia={state} radioKm={workRadiusKm} onRadio={setWorkRadiusKm} zonas={workZones} onZonas={setWorkZones} centroInicial={user?.workLatitude != null && user?.workLongitude != null ? { lat: Number(user.workLatitude), lng: Number(user.workLongitude) } : null} />
                   {(user?.role === "doer" || user?.role === "both") && (
                     <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-slate-700">
                       <h3 className="text-base font-semibold text-gray-900 dark:text-white">Rubros</h3>
@@ -1285,35 +1275,6 @@ export default function UserSettings() {
                       </p>
                     )}
                   </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "interests" && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {t('settings.tabs.interests')}
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-slate-400">
-                    {t('settings.interests.description')}
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {JOB_CATEGORIES.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => toggleInterest(category.id)}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          interests.includes(category.id)
-                            ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20"
-                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                        }`}
-                      >
-                        <div className="text-3xl mb-2">{category.icon}</div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {t(category.labelKey, category.label)}
-                        </div>
-                      </button>
-                    ))}
                   </div>
                 </div>
               )}

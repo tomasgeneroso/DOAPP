@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -233,6 +234,7 @@ export default function BalancePage() {
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               <Wallet className="h-8 w-8 text-sky-600" />
               {t('balance.title', 'Mi Saldo')}
+              <InfoIcono ayuda="Mi saldo" className="ml-2" />
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
               {t('balance.subtitle', 'Administra tu saldo y revisa tu historial de transacciones')}

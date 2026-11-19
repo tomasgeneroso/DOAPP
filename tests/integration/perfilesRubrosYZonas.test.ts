@@ -96,6 +96,30 @@ describe('perfiles: rubros, zonas y directorio', () => {
       expect(r.body.user.workRadiusKm).toBe(25);
     });
 
+    it('guarda las zonas marcadas en el mapa (radio y polígono) saneadas y descarta las formas inválidas', async () => {
+      const u: any = await crearUsuario({ role: 'doer' });
+      creados.push(u.id);
+      const r = await request(app).put('/api/auth/settings').set(como(u)).send({
+        workZones: [
+          { name: 'Centro de Rosario', area: { tipo: 'radio', lat: -32.9468, lng: -60.6393, radiusKm: 4.44 } },
+          { name: 'Mi barrio', area: { tipo: 'poligono', puntos: [[-32.9, -60.7], [-32.9, -60.6], [-33.0, -60.6], [-33.0, -60.7]] } },
+          { name: 'Todo el país', area: { tipo: 'radio', lat: -34, lng: -58, radiusKm: 5000 } },
+          { name: 'Dos puntos', area: { tipo: 'poligono', puntos: [[-32.9, -60.7], [-32.9, -60.6]] } },
+          { name: 'Enorme', area: { tipo: 'poligono', puntos: [[-30, -60], [-30, -50], [-40, -50]] } },
+        ],
+      });
+      expect(r.status).toBe(200);
+      const g: any = await User.findByPk(u.id);
+      expect(g.workZones).toEqual([
+        { name: 'Centro de Rosario', area: { tipo: 'radio', lat: -32.947, lng: -60.639, radiusKm: 4.4 } },
+        { name: 'Mi barrio', area: { tipo: 'poligono', puntos: [[-32.9, -60.7], [-32.9, -60.6], [-33, -60.6], [-33, -60.7]] } },
+        // las formas inválidas quedan como zona solo con nombre (se busca en la ubicación del trabajo)
+        { name: 'Todo el país' },
+        { name: 'Dos puntos' },
+        { name: 'Enorme' },
+      ]);
+    });
+
     it('un radio absurdo se ignora', async () => {
       const u: any = await crearUsuario({ role: 'doer' });
       creados.push(u.id);
@@ -209,6 +233,23 @@ describe('perfiles: rubros, zonas y directorio', () => {
       expect(await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '5' })).toEqual(['Plomería en Rosario']);
       // radio + una zona por nombre (Córdoba) + rubro
       expect(await muro({ nearLat: '-32.95', nearLng: '-60.64', radiusKm: '5', zones: 'Córdoba', categories: 'plomeria' })).toEqual(['Plomería en Córdoba', 'Plomería en Rosario']);
+    });
+
+    it('por zonas marcadas en el mapa: círculo y polígono (los trabajos sin ubicación en el mapa no entran)', async () => {
+      // círculo de 5 km en Rosario: solo Rosario
+      expect(await muro({ areas: 'r:-32.95:-60.64:5' })).toEqual(['Plomería en Rosario']);
+      // círculo de 25 km: Rosario y Funes
+      expect(await muro({ areas: 'r:-32.95:-60.64:25' })).toEqual(['Pintura en Funes', 'Plomería en Rosario']);
+      // polígono que encierra a Funes (-32.92, -60.81) y no a Rosario
+      expect(await muro({ areas: 'p:-32.85:-60.9:-32.85:-60.7:-33.0:-60.7:-33.0:-60.9' })).toEqual(['Pintura en Funes']);
+      // un círculo y un polígono juntos suman; con rubro
+      expect(await muro({ areas: 'r:-31.42:-64.18:5;p:-32.85:-60.9:-32.85:-60.7:-33.0:-60.7:-33.0:-60.9', categories: 'plomeria' })).toEqual(['Plomería en Córdoba']);
+    });
+
+    it('unas zonas del mapa mal formadas no filtran nada ni rompen la consulta', async () => {
+      expect((await muro({ areas: 'r:abc:def:5' })).length).toBe(4);
+      expect((await muro({ areas: 'p:1:2:3:4' })).length).toBe(4);
+      expect((await muro({ areas: 'x'.repeat(7000) })).length).toBe(4);
     });
 
     it('un punto o radio inválido no filtra nada', async () => {

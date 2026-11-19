@@ -1,4 +1,5 @@
 import { motivoDeItemsInvalidos } from '../../shared/cotizaciones/items';
+import { useParametrosDeLaRuta } from '../utils/datosDeLaDireccion';
 import { minimoHoy } from '../../shared/fechas/limites';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -53,7 +54,7 @@ export default function QuoteForm() {
   const quoteTemplates = getQuoteTemplates(t);
   const conceptExamples = getConceptExamples(t);
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
+  const searchParams = useParametrosDeLaRuta();
   const navigate = useNavigate();
   const { token, user } = useAuth();
 

@@ -542,7 +542,9 @@ export default function LoginScreen() {
         estaba.
       */}
       <div className="grid min-h-screen lg:grid-cols-2">
+        {/* El panel va FIJO a la mitad izquierda de la pantalla (no se corta ni se corre al bajar); este hueco guarda su lugar en la grilla. */}
         <AuthHero />
+        <div className="hidden lg:block" aria-hidden="true" />
         {/* El formulario parte siempre del mismo lugar (arriba) y crece hacia abajo: al pasar de ingresar a registrarse no se mueve el título ni las pestañas. */}
         <div className="flex flex-col justify-start px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:pt-16">
         <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-xl bg-white dark:bg-slate-800 p-4 shadow-lg sm:p-5 animate-scaleIn">
@@ -562,8 +564,6 @@ export default function LoginScreen() {
             <p className="text-xs sm:text-sm font-semibold text-white">
               {t('auth.promoFirst1000', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}
             </p>
-            {/* Los beneficios se dan al confirmar el correo (regla del dueño, 2026-11-12): se avisa antes de registrarse. Está en las dos pantallas para que el recuadro mida lo mismo y no se mueva nada al cambiar. */}
-            <p className="mt-1 text-xs text-sky-50">{t('auth.promoConfirmEmail')}</p>
           </div>
 
           <TokenExpiredNotice />

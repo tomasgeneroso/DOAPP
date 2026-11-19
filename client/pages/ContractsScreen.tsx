@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { getImageUrl } from '@/utils/imageUrl';
 import BotonReclamo from "@/components/pagos/BotonReclamo";
 import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
@@ -225,6 +226,7 @@ export default function ContractsScreen() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
               {t('contracts.myContracts', 'My Contracts')}
+              <InfoIcono ayuda="Mis contratos" className="ml-2" />
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
               {t('contracts.subtitle', 'Manage all your active and completed contracts')}

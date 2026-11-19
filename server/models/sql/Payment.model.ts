@@ -80,6 +80,8 @@ export type PaymentType =
   | 'contract'
   | 'budget_increase'
   | 'quote_payment'
+  /** Días de promoción del perfil (se paga con Mercado Pago; al confirmarse activa los días reservados). */
+  | 'profile_promotion'
   /**
    * La orden de pago del modo sin protección: se crea cuando el trabajo
    * termina y el cliente la paga ahí. Es una fila de payments como cualquier

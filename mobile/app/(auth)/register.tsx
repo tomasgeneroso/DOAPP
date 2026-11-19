@@ -172,7 +172,7 @@ export default function RegisterScreen() {
             {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
-                Las primeras 2000 cuentas tienen 1 contrato sin comisión (una sola vez) y PRO gratis por 1 mes 🎉 Para recibirlos tenés que confirmar tu correo con el enlace que te mandamos al registrarte.
+                Las primeras 2000 cuentas tienen 1 contrato sin comisión (una sola vez) y PRO gratis por 1 mes 🎉
               </Text>
             </View>
 

@@ -12,7 +12,7 @@ import {
   ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
   Star, Award, ShieldCheck, BadgeCheck, Download, Target,
 } from "lucide-react";
-import { BienvenidaAlCentro, GuiaDeLaPestana } from "../components/profesional/GuiaDelCentro";
+import { AvisoDeHerramienta, BienvenidaAlCentro, GuiaDeLaPestana } from "../components/profesional/GuiaDelCentro";
 
 interface Analytics {
   year: number;
@@ -651,9 +651,23 @@ export default function FinancePanel() {
       </div>
 
       {/* Qué es el Centro Profesional y los primeros pasos (se cierra y se recuerda) */}
-      <BienvenidaAlCentro usuarioId={user?.id} alIr={(p) => setTab(p)} />
+      {/* Siempre a la vista: DOAPP es una herramienta y no responde por documentos falsos o vencidos (pedido del dueño, 2026-11-19). */}
+      <AvisoDeHerramienta />
+
+      <BienvenidaAlCentro
+        usuarioId={user?.id}
+        alIr={(p, ancla) => {
+          // «Ir ahí»: cambia a la pestaña y BAJA hasta ella (antes cambiaba el estado sin mostrar nada si la persona ya estaba ahí o la pestaña quedaba fuera de pantalla).
+          setTab(p);
+          window.setTimeout(() => {
+            const destino = (ancla && document.getElementById(ancla)) || document.getElementById('secciones-del-centro');
+            destino?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 80);
+        }}
+      />
 
       {/* Tabs */}
+      <div id="secciones-del-centro" className="scroll-mt-4" />
       <Pestanas
         className="mb-6"
         ariaLabel="Secciones del Centro Profesional"
@@ -816,7 +830,7 @@ export default function FinancePanel() {
         </div>
 
         {/* Invoices table */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <div id="descarga-del-resumen" className="scroll-mt-4 lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <Receipt className="h-4 w-4 text-slate-400" />

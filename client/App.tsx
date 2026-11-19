@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { LimpiarDireccion } from './utils/datosDeLaDireccion';
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
@@ -45,7 +46,6 @@ const ProposalsDetail = lazy(() => import("./pages/dashboard/ProposalsDetail"));
 const ProposalsScreen = lazy(() => import("./pages/ProposalsScreen"));
 const ProposalDetail = lazy(() => import("./pages/ProposalDetail"));
 const MessagesScreen = lazy(() => import("./pages/MessagesScreen"));
-const OnboardingScreen = lazy(() => import("./pages/OnboardingScreen"));
 const UserSettings = lazy(() => import("./pages/UserSettings"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -180,6 +180,7 @@ export default function App() {
               <RastreadorDeRuta />
               <OnboardingProvider>
               <GuiaPasoAPasoProvider>
+              <LimpiarDireccion />
                 <OnboardingTooltip />
                 <FirstContractGuide />
                 {/*
@@ -375,6 +376,8 @@ export default function App() {
               <Route path="/auth/app-return" element={<IngresoDesdeApp />} />
               <Route path="/invitacion/:codigo" element={<InvitacionPage />} />
               <Route path="/payment/cancel" element={<PaymentCancel />} />
+              {/* «/membership» a secas daba 404: lleva a la pantalla de planes. */}
+              <Route path="/membership" element={<Navigate to="/membership/pricing" replace />} />
               <Route
                 path="/membership/pricing"
                 element={
@@ -584,14 +587,6 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <CompleteRegistration />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute>
-                  <OnboardingScreen />
                 </ProtectedRoute>
               }
             />

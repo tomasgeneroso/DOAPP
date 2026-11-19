@@ -705,6 +705,7 @@ async function responderPagoYaProcesado(res: Response, payment: any): Promise<vo
     alreadyProcessed: true,
   };
   if (payment.paymentType === 'membership') data.membershipActivated = true;
+  if (payment.paymentType === 'profile_promotion') data.promotionActivated = true;
   if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
     const job = await Job.findOne({ where: { publicationPaymentId: payment.id }, attributes: ['id', 'status', 'pendingNewPrice'] });
     if (job) {
@@ -1155,6 +1156,40 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           membershipId: membership.id,
           membershipActivated: true,
           plan,
+        },
+      });
+      return;
+    }
+
+    // Promoción de perfil: el pago confirmado activa los días reservados (solo los de quien pagó, y solo los que seguían pendientes: repetir la confirmación no hace nada).
+    if (payment.paymentType === "profile_promotion") {
+      const { Advertisement } = await import('../models/sql/Advertisement.model.js');
+      const ids: string[] = Array.isArray((payment.metadata as any)?.advertisementIds) ? (payment.metadata as any).advertisementIds.map(String) : [];
+      const [diasActivados] = ids.length
+        ? await Advertisement.update(
+            { paymentStatus: 'paid', status: 'active', isApproved: true, approvedAt: new Date(), paymentId: String(payment.id) } as any,
+            { where: { id: { [Op.in]: ids }, advertiserId: payment.payerId, adType: 'profile', paymentStatus: 'pending' } as any },
+          )
+        : [0];
+      await Notification.create({
+        recipientId: payment.payerId,
+        type: "success",
+        category: "payment",
+        title: "Tu perfil está promocionado",
+        message: `Se activaron ${diasActivados} ${diasActivados === 1 ? 'día' : 'días'} de promoción en los días que elegiste.`,
+        relatedModel: "Payment",
+        relatedId: payment.id,
+        sentVia: ["in_app"],
+      });
+      res.json({
+        success: true,
+        data: {
+          paymentId: payment.id,
+          captureId: captureResult.captureId,
+          status: payment.status,
+          amount: payment.amount,
+          promotionActivated: true,
+          dias: diasActivados,
         },
       });
       return;

@@ -1,4 +1,5 @@
 import { User, RoleRatingStats } from "../../types";
+import InfoIcono from "@/components/ui/InfoIcono";
 import {
   Star,
   Clock,
@@ -283,6 +284,7 @@ export default function MultipleRatings({
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
               {t("profile.ratings.total", "Puntuación total")}
+              <InfoIcono ayuda="Puntuación total" className="ml-1" />
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {hasReviews

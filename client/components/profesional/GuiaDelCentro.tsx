@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { BookOpen, ChevronDown, ChevronUp, GraduationCap, X } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp, GraduationCap, ShieldAlert } from 'lucide-react';
 import Transicion from '../ui/Transicion';
-import { AVISO_ORIENTATIVO, GUIAS, PASOS_DE_BIENVENIDA, QUE_ES_EL_CENTRO, type PestanaDelCentro } from '../../content/centroProfesional';
+import Desplegable from '../ui/Desplegable';
+import { AVISO_DE_HERRAMIENTA, AVISO_ORIENTATIVO, GUIAS, PASOS_DE_BIENVENIDA, QUE_ES_EL_CENTRO, type PestanaDelCentro } from '../../content/centroProfesional';
 
 /**
  * Las pantallas educativas del Centro Profesional: una bienvenida con los primeros pasos (se cierra y se recuerda) y, en cada pestaña, una guía plegable
@@ -28,57 +29,46 @@ const guardar = (clave: string, valor: string | null) => {
 const CLAVE_BIENVENIDA = (usuarioId: string | undefined) => `doapp:centro-bienvenida:${usuarioId ?? 'anonimo'}`;
 const CLAVE_GUIA = (usuarioId: string | undefined, pestana: string) => `doapp:centro-guia:${usuarioId ?? 'anonimo'}:${pestana}`;
 
-export function BienvenidaAlCentro({ usuarioId, alIr }: { usuarioId?: string; alIr: (pestana: PestanaDelCentro) => void }) {
-  const [visible, setVisible] = useState(() => leer(CLAVE_BIENVENIDA(usuarioId)) !== 'cerrada');
-  const cerrar = () => {
-    setVisible(false);
-    guardar(CLAVE_BIENVENIDA(usuarioId), 'cerrada');
-  };
+/** El aviso de que DOAPP es solo una herramienta: siempre a la vista, sin botón para cerrarlo. */
+export function AvisoDeHerramienta() {
   return (
-    <>
-      <Transicion mostrar={visible}>
-        <section aria-labelledby="bienvenida-centro" className="mb-6 rounded-2xl border border-purple-200 bg-purple-50 p-5 dark:border-purple-800 dark:bg-purple-900/20">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <GraduationCap className="mt-0.5 h-6 w-6 shrink-0 text-purple-600 dark:text-purple-300" aria-hidden="true" />
-              <div>
-                <h2 id="bienvenida-centro" className="text-lg font-bold text-slate-900 dark:text-white">¿Qué es el Centro Profesional?</h2>
-                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{QUE_ES_EL_CENTRO}</p>
-              </div>
-            </div>
-            <button type="button" onClick={cerrar} aria-label="Cerrar la bienvenida" className="rounded p-1 text-slate-400 hover:bg-purple-100 hover:text-slate-700 dark:hover:bg-purple-900/40 dark:hover:text-slate-200">
-              <X className="h-5 w-5" />
+    <aside
+      role="note"
+      aria-label="Aviso importante"
+      data-testid="aviso-de-herramienta"
+      className="mb-6 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
+    >
+      <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <p>{AVISO_DE_HERRAMIENTA}</p>
+    </aside>
+  );
+}
+
+export function BienvenidaAlCentro({ usuarioId, alIr }: { usuarioId?: string; alIr: (pestana: PestanaDelCentro, ancla?: string) => void }) {
+  return (
+    <Desplegable
+      className="mb-6 border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20"
+      clave={CLAVE_BIENVENIDA(usuarioId)}
+      icono={<GraduationCap className="h-5 w-5 shrink-0 text-purple-600 dark:text-purple-300" aria-hidden="true" />}
+      titulo="¿Qué es el Centro Profesional?"
+    >
+      <p className="text-sm text-slate-700 dark:text-slate-300">{QUE_ES_EL_CENTRO}</p>
+      <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+        {PASOS_DE_BIENVENIDA.map((p, i) => (
+          <li key={p.titulo} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-800">
+            <p className="font-semibold text-slate-900 dark:text-white">
+              <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-purple-600 text-xs font-bold text-white">{i + 1}</span>
+              {p.titulo}
+            </p>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">{p.texto}</p>
+            <button type="button" onClick={() => alIr(p.pestana, p.ancla)} className="mt-2 text-xs font-medium text-purple-700 hover:underline dark:text-purple-300">
+              Ir ahí
             </button>
-          </div>
-          <ol className="mt-4 grid gap-3 sm:grid-cols-2">
-            {PASOS_DE_BIENVENIDA.map((p, i) => (
-              <li key={p.titulo} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-800">
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-purple-600 text-xs font-bold text-white">{i + 1}</span>
-                  {p.titulo}
-                </p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{p.texto}</p>
-                <button type="button" onClick={() => alIr(p.pestana)} className="mt-2 text-xs font-medium text-purple-700 hover:underline dark:text-purple-300">
-                  Ir ahí
-                </button>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{AVISO_ORIENTATIVO}</p>
-        </section>
-      </Transicion>
-      {!visible && (
-        <div className="mb-4 text-right">
-          <button
-            type="button"
-            onClick={() => { setVisible(true); guardar(CLAVE_BIENVENIDA(usuarioId), null); }}
-            className="text-xs font-medium text-purple-700 hover:underline dark:text-purple-300"
-          >
-            ¿Qué es el Centro Profesional?
-          </button>
-        </div>
-      )}
-    </>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{AVISO_ORIENTATIVO}</p>
+    </Desplegable>
   );
 }
 

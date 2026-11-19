@@ -1,4 +1,5 @@
 import { useState } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { useTranslation } from "react-i18next";
 import Pestanas from "../components/ui/Pestanas";
 import { Helmet } from "react-helmet-async";
@@ -22,6 +23,7 @@ export default function PaymentsScreen() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
               <Wallet className="h-8 w-8 text-sky-600" />
               {t('payments.title')}
+              <InfoIcono ayuda="Mis pagos" className="ml-2" />
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-2">
               {t('payments.subtitle')}

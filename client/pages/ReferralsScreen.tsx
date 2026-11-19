@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import InfoIcono from "../components/ui/InfoIcono";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -89,6 +90,7 @@ export default function ReferralsScreen() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
             {t('referrals.title', 'Referral Program')}
+            <InfoIcono ayuda="Referidos" className="ml-2" />
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
             {t('referrals.subtitle', 'The first {{usuarios}} accounts get {{cantidad}} commission-free contract (one time only) and free PRO for {{meses}} month! Plus, invite your friends and earn benefits.', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}

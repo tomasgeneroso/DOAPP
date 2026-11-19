@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import InfoIcono from "../components/ui/InfoIcono";
 import { useTranslation, Trans } from 'react-i18next';
 import Pestanas from '../components/ui/Pestanas';
 import { Link, useNavigate } from 'react-router-dom';
@@ -143,6 +144,7 @@ export default function MyDisputes() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
               {t('myDisputes.title', 'Mis Disputas')}
+              <InfoIcono ayuda="Mis reclamos" className="ml-2" />
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-1">
               {t('myDisputes.subtitle', 'Gestiona tus reclamos y reportes')}

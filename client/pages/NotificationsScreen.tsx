@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import InfoIcono from "../components/ui/InfoIcono";
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -344,6 +345,7 @@ export default function NotificationsScreen() {
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                   <Bell className="h-7 w-7 text-sky-500" />
                   {t('nav.notifications')}
+                  <InfoIcono ayuda="Notificaciones" />
                   {unreadCount > 0 && (
                     <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-red-500 px-2 text-sm font-bold text-white">
                       {unreadCount}

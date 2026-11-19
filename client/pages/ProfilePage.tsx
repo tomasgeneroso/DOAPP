@@ -9,6 +9,7 @@ import { getImageUrl } from '../utils/imageUrl';
 import ShareProfileModal from '../components/profile/ShareProfileModal';
 import ImageEditorModal from '../components/profile/ImageEditorModal';
 import MultipleRatings from '../components/user/MultipleRatings';
+import InfoIcono from '../components/ui/InfoIcono';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
 import KycButton from '../components/KycButton';
@@ -924,6 +925,7 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                     {t('profile.ratings.title')}
+                    <InfoIcono ayuda="Puntuaciones" className="ml-2" />
                   </h2>
                   {(user.reviewsCount || 0) > 0 && (
                     <button

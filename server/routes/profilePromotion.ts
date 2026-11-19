@@ -4,6 +4,11 @@ import { protect, AuthRequest } from '../middleware/auth.js';
 import { Advertisement } from '../models/sql/Advertisement.model.js';
 import { User } from '../models/sql/User.model.js';
 import currencyExchange from '../services/currencyExchange.js';
+import { preciosPorDia } from '../services/preciosDePromocion.js';
+import { desglosePromocion, PERFILES_POR_DIA, PRECIO_BASE_POR_DIA_EUR, TOPE_POR_DIA_EUR } from '../../shared/pricing/promocionDePerfil.js';
+
+/** Los rubros del perfil para el precio: los que eligió, o ninguno si ofrece «cualquier rubro» (cuenta todos los trabajos). */
+const rubrosDe = (u: any): string[] => (u.workAnyCategory ? [] : Array.isArray(u.workCategories) ? u.workCategories : []);
 
 const router = express.Router();
 
@@ -94,11 +99,17 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
     }
 
     const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
-    const priceArs = Math.round(PRICE_PER_DAY_EUR * eurArs);
 
     const rating = Number((user as any).rating) || 0;
     const reviews = Number((user as any).reviewsCount) || 0;
     const elegible = puedePromocionarse(rating, reviews);
+
+    // El precio de CADA día (sube con la audiencia, la demanda del rubro, la app y los lugares que ya quedaron ocupados ese día).
+    const calendario = upcomingDays();
+    const precios = await preciosPorDia({ rating, reviews, rubros: rubrosDe(user) }, calendario.map((w) => new Date(w.start)), String(user.id));
+    const precioDeDia = new Map(precios.map((p) => [p.fecha, p]));
+    const masBarato = precios.reduce((min, p) => (p.eur < min.eur ? p : min), precios[0]);
+    const priceArs = Math.round(masBarato.eur * eurArs);
 
     // Dias que este usuario ya tiene comprados, para no ofrecerlos de nuevo.
     const yaCompradas = await Advertisement.findAll({
@@ -117,8 +128,14 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
     res.json({
       success: true,
       data: {
-        precioDiaEur: PRICE_PER_DAY_EUR,
+        precioDiaEur: masBarato.eur,
+        precioBaseEur: PRECIO_BASE_POR_DIA_EUR,
+        topeEur: TOPE_POR_DIA_EUR,
+        perfilesPorDia: PERFILES_POR_DIA,
         precioDiaArs: priceArs,
+        // Por qué vale lo que vale (los factores del día más barato, para explicarlo en pantalla)
+        factores: masBarato.factores,
+        pisoPorImpresionesEur: masBarato.pisoPorImpresionesEur,
         eurArs: Math.round(eurArs * 100) / 100,
         elegible,
         // Se dice por que no, no solo que no: un "no podes" sin motivo no le
@@ -126,10 +143,17 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
         motivoNoElegible: elegible
           ? null
           : `Tu puntuación es ${rating.toFixed(1)} y hace falta ${MIN_RATING} o más para promocionarte. Los clientes que te calificaron son quienes deciden si te conviene más visibilidad.`,
-        dias: upcomingDays().map((w) => ({
-          ...w,
-          ocupada: ocupadas.has(new Date(w.start).toISOString().slice(0, 10)),
-        })),
+        dias: calendario.map((w) => {
+          const clave = new Date(w.start).toISOString().slice(0, 10);
+          const p = precioDeDia.get(clave);
+          return {
+            ...w,
+            ocupada: ocupadas.has(clave),
+            agotada: !!p?.agotado,
+            precioEur: p?.eur ?? PRECIO_BASE_POR_DIA_EUR,
+            precioArs: Math.round((p?.eur ?? PRECIO_BASE_POR_DIA_EUR) * eurArs),
+          };
+        }),
         // Para la vista previa de la tarjeta, con los datos reales.
         preview: {
           name: user.name,
@@ -242,12 +266,20 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
-    const precioDia = Math.round(PRICE_PER_DAY_EUR * eurArs);
-    const total = precioDia * elegidas.length;
+    // El precio de cada día lo calcula el servidor con los datos de hoy; el navegador solo dice qué días.
+    const precios = await preciosPorDia({ rating, reviews, rubros: rubrosDe(user) }, elegidas.map((w) => new Date(w.start)), String(user.id));
+    const agotados = precios.filter((p) => p.agotado);
+    if (agotados.length > 0) {
+      res.status(409).json({ success: false, message: `Ya están los ${PERFILES_POR_DIA} perfiles promocionados de este día en el muro: ${agotados.map((p) => p.fecha.split('-').reverse().slice(0, 2).join('/')).join(', ')}. Elegí otro día.` });
+      return;
+    }
+    const precioPorFecha = new Map(precios.map((p) => [p.fecha, Math.round(p.eur * eurArs)]));
+    const total = precios.reduce((s, p) => s + Math.round(p.eur * eurArs), 0);
 
     const creadas = await Promise.all(
-      elegidas.map((w) =>
-        Advertisement.create({
+      elegidas.map((w) => {
+        const precioDia = precioPorFecha.get(new Date(w.start).toISOString().slice(0, 10)) ?? Math.round(PRECIO_BASE_POR_DIA_EUR * eurArs);
+        return Advertisement.create({
           advertiserId: user.id,
           adType: 'profile',
           title: user.name,
@@ -260,8 +292,8 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
           endDate: new Date(w.end),
           targetCategories: (user as any).profession ? [(user as any).profession] : [],
           targetLocations: (user as any).address?.city ? [(user as any).address.city] : [],
-        } as any),
-      ),
+        } as any);
+      }),
     );
 
     res.status(201).json({
@@ -270,10 +302,212 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
       data: {
         ids: creadas.map((c) => c.id),
         dias: elegidas.length,
-        precioDiaArs: precioDia,
-        totalArs: total,
+        // El precio de los días SIN IVA; lo que se paga (con IVA y costo de procesamiento) lo devuelve /pay.
+        netoArs: total,
+        desglose: desglosePromocion(total),
       },
     });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/profile-promotion/cotizar
+ * @desc    El precio de esos días y el desglose completo (precio + IVA + costo de procesamiento), ANTES de reservar. Mismo cálculo que al reservar y al pagar.
+ */
+router.post('/cotizar', protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dias } = req.body as { dias?: string[] };
+    if (!Array.isArray(dias) || dias.length === 0 || dias.length > MAX_DAYS_AHEAD) {
+      res.status(400).json({ success: false, message: 'Elegí al menos un día' });
+      return;
+    }
+    const user: any = await User.findByPk(req.user!.id);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      return;
+    }
+    const validas = new Map(upcomingDays().map((w) => [w.start.slice(0, 10), w]));
+    const elegidas = dias.map((s) => validas.get(String(s).slice(0, 10))).filter(Boolean) as Array<{ start: string; end: string }>;
+    if (elegidas.length !== dias.length) {
+      res.status(400).json({ success: false, message: 'Alguno de los días no es válido' });
+      return;
+    }
+    const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
+    const precios = await preciosPorDia({ rating: Number(user.rating) || 0, reviews: Number(user.reviewsCount) || 0, rubros: rubrosDe(user) }, elegidas.map((w) => new Date(w.start)), String(user.id));
+    const neto = precios.reduce((s, p) => s + Math.round(p.eur * eurArs), 0);
+    res.json({ success: true, data: { dias: elegidas.length, netoArs: neto, desglose: desglosePromocion(neto), agotados: precios.filter((p) => p.agotado).map((p) => p.fecha) } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/profile-promotion/pay
+ * @desc    Paga los días reservados: crea la orden de Mercado Pago y devuelve la dirección de pago.
+ *
+ * Antes la pantalla reservaba los días y decía «Falta el pago para que se active»... sin ninguna forma de pagar (reporte del dueño, 2026-11-19: «en promocionar perfil
+ * no me lleva a la pantalla de pago»). El monto lo calcula el servidor con lo que quedó guardado en cada día reservado; el navegador solo dice cuáles.
+ * El pago se confirma en `POST /api/payments/capture-order` (tipo `profile_promotion`), que activa los días.
+ */
+router.post('/pay', protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { ids } = req.body as { ids?: string[] };
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_DAYS_AHEAD || ids.some((x) => typeof x !== 'string')) {
+      res.status(400).json({ success: false, message: 'Elegí al menos un día reservado para pagar' });
+      return;
+    }
+    const user = await User.findByPk(req.user!.id);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      return;
+    }
+    const dias = await Advertisement.findAll({
+      where: {
+        id: { [Op.in]: ids },
+        advertiserId: user.id,
+        adType: 'profile',
+        status: 'pending',
+        paymentStatus: 'pending',
+        // el día de hoy también se puede pagar: solo se descartan los que ya terminaron
+        endDate: { [Op.gt]: new Date() },
+      },
+    });
+    if (dias.length !== new Set(ids).size) {
+      res.status(409).json({ success: false, message: 'Alguno de los días ya no está disponible para pagar (se pagó, se canceló o ya pasó). Volvé a elegirlos.' });
+      return;
+    }
+    const neto = dias.reduce((suma, d) => suma + Number(d.totalPrice), 0);
+    if (!(neto > 0)) {
+      res.status(409).json({ success: false, message: 'No se pudo calcular el monto. Probá de nuevo.' });
+      return;
+    }
+    // Lo que se cobra: el precio de los días + IVA + costo de procesamiento con su IVA (T&C 7.16). Lo calcula el servidor con lo guardado en cada día.
+    const desglose = desglosePromocion(neto);
+    const total = desglose.total;
+    // Los lugares del día no pueden haberse llenado mientras tanto.
+    const { reservasPorDia } = await import('../services/preciosDePromocion.js');
+    const ocupados = await reservasPorDia(new Date(Math.min(...dias.map((d) => new Date(d.startDate).getTime())) - 24 * 3600 * 1000), new Date(Math.max(...dias.map((d) => new Date(d.startDate).getTime())) + 24 * 3600 * 1000), String(user.id));
+    if (dias.some((d) => (ocupados.get(new Date(d.startDate).toISOString().slice(0, 10)) ?? 0) >= PERFILES_POR_DIA)) {
+      res.status(409).json({ success: false, message: 'Alguno de esos días ya tiene los perfiles promocionados completos. Elegí otro día.' });
+      return;
+    }
+
+    const descripcion = `Promoción de perfil DOAPP: ${dias.length} ${dias.length === 1 ? 'día' : 'días'}`;
+    const mercadopagoService = (await import('../services/mercadopago.js')).default;
+    const mpPayment = await mercadopagoService.createPayment({
+      amount: total,
+      currency: 'ARS',
+      description: descripcion,
+      provider: 'mercadopago',
+      metadata: { userId: String(user.id), paymentType: 'profile_promotion' },
+      customerEmail: user.email,
+      successUrl: `${process.env.CLIENT_URL}/payment/success?type=profile_promotion`,
+      cancelUrl: `${process.env.CLIENT_URL}/settings?tab=promotion&error=payment_failed`,
+    });
+
+    const { Payment } = await import('../models/sql/Payment.model.js');
+    const pago = await Payment.create({
+      payerId: user.id,
+      recipientId: null,
+      contractId: null,
+      amount: total,
+      currency: 'ARS',
+      status: 'pending',
+      paymentType: 'profile_promotion',
+      mercadopagoPreferenceId: mpPayment.paymentId,
+      description: descripcion,
+      platformFee: 0,
+      platformFeePercentage: 0,
+      isEscrow: false,
+      // El desglose queda en el pago para facturar el IVA y para que la persona lo vea.
+      metadata: { advertisementIds: dias.map((d) => String(d.id)), neto: desglose.neto, iva: desglose.iva, procesamiento: desglose.procesamiento, ivaProcesamiento: desglose.ivaProcesamiento },
+    } as any);
+
+    res.status(201).json({
+      success: true,
+      message: 'Te llevamos a Mercado Pago para completar el pago.',
+      data: { paymentUrl: mpPayment.checkoutUrl, preferenceId: mpPayment.paymentId, paymentId: pago.id, totalArs: total, desglose, dias: dias.length },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/profile-promotion/activos
+ * @desc    Los perfiles promocionados HOY (pagos y vigentes), para mostrarlos en el muro. Solo datos que ya son públicos del perfil.
+ */
+router.get('/activos', async (req, res: Response): Promise<void> => {
+  try {
+    const ahora = new Date();
+    const excluir = typeof req.query.excluir === 'string' ? req.query.excluir : '';
+    const activos = await Advertisement.findAll({
+      where: {
+        adType: 'profile',
+        status: 'active',
+        paymentStatus: 'paid',
+        isApproved: true,
+        startDate: { [Op.lte]: ahora },
+        endDate: { [Op.gte]: ahora },
+      },
+      include: [{ association: 'advertiser', attributes: ['id', 'name', 'username', 'avatar', 'rating', 'reviewsCount', 'profession', 'address'] }],
+      limit: 30,
+    });
+    const vistos = new Set<string>();
+    const perfiles = [];
+    for (const a of activos) {
+      const u: any = (a as any).advertiser;
+      if (!u || vistos.has(String(u.id)) || String(u.id) === excluir) continue;
+      vistos.add(String(u.id));
+      perfiles.push({
+        id: u.id,
+        username: u.username || null,
+        name: u.name,
+        avatar: u.avatar || null,
+        rating: Math.round((Number(u.rating) || 0) * 10) / 10,
+        reviewsCount: Number(u.reviewsCount) || 0,
+        skills: u.profession ? [u.profession] : [],
+        location: u.address?.city || null,
+      });
+    }
+    // Entran PERFILES_POR_DIA en el muro: se sortean entre los vigentes (todos tienen su turno) y se cuenta una IMPRESIÓN a cada uno de los mostrados. Esas impresiones son
+    // las que mira el precio de los días (piso por impresiones) y las que ve cada persona en «Tus promociones».
+    for (let i = perfiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perfiles[i], perfiles[j]] = [perfiles[j], perfiles[i]];
+    }
+    const mostrados = perfiles.slice(0, PERFILES_POR_DIA);
+    if (mostrados.length > 0) {
+      await Advertisement.increment('impressions', {
+        by: 1,
+        where: { adType: 'profile', paymentStatus: 'paid', status: 'active', advertiserId: { [Op.in]: mostrados.map((p) => p.id) }, startDate: { [Op.lte]: ahora }, endDate: { [Op.gte]: ahora } } as any,
+      }).catch(() => undefined);
+    }
+    res.json({ success: true, data: mostrados });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/profile-promotion/clic
+ * @desc    Cuenta un clic en la tarjeta de un perfil promocionado (es informativo: se muestra en «Tus promociones»; no se cobra por clic).
+ */
+router.post('/clic', async (req, res: Response): Promise<void> => {
+  try {
+    const id = typeof req.body?.perfilId === 'string' ? req.body.perfilId : '';
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      res.status(400).json({ success: false });
+      return;
+    }
+    const ahora = new Date();
+    await Advertisement.increment('clicks', {
+      by: 1,
+      where: { adType: 'profile', paymentStatus: 'paid', status: 'active', advertiserId: id, startDate: { [Op.lte]: ahora }, endDate: { [Op.gte]: ahora } } as any,
+    });
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

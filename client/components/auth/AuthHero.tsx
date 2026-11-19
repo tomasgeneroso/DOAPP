@@ -101,7 +101,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
 
   return (
     <aside
-      className={`relative hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:self-start flex-col justify-between overflow-hidden border-r border-slate-200 bg-gradient-to-br from-sky-50 via-white to-slate-100 p-10 text-slate-900 dark:border-transparent dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-white ${className}`}
+      className={`relative hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-0 lg:w-1/2 lg:flex flex-col justify-between overflow-hidden border-r border-slate-200 bg-gradient-to-br from-sky-50 via-white to-slate-100 p-10 text-slate-900 dark:border-transparent dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-white ${className}`}
       aria-label={t("authHero.aria", "Sobre DOAPP")}
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}

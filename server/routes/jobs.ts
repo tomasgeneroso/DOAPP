@@ -39,7 +39,7 @@ import { detalleDelPagoDeLaPublicacion } from "../services/detalleDelPagoDeLaPub
 import { ErrorResponse } from '../middleware/errorHandler.js';
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
-import { sanearRubros, sanearPunto, sanearRadio } from "../../shared/perfiles/zonaDeTrabajo.js";
+import { sanearRubros, sanearPunto, sanearRadio, leerAreasPedidas, puntoEnArea } from "../../shared/perfiles/zonaDeTrabajo.js";
 
 const router = express.Router();
 
@@ -114,6 +114,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       userId: usuarioPedido,
       categories: categoriasPedidas, // rubros del trabajador, separados por coma («Para mí»)
       zones: zonasPedidas, // zonas de trabajo, separadas por |
+      areas: areasPedidas, // zonas marcadas en el mapa (círculos y polígonos), ver areasComoTexto
       nearLat,
       nearLng,
       radiusKm,
@@ -142,7 +143,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     // Generate cache key for this request
     const cacheKey = generateCacheKey('jobs:search', {
       status: estadoPedido ?? 'publicos', category, minPrice, maxPrice, limit: limiteFinal, searchQuery, location, tags, sortBy, type, clienteFiltro,
-      categoriasPedidas, zonasPedidas, nearLat, nearLng, radiusKm,
+      categoriasPedidas, zonasPedidas, areasPedidas, nearLat, nearLng, radiusKm,
     });
 
     // Check cache first (cache for 60 seconds for search results)
@@ -203,7 +204,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       : [];
     const punto = sanearPunto(nearLat, nearLng);
     const radio = sanearRadio(radiusKm);
-    const hayFiltroDeZona = zonasBuscadas.length > 0 || (!!punto && !!radio);
+    const areasBuscadas = leerAreasPedidas(areasPedidas);
+    const hayFiltroDeZona = zonasBuscadas.length > 0 || (!!punto && !!radio) || areasBuscadas.length > 0;
 
     const query: any = {};
     // Cada grupo de condiciones "una u otra" va en su propio elemento de Op.and: antes la búsqueda de texto
@@ -337,7 +339,11 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         const lugar = job.location ? normalizeLocation(String(job.location)) : '';
         if (zonasBuscadas.some((z) => lugar.includes(z))) return true;
         if (punto && radio && Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude))) {
-          return distanciaEnKm(punto.lat, punto.lng, Number(job.latitude), Number(job.longitude)) <= radio;
+          if (distanciaEnKm(punto.lat, punto.lng, Number(job.latitude), Number(job.longitude)) <= radio) return true;
+        }
+        // Zonas marcadas en el mapa (círculos y polígonos): el trabajo cae adentro de alguna.
+        if (areasBuscadas.length > 0 && Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude))) {
+          return areasBuscadas.some((a) => puntoEnArea(Number(job.latitude), Number(job.longitude), a));
         }
         return false;
       });

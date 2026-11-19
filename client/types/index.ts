@@ -170,7 +170,7 @@ export interface User {
   interests?: string[];
   workCategories?: string[];
   workAnyCategory?: boolean;
-  workZones?: Array<{ name: string; radiusKm?: number }>;
+  workZones?: Array<{ name: string; radiusKm?: number; area?: import("../../shared/perfiles/zonaDeTrabajo").AreaEnMapa }>;
   workRadiusKm?: number | null;
   /** Punto base de la zona de trabajo (privado, aproximado). */
   workLatitude?: number | null;

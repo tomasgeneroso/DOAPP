@@ -232,6 +232,7 @@ export default function ChatScreen() {
       setJobForProposal(null);
       setSelectedProposalJob(null);
       setLoading(true);
+      ultimoMensajeVisto.current = null;
 
       fetchConversationData();
       if (isConnected) {
@@ -329,9 +330,23 @@ export default function ChatScreen() {
     return registerProposalUpdateHandler(handleProposalUpdate);
   }, [registerProposalUpdateHandler]);
 
+  // Se baja al último mensaje SOLO cuando llegó uno nuevo y la persona ya estaba mirando el final (o lo escribió ella). Antes se bajaba cada vez que cambiaba la lista
+  // (cada actualización en segundo plano), y con `scrollIntoView` movía toda la página: mientras uno escribía, la pantalla se iba sola hacia el cuadro de texto
+  // (reporte del dueño, 2026-11-19: «cuando escribo en el chat se me baja siempre para el input»). Ahora solo se mueve la lista de mensajes.
+  const ultimoMensajeVisto = useRef<string | null>(null);
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const ultimo = messages[messages.length - 1];
+    const clave = ultimo ? String(ultimo.id) : null;
+    const primeraVez = ultimoMensajeVisto.current === null;
+    const hayNuevo = clave !== ultimoMensajeVisto.current;
+    ultimoMensajeVisto.current = clave;
+    if (!ultimo || !hayNuevo) return;
+    const lista = messagesEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    if (!lista) return;
+    const alFinal = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 160;
+    const esMio = String((ultimo.sender as any)?.id ?? ultimo.sender) === String(user?.id);
+    if (primeraVez || alFinal || esMio) lista.scrollTo({ top: lista.scrollHeight, behavior: primeraVez ? 'auto' : 'smooth' });
+  }, [messages, user?.id]);
 
   const fetchConversationData = async () => {
     try {
@@ -370,10 +385,6 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const fetchConversations = async () => {

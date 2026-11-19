@@ -592,7 +592,7 @@ export class User extends Model {
   @Default([])
   @AllowNull(false)
   @Column(DataType.JSONB)
-  workZones!: Array<{ name: string; radiusKm?: number }>;
+  workZones!: Array<{ name: string; radiusKm?: number; area?: import("../../../shared/perfiles/zonaDeTrabajo.js").AreaEnMapa }>;
 
   /** Radio de trabajo en km desde el domicilio. */
   @AllowNull(true)

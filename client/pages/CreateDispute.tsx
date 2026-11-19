@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useParametrosDeLaRuta } from '../utils/datosDeLaDireccion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useDropzone } from 'react-dropzone';
@@ -46,7 +47,7 @@ interface Contract {
 const CreateDispute: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const searchParams = useParametrosDeLaRuta();
   const contractIdFromUrl = searchParams.get('contractId');
   const { hasPermission, PERMISSIONS } = usePermissions();
 

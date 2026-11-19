@@ -360,10 +360,14 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           {/* Próximos pasos */}
           <div className="space-y-6 mb-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              {paymentType === 'membership' ? '¡Bienvenido a tu membresía!' : '¿Qué sigue ahora?'}
+              {paymentType === 'profile_promotion' ? '¡Tu perfil ya está promocionado!' : paymentType === 'membership' ? '¡Bienvenido a tu membresía!' : '¿Qué sigue ahora?'}
             </h2>
 
-            {paymentType === 'membership' ? (
+            {paymentType === 'profile_promotion' ? (
+              <p className="text-gray-700 dark:text-slate-300">
+                Pagaste tus días de promoción: tu perfil aparece destacado en el muro durante los días que elegiste. Podés ver y manejar tus promociones en Configuración → Promocionar perfil.
+              </p>
+            ) : paymentType === 'membership' ? (
               // Contenido para pago de membresía
               <>
                 {/* Beneficio 1 */}
@@ -532,7 +536,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           </div>
 
           {/* Nota importante sobre escrow - Solo para contratos */}
-          {paymentType !== 'membership' && paymentType !== 'budget_increase' && (
+          {paymentType !== 'membership' && paymentType !== 'budget_increase' && paymentType !== 'profile_promotion' && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 mb-8">
             <div className="flex gap-3">
               <div className="flex-shrink-0">

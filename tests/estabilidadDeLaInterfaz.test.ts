@@ -18,14 +18,14 @@ describe('ingresar ↔ registrarse sin saltos', () => {
     expect(leer('client/components/ui/AlturaSuave.tsx')).toContain('transition: \'height');
   });
 
-  it('el recuadro de bienvenida mide lo mismo en las dos pantallas (el aviso del correo no depende del modo)', () => {
-    expect(pantalla).toMatch(/<p className="mt-1 text-xs text-sky-50">\{t\('auth\.promoConfirmEmail'\)\}<\/p>/);
-    expect(pantalla).not.toMatch(/isRegister && \(\s*<p className="mt-1 text-xs text-sky-50">/);
+  it('el recuadro de bienvenida es el mismo en las dos pantallas (sin el aviso del correo, que el dueño pidió sacar el 2026-11-19)', () => {
+    expect(pantalla).not.toContain('promoConfirmEmail');
+    expect(leer('mobile/app/(auth)/register.tsx')).not.toContain('Para recibirlos tenés que confirmar');
   });
 
   it('el panel de la izquierda ocupa la pantalla entera y no se estira con el formulario', () => {
-    expect(panel).toContain('lg:sticky');
-    expect(panel).toContain('lg:h-screen');
+    expect(panel).toContain('lg:fixed lg:inset-y-0 lg:left-0');
+    expect(panel).not.toContain('lg:sticky');
   });
 
   it('el carrusel cruza los mensajes apilados (sin hueco, sin cambiar de alto) y también con «reducir movimiento»', () => {

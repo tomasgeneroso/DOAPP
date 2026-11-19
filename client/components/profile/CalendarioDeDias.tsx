@@ -5,6 +5,10 @@ export interface DiaDelCalendario {
   /** ISO del día (el servidor lo manda como inicio del día): la fecha es lo primero, AAAA-MM-DD. */
   start: string;
   ocupada: boolean;
+  /** Ya están todos los perfiles promocionados que entran ese día. */
+  agotada?: boolean;
+  /** Lo que vale ese día, en euros sin IVA. */
+  precioEur?: number;
 }
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -59,7 +63,7 @@ export default function CalendarioDeDias({
     celdas.push(porFecha.get(f) ?? { vacio: true, n });
   }
 
-  const libresDelMes = celdas.filter((c): c is DiaDelCalendario => !!c && "start" in c && !c.ocupada);
+  const libresDelMes = celdas.filter((c): c is DiaDelCalendario => !!c && "start" in c && !c.ocupada && !c.agotada);
   const todosElegidos = libresDelMes.length > 0 && libresDelMes.every((d) => elegidas.includes(d.start));
 
   return (
@@ -109,12 +113,12 @@ export default function CalendarioDeDias({
             <button
               key={c.start}
               type="button"
-              disabled={c.ocupada || deshabilitado}
+              disabled={c.ocupada || c.agotada || deshabilitado}
               onClick={() => onToggle(c.start)}
               aria-pressed={sel}
-              aria-label={`${n} de ${MESES[vista.m]}${c.ocupada ? ", tomado" : ""}`}
+              aria-label={`${n} de ${MESES[vista.m]}${c.ocupada ? ", tomado" : c.agotada ? ", completo" : ""}${c.precioEur !== undefined && !c.ocupada && !c.agotada ? `, ${c.precioEur.toLocaleString("es-AR")} euros más IVA` : ""}`}
               className={`relative rounded-lg py-2 text-sm transition ${
-                c.ocupada
+                c.ocupada || c.agotada
                   ? "cursor-not-allowed bg-slate-50 text-slate-300 line-through dark:bg-slate-900 dark:text-slate-600"
                   : sel
                     ? "bg-amber-500 font-semibold text-white"
@@ -122,6 +126,8 @@ export default function CalendarioDeDias({
               } disabled:opacity-70`}
             >
               {n}
+              {c.precioEur !== undefined && !c.ocupada && !c.agotada && <span className={`block text-[9px] leading-none ${sel ? "text-white/90" : "text-slate-400"}`}>€{c.precioEur.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>}
+              {c.agotada && !c.ocupada && <span className="block text-[9px] leading-none">completo</span>}
               {sel && <Check className="absolute right-0.5 top-0.5 h-2.5 w-2.5" aria-hidden />}
             </button>
           );

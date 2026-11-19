@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParametrosDeLaRuta } from '../utils/datosDeLaDireccion';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,7 +30,7 @@ interface CreatedTicket {
 
 const CreateTicket: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const searchParams = useParametrosDeLaRuta();
   const { t } = useTranslation();
   const { user, token } = useAuth();
   const { hasPermission, PERMISSIONS } = usePermissions();

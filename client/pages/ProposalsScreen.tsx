@@ -1,4 +1,5 @@
 import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
+import InfoIcono from "../components/ui/InfoIcono";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -163,6 +164,7 @@ export default function ProposalsScreen() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             {type === "sent" ? t('proposals.myProposals', 'Mis Propuestas') : t('proposals.receivedProposals', 'Propuestas Recibidas')}
+            <InfoIcono ayuda="Propuestas" className="ml-2" />
           </h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             {type === "sent"
