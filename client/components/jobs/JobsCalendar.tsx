@@ -831,7 +831,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
 
         <div className="flex items-center gap-2">
           {/* View mode toggles */}
-          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden" data-guia="calendario-vistas">
             <button
               onClick={() => setViewMode('month')}
               className={`px-3 py-1.5 text-sm ${viewMode === 'month' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
@@ -860,6 +860,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
 
           {showFilters && (
             <button
+              data-guia="calendario-filtros"
               onClick={() => setShowFilterPanel(!showFilterPanel)}
               className={`p-2 rounded-lg border ${
                 showFilterPanel || selectedCategories.length > 0 || selectedLocation || timeRange !== 'all'
@@ -874,6 +875,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
           {/* Sync / Export dropdown */}
           <div className="relative">
             <button
+              data-guia="calendario-sincronizar"
               onClick={() => setShowSyncMenu(!showSyncMenu)}
               className={`p-2 rounded-lg border ${
                 showSyncMenu
@@ -987,6 +989,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
               {viewMode === 'day' ? formatDate(currentDate) : formatMonthYear(currentDate)}
             </h3>
             <button
+              data-guia="calendario-hoy"
               onClick={goToToday}
               className="px-3 py-1 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600"
             >
@@ -1130,10 +1133,12 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
       )}
 
       {/* Calendar View */}
-      {viewMode === 'month' && renderMonthView()}
-      {viewMode === 'week' && renderWeekView()}
-      {viewMode === 'day' && renderDayView()}
-      {viewMode === 'list' && renderListView()}
+      <div data-guia="calendario-grilla">
+        {viewMode === 'month' && renderMonthView()}
+        {viewMode === 'week' && renderWeekView()}
+        {viewMode === 'day' && renderDayView()}
+        {viewMode === 'list' && renderListView()}
+      </div>
 
       {/* Job Detail Modal */}
       {selectedJob && (

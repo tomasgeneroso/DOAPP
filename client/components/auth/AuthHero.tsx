@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, Wallet, Undo2, Scale, Gift } from "lucide-react";
 import { POLITICAS } from "../../../shared/constants/policies";
@@ -18,12 +18,10 @@ import { POLITICAS } from "../../../shared/constants/policies";
  * claro quedaba un rectángulo negro pegado a un formulario blanco: no se leía
  * como diseño, se leía como algo a medio cargar.
  *
- * Sobre el movimiento y `prefers-reduced-motion`: el mensaje avanza igual —eso
- * es lo que hace que el panel sirva—, pero sin el desvanecido, cambiando de
- * golpe. Lo que molesta a quien pidió menos movimiento es la animación, no que
- * el contenido cambie. Y para que nadie pierda un mensaje a medio leer, la
- * rotación se detiene mientras el puntero está encima o algo de acá tiene el
- * foco del teclado.
+ * Cómo cambia de mensaje (pedido del dueño, 2026-11-17: «el carousel debe cambiar suave»): los cinco mensajes están apilados en el mismo lugar y se
+ * cruzan —uno se desvanece mientras el otro aparece—, así no hay un instante en blanco, el panel no cambia de alto y los puntos de abajo no se mueven. Quien pidió
+ * menos movimiento (`prefers-reduced-motion`) conserva el cruce de opacidad, que es suave y no se desplaza; solo pierde el deslizamiento y el desenfoque. Para que
+ * nadie pierda un mensaje a medio leer, la rotación se detiene mientras el puntero está encima o algo de acá tiene el foco del teclado.
  */
 
 interface Mensaje {
@@ -34,19 +32,7 @@ interface Mensaje {
 }
 
 const INTERVALO_MS = 6000;
-/**
- * El desvanecido, asimétrico a propósito.
- *
- * Salir rápido y entrar despacio es lo que hace que un cambio se lea como un
- * movimiento y no como un corte. Cuando las dos mitades duran lo mismo —y
- * sobre todo cuando duran poco— el texto "aparece" de golpe aunque
- * técnicamente haya una transición: el ojo registra el salto, no el camino.
- *
- * SALIDA_MS tiene que coincidir con la clase `duration-[380ms]` de abajo: es
- * lo que espera el temporizador antes de cambiar el texto, y si se adelanta,
- * se ve el cambio a mitad del desvanecido.
- */
-const SALIDA_MS = 380;
+/** Lo que dura el cruce entre un mensaje y el siguiente (clase `duration-[900ms]` de abajo). */
 
 export default function AuthHero({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
@@ -105,76 +91,17 @@ export default function AuthHero({ className = "" }: { className?: string }) {
   const cantidad = mensajes.length;
 
   const [i, setI] = useState(0);
-  /**
-   * Arranca invisible y se enciende en el primer efecto, para que el mensaje
-   * inicial también entre con la animación en vez de aparecer ya puesto. Es un
-   * cuadro de diferencia, pero es el que ve todo el mundo.
-   */
-  const [visible, setVisible] = useState(false);
   const [pausado, setPausado] = useState(false);
-  const [sinMovimiento, setSinMovimiento] = useState(
-    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  /** Fundido pendiente. En un ref para poder cancelarlo al desmontar. */
-  const fundido = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Se escucha el cambio, no sólo el valor inicial: alguien puede activar
-  // "reducir movimiento" con la pantalla abierta.
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const consulta = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const alCambiar = (e: MediaQueryListEvent) => setSinMovimiento(e.matches);
-    consulta.addEventListener?.("change", alCambiar);
-    return () => consulta.removeEventListener?.("change", alCambiar);
-  }, []);
-
-  /** Va a un mensaje: con desvanecido, o de golpe si se pidió menos movimiento. */
-  const ir = useCallback(
-    (destino: number | ((n: number) => number), demora = SALIDA_MS) => {
-      if (fundido.current) clearTimeout(fundido.current);
-      if (sinMovimiento) {
-        setI(destino);
-        setVisible(true);
-        return;
-      }
-      setVisible(false);
-      fundido.current = setTimeout(() => {
-        setI(destino);
-        setVisible(true);
-        fundido.current = null;
-      }, demora);
-    },
-    [sinMovimiento],
-  );
-
-  // Encender el primer mensaje después del primer pintado.
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
 
   useEffect(() => {
     if (pausado || cantidad < 2) return;
-    const id = setInterval(() => ir((n) => (n + 1) % cantidad), INTERVALO_MS);
+    const id = setInterval(() => setI((n) => (n + 1) % cantidad), INTERVALO_MS);
     return () => clearInterval(id);
-  }, [pausado, cantidad, ir]);
-
-  // Si el componente se va con un fundido a medio camino, el texto no puede
-  // quedar invisible ni el temporizador escribiendo sobre algo desmontado.
-  useEffect(
-    () => () => {
-      if (fundido.current) clearTimeout(fundido.current);
-    },
-    [],
-  );
-
-  const m = mensajes[i];
-  const Icono = m.icono;
+  }, [pausado, cantidad]);
 
   return (
     <aside
-      className={`relative hidden lg:flex flex-col justify-between overflow-hidden border-r border-slate-200 bg-gradient-to-br from-sky-50 via-white to-slate-100 p-10 text-slate-900 dark:border-transparent dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-white ${className}`}
+      className={`relative hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:self-start flex-col justify-between overflow-hidden border-r border-slate-200 bg-gradient-to-br from-sky-50 via-white to-slate-100 p-10 text-slate-900 dark:border-transparent dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-white ${className}`}
       aria-label={t("authHero.aria", "Sobre DOAPP")}
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
@@ -199,37 +126,32 @@ export default function AuthHero({ className = "" }: { className?: string }) {
       </div>
 
       {/*
-        aria-live="polite": quien usa lector de pantalla se entera del cambio
-        sin que le interrumpa lo que esté haciendo en el formulario.
+        Los mensajes se apilan en una misma celda de la grilla: el alto es el del más largo y nunca cambia. El de ahora tiene opacidad 1 y los demás 0, y se
+        cruzan con una transición. aria-live avisa a quien usa lector de pantalla sin interrumpir lo que esté haciendo en el formulario.
       */}
       <div className="relative" aria-live="polite">
-        <div
-          className={
-            sinMovimiento
-              ? "transition-none"
-              : [
-                  "transition-all will-change-[opacity,transform,filter]",
-                  visible
-                    // Entrada: lenta y con desaceleración, desde un poco más
-                    // abajo y desenfocado. El desenfoque es lo que más aporta:
-                    // sin él, la opacidad sola sigue leyéndose como un parpadeo.
-                    ? "duration-[700ms] ease-out opacity-100 translate-y-0 blur-0"
-                    // Salida: más corta y acelerando, hacia arriba. Va en
-                    // sentido contrario a la entrada para que las dos mitades
-                    // se lean como un solo movimiento y no como ida y vuelta.
-                    : "duration-[380ms] ease-in opacity-0 -translate-y-3 blur-[2px]",
-                ].join(" ")
-          }
-        >
-          <Icono className="mb-5 h-7 w-7 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          <h2 className="text-3xl font-bold leading-tight xl:text-4xl">
-            {m.titulo}
-            <br />
-            <span className="text-sky-600 dark:text-sky-400">{m.resaltado}</span>
-          </h2>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            {m.cuerpo}
-          </p>
+        <div className="grid">
+          {mensajes.map((msg, n) => {
+            const Icono = msg.icono;
+            const activo = n === i;
+            return (
+              <div
+                key={msg.resaltado}
+                aria-hidden={!activo}
+                className={`col-start-1 row-start-1 transition-[opacity,transform] duration-[900ms] ease-in-out ${
+                  activo ? "opacity-100 motion-safe:translate-y-0" : "pointer-events-none opacity-0 motion-safe:translate-y-2"
+                }`}
+              >
+                <Icono className="mb-5 h-7 w-7 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+                <h2 className="text-3xl font-bold leading-tight xl:text-4xl">
+                  {msg.titulo}
+                  <br />
+                  <span className="text-sky-600 dark:text-sky-400">{msg.resaltado}</span>
+                </h2>
+                <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-300">{msg.cuerpo}</p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Los puntos también son botones: si un mensaje interesa, se puede volver. */}
@@ -238,7 +160,7 @@ export default function AuthHero({ className = "" }: { className?: string }) {
             <button
               key={msg.resaltado}
               type="button"
-              onClick={() => ir(n, 200)}
+              onClick={() => setI(n)}
               aria-label={`${msg.titulo} ${msg.resaltado}`}
               aria-current={n === i}
               className={`h-1.5 rounded-full transition-all duration-500 ease-out ${

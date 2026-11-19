@@ -15,6 +15,18 @@ function getApiBase(): string {
 }
 const API_BASE = getApiBase();
 
+/**
+ * De cómo se guarda un archivo subido ("/uploads/avatars/x.png", "uploads/x.png" o "/api/uploads/x.png") a lo que pide la API: carpeta y archivo, y la consulta que traiga
+ * (por ejemplo ?v=123). Es la ruta que entiende GET /api/archivo?ruta=… (server/index.ts): el nginx del servidor responde por su cuenta a toda dirección que termine en
+ * .png/.jpg, así que las imágenes no pueden pedirse por una dirección con extensión.
+ */
+export function rutaDeArchivo(path: string): { ruta: string; consulta: string } | null {
+  const [sinConsulta, ...resto] = path.split("?");
+  const m = sinConsulta.replace(/^\/?api\//, "/").match(/^\/?uploads\/(.+)$/);
+  if (!m) return null;
+  return { ruta: m[1], consulta: resto.join("?") };
+}
+
 export function getImageUrl(path: string | undefined | null): string {
   if (!path) {
     return 'https://api.dicebear.com/7.x/shapes/svg?seed=default&backgroundColor=0ea5e9';
@@ -31,17 +43,12 @@ export function getImageUrl(path: string | undefined | null): string {
     return path;
   }
 
-  // Stored as "/uploads/job-images/x.jpg" → "<api>/uploads/job-images/x.jpg"
-  if (path.startsWith('/uploads')) {
-    return `${API_BASE}${path}`;
-  }
-  // Stored as "uploads/job-images/x.jpg"
-  if (path.startsWith('uploads/')) {
-    return `${API_BASE}/${path}`;
-  }
+  // Stored as "/uploads/job-images/x.jpg" o "uploads/job-images/x.jpg" → "<api>/archivo?ruta=job-images/x.jpg" (ver rutaDeArchivo).
+  const archivo = rutaDeArchivo(path);
+  if (archivo) return `${API_BASE}/archivo?ruta=${encodeURIComponent(archivo.ruta)}${archivo.consulta ? `&${archivo.consulta}` : ""}`;
   // Bare filename → assume it lives at the uploads root
   if (!path.startsWith('/')) {
-    return `${API_BASE}/uploads/${path}`;
+    return `${API_BASE}/archivo?ruta=${encodeURIComponent(path)}`;
   }
 
   // Any other absolute-ish path: route it through the API base too

@@ -771,6 +771,7 @@ export default function MyJobsScreen() {
               </button>
               <button
                 onClick={() => setViewMode("calendar")}
+                data-guia="vista-calendario"
                 className={`p-2 border-l border-slate-200 dark:border-slate-700 ${viewMode === "calendar" ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 title={t('jobs.calendarView')}
               >

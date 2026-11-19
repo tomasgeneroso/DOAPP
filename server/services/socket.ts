@@ -1,3 +1,4 @@
+import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
 import { Server, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import jwt from "jsonwebtoken";
@@ -221,6 +222,15 @@ export class SocketService {
         console.log(`❌ Message rejected: userId=${senderId}, participants=${JSON.stringify(participantIds)}`);
         socket.emit("socket_error", { message: "You are not a participant in this conversation" });
         return;
+      }
+
+      // Mismo filtro que la API: por el socket no se pueden pasar teléfonos ni correos (antes este camino lo salteaba).
+      if (type === "text" && message) {
+        const analisis = analyzeMessage(String(message));
+        if (analisis.bloquear.length > 0) {
+          socket.emit("socket_error", { message: contactBlockedMessage(analisis.bloquear), code: "CONTACT_INFO_BLOCKED" });
+          return;
+        }
       }
 
       // Create message

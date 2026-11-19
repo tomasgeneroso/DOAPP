@@ -15,6 +15,8 @@ jest.mock('../../server/index.js', () => {
 });
 
 import { User } from '../../server/models/sql/User.model.js';
+import { archivoPorConsulta } from '../../server/middleware/archivoPorConsulta.js';
+import { protegerArchivosPrivados } from '../../server/middleware/archivosPrivados.js';
 import { crearUsuario } from '../helpers/fixtures.js';
 
 // PNG de 1×1 válido
@@ -30,6 +32,10 @@ describe('foto de perfil', () => {
     app = express();
     app.use(express.json());
     app.use('/api/uploads', express.static(path.join(process.cwd(), 'uploads')));
+    // La dirección con la que la web pide las imágenes (el nginx del servidor responde solo a las que terminan en .png/.jpg): server/index.ts.
+    const porConsulta = express.Router();
+    porConsulta.use(archivoPorConsulta, protegerArchivosPrivados, express.static(path.join(process.cwd(), 'uploads')));
+    app.use('/api/archivo', porConsulta);
     app.use('/api/auth', (await import('../../server/routes/auth.js')).default);
     // El manejador de errores de verdad: convierte «archivo demasiado grande» en un mensaje claro.
     app.use((await import('../../server/middleware/errorHandler.js')).errorHandler as any);
@@ -60,6 +66,17 @@ describe('foto de perfil', () => {
     const r = await request(app).get(`/api/uploads/avatars/${archivo}`);
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toMatch(/image\/png/);
+  });
+
+  it('y por la dirección SIN extensión (?ruta=…), la que usa la web: llega a la aplicación y entrega la imagen', async () => {
+    const r = await request(app).get('/api/archivo').query({ ruta: `avatars/${archivo}`, v: '123' });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toMatch(/image\/png/);
+    const sinRuta = await request(app).get('/api/archivo');
+    expect(sinRuta.status).toBe(400);
+    // una ruta que se escapa de la carpeta no entrega nada
+    const fuera = await request(app).get('/api/archivo').query({ ruta: '../package.json' });
+    expect(fuera.status).not.toBe(200);
   });
 
   it('guardar la configuración después no borra la foto', async () => {

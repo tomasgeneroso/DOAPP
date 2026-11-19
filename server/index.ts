@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { protegerArchivosPrivados } from "./middleware/archivosPrivados.js";
+import { archivoPorConsulta } from "./middleware/archivoPorConsulta.js";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import path from "path";
@@ -382,6 +383,14 @@ app.use("/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, upload
 // Also under /api/uploads so images load through nginx's /api proxy (nginx often
 // doesn't proxy /uploads). getImageUrl() points here.
 app.use("/api/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
+// La dirección con la que la web y la app piden las imágenes: /api/archivo?ruta=avatars/foto.png. Las de arriba terminan en .png/.jpg y el nginx del servidor
+// atiende por su cuenta CUALQUIER dirección que termine así (con o sin /api, en staging y en producción: responde su propio 404 y Cloudflare lo guarda 4 horas),
+// así que una foto recién subida no se veía aunque estuviera guardada. Acá la extensión va en la consulta, no en la dirección, y llega siempre a esta aplicación.
+// Pasa por las mismas carpetas privadas y las mismas reglas que /uploads.
+// En un router aparte: la dirección se reescribe y los pasos siguientes tienen que seguir viéndola (con varios pasos en un mismo app.use la reescritura los salteaba).
+const archivoPorConsultaRouter = express.Router();
+archivoPorConsultaRouter.use(uploadsCors, archivoPorConsulta, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
+app.use("/api/archivo", archivoPorConsultaRouter);
 
 // Feature Flags
 import { features } from './featureFlags.js';

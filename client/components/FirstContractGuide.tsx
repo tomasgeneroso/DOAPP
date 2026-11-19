@@ -13,6 +13,7 @@ import { GUIAS, ORDEN_DE_GUIAS, guiaHecha, type IdDeGuia } from "./guias/guias";
 const DESCRIPCION: Record<IdDeGuia, { texto: string; boton: string }> = {
   publicar: { texto: "Te mostramos el camino para publicar tu trabajo, paso a paso.", boton: "Mostrame el camino" },
   menu: { texto: "Tu perfil, tus trabajos y la configuración, a un toque de distancia.", boton: "Mostrame el menú" },
+  calendario: { texto: "Tus trabajos en fecha, tu disponibilidad y cómo llevarlos a tu calendario.", boton: "Mostrame el calendario" },
 };
 
 const STORAGE_KEY = "fcg_dismissed";

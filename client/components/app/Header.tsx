@@ -404,6 +404,7 @@ export default function Header() {
 
                     <Link
                       to="/my-jobs"
+                      data-guia="menu-mis-trabajos"
                       onClick={() => handleNavClick('/my-jobs')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"

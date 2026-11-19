@@ -84,7 +84,7 @@ describe('pantallas de ingreso y registro', () => {
 
   it('Google y X van primero y el formulario después, en login y en registro (el bloque es único, sobre el formulario)', () => {
     const social = login.indexOf('{opcionesSociales}');
-    const formulario = login.indexOf('<form className="space-y-4 sm:space-y-6"');
+    const formulario = login.indexOf('<form key={mode} className="space-y-4 sm:space-y-6');
     expect(social).toBeGreaterThan(0);
     expect(formulario).toBeGreaterThan(social);
     // no quedó un segundo bloque social debajo del formulario

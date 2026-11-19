@@ -6,7 +6,7 @@
  * dónde está) y la guía pasa sola al paso siguiente. Los pasos de «leer» (un campo de un formulario) se pasan con un botón «Siguiente».
  */
 
-export type IdDeGuia = 'publicar' | 'menu';
+export type IdDeGuia = 'publicar' | 'menu' | 'calendario';
 
 export interface PasoDeGuia {
   id: string;
@@ -130,10 +130,88 @@ export const GUIAS: Record<IdDeGuia, Guia> = {
       },
     ],
   },
+  // Pedido del dueño, 2026-11-17: «realizar onboarding de calendario también». Se llega desde el menú de la cuenta, como en la vida real.
+  calendario: {
+    id: 'calendario',
+    titulo: 'Organizá tu tiempo con el calendario',
+    pasos: [
+      {
+        id: 'abrir-menu',
+        titulo: 'Abrí tu menú',
+        texto: 'Tocá tu nombre para abrir el menú de tu cuenta.',
+        objetivo: '[data-guia="menu-usuario"]',
+        avanzaCon: 'click',
+        posicion: 'abajo',
+      },
+      {
+        id: 'mis-trabajos',
+        titulo: 'Entrá a «Mis trabajos»',
+        texto: 'Ahí viven tus publicaciones, tus postulaciones y tu calendario.',
+        objetivo: '[data-guia="menu-mis-trabajos"]',
+        avanzaCon: 'click',
+        posicion: 'izquierda',
+        volverSiFalta: true,
+      },
+      {
+        id: 'vista-calendario',
+        titulo: 'Cambiá a la vista de calendario',
+        texto: 'Tocá este botón para ver tus trabajos y postulaciones puestos en fecha.',
+        objetivo: '[data-guia="vista-calendario"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'click',
+        posicion: 'abajo',
+      },
+      {
+        id: 'vistas',
+        titulo: 'Mes, semana, día o lista',
+        texto: 'Elegí cuánto querés ver de una vez: el mes completo, una semana, un día o una lista ordenada.',
+        objetivo: '[data-guia="calendario-vistas"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'boton',
+        posicion: 'abajo',
+      },
+      {
+        id: 'hoy',
+        titulo: 'Volvé a hoy cuando quieras',
+        texto: 'Con las flechas te movés entre meses y con «Hoy» volvés a la fecha actual.',
+        objetivo: '[data-guia="calendario-hoy"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'boton',
+        posicion: 'abajo',
+      },
+      {
+        id: 'grilla',
+        titulo: 'Tus trabajos, en su fecha',
+        texto: 'Tocá un trabajo para ver su detalle. Si ofrecés tus servicios, tocá con el botón derecho un día u hora para marcar cuándo estás disponible.',
+        objetivo: '[data-guia="calendario-grilla"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'boton',
+        posicion: 'arriba',
+      },
+      {
+        id: 'filtros',
+        titulo: 'Filtrá lo que ves',
+        texto: 'Mirá solo ciertos rubros, un lugar o un rango de horas.',
+        objetivo: '[data-guia="calendario-filtros"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'boton',
+        posicion: 'abajo',
+      },
+      {
+        id: 'sincronizar',
+        titulo: 'Llevalo a tu calendario',
+        texto: 'Descargá el archivo .ics o suscribite al enlace para ver tus trabajos de DOAPP en Google Calendar, Apple u Outlook.',
+        objetivo: '[data-guia="calendario-sincronizar"]',
+        ruta: /^\/my-jobs/,
+        avanzaCon: 'boton',
+        posicion: 'abajo',
+      },
+    ],
+  },
 };
 
 /** Las guías que se ofrecen en la lista «Tu guía de inicio», en orden. */
-export const ORDEN_DE_GUIAS: IdDeGuia[] = ['publicar', 'menu'];
+export const ORDEN_DE_GUIAS: IdDeGuia[] = ['publicar', 'menu', 'calendario'];
 
 const clave = (usuarioId: string, guia: IdDeGuia) => `guia_hecha_${guia}_${usuarioId}`;
 

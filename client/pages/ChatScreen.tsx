@@ -132,7 +132,6 @@ export default function ChatScreen() {
   const navigate = useNavigate();
   const { user, token } = useAuth();
   const {
-    sendMessage: socketSendMessage,
     joinConversation,
     leaveConversation,
     messages: socketMessages,
@@ -609,16 +608,31 @@ export default function ChatScreen() {
     setNewMessage('');
 
     try {
-      // Use Socket.io for real-time messaging
-      socketSendMessage({
-        conversationId,
-        message: messageText,
-        type: 'text'
+      // El envío va por la API (con respuesta): así se sabe si llegó. Antes iba solo por el socket, que no contesta: si la conexión estaba caída o el
+      // servidor lo rechazaba, el mensaje quedaba en pantalla como enviado y nunca salía (reporte del dueño, 2026-11-17: «envío otro mensaje y no envía»).
+      // La API también avisa en vivo a las dos partes, así que no hace falta el socket para enviar.
+      const respuesta = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include',
+        body: JSON.stringify({ content: messageText }),
       });
-    } catch (error) {
+      const datos = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok || !datos.success) {
+        throw new Error(
+          datos.code === 'CONTACT_INFO_BLOCKED' || respuesta.status === 422
+            ? datos.message
+            : datos.message || 'No pudimos enviar tu mensaje. Probá de nuevo.',
+        );
+      }
+      // El mensaje confirmado reemplaza al provisorio (y si llegó antes por el socket, no se repite).
+      if (datos.message) setMessages(prev => mezclarMensajes(prev, [datos.message as Message]));
+    } catch (error: any) {
       console.error('Error sending message:', error);
-      // Remove optimistic message on error
+      // No se envió: se saca el provisorio, el texto vuelve a la caja para reintentar y se dice por qué.
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+      setNewMessage(prev => prev || messageText);
+      notify(error?.message === 'Failed to fetch' ? 'No pudimos conectar con DOAPP. Revisá tu conexión y probá de nuevo.' : error?.message || 'No pudimos enviar tu mensaje. Probá de nuevo.');
     } finally {
       setSending(false);
     }

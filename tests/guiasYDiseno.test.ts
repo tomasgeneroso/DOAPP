@@ -12,9 +12,20 @@ import { duracionPara } from '../client/utils/desplazamientoSuave';
 const leer = (ruta: string) => readFileSync(join(process.cwd(), ruta), 'utf8');
 
 describe('guías paso a paso', () => {
-  it('por ahora hay solo dos: publicar un trabajo y el menú de la cuenta', () => {
-    expect(ORDEN_DE_GUIAS).toEqual(['publicar', 'menu']);
-    expect(Object.keys(GUIAS).sort()).toEqual(['menu', 'publicar']);
+  it('hay tres: publicar un trabajo, el menú de la cuenta y el calendario', () => {
+    expect(ORDEN_DE_GUIAS).toEqual(['publicar', 'menu', 'calendario']);
+    expect(Object.keys(GUIAS).sort()).toEqual(['calendario', 'menu', 'publicar']);
+  });
+
+  it('el camino del calendario sale del menú, llega a «Mis trabajos» y marca cada parte del calendario', () => {
+    const pasos = GUIAS.calendario.pasos;
+    expect(pasos[0]).toMatchObject({ objetivo: '[data-guia="menu-usuario"]', avanzaCon: 'click' });
+    expect(pasos[1]).toMatchObject({ objetivo: '[data-guia="menu-mis-trabajos"]', avanzaCon: 'click', volverSiFalta: true });
+    expect(pasos[2]).toMatchObject({ objetivo: '[data-guia="vista-calendario"]', avanzaCon: 'click' });
+    for (const p of pasos.slice(2)) expect(p.ruta?.test('/my-jobs')).toBe(true);
+    // cada lugar marcado existe en el código de la pantalla
+    const fuentes = [leer('client/components/app/Header.tsx'), leer('client/pages/MyJobsScreen.tsx'), leer('client/components/jobs/JobsCalendar.tsx')].join('\n');
+    for (const p of pasos) expect(fuentes).toContain(p.objetivo.replace(/^\[|\]$/g, ''));
   });
 
   it('el camino del menú pasa por «Configuración» tocando de verdad el botón', () => {

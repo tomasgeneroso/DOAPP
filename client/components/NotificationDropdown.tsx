@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useSocket, useEventoEnVivo } from '../hooks/useSocket';
+import { useAuth } from '../hooks/useAuth';
 
 interface Notification {
   id: string;
@@ -168,43 +169,55 @@ export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  // Si no se pudo cargar la lista, se dice (antes quedaba «No tenés notificaciones» aunque la campanita marcara otro número).
+  const [falloLaLista, setFalloLaLista] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { registerNotificationHandler } = useSocket();
+  const { token } = useAuth();
   const navigate = useNavigate();
+  // La sesión viaja por la cookie Y por el encabezado: si la cookie no llega (otro dominio, navegador que la bloquea), el pedido no queda sin sesión y la campanita
+  // no se queda con un número que el servidor nunca confirmó (reporte del dueño, 2026-11-17: «tengo 7 notificaciones y no tengo ninguna»).
+  const cabeceras = useMemo<Record<string, string>>(() => { const h: Record<string, string> = {}; if (token) h.Authorization = `Bearer ${token}`; return h; }, [token]);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
+    setFalloLaLista(false);
     try {
       const response = await fetch('/api/notifications?limit=5', {
         credentials: 'include',
+        headers: cabeceras,
       });
       const data = await response.json();
       if (data.success) {
         setNotifications(data.data || []);
         setUnreadCount(data.unreadCount || 0);
+      } else {
+        setFalloLaLista(true);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setFalloLaLista(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cabeceras]);
 
   // Fetch unread count only
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch('/api/notifications?limit=1&unreadOnly=true', {
         credentials: 'include',
+        headers: cabeceras,
       });
       const data = await response.json();
-      if (data.success) {
-        setUnreadCount(data.unreadCount || 0);
-      }
+      // El número sale SIEMPRE de lo que dice el servidor; si no se pudo preguntar, no se muestra uno inventado.
+      setUnreadCount(data.success ? data.unreadCount || 0 : 0);
     } catch (error) {
       console.error('Error fetching unread count:', error);
+      setUnreadCount(0);
     }
-  }, []);
+  }, [cabeceras]);
 
   // Initial fetch
   useEffect(() => {
@@ -227,10 +240,12 @@ export default function NotificationDropdown() {
           if (yaVistas.current.has(notification.id)) return;
           yaVistas.current.add(notification.id);
         }
-        setUnreadCount(prev => prev + 1);
+        // Antes se sumaba 1 a ciegas por cada aviso: si el servidor después no entregaba esas notificaciones, la campanita quedaba con un número que no existía.
+        // Ahora se vuelve a preguntar cuántas hay sin leer.
+        fetchUnreadCount();
         setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification?.id)].slice(0, 5));
       }),
-    [registerNotificationHandler],
+    [registerNotificationHandler, fetchUnreadCount],
   );
 
   // Leídas desde otra pestaña, o la conexión volvió después de un corte: se vuelven a contar.
@@ -267,15 +282,16 @@ export default function NotificationDropdown() {
       await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         credentials: 'include',
+        headers: cabeceras,
       });
       setNotifications(prev =>
         prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      fetchUnreadCount();
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
-  }, []);
+  }, [cabeceras, fetchUnreadCount]);
 
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
@@ -283,13 +299,14 @@ export default function NotificationDropdown() {
       await fetch('/api/notifications/read-all', {
         method: 'PUT',
         credentials: 'include',
+        headers: cabeceras,
       });
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
-  }, []);
+  }, [cabeceras]);
 
   const toggleDropdown = useCallback(() => {
     setIsOpen(prev => !prev);
@@ -349,6 +366,14 @@ export default function NotificationDropdown() {
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+              </div>
+            ) : falloLaLista ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center text-slate-500 dark:text-slate-400">
+                <Bell className="h-8 w-8 opacity-50" />
+                <p className="text-sm">No pudimos cargar tus notificaciones.</p>
+                <button type="button" onClick={fetchNotifications} className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:underline">
+                  Volver a intentar
+                </button>
               </div>
             ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-slate-500 dark:text-slate-400">

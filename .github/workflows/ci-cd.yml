@@ -351,3 +351,23 @@ jobs:
             sleep 30
           done
           echo "⚠️  External health check timed out (Cloudflare routing delay) - app IS running locally"
+
+  # Prueba de humo del entorno desplegado: pide las puertas de entrada por la dirección pública (Cloudflare + nginx + la aplicación). Informativa por ahora
+  # (continue-on-error): el túnel puede tardar unos minutos en volver tras el reinicio. Qué mira y por qué: .github/scripts/humo-del-entorno.mjs.
+  humo-del-entorno:
+    name: Smoke test (live environment)
+    runs-on: ubuntu-latest
+    needs: deploy
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Wait for the public address to settle, then run the smoke test
+        run: |
+          sleep 45
+          for i in 1 2 3 4; do
+            node .github/scripts/humo-del-entorno.mjs https://doapparg.com && exit 0
+            echo "Attempt $i/4 failed; retrying in 60s..."
+            sleep 60
+          done
+          exit 1

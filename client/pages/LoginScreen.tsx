@@ -17,6 +17,7 @@ import MembershipOfferModal from "../components/MembershipOfferModal";
 import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import AuthHero from "../components/auth/AuthHero";
+import AlturaSuave from "../components/ui/AlturaSuave";
 import { rutaInternaSegura } from "../../shared/auth/rutaInterna";
 import { POLITICAS } from "../../shared/constants/policies";
 import { guardarDestino } from "../utils/destinoDespuesDeGoogle";
@@ -542,7 +543,8 @@ export default function LoginScreen() {
       */}
       <div className="grid min-h-screen lg:grid-cols-2">
         <AuthHero />
-        <div className="flex flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
+        {/* El formulario parte siempre del mismo lugar (arriba) y crece hacia abajo: al pasar de ingresar a registrarse no se mueve el título ni las pestañas. */}
+        <div className="flex flex-col justify-start px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:pt-16">
         <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-xl bg-white dark:bg-slate-800 p-4 shadow-lg sm:p-5 animate-scaleIn">
           <Link
             to="/"
@@ -560,10 +562,8 @@ export default function LoginScreen() {
             <p className="text-xs sm:text-sm font-semibold text-white">
               {t('auth.promoFirst1000', { usuarios: POLITICAS.PRIMEROS_USUARIOS_CON_CONTRATOS_LIBRES, cantidad: POLITICAS.CONTRATOS_LIBRES_DE_LANZAMIENTO, meses: POLITICAS.MESES_DE_PRO_DE_LANZAMIENTO })}
             </p>
-            {/* Los beneficios se dan al confirmar el correo (regla del dueño, 2026-11-12): se avisa antes de registrarse. */}
-            {isRegister && (
-              <p className="mt-1 text-xs text-sky-50">{t('auth.promoConfirmEmail')}</p>
-            )}
+            {/* Los beneficios se dan al confirmar el correo (regla del dueño, 2026-11-12): se avisa antes de registrarse. Está en las dos pantallas para que el recuadro mida lo mismo y no se mueva nada al cambiar. */}
+            <p className="mt-1 text-xs text-sky-50">{t('auth.promoConfirmEmail')}</p>
           </div>
 
           <TokenExpiredNotice />
@@ -581,7 +581,9 @@ export default function LoginScreen() {
 
           {opcionesSociales}
 
-          <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
+          {/* Al cambiar de ingresar a registrarse el alto se acompaña con una transición y los campos aparecen con un fundido: nada salta. */}
+          <AlturaSuave>
+          <form key={mode} className="space-y-4 sm:space-y-6 animate-fadeIn" onSubmit={handleSubmit}>
             {isRegister && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -1018,6 +1020,7 @@ export default function LoginScreen() {
               </AnimatedButton>
             </div>
           </form>
+          </AlturaSuave>
 
           {ayudaDeSoporte}
         </div>

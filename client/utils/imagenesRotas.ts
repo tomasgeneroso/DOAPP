@@ -12,7 +12,7 @@ const COLORES = ['#0ea5e9', '#6366f1', '#8b5cf6', '#0d9488', '#d97706', '#e11d48
 function esFotoDePerfil(img: HTMLImageElement): boolean {
   const src = img.currentSrc || img.src || '';
   return (
-    /\/uploads\/avatars\//.test(src) ||
+    /(\/uploads\/avatars\/|ruta=avatars(%2F|\/))/.test(src) ||
     /googleusercontent\.com|dicebear\.com|fbcdn\.net|pbs\.twimg\.com/.test(src) ||
     /\brounded-full\b/.test(img.className || '')
   );
