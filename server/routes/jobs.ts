@@ -1,4 +1,5 @@
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
+import { pagosDeLasPublicaciones } from "../services/pagoDeLaPublicacion.js";
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
@@ -451,11 +452,14 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
     // En qué está cada trabajo dicho para quien lo publicó: el mismo estado que ve el equipo (regla del dueño, 2026-11-12: «todo debe estar con los mismos estados»).
     const situaciones = await situacionesDeTrabajosParaPersona(jobIds.map(String), String(req.user.id));
 
+    // El pago de la publicación de cada trabajo (para «Subir comprobante»): antes iba `payment: null` y el botón nunca aparecía.
+    const pagosDeLasPublicaciones_ = await pagosDeLasPublicaciones(jobs as any, String(req.user.id));
+
     // Add proposal counts to jobs
     const jobsWithCounts = jobs.map(job => ({
       ...job.toJSON(),
       proposalCount: countMap.get(job.id) || 0,
-      payment: null,
+      payment: pagosDeLasPublicaciones_.get(String(job.id)) ?? null,
       situacion: situaciones.get(String(job.id)) ?? null,
     }));
 
@@ -905,6 +909,7 @@ router.get("/:id",
     // Quien publicó el trabajo ve en qué está de punta a punta (el mismo estado que ve el equipo).
     if (req.user && String((req.user as any).id) === String(job.clientId)) {
       jobData.situacion = (await situacionesDeTrabajosParaPersona([String(job.id)], String((req.user as any).id))).get(String(job.id)) ?? null;
+      jobData.payment = (await pagosDeLasPublicaciones([job as any], String((req.user as any).id))).get(String(job.id)) ?? null;
     }
 
     res.json({

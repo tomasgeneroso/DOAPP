@@ -127,7 +127,7 @@ export function sanearNumeroDePuerta(v: unknown): string {
  * que queda antes del número es solo un tipo de vía («Calle 14», «Ruta 9»), el número es parte del nombre y no se separa.
  */
 export function sanearCalle(v: unknown): { calle: string; numero: string } {
-  const limpia = String(v ?? '').replace(/\s+/g, ' ').replace(/[<>]/g, '').trim().slice(0, 120);
+  const limpia = String(v ?? '').replace(/\s+/g, ' ').replace(/[<>]/g, '').trim().slice(0, 120).replace(/[\s,;]+$/, '');
   const { calle, altura } = separarCalleYAltura(limpia);
   if (altura === null || !calle || TIPOS_DE_VIA.test(calle) || !/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}/.test(calle)) return { calle: limpia, numero: '' };
   return { calle, numero: String(altura) };

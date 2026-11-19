@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import QuoteMessage from '../components/chat/QuoteMessage';
 import { mezclarMensajes } from '../utils/mensajesDelChat';
+import SelectorDeEmojis from '../components/chat/SelectorDeEmojis';
 import ConfirmModal from '../components/ui/ConfirmModal';
 
 interface ConversationPreview {
@@ -1551,7 +1552,8 @@ export default function ChatScreen() {
         {/* Input */}
         <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-4">
           <div className="container mx-auto max-w-4xl">
-            <form onSubmit={handleSendMessage} className="flex gap-3">
+            <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+              <SelectorDeEmojis alElegir={(e) => setNewMessage((m) => m + e)} />
               <input
                 type="text"
                 value={newMessage}

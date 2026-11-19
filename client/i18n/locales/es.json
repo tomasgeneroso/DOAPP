@@ -1781,7 +1781,14 @@
     "problemDescription": "Descripción del problema",
     "provideDetails": "Por favor proporcioná detalles sobre el problema...",
     "falseReportWarning": "Los reportes falsos pueden resultar en la suspensión de tu cuenta. El equipo de soporte revisará tu reporte.",
-    "sendReport": "Enviar reporte"
+    "sendReport": "Enviar reporte",
+    "reportIdentityTheft": "Robo de identidad",
+    "reportFakeProfile": "Perfil falso o fraudulento",
+    "reportInappropriateContent": "Contenido inapropiado",
+    "reportHarassment": "Acoso o trato abusivo",
+    "reportScam": "Estafa o intento de fraude",
+    "reportSpam": "Spam o publicidad no deseada",
+    "reportOther": "Otro motivo"
   },
   "membership": {
     "title": "Membresía",

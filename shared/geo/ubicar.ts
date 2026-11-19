@@ -31,12 +31,33 @@ export interface PuntoUbicado {
 
 const limpio = (v: unknown): string => String(v ?? '').replace(/\s+/g, ' ').trim();
 
-/** ¿La «calle» ya es una dirección completa («Ayacucho 470, H3500 Resistencia, Chaco, Argentina»)? Entonces no se le agrega nada. */
-export const esDireccionCompleta = (calle: unknown): boolean => limpio(calle).includes(',');
+/** Sin comas, puntos ni espacios sobrantes al final: «San Luis 867,» → «San Luis 867». */
+const sinSobrantes = (v: unknown): string => limpio(v).replace(/[\s,;.]+$/, '');
+
+/**
+ * ¿La «calle» ya es una dirección completa («Ayacucho 470, H3500 Resistencia, Chaco, Argentina»)? Entonces no se le agrega nada. Tiene que haber algo DESPUÉS de la coma: una coma
+ * suelta al final («San Luis 867,») no la hace completa. Antes sí, y la búsqueda ignoraba el número y la ciudad: con «San Luis 867,» y ciudad Corrientes el mapa iba a San Luis del
+ * Palmar, a 30 km (reporte del dueño, 2026-11-19).
+ */
+export const esDireccionCompleta = (calle: unknown): boolean => /,\s*[^\s,]/.test(limpio(calle));
+
+/**
+ * La calle para buscar: sin sobrantes y, si el número se escribió aparte, sin otro número pegado al final. «San Luis 867» con número «333» busca la calle «San Luis» y la
+ * altura 333 (lo que se ve en el campo del número es lo que manda).
+ */
+export function calleParaBuscar(calle: unknown, numero: unknown): string {
+  const c = sinSobrantes(calle);
+  const n = limpio(numero).replace(/\D/g, '');
+  if (esDireccionCompleta(c) || !n) return c;
+  const m = c.match(/^(.*?[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}.*?)[\s,]+\d{1,6}$/);
+  // «Calle 14», «Ruta 9»: ahí el número es parte del nombre y no se saca.
+  if (m && /^(calle|ruta|pasaje|pje|camino|diagonal|avenida|av|autopista|boulevard|bv|bulevar|colectora|peatonal)\.?$/i.test(m[1].trim())) return c;
+  return m ? m[1].trim() : c;
+}
 
 /** El texto que se le pide a OpenStreetMap, sin repetir el número ni la localidad. */
 export function consultaLibre(e: EntradaDeUbicacion): string {
-  const calle = limpio(e.calle);
+  const calle = calleParaBuscar(e.calle, e.numero);
   const numero = limpio(e.numero);
   const lugar = limpio(e.lugar);
   if (esDireccionCompleta(calle)) return /argentina/i.test(calle) ? calle : `${calle}, Argentina`;
@@ -48,7 +69,7 @@ export function consultaLibre(e: EntradaDeUbicacion): string {
 }
 
 export function zoomPara(e: EntradaDeUbicacion): number {
-  if (!limpio(e.calle)) return 13;
+  if (!sinSobrantes(e.calle)) return 13;
   return limpio(e.numero) || esDireccionCompleta(e.calle) ? 17 : 16;
 }
 
@@ -59,7 +80,7 @@ export function hayQueUbicar(e: EntradaDeUbicacion): boolean {
 
 export async function ubicarDireccion(e: EntradaDeUbicacion, opciones: { signal?: AbortSignal } = {}): Promise<PuntoUbicado | null> {
   if (!hayQueUbicar(e)) return null;
-  const calle = limpio(e.calle);
+  const calle = calleParaBuscar(e.calle, e.numero);
   const zoom = zoomPara(e);
 
   if (calle && !esDireccionCompleta(calle)) {

@@ -22,6 +22,7 @@ const SIN_TIEMPO_REAL: Record<string, string> = {
   'ContentAgent.tsx': 'generación de contenido bajo demanda',
   'CreateContract.tsx': 'un formulario',
   'CreateDispute.tsx': 'un formulario',
+  'DatosDeCobroPanel.tsx': 'un formulario de ajustes (la cuenta y el Binance de cobro): se edita con contraseña y lo escrito no debe pisarse por un aviso en vivo',
   'CreateTicket.tsx': 'un formulario',
   'ModulesManager.tsx': 'interruptores de configuración que cambia una sola persona (el dueño)',
   'PerformanceMonitor.tsx': 'se actualiza sola con su propio sondeo cada pocos segundos',

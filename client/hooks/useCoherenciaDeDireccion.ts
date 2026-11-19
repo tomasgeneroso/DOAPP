@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { detallesDeUbicacion } from "../../shared/geo/lugares";
 import {
   cambiosPorElBarrio,
   nombreDeZona,
@@ -101,5 +102,26 @@ export function useCoherenciaDeDireccion(p: Params) {
     [p.zona.ciudad, p.zona.provincia, p.hayCalle],
   );
 
-  return { aviso, ubicando, completarDesdeBarrio, completarDesdeCodigoPostal, limpiarAviso: () => setAviso(null) };
+  /**
+   * El mapa ubicó la dirección escrita (calle y número) y puso el pin: el barrio y el código postal acompañan a ese punto (antes quedaban los de antes y el mapa decía otra cosa).
+   * Si el punto cae en OTRA ciudad que la elegida, no se toca nada y se avisa: casi siempre es una calle con el mismo nombre en otra localidad.
+   */
+  const alUbicarPorElTexto = useCallback(
+    async (lat: number, lon: number) => {
+      const d = await detallesDeUbicacion(lat, lon);
+      if (!d) return;
+      const mismaCiudad = !p.zona.ciudad || !d.ciudad || d.ciudad.trim().toLowerCase() === p.zona.ciudad.trim().toLowerCase();
+      if (!mismaCiudad) {
+        setAviso({ tipo: "problema", texto: `Esa calle y ese número cayeron en ${d.ciudad}${d.provincia ? `, ${d.provincia}` : ""} y no en ${p.zona.ciudad}. Revisá el nombre de la calle o marcá el punto a mano en el mapa.` });
+        return;
+      }
+      setAviso(null);
+      if (d.barrio) p.setNeighborhood(d.barrio);
+      if (d.codigoPostal) p.setPostalCode(d.codigoPostal);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [p.zona.ciudad],
+  );
+
+  return { aviso, ubicando, completarDesdeBarrio, completarDesdeCodigoPostal, alUbicarPorElTexto, limpiarAviso: () => setAviso(null) };
 }

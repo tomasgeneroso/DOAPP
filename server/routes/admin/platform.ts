@@ -382,4 +382,69 @@ router.put('/fiscal', async (req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * GET  /api/admin/platform/cobro
+ * PUT  /api/admin/platform/cobro
+ *
+ * Los datos a los que los clientes pagan por transferencia y por Binance (CBU/alias, titular, CUIT, banco, ID de Binance). Editables desde el panel con la contraseña de cambio
+ * de fase: son datos que mueven plata (una cuenta equivocada manda los pagos a otro lado) y cada cambio queda en el registro de auditoría con lo de antes y lo de después.
+ */
+router.get('/cobro', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { datosDeCobroParaElPanel } = await import('../../services/datosDeCobro.js');
+    res.json({ success: true, data: datosDeCobroParaElPanel() });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+router.put('/cobro', async (req: AuthRequest, res: Response) => {
+  try {
+    const { datosDeCobroParaElPanel, guardarDatosDeCobro, DatoDeCobroInvalido } = await import('../../services/datosDeCobro.js');
+
+    if (!(await isActionPasswordSet(ACTIONS.PLATFORM_PHASE))) {
+      res.status(400).json({ success: false, message: 'Primero creá la contraseña de cambio de fase', needsSetup: true });
+      return;
+    }
+    if (!(await verifyActionPassword(ACTIONS.PLATFORM_PHASE, String(req.body?.password || '')))) {
+      await logAudit({
+        req, action: 'platform_phase_change_denied', category: 'system',
+        severity: getSeverityForAction('platform_phase_change_denied'),
+        description: 'Intento fallido de cambiar los datos de cobro: contraseña incorrecta',
+        targetModel: 'AppSetting', targetId: 'platform:cobro',
+      });
+      res.status(401).json({ success: false, message: 'Contraseña incorrecta' });
+      return;
+    }
+
+    const antes = datosDeCobroParaElPanel().vigente;
+    try {
+      await guardarDatosDeCobro(req.body ?? {}, req.user!.id);
+      const despues = datosDeCobroParaElPanel();
+      // El registro lleva las cuentas ENMASCARADAS (solo los últimos dígitos): quién cambió qué y cuándo, sin dejar el CBU entero en el registro.
+      const ultimos = (v?: string | null) => (v ? `…${String(v).slice(-4)}` : null);
+      await logAudit({
+        req, action: 'platform_cobro_changed', category: 'system',
+        severity: 'high',
+        description: `Datos de cobro actualizados: CBU ${ultimos(antes.banco?.cbu)} -> ${ultimos(despues.vigente.banco?.cbu)}, alias ${antes.banco?.alias ?? '-'} -> ${despues.vigente.banco?.alias ?? '-'}, Binance ${ultimos(antes.binance.id)} -> ${ultimos(despues.vigente.binance.id)}`,
+        targetModel: 'AppSetting', targetId: 'platform:cobro',
+        changes: [
+          { field: 'cbu', oldValue: ultimos(antes.banco?.cbu), newValue: ultimos(despues.vigente.banco?.cbu) },
+          { field: 'alias', oldValue: antes.banco?.alias ?? null, newValue: despues.vigente.banco?.alias ?? null },
+          { field: 'binanceId', oldValue: ultimos(antes.binance.id), newValue: ultimos(despues.vigente.binance.id) },
+        ],
+      });
+      res.json({ success: true, data: despues });
+    } catch (e: any) {
+      if (e instanceof DatoDeCobroInvalido) {
+        res.status(400).json({ success: false, message: e.message });
+        return;
+      }
+      throw e;
+    }
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 export default router;

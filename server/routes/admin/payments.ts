@@ -512,6 +512,29 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
       uploadedAt: new Date(),
     } as any);
 
+    // Quien pagó se entera: una notificación con el botón para subir lo que el equipo pide (reporte del dueño, 2026-11-19: «soporte me envió un mensaje desde comprobante y no me
+    // llegó la notificación; el mensaje debe tener un botón para subir lo deseado»). Antes la nota quedaba guardada y nadie avisaba. Si la nota la escribe la misma persona que pagó,
+    // no se avisa a sí misma.
+    if (payment.payerId && String(payment.payerId) !== String(req.user!.id)) {
+      try {
+        await Notification.create({
+          recipientId: payment.payerId,
+          type: 'info',
+          category: 'payment',
+          title: 'Soporte te escribió sobre tu comprobante',
+          message: captionText ? captionText.slice(0, 240) : 'Revisá tu comprobante de pago: el equipo te dejó un mensaje.',
+          actionUrl: `/payments/${payment.id}/comprobante`,
+          actionText: 'Subir comprobante',
+          relatedModel: 'Payment',
+          relatedId: payment.id,
+          sentVia: ['in_app'],
+          data: { paymentId: String(payment.id), pideComprobante: true },
+        } as any);
+      } catch (e: any) {
+        console.error('No se pudo avisar de la nota del comprobante:', e?.message);
+      }
+    }
+
     void logAudit({
       req, action: 'payment.proof_note.add', category: 'payment', severity: 'low',
       description: `Agregó una nota de comprobante al pago ${paymentId}${caption ? `: ${String(caption).slice(0, 80)}` : ''}`,

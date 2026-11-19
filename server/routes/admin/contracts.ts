@@ -434,8 +434,13 @@ router.post(
 // @route   GET /api/admin/contracts/:id
 // @desc    Obtener detalles de contrato
 // @access  Admin+
+// «/:id» solo atiende identificadores de contrato (UUID). Antes también atrapaba rutas fijas declaradas más abajo, como /cancellation-requests, y la pantalla de pedidos de
+// cancelación recibía el error de esta consulta en vez de su lista (reporte del dueño, 2026-11-19).
+const soloUuid = (req: Request, _res: Response, next: express.NextFunction) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.id)) ? next() : next("route"));
+
 router.get(
   "/:id",
+  soloUuid,
   requirePermission("contracts:read"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {

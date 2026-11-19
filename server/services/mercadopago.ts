@@ -5,6 +5,7 @@
  */
 
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { binanceVigente } from './datosDeCobro.js';
 
 export type PaymentProvider = 'mercadopago' | 'bank_transfer' | 'binance';
 
@@ -210,10 +211,10 @@ class MercadoPagoPaymentService {
   }): Promise<CreatePaymentResult> {
     const { amount, currency, description, metadata } = params;
 
-    const binanceId = process.env.BINANCE_ID;
+    const binanceId = binanceVigente().id;
 
     if (!binanceId) {
-      throw new Error('Binance ID not configured. Set BINANCE_ID in .env');
+      throw new Error('Binance ID not configured. Cargalo en el panel (Plataforma, Datos de cobro) o en BINANCE_ID');
     }
 
     try {
@@ -473,7 +474,7 @@ class MercadoPagoPaymentService {
         via: 'Direct SDK',
       },
       binance: {
-        enabled: !!process.env.BINANCE_ID,
+        enabled: !!binanceVigente().id,
         name: 'Binance Pay',
         currencies: ['USDT', 'BUSD', 'BTC', 'ETH', 'BNB'],
         via: 'Crypto',

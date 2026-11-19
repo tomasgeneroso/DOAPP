@@ -713,11 +713,18 @@ export default function ProfilePage() {
                             ))
                           )}
                           {((user as any).city || (user as any).workRadiusKm || (user as any).workZones?.length > 0) && (
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                              <MapPin className="h-3 w-3" aria-hidden="true" />
-                              {[(user as any).city, ...(((user as any).workZones as Array<{ name: string }> | undefined) || []).map((z) => z.name)].filter(Boolean).join(', ')}
-                              {(user as any).workRadiusKm ? ` · hasta ${(user as any).workRadiusKm} km` : ''}
-                            </span>
+                            <div className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300" data-testid="donde-trabaja">
+                              <p className="mb-1 flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100">
+                                <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Dónde trabaja
+                              </p>
+                              <p>
+                                {user.name?.split(' ')[0] || 'Esta persona'} puede trabajar en{' '}
+                                <strong>{[(user as any).city, ...(((user as any).workZones as Array<{ name: string }> | undefined) || []).map((z) => z.name)].filter(Boolean).join(', ') || 'su zona'}</strong>
+                                {(user as any).workRadiusKm ? <> y hasta <strong>{(user as any).workRadiusKm} km</strong> a la redonda de su domicilio</> : null}.
+                                {(((user as any).workZones as Array<{ enMapa?: boolean }> | undefined) || []).some((z) => z.enMapa) ? ' Algunas zonas las marcó en un mapa.' : ''}
+                              </p>
+                              <p className="mt-1">¿Tu trabajo es en <strong>otra zona</strong>? Escribile para consultarle: muchas veces se puede arreglar.</p>
+                            </div>
                           )}
                         </div>
                       )}

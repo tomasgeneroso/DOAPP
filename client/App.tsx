@@ -37,6 +37,7 @@ const ContractRequestChange = lazy(() => import("./pages/ContractRequestChange")
 const ContractsScreen = lazy(() => import("./pages/ContractsScreen"));
 const MyJobsScreen = lazy(() => import("./pages/MyJobsScreen"));
 const PaymentsScreen = lazy(() => import("./pages/PaymentsScreen"));
+const SubirComprobante = lazy(() => import("./pages/SubirComprobante"));
 const JobPayment = lazy(() => import("./pages/JobPayment"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const EarningsDetail = lazy(() => import("./pages/dashboard/EarningsDetail"));
@@ -366,6 +367,15 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <PaymentsScreen />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Subir (o volver a subir) el comprobante de un pago por transferencia o Binance: desde Mis trabajos, desde la notificación y desde el aviso del equipo */}
+              <Route
+                path="/payments/:paymentId/comprobante"
+                element={
+                  <ProtectedRoute>
+                    <SubirComprobante />
                   </ProtectedRoute>
                 }
               />

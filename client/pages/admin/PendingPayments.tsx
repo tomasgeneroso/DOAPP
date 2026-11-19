@@ -1893,7 +1893,8 @@ export default function PendingPayments() {
                                 <Upload className="h-4 w-4" />
                               </button>
                               {/* Show approve/reject buttons for pending payments */}
-                              {appSubFilter === "pending" && (
+                              {/* En cualquier vista (no solo «Pendientes»): un pago que se puede aprobar (pendiente, en proceso o en verificación) siempre muestra sus botones. */}
+                              {(appSubFilter === "pending" || ["pending", "processing", "pending_verification"].includes(String(payment.status))) && (
                                 <>
                                   <button
                                     onClick={() => handleApproveVerificationPayment(payment.id, payment)}

@@ -150,17 +150,18 @@ function DimensionRow({
 
   return (
     <div
-      className={`flex items-center justify-between ${ui.bg} border ${ui.border} rounded-lg px-3 py-2.5 group relative ${!rated && "opacity-50"}`}
+      className={`flex items-center justify-between gap-3 ${ui.bg} border ${ui.border} rounded-lg px-3 py-2.5 ${!rated && "opacity-70"}`}
     >
       <div className="flex items-center gap-2 min-w-0">
         <Icon className={`w-4 h-4 ${ui.color} shrink-0`} />
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
-          {t(ui.labelKey, ui.labelDefault)}
-        </span>
-        {/* Tooltip */}
-        <div className="absolute left-0 top-full mt-1 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none">
-          <div className="absolute -top-1 left-6 w-2 h-2 bg-gray-900 rotate-45" />
-          {t(ui.descKey, ui.descDefault)}
+        <div className="min-w-0">
+          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+            {t(ui.labelKey, ui.labelDefault)}
+          </span>
+          {/* Qué significa este tipo de puntuación: siempre a la vista (en el celular no hay «pasar el mouse»). */}
+          <span className="block text-xs leading-snug text-gray-600 dark:text-gray-300" data-testid="descripcion-de-puntuacion">
+            {t(ui.descKey, ui.descDefault)}
+          </span>
         </div>
       </div>
 

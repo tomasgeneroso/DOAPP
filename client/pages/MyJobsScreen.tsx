@@ -1138,7 +1138,7 @@ export default function MyJobsScreen() {
 
                       {job.payment?.requiresProof && !job.payment?.proofSubmitted && (
                         <Link
-                          to={`/jobs/${job.id}/payment`}
+                          to={job.payment?.id ? `/payments/${job.payment.id}/comprobante` : `/jobs/${job.id}/payment`}
                           className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors text-sm"
                         >
                           <Upload className="h-4 w-4" />

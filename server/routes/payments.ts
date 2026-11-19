@@ -14,7 +14,8 @@ import { PaymentProof } from "../models/sql/PaymentProof.model.js";
 import mercadopagoService from "../services/mercadopago.js";
 import { datosDeLiberacionDeMp } from "../services/liberacionDeSaldo.js";
 import { registrarCostoRealDeMp } from "../services/costoRealDeMp.js";
-import { datosBancarios, TRANSFERENCIA_NO_DISPONIBLE } from "../services/datosBancarios.js";
+import { TRANSFERENCIA_NO_DISPONIBLE } from "../services/datosBancarios.js";
+import { datosBancariosVigentes as datosBancarios, binanceVigente } from "../services/datosDeCobro.js";
 import { validarDatosDeTransferencia, documentoNormalizado } from "../../shared/pagos/transferencia.js";
 import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
@@ -2591,13 +2592,57 @@ router.get("/conversion/usdt", async (req: AuthRequest, res: Response): Promise<
         timestamp: new Date(),
       },
       binanceInfo: {
-        binanceId: process.env.BINANCE_ID || null,
-        binanceNickname: process.env.BINANCE_NICKNAME || null,
+        binanceId: binanceVigente().id,
+        binanceNickname: binanceVigente().nickname,
       }
     });
   } catch (error: any) {
     console.error("Get conversion error:", error);
     res.status(500).json({ success: false, message: error.message || "Error obteniendo conversión" });
+  }
+});
+
+/**
+ * GET /api/payments/:paymentId/resumen
+ * Lo que necesita la pantalla de «subir comprobante» de quien PAGÓ: qué pago es, por qué medio, cuánto, si ya hay un comprobante y lo último que le escribió el equipo. Solo quien
+ * pagó (o el equipo). Se abre desde el botón de «Mis trabajos», desde la notificación y desde el aviso del equipo sobre un comprobante.
+ */
+router.get("/:paymentId/resumen", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+    const payment: any = await Payment.findByPk(paymentId);
+    const esEquipo = ['admin', 'super_admin', 'owner'].includes(req.user.role);
+    if (!payment || (String(payment.payerId) !== String(req.user.id) && !esEquipo)) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+    const { PaymentProof } = await import("../models/sql/PaymentProof.model.js");
+    const { conSistema } = await import("../db/contextoRls.js");
+    const pruebas: any[] = await conSistema(() => PaymentProof.findAll({ where: { paymentId } as any, attributes: ['kind', 'isActive', 'status', 'notes', 'uploadedAt'], order: [['uploadedAt', 'DESC']], raw: true }));
+    const job = await Job.findOne({ where: { publicationPaymentId: paymentId } as any, attributes: ['id', 'title'] });
+    res.json({
+      success: true,
+      data: {
+        id: payment.id,
+        paymentType: payment.paymentType,
+        method: payment.paymentMethod,
+        status: payment.status,
+        amount: Number(payment.amount),
+        currency: payment.currency,
+        jobId: job?.id ?? null,
+        jobTitle: job?.title ?? null,
+        proofSubmitted: pruebas.some((p) => p.kind !== 'note' && p.isActive),
+        proofStatus: pruebas.find((p) => p.kind !== 'note' && p.isActive)?.status ?? null,
+        ultimaNotaDelEquipo: pruebas.find((p) => p.kind === 'note' && p.notes)?.notes ?? null,
+        puedeSubir: ['bank_transfer', 'binance'].includes(String(payment.paymentMethod)) && ['pending', 'pending_verification', 'processing'].includes(String(payment.status)),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

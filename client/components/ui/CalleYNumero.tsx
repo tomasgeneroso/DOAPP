@@ -127,6 +127,11 @@ export default function CalleYNumero({
     if (numero && !number) {
       onStreetChange(calle);
       onNumberChange(numero);
+    } else if (numero && number && numero !== number) {
+      // Dos números distintos: el campo del número manda y la calle queda sin el suyo («San Luis 867» + número 333 → calle «San Luis»).
+      onStreetChange(calle);
+    } else if (street !== calle && calle) {
+      onStreetChange(calle); // sin la coma o los espacios que sobraban al final
     }
   };
 

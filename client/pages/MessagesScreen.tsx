@@ -7,6 +7,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSocket, useEventoEnVivo, useRecargaJuntada } from "../hooks/useSocket";
 import { SkeletonConversationItem, SkeletonMessage } from "../components/ui/Skeleton";
 import { SystemMessageCard } from "../components/chat/SystemMessageCard";
+import SelectorDeEmojis from "../components/chat/SelectorDeEmojis";
 import QuoteMessage from "../components/chat/QuoteMessage";
 import {
   MessageCircle,
@@ -160,6 +161,7 @@ export default function MessagesScreen() {
   useEffect(() => {
     if (!conversationIdParam || conversationIdParam.trim() === '') return;
 
+    ultimoVisto.current = null; // otra conversación: la primera carga baja hasta el final
     // Fetch messages for this conversation
     fetchMessages(conversationIdParam);
 
@@ -196,6 +198,33 @@ export default function MessagesScreen() {
   // Un mensaje nuevo (de una persona o del sistema: contrato, pago, trabajo), una conversación nueva o la conexión que vuelve: la lista se actualiza sola.
   const recargarConversaciones = useRecargaJuntada(() => fetchConversations());
   useEventoEnVivo(['chat:actualizado', 'socket:reconectado'], recargarConversaciones);
+
+  // Menú de los tres puntos de la lista: actualizar y marcar todo como leído.
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const menuDeLaLista = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const afuera = (e: PointerEvent) => {
+      if (!menuDeLaLista.current?.contains(e.target as Node)) setMenuAbierto(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuAbierto(false);
+    };
+    document.addEventListener('pointerdown', afuera);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', afuera);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [menuAbierto]);
+  const marcarTodasComoLeidas = () => {
+    setMenuAbierto(false);
+    const yo = user?.id || '';
+    conversations.forEach((c) => {
+      if ((c.unreadCount?.[yo] || 0) > 0) markConversationAsRead(getId(c));
+    });
+    setConversations((prev) => prev.map((c) => ({ ...c, unreadCount: { ...c.unreadCount, [yo]: 0 } })));
+  };
 
   const fetchConversations = async () => {
     try {
@@ -434,8 +463,20 @@ export default function MessagesScreen() {
     }
   };
 
+  // Baja la lista de mensajes (no toda la página) solo cuando llegó un mensaje nuevo y se estaba mirando el final, o lo escribió la persona.
+  const ultimoVisto = useRef<string | null>(null);
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const ultimo = messages[messages.length - 1];
+    const clave = ultimo ? String((ultimo as any).id) : null;
+    const primeraVez = ultimoVisto.current === null;
+    const hayNuevo = clave !== ultimoVisto.current;
+    ultimoVisto.current = clave;
+    if (!ultimo || !hayNuevo) return;
+    const lista = messagesEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    if (!lista) return;
+    const alFinal = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 160;
+    const esMio = String(((ultimo as any).sender as any)?.id ?? (ultimo as any).sender) === String(user?.id);
+    if (primeraVez || alFinal || esMio) lista.scrollTo({ top: lista.scrollHeight, behavior: primeraVez ? 'auto' : 'smooth' });
   };
 
   const getOtherParticipant = (participants: Conversation["participants"]) => {
@@ -555,9 +596,28 @@ export default function MessagesScreen() {
                 >
                   <PenSquare className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 </button>
-                <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                  <MoreVertical className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                </button>
+                <div className="relative" ref={menuDeLaLista}>
+                  <button
+                    type="button"
+                    onClick={() => setMenuAbierto((v) => !v)}
+                    aria-label="Más opciones"
+                    aria-expanded={menuAbierto}
+                    aria-haspopup="true"
+                    className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <MoreVertical className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  </button>
+                  {menuAbierto && (
+                    <div role="menu" className="absolute right-0 z-30 mt-1 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-600 dark:bg-slate-800">
+                      <button type="button" role="menuitem" onClick={() => { setMenuAbierto(false); void fetchConversations(); }} className="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                        Actualizar la lista
+                      </button>
+                      <button type="button" role="menuitem" onClick={marcarTodasComoLeidas} className="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                        Marcar todas como leídas
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -914,12 +974,7 @@ export default function MessagesScreen() {
               {/* Message Input */}
               <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
                 <form onSubmit={handleSendMessageWithJob} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                  >
-                    <Smile className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                  </button>
+                  <SelectorDeEmojis alElegir={(e) => setNewMessage((m) => m + e)} />
 
                   <button
                     type="button"

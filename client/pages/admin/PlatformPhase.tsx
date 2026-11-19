@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import DatosDeCobroPanel from "./DatosDeCobroPanel";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { Rocket, ShieldCheck, Loader2, AlertTriangle, KeyRound, Mail, CalendarClock, Percent } from "lucide-react";
@@ -427,6 +428,9 @@ export default function PlatformPhase() {
             {msg.text}
           </p>
         )}
+
+        {/* La cuenta y el Binance a los que pagan los clientes (usa la misma contraseña de cambio de fase) */}
+        {info.passwordSet && <DatosDeCobroPanel token={token} password={password} />}
       </div>
     </>
   );

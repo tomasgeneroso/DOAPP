@@ -14,6 +14,18 @@ import { logEvento } from "../utils/auditLog.js";
 import { conSistema } from "../db/contextoRls.js";
 import { esRubroValido, etiquetaDeRubro } from "../../shared/perfiles/zonaDeTrabajo.js";
 
+/**
+ * Las zonas de trabajo como las ve cualquier persona: el nombre y el radio. La forma marcada en el mapa (el centro de un radio o los vértices de un polígono) NO sale: un radio
+ * centrado en la casa de alguien la delataría. `enMapa` solo avisa que esa zona se marcó en un mapa.
+ */
+function zonasPublicas(zonas: unknown): Array<{ name: string; radiusKm?: number; enMapa?: boolean }> {
+  if (!Array.isArray(zonas)) return [];
+  return zonas.map((z: any) => {
+    const radiusKm = z?.area?.tipo === 'radio' ? z.area.radiusKm : z?.radiusKm;
+    return { name: String(z?.name ?? ''), ...(radiusKm ? { radiusKm } : {}), ...(z?.area ? { enMapa: true } : {}) };
+  });
+}
+
 const router = express.Router();
 
 /**
@@ -119,7 +131,7 @@ router.get("/directory", async (req: Request, res: Response): Promise<void> => {
         state: u.address?.state || null,
         rubros: (u.workCategories || []).map((id: string) => ({ id, label: etiquetaDeRubro(id) })),
         workAnyCategory: !!u.workAnyCategory,
-        workZones: u.workZones || [],
+        workZones: zonasPublicas(u.workZones),
         workRadiusKm: u.workRadiusKm ?? null,
         membershipTier: u.membershipTier,
         hasMembership: u.hasMembership,
@@ -259,7 +271,7 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
         hasFamilyPlan: user.hasFamilyPlan,
         workCategories: user.workCategories,
         workAnyCategory: user.workAnyCategory,
-        workZones: user.workZones,
+        workZones: zonasPublicas(user.workZones),
         workRadiusKm: user.workRadiusKm,
         city: user.address?.city || null,
         createdAt: user.createdAt,
@@ -706,7 +718,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         hasFamilyPlan: user.hasFamilyPlan,
         workCategories: user.workCategories,
         workAnyCategory: user.workAnyCategory,
-        workZones: user.workZones,
+        workZones: zonasPublicas(user.workZones),
         workRadiusKm: user.workRadiusKm,
         city: user.address?.city || null,
         // Ni phone ni email: es el perfil PUBLICO y esta ruta no pide login.

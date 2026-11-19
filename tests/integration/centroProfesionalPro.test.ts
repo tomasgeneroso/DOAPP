@@ -128,7 +128,7 @@ describe('las pantallas del Centro Profesional', () => {
   it('cada pestaña del panel tiene su guía educativa y la bienvenida con los primeros pasos', async () => {
     const panel = leer('client/pages/FinancePanel.tsx');
     const { GUIAS, PASOS_DE_BIENVENIDA, QUE_ES_EL_CENTRO } = await import('../../client/content/centroProfesional.js');
-    const pestanas = [...panel.matchAll(/\["(\w+)", t\("finance\.tab\w+"/g)].map((m) => m[1]);
+    const pestanas = [...panel.matchAll(/id: "(\w+)" as const, texto: t\("finance\.tab\w+"/g)].map((m) => m[1]);
     expect(pestanas.sort()).toEqual(['crecimiento', 'finanzas', 'impuestos', 'profesional', 'reputacion']);
     for (const p of pestanas) {
       const g = (GUIAS as any)[p];

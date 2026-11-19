@@ -39,6 +39,7 @@ import {
   Headphones,
   ClipboardList,
   FileText,
+  Upload,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
@@ -1445,6 +1446,17 @@ export default function JobDetail() {
                     </button>
                     {/* En qué está de punta a punta (solo para quien publicó el trabajo): el mismo estado que ve el equipo. */}
                     <SituacionDeLaOperacion situacion={(job as any).situacion} />
+                    {/* Quien publicó pagó por transferencia o Binance y todavía falta el comprobante (o el equipo le escribió): botón para subirlo */}
+                    {(job as any).payment?.requiresProof && (
+                      <Link
+                        to={`/payments/${(job as any).payment.id}/comprobante`}
+                        data-testid="subir-comprobante-de-la-publicacion"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+                      >
+                        <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                        {(job as any).payment.proofSubmitted ? "Cambiar el comprobante" : "Subir el comprobante de pago"}
+                      </Link>
+                    )}
                     {/* Status Badge - Visible para todos */}
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${

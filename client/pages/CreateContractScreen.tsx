@@ -30,10 +30,10 @@ import {
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 // La comisión mínima se muestra desde la constante, no escrita a mano.
-import { MINIMUM_COMMISSION_ARS } from "../../shared/pricing/minimums";
 import { POLITICAS } from "../../shared/constants/policies";
 import RangoDeFechas from "@/components/ui/RangoDeFechas";
 import TareasDelTrabajo from "@/components/jobs/TareasDelTrabajo";
+import EstimadoDelPago from "@/components/jobs/EstimadoDelPago";
 import { leerTareasDeCreacion, type TareaDeCreacion } from "../../shared/jobs/tareasDeCreacion";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import CalleYNumero from "@/components/ui/CalleYNumero";
@@ -759,25 +759,9 @@ export default function CreateContractScreen() {
                       />
                     )}
                     {!isQuotable && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                          {/* Texto pedido por el owner, tal cual. El monto es el piso
-                              vigente; el link va a la clausula de comisiones. */}
-                          <p>
-                            Comisión mínima{' '}
-                            <span className="font-medium text-slate-700 dark:text-slate-200">
-                              ${MINIMUM_COMMISSION_ARS.toLocaleString('es-AR')}
-                            </span>
-                            .{' '}
-                            <a
-                              href="/legal/terminos-y-condiciones#s7p3"
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sky-600 dark:text-sky-400 underline"
-                            >
-                              Ver tarifas y comisiones
-                            </a>
-                          </p>
-                        </div>
+                        // El estimado completo (precio, comisión, procesamiento, IVA y total) con la misma cuenta que el cobro: antes solo decía «Comisión mínima $3.600»,
+                        // que durante la beta no se cobra, y el total de Mercado Pago sorprendía.
+                        <EstimadoDelPago precio={Number(budget) || 0} />
                     )}
                     <label
                       className={`flex items-center gap-2 text-sm ${
@@ -983,7 +967,7 @@ export default function CreateContractScreen() {
                 ciudad={contextoDeCalles.ciudad}
                 lat={latitude}
                 lng={longitude}
-                onCoordinatesChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }}
+                onCoordinatesChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); void coherencia.alUbicarPorElTexto(lat, lng); }}
                 onPinMovedByUser={alMoverElPin}
               />
             </Suspense>
@@ -1125,7 +1109,14 @@ export default function CreateContractScreen() {
 
                 {!singleDelivery && (
                   <div data-campo="tareas">
-                    <TareasDelTrabajo tareas={tareas} onChange={setTareas} inicio={startDate} fin={endDateFlexible ? null : endDate} />
+                    <TareasDelTrabajo
+                      tareas={tareas}
+                      onChange={setTareas}
+                      inicio={startDate}
+                      fin={endDateFlexible ? null : endDate}
+                      finFlexible={endDateFlexible}
+                      alElegirFechas={() => senalarCampo('startDate')}
+                    />
                   </div>
                 )}
               </div>

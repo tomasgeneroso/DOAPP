@@ -123,3 +123,16 @@ describe('guardas del formulario de un trabajo', () => {
     expect(mapa).toMatch(/useEffect\(\(\) => \{[\s\S]*?moverA\(lat, lng, 17\)/); // el pin sigue a las coordenadas que le llegan
   });
 });
+
+describe('una coma sobrante no hace a la calle «dirección completa» (reporte del dueño, 2026-11-19)', () => {
+  it('«San Luis 867,» con número 333 y ciudad Corrientes se busca como calle + número, no como texto suelto', async () => {
+    const { esDireccionCompleta, calleParaBuscar, consultaLibre } = await import('../shared/geo/ubicar');
+    expect(esDireccionCompleta('San Luis 867,')).toBe(false);
+    expect(esDireccionCompleta('Ayacucho 470, H3500 Resistencia, Chaco, Argentina')).toBe(true);
+    expect(calleParaBuscar('San Luis 867,', '333')).toBe('San Luis');
+    expect(calleParaBuscar('San Luis 867,', '')).toBe('San Luis 867');
+    expect(calleParaBuscar('Calle 14', '333')).toBe('Calle 14');
+    // el texto que se le pide a OpenStreetMap lleva la calle, el número del campo y la ciudad (antes salía «San Luis 867,, Argentina» y se iba a San Luis del Palmar)
+    expect(consultaLibre({ calle: 'San Luis 867,', numero: '333', lugar: 'Corrientes' })).toBe('San Luis 333, Corrientes, Argentina');
+  });
+});

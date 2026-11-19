@@ -1,4 +1,4 @@
-import { ListTodo, Plus, X } from "lucide-react";
+import { AlertTriangle, ListTodo, Plus, X } from "lucide-react";
 import { LARGO_MAXIMO_DE_TITULO, MAXIMO_DE_TAREAS, type TareaDeCreacion } from "../../../shared/jobs/tareasDeCreacion";
 
 /**
@@ -12,16 +12,29 @@ export default function TareasDelTrabajo({
   onChange,
   inicio,
   fin,
+  finFlexible = false,
+  alElegirFechas,
 }: {
   tareas: TareaDeCreacion[];
   onChange: (t: TareaDeCreacion[]) => void;
   inicio: Date | null;
   /** null = todavía no se sabe (o no se eligió). */
   fin: Date | null;
+  /** El trabajo no tiene día de fin fijo: no hace falta elegirlo para poner el día de cada tarea. */
+  finFlexible?: boolean;
+  /** Lleva a quien está armando el trabajo al campo de las fechas. */
+  alElegirFechas?: () => void;
 }) {
   const min = dia(inicio);
   const max = dia(fin);
   const sinFechas = !inicio;
+  // Qué falta para poder poner el día de cada tarea: se dice acá, donde la persona lo necesita (pedido del dueño, 2026-11-19).
+  const faltaElFin = !!inicio && !fin && !finFlexible;
+  const motivo = sinFechas
+    ? "Elegí primero el día de inicio y el de fin del trabajo: sin esas fechas no se puede ponerle un día a cada tarea."
+    : faltaElFin
+      ? "Elegí también el día de fin del trabajo: cada tarea tiene que caer entre el inicio y el fin."
+      : null;
 
   const cambiar = (i: number, parche: Partial<TareaDeCreacion>) => onChange(tareas.map((t, n) => (n === i ? { ...t, ...parche } : t)));
 
@@ -35,6 +48,20 @@ export default function TareasDelTrabajo({
         Cada tarea puede tener su día. Por ejemplo, para «Limpiar la casa»: «Cortar el pasto» el 15/6, «Regar las plantas» el 16/6. Son una guía para
         quien trabaja; lo que se toma como determinante para dar el trabajo por terminado son los <strong>requisitos</strong>, más abajo.
       </p>
+
+      {motivo && (
+        <div role="alert" data-testid="aviso-fechas-de-las-tareas" className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div>
+            <p>{motivo}</p>
+            {alElegirFechas && (
+              <button type="button" onClick={alElegirFechas} className="mt-1 font-semibold underline underline-offset-2">
+                Elegir las fechas
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <ul className="mt-3 space-y-2">
         {tareas.map((t, i) => (
@@ -57,7 +84,7 @@ export default function TareasDelTrabajo({
               disabled={sinFechas}
               onChange={(e) => cambiar(i, { dueDate: e.target.value || null })}
               aria-label={`Día de la tarea ${i + 1}`}
-              title={sinFechas ? "Elegí primero las fechas del trabajo" : "Día de esta tarea (opcional)"}
+              title={motivo ?? "Día de esta tarea (opcional)"}
               className="rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm disabled:opacity-50"
             />
             <button type="button" onClick={() => onChange(tareas.filter((_, n) => n !== i))} className="p-1.5 text-red-500 hover:text-red-700 transition-colors" aria-label={`Quitar la tarea ${i + 1}`}>
@@ -67,7 +94,6 @@ export default function TareasDelTrabajo({
         ))}
       </ul>
 
-      {sinFechas && <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Para ponerle un día a cada tarea, elegí primero las fechas del trabajo.</p>}
       {tareas.length < MAXIMO_DE_TAREAS && (
         <button type="button" onClick={() => onChange([...tareas, { title: "", dueDate: null }])} className="mt-3 flex items-center gap-1.5 text-sm text-sky-700 hover:text-sky-800 dark:text-sky-400 transition-colors">
           <Plus className="h-4 w-4" aria-hidden="true" /> Agregar tarea
