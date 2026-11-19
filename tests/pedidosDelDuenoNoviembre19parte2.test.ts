@@ -28,6 +28,19 @@ describe('segundo lote de pedidos', () => {
     expect(leer('client/pages/CreateContractScreen.tsx')).not.toContain('Comisión mínima{');
   });
 
+  it('el estimado manda la sesión: la ruta del cálculo exige estar ingresado y sin el token daba 401 («No pudimos calcular el estimado»)', () => {
+    expect(leer('server/routes/payments.ts')).toContain('router.get("/quote", protect');
+    expect(leer('client/components/jobs/EstimadoDelPago.tsx')).toContain('Authorization: `Bearer ${token}`');
+  });
+
+  it('en «Pagos a la app», un pago ya cobrado cuya publicación espera aprobación muestra «Aprobar publicación» y «Rechazar publicación»', () => {
+    const f = leer('client/pages/admin/PendingPayments.tsx');
+    expect(f).toContain("estadoFinal?.clave === 'esperando_aprobacion'");
+    expect(f).toContain('data-testid="aprobar-publicacion"');
+    expect(f).toContain('data-testid="rechazar-publicacion"');
+    expect(f).toContain('/status`');
+  });
+
   it('los datos de cobro (transferencia y Binance) se cargan en el panel y rigen en el pago', () => {
     expect(leer('client/pages/admin/PlatformPhase.tsx')).toContain('<DatosDeCobroPanel');
     expect(leer('server/routes/payments.ts')).toContain('datosBancariosVigentes as datosBancarios');

@@ -657,6 +657,39 @@ export default function PendingPayments() {
     setApproveNotes("");
   };
 
+  // Aprobar o rechazar la PUBLICACIÓN de un pago ya cobrado (pedido del dueño, 2026-11-19: el pago de Mercado Pago entra solo como «verificado» y lo que queda esperando es la
+  // publicación; antes había que ir a otra pantalla). Usa el mismo endpoint que «Publicaciones» (`PUT /admin/jobs/:id/status`): rechazar pide un motivo de 10 letras o más.
+  const [publicacionEnCurso, setPublicacionEnCurso] = useState<string | null>(null);
+  const resolverPublicacion = async (jobId: string, titulo: string, aprobar: boolean) => {
+    let motivo = '';
+    if (aprobar) {
+      if (!confirm(`¿Aprobar la publicación «${titulo}»? Pasa a estar visible para que se postulen.`)) return;
+    } else {
+      motivo = (prompt(`¿Por qué rechazás «${titulo}»? (mínimo 10 letras; se lo mostramos al cliente)`) || '').trim();
+      if (!motivo) return;
+      if (motivo.length < 10) { alert('Escribí un motivo de al menos 10 letras.'); return; }
+    }
+    try {
+      setPublicacionEnCurso(jobId);
+      const res = await fetch(`/api/admin/jobs/${jobId}/status`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: aprobar ? 'approved' : 'rejected', ...(aprobar ? {} : { rejectedReason: motivo }) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(aprobar ? '✅ Publicación aprobada.' : '✅ Publicación rechazada.');
+        loadVerificationPayments();
+      } else {
+        alert(data.message || 'No se pudo resolver la publicación');
+      }
+    } catch (error: any) {
+      alert(error?.message || 'No se pudo resolver la publicación');
+    } finally {
+      setPublicacionEnCurso(null);
+    }
+  };
+
   // Confirmar aprobación desde modal
   const handleConfirmApprove = async () => {
     if (!approveModalPaymentId) return;
@@ -1919,6 +1952,31 @@ export default function PendingPayments() {
                                     ) : (
                                       <XCircle className="h-4 w-4" />
                                     )}
+                                  </button>
+                                </>
+                              )}
+                              {/* El pago ya está cobrado y lo que espera es la PUBLICACIÓN: se aprueba o rechaza desde acá. */}
+                              {payment.situacion?.estadoFinal?.clave === 'esperando_aprobacion' && (payment.situacion.trabajoId || payment.enlaces?.trabajo?.id) && (
+                                <>
+                                  <button
+                                    onClick={() => resolverPublicacion(String(payment.situacion.trabajoId || payment.enlaces.trabajo.id), payment.enlaces?.trabajo?.title || payment.displayInfo?.title || 'esta publicación', true)}
+                                    disabled={publicacionEnCurso === String(payment.situacion.trabajoId || payment.enlaces?.trabajo?.id)}
+                                    className="px-2.5 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                    title="Aprobar la publicación: queda visible para que se postulen"
+                                    data-testid="aprobar-publicacion"
+                                  >
+                                    <CheckCircle className="h-4 w-4" />
+                                    Aprobar publicación
+                                  </button>
+                                  <button
+                                    onClick={() => resolverPublicacion(String(payment.situacion.trabajoId || payment.enlaces.trabajo.id), payment.enlaces?.trabajo?.title || payment.displayInfo?.title || 'esta publicación', false)}
+                                    disabled={publicacionEnCurso === String(payment.situacion.trabajoId || payment.enlaces?.trabajo?.id)}
+                                    className="px-2.5 py-1.5 text-xs font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                    title="Rechazar la publicación (pide un motivo)"
+                                    data-testid="rechazar-publicacion"
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                    Rechazar publicación
                                   </button>
                                 </>
                               )}

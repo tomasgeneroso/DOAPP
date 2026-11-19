@@ -27,7 +27,11 @@ export default function EstimadoDelPago({ precio }: { precio: number }) {
     let vigente = true;
     const espera = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/payments/quote?price=${Math.round(precio)}`);
+        // La ruta exige sesión (`protect`): sin el token daba 401 y el formulario solo decía «No pudimos calcular el estimado».
+        const token = localStorage.getItem('token');
+        const r = await fetch(`/api/payments/quote?price=${Math.round(precio)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         const d = await r.json();
         if (!vigente) return;
         if (d.success) {
