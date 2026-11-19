@@ -74,9 +74,14 @@ const CONTRATOS: Fuente = {
 
 const TRABAJOS: Fuente = {
   modelo: Job as never,
-  columnas: ['id', 'clientId', 'selectedWorkers', 'status'],
-  avisos: (j: Fila) => {
-    const usuarios = [j.clientId, ...(Array.isArray(j.selectedWorkers) ? j.selectedWorkers : [])];
+  columnas: ['id', 'clientId', 'selectedWorkers', 'maxWorkers', 'status'],
+  avisos: async (j: Fila) => {
+    // También los que se postularon y todavía no fueron elegidos: ven «1 de 2 elegidos» y la propuesta cambiar sin recargar
+    // (pedido del dueño, 2026-11-20: con 2 postulados cada uno seguía viendo el trabajo como 1/2).
+    const postulantes = await conSistema(() =>
+      Proposal.findAll({ where: { jobId: String(j.id), status: ['pending', 'approved'] } as never, attributes: ['freelancerId'], raw: true }),
+    ).catch(() => [] as unknown[]);
+    const usuarios = [j.clientId, ...(Array.isArray(j.selectedWorkers) ? j.selectedWorkers : []), ...(postulantes as Fila[]).map((p) => p.freelancerId)];
     return [
       { usuarios, evento: 'job:updated', datos: { jobId: String(j.id), status: j.status }, clave: String(j.id) },
       { usuarios: [j.clientId], evento: 'myjobs:refresh', datos: { jobId: String(j.id) } },
@@ -93,6 +98,10 @@ const PROPUESTAS: Fuente = {
     { usuarios: [p.freelancerId, p.clientId], evento: 'proposal:updated', datos: { proposalId: String(p.id), jobId: p.jobId, status: p.status }, clave: String(p.id) },
     { usuarios: [p.clientId], evento: 'myjobs:refresh', datos: { jobId: p.jobId } },
     { usuarios: [p.freelancerId, p.clientId], evento: 'dashboard:refresh' },
+    // La pantalla del trabajo de las dos partes muestra sus postulaciones: se entera cuando alguien se postula, retira o es elegido.
+    { usuarios: [p.freelancerId, p.clientId], evento: 'job:updated', datos: { jobId: p.jobId }, clave: String(p.jobId) },
+    // El panel del equipo (publicación, expediente, pagos) también: una postulación nueva o una elección cambia lo que dice la publicación.
+    delAdministrador('job', p.jobId),
   ],
 };
 
@@ -102,6 +111,7 @@ const COTIZACIONES: Fuente = {
   avisos: (q: Fila) => [
     { usuarios: [q.senderId, q.recipientId], evento: 'proposal:updated', datos: { quoteId: String(q.id), jobId: q.jobId }, clave: `q${q.id}` },
     { usuarios: [q.senderId, q.recipientId], evento: 'myjobs:refresh', datos: { jobId: q.jobId } },
+    ...(q.jobId ? [delAdministrador('job', q.jobId)] : []),
   ],
 };
 

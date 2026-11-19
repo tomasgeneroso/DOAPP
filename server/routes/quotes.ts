@@ -14,6 +14,7 @@ import { generateQuotePDF } from '../services/pdfGenerator.js';
 import { getIO } from '../services/socket.js';
 import { calculateCommission } from '../services/commissionService.js';
 import { settleQuote } from '../services/quotePayment.js';
+import { esContraoferta, precioDeUnLugar } from '../../shared/jobs/precioDelLugar.js';
 import { requireKyc } from '../middleware/auth.js';
 import { requirePostWorkRating, requireNotSuspended } from '../middleware/postWorkRating.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
@@ -298,8 +299,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
           coverLetter: String(title).slice(0, 1000),
           proposedPrice: total,
           estimatedDuration: 1,
-          isCounterOffer: Number(total) !== Number(trabajo.price),
-          originalJobPrice: trabajo.price,
+          isCounterOffer: esContraoferta(trabajo, total),
+          originalJobPrice: precioDeUnLugar(trabajo),
           status: 'pending',
         } as any,
       });
@@ -567,12 +568,12 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
           coverLetter: String(quote.title).slice(0, 1000),
           proposedPrice: total,
           estimatedDuration: 1,
-          isCounterOffer: total !== Number(job.price),
-          originalJobPrice: job.price,
+          isCounterOffer: esContraoferta(job, total),
+          originalJobPrice: precioDeUnLugar(job),
           status: 'pending',
         } as any);
       } else {
-        await propuesta.update({ proposedPrice: total, isCounterOffer: total !== Number(job.price) } as any);
+        await propuesta.update({ proposedPrice: total, isCounterOffer: esContraoferta(job, total) } as any);
       }
       proposalId = String(propuesta.id);
       if (String(quote.proposalId || '') !== proposalId) await quote.update({ proposalId } as any);

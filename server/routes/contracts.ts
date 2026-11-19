@@ -22,6 +22,7 @@ import { Op, literal } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { reclamarContratoLibre, devolverContratoLibre, type CupoDeExencion } from "../services/exencionDeComision.js";
 import { liquidacionDelContrato } from "../services/liquidacionDelContrato.js";
+import { contratoCubiertoPorLaPublicacion } from "../../shared/pagos/contratoCubierto.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
@@ -965,6 +966,9 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
         ? { motivo: (aviso as any).reason, avisadoEl: (aviso as any).createdAt }
         : null;
     }
+
+    // Si el contrato sale del presupuesto que el cliente ya pagó al publicar: la pantalla del contrato no tiene que pedir otro pago (en un trabajo de 2 lugares pedía $5.000 más).
+    plano.cubiertoPorLaPublicacion = contratoCubiertoPorLaPublicacion(contract as any, (contract as any).job);
 
     // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
     plano.liquidacion = await liquidacionDelContrato(contract);

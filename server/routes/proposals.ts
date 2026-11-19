@@ -23,6 +23,7 @@ import { logger } from "../services/logger.js";
 import { settleQuote } from "../services/quotePayment.js";
 import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { calculateCommission } from "../services/commissionService.js";
+import { esContraoferta, lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar.js";
 
 
 const router = express.Router();
@@ -465,8 +466,10 @@ router.post(
         return;
       }
 
-      // Detectar si es contraoferta (precio diferente al original)
-      const isCounterOffer = proposedPrice !== job.price;
+      // Detectar si es contraoferta (precio diferente al publicado PARA ESE LUGAR: en un trabajo de 2 lugares de $10.000, pedir $5.000 es el precio publicado, no una contraoferta).
+      const lugares = lugaresDelTrabajo(job);
+      const precioDelLugar = precioDeUnLugar(job);
+      const isCounterOffer = esContraoferta(job, proposedPrice);
 
       // Respetar la configuración del dueño: si el trabajo no permite contraofertas,
       // la propuesta debe coincidir con el precio publicado.
@@ -484,7 +487,7 @@ router.post(
         proposedPrice,
         estimatedDuration,
         isCounterOffer,
-        originalJobPrice: job.price,
+        originalJobPrice: precioDelLugar,
       };
       const proposal = existingProposal
         ? await existingProposal.update({ ...datosDeLaPropuesta, status: 'pending' } as any)
@@ -535,9 +538,10 @@ router.post(
       }
 
       // Crear mensaje del sistema
+      const avisoDeLugares = lugares > 1 ? `\n**Trabajo de ${lugares} trabajadores:** el total de $${Number(job.price).toLocaleString("es-AR")} ARS se reparte entre ellos` : '';
       const messageText = isCounterOffer
-        ? `${req.user.name} envió una contraoferta||${job.title}||**Contraoferta:** $${proposedPrice.toLocaleString("es-AR")} ARS (Precio original: $${job.price.toLocaleString("es-AR")} ARS)\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n\n**Mensaje:**\n${coverLetter}`
-        : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${proposedPrice.toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}`;
+        ? `${req.user.name} envió una contraoferta||${job.title}||**Contraoferta:** $${Number(proposedPrice).toLocaleString("es-AR")} ARS (Precio original: $${precioDelLugar.toLocaleString("es-AR")} ARS)\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días${avisoDeLugares}\n\n**Mensaje:**\n${coverLetter}`
+        : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${Number(proposedPrice).toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}${avisoDeLugares}`;
 
       const applicationMessage = await ChatMessage.create({
         conversationId: conversation.id,
@@ -837,6 +841,22 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       res.status(400).json({
         success: false,
         message: "Este trabajador ya fue seleccionado para este trabajo",
+      });
+      return;
+    }
+
+    // Un trabajador, un contrato por trabajo: si ya tiene uno vigente (por ejemplo lo creó la cotización pagada) no se crea otro. Un segundo contrato para la misma persona
+    // duplicaría lo que respalda el presupuesto y pediría pagar de nuevo.
+    const contratoVigente = await Contract.findOne({
+      where: { jobId: proposal.jobId, doerId: proposal.freelancerId, status: { [Op.notIn]: ['cancelled', 'rejected'] } } as any,
+      attributes: ['id'],
+    });
+    if (contratoVigente) {
+      res.status(409).json({
+        success: false,
+        code: 'CONTRATO_YA_EXISTE',
+        message: 'Este trabajador ya tiene un contrato vigente en este trabajo: no se crea otro.',
+        contractId: (contratoVigente as any).id,
       });
       return;
     }

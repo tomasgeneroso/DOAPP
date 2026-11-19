@@ -5,7 +5,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useSocket, useEventoEnVivo } from "../hooks/useSocket";
+import { useSocket, useEventoEnVivo, useCambiosDeAdministracion } from "../hooks/useSocket";
 import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import {
   ArrowLeft,
@@ -38,7 +38,6 @@ import {
   MoreVertical,
   Headphones,
   ClipboardList,
-  FileText,
   Upload,
 } from "lucide-react";
 import type { Job } from "@/types";
@@ -48,6 +47,7 @@ import { getCategoryById } from "../../shared/constants/categories";
 import { POLITICAS } from "../../shared/constants/policies";
 import LiquidacionDelPago from "../components/LiquidacionDelPago";
 import type { LiquidacionDelContrato } from "../../shared/pagos/liquidacion";
+import { esContraoferta, precioDeUnLugar } from "../../shared/jobs/precioDelLugar";
 import { SuspendedNotice, CancellationMark } from "../components/CancellationLadder";
 import { mostrarRating } from "../../shared/rating/display";
 import LocationCircleMap from "../components/map/LocationCircleMap";
@@ -79,7 +79,7 @@ import ComoFuncionaElPago from "../components/pagos/ComoFuncionaElPago";
 import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
-import ImagenProtegida from "../components/ui/ImagenProtegida";
+import ComprobantesDelPagoEquipo from "../components/jobs/ComprobantesDelPagoEquipo";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
 export default function JobDetail() {
@@ -342,21 +342,43 @@ export default function JobDetail() {
     setRefreshKey((prev) => prev + 1);
   });
 
+  // Alguien se postula, retira su postulación o es elegido: la pantalla del trabajo (de quien publicó y de quienes se postularon) muestra el estado de ahora,
+  // «1 de 2 elegidos» incluido, sin recargar.
+  useEventoEnVivo('proposal:updated', (datos?: { jobId?: string }) => {
+    if (datos?.jobId && String(datos.jobId) !== String(id)) return;
+    setRefreshKey((prev) => prev + 1);
+    setPollKey((k) => k + 1);
+  });
+
+  // El equipo que mira la publicación la ve cambiar sola: postulaciones, contratos y pagos de este trabajo (regla del dueño: todo el panel en vivo).
+  useCambiosDeAdministracion(['job', 'contract', 'payment'], () => {
+    if (!isAdmin) return;
+    setRefreshKey((prev) => prev + 1);
+    setPollKey((k) => k + 1);
+  });
+
+  const trabajoYaCargado = useRef<string | null>(null);
+
   // Fetch job data
   const fetchJob = useCallback(async () => {
     if (!id) return;
     try {
-      setLoading(true);
+      // Solo la primera carga de cada trabajo tapa la pantalla con el círculo; las recargas en vivo (alguien se postuló, se pagó…) actualizan sin parpadeo.
+      const primeraCarga = trabajoYaCargado.current !== id;
+      if (primeraCarga) setLoading(true);
       const response = await fetch(`/api/jobs/${id}`);
       const data = await response.json();
       if (data.success) {
+        trabajoYaCargado.current = id;
         setJob(data.job);
-        // Track job view
-        analytics.jobView(id, {
-          category: data.job.category,
-          price: data.job.price,
-          location: data.job.location?.city || data.job.location?.province,
-        });
+        // Track job view (una vez por trabajo: las recargas en vivo no son una vista nueva)
+        if (primeraCarga) {
+          analytics.jobView(id, {
+            category: data.job.category,
+            price: data.job.price,
+            location: data.job.location?.city || data.job.location?.province,
+          });
+        }
       } else {
         setError(
           data.message || t("jobs.couldNotLoad", "Could not load the job"),
@@ -2451,20 +2473,9 @@ export default function JobDetail() {
               <DetallesDelPago detalle={isAdmin ? adminPayment.detalle : detallePago} paraEquipo={isAdmin}>
                 {isAdmin && adminPayment && (
                   <>
-                {/* Proof */}
-                {adminPayment.proof ? (
-                  <div className="mt-4">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('jobs.adminPayment.proofLabel', 'Comprobante de pago')}</p>
-                    {((adminPayment.proof.fileType === 'pdf') || (adminPayment.proof.fileUrl || '').toLowerCase().endsWith('.pdf')) ? (
-                      <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sky-600 dark:text-sky-400 hover:underline">
-                        <FileText className="h-4 w-4" /> {t('jobs.adminPayment.openPdfProof', 'Abrir PDF del comprobante')}
-                      </a>
-                    ) : (
-                      <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="block">
-                        <ImagenProtegida src={getImageUrl(adminPayment.proof.fileUrl)} alt={t('jobs.adminPayment.proofAlt', 'Comprobante')} className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
-                      </a>
-                    )}
-                  </div>
+                {/* Comprobantes: los del cliente y los del equipo (cada uno dice de quién es) y «Agregar comprobante». */}
+                {adminPayment.payment?.id ? (
+                  <ComprobantesDelPagoEquipo paymentId={String(adminPayment.payment.id)} />
                 ) : (
                   <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 italic">{t('jobs.adminPayment.noProof', 'Sin comprobante adjunto.')}</p>
                 )}
@@ -2812,6 +2823,15 @@ export default function JobDetail() {
                   !job.selectedWorkers?.includes(userId || "")
                 : !job.doerId) && (
                 <div className="space-y-3">
+                  {/* Antes de postularse: es un trabajo de varios trabajadores, el total se reparte y se aclara si puede empezar con menos. */}
+                  {!hasApplied && (job.maxWorkers || 1) > 1 && (
+                    <p role="note" className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900 dark:border-purple-700 dark:bg-purple-900/20 dark:text-purple-100" data-testid="aviso-previo-varios-lugares">
+                      Este trabajo es para <strong>{job.maxWorkers} trabajadores</strong> ({job.selectedWorkers?.length || 0} de {job.maxWorkers} elegidos). El total de ${Number(job.price).toLocaleString("es-AR")} se divide entre ellos: cada uno cobra ${precioDeUnLugar(job as any).toLocaleString("es-AR")}.{" "}
+                      {(job as any).partialStartAllowed === false
+                        ? `Necesita los ${job.maxWorkers} trabajadores: no empieza hasta cubrir todos los lugares.`
+                        : `Puede empezar con menos de ${job.maxWorkers} si el cliente lo confirma.`}
+                    </p>
+                  )}
                   {hasApplied ? (
                     <div className="space-y-2">
                       <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
@@ -3757,7 +3777,8 @@ export default function JobDetail() {
                         </div>
 
                         {proposals.map((proposal: any) => {
-                          const isOffer = proposal.isCounterOffer || (proposal.proposedPrice !== undefined && proposal.proposedPrice !== job.price);
+                          // Contraoferta = precio distinto del publicado PARA ESE LUGAR (en un trabajo de 2 lugares, pedir la mitad no lo es). Se calcula acá y no solo con la marca guardada: las anteriores quedaron mal marcadas.
+                          const isOffer = proposal.proposedPrice !== undefined && proposal.proposedPrice !== null ? esContraoferta(job, proposal.proposedPrice) : !!proposal.isCounterOffer;
                           return (
                           <div
                             key={proposal.id}
@@ -3857,6 +3878,11 @@ export default function JobDetail() {
                                   {isOffer && (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
                                       {t("jobs.counterOffer", "Contraoferta")}
+                                    </span>
+                                  )}
+                                  {!isOffer && (
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                      {(job.maxWorkers || 1) > 1 ? `precio publicado para un lugar (el total se reparte entre ${job.maxWorkers})` : ""}
                                     </span>
                                   )}
                                   {!isOffer && proposal.proposedPrice === job.price && (

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { getImageUrl } from '@/utils/imageUrl';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import { lugaresDelTrabajo, precioDeUnLugar } from '../../../shared/jobs/precioDelLugar';
 import {
   Briefcase,
   UserCheck,
@@ -240,6 +241,82 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       confirmLabel: t('common.accept', 'Aceptar'),
       onConfirm: doAccept,
     });
+  };
+
+  /**
+   * Trabajo de varios lugares (pedido del dueño, 2026-11-20): al elegir desde el mensaje se ven las opciones «elegir» y «elegir y empezar con los elegidos»,
+   * con cuántos van de cuántos y cuánto cobra cada uno. El resto de los casos (un solo lugar, propuesta directa) sigue con la confirmación de siempre.
+   */
+  const [variosLugares, setVariosLugares] = useState<{ lugares: number; elegidos: number; precioPorLugar: number; puedeEmpezarConMenos: boolean } | null>(null);
+  const [comprobandoLugares, setComprobandoLugares] = useState(false);
+
+  const handleAcceptDelMensaje = async () => {
+    if (!message.metadata?.proposalId) {
+      notify(t('chat.proposalNotFound', 'Proposal not found'));
+      return;
+    }
+    if (isDirectProposal || !message.metadata?.jobId) return handleAccept();
+    setComprobandoLugares(true);
+    try {
+      const r = await fetch(`/api/jobs/${message.metadata.jobId}`);
+      const d = await r.json();
+      const job = d?.success ? d.job : null;
+      const lugares = lugaresDelTrabajo(job);
+      if (job && lugares > 1) {
+        setVariosLugares({
+          lugares,
+          elegidos: Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 0,
+          precioPorLugar: precioDeUnLugar(job),
+          puedeEmpezarConMenos: job.partialStartAllowed !== false,
+        });
+        return;
+      }
+    } catch {
+      /* si no se pudo leer el trabajo, sigue la confirmación común: el servidor igual valida los lugares */
+    } finally {
+      setComprobandoLugares(false);
+    }
+    handleAccept();
+  };
+
+  const doAcceptVarios = async (empezar: boolean) => {
+    if (!variosLugares) return;
+    const { lugares, elegidos } = variosLugares;
+    setDialogLoading(true);
+    try {
+      const response = await fetch(`/api/proposals/${message.metadata?.proposalId}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!result.success) {
+        setVariosLugares(null);
+        notify(result.message || t('chat.errorAccepting', 'Error accepting'));
+        return;
+      }
+      setLocalStatus('approved');
+      setVariosLugares(null);
+      onRefresh();
+      let aviso = `Elegiste ${elegidos + 1} de ${lugares} trabajadores.`;
+      if (empezar && elegidos + 1 < lugares) {
+        const e = await fetch(`/api/jobs/${message.metadata?.jobId}/start-with-current`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        const ed = await e.json();
+        aviso = ed.success
+          ? `${ed.message || 'El trabajo empieza con los trabajadores elegidos.'}`
+          : `Elegiste ${elegidos + 1} de ${lugares}. Todavía no se puede empezar: ${ed.message || 'falta que el elegido acepte su contrato'} Cuando se pueda, vas a ver el botón «Empezar con ${elegidos + 1} de ${lugares}» en el trabajo.`;
+      } else if (elegidos + 1 < lugares) {
+        aviso += ` Faltan ${lugares - elegidos - 1}: el trabajo sigue abierto para recibir postulaciones.`;
+      } else {
+        aviso += ' El equipo está completo.';
+      }
+      setDialog({ tone: 'success', title: 'Trabajador elegido', message: aviso, acknowledge: true });
+    } catch (error) {
+      console.error('Error:', error);
+      setVariosLugares(null);
+      notify(t('chat.errorProcessing', 'Error processing request'));
+    } finally {
+      setDialogLoading(false);
+    }
   };
 
   const doAccept = async () => {
@@ -540,10 +617,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                   // Receiver actions
                   <>
                     <button
-                      onClick={handleAccept}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98]"
+                      onClick={handleAcceptDelMensaje}
+                      disabled={comprobandoLugares}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98] disabled:opacity-60"
                     >
-                      <CheckCircle className="h-4 w-4" />
+                      {comprobandoLugares ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                       {t('common.accept', 'Accept')}
                     </button>
                     <button
@@ -606,6 +684,38 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           })}
         </div>
       </div>
+
+      {variosLugares && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" onClick={() => !dialogLoading && setVariosLugares(null)} data-testid="elegir-trabajador-varios-lugares">
+          <div className="w-full max-w-md rounded-2xl border border-green-600 bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">Elegir trabajador ({variosLugares.elegidos + 1} de {variosLugares.lugares})</h3>
+            <div className="mb-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              <p>Este trabajo es de <strong>{variosLugares.lugares} trabajadores</strong> y el total se divide entre ellos: cada uno cobra <strong>${variosLugares.precioPorLugar.toLocaleString('es-AR')}</strong>.</p>
+              <p>Ya tenés {variosLugares.elegidos} elegido{variosLugares.elegidos === 1 ? '' : 's'}; con este van a ser {variosLugares.elegidos + 1} de {variosLugares.lugares}.</p>
+              {variosLugares.elegidos + 1 < variosLugares.lugares && (
+                <p>
+                  {variosLugares.puedeEmpezarConMenos
+                    ? 'Podés esperar a completar el equipo o empezar con los elegidos (se cierran los lugares que faltan y lo no usado vuelve a tu saldo).'
+                    : 'Esta publicación necesita el equipo completo: no empieza hasta cubrir todos los lugares.'}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => doAcceptVarios(false)} disabled={dialogLoading} className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 font-semibold text-white shadow-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50" data-testid="elegir-y-esperar">
+                {dialogLoading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : variosLugares.elegidos + 1 < variosLugares.lugares ? 'Elegir y esperar al resto' : 'Elegir'}
+              </button>
+              {variosLugares.puedeEmpezarConMenos && variosLugares.elegidos + 1 < variosLugares.lugares && (
+                <button onClick={() => doAcceptVarios(true)} disabled={dialogLoading} className="rounded-xl border border-green-600 px-4 py-3 font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50 dark:text-green-300 dark:hover:bg-green-900/20" data-testid="elegir-y-empezar">
+                  Elegir y empezar con los elegidos
+                </button>
+              )}
+              <button onClick={() => setVariosLugares(null)} disabled={dialogLoading} className="rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 font-semibold text-slate-800 hover:bg-slate-200 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         open={!!dialog}

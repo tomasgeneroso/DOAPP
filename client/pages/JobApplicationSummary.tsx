@@ -22,6 +22,7 @@ import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
 import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
 import Transicion from "../components/ui/Transicion";
+import { lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar";
 
 export default function JobApplicationSummary() {
   const { t } = useTranslation();
@@ -72,6 +73,10 @@ export default function JobApplicationSummary() {
 
   /** Un trabajo de varios lugares no se toma de un clic: el cliente elige entre las propuestas (el servidor lo rechaza con JOB_REQUIRES_PROPOSAL). */
   const variosLugares = Number((job as any)?.maxWorkers) > 1;
+  const lugares = lugaresDelTrabajo(job as any);
+  const precioPorLugar = precioDeUnLugar(job as any);
+  const yaElegidos = Array.isArray((job as any)?.selectedWorkers) ? (job as any).selectedWorkers.length : 0;
+  const puedeEmpezarConMenos = (job as any)?.partialStartAllowed !== false;
 
   const handlePostularse = async () => {
     if (!user || !job) return;
@@ -313,18 +318,24 @@ export default function JobApplicationSummary() {
                     <span>{job.location}</span>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-center">
-                  <div className="text-sm text-sky-100">{t('jobApply.payment')}</div>
+                <div className="rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-center" data-testid="pago-del-trabajo">
+                  <div className="text-sm text-sky-100">{variosLugares ? "Pago para vos (un lugar)" : t('jobApply.payment')}</div>
                   <div className="text-2xl font-bold text-white">
-                    ${job.price.toLocaleString("es-AR")}
+                    ${(variosLugares ? precioPorLugar : Number(job.price)).toLocaleString("es-AR")}
                   </div>
+                  {variosLugares && (
+                    <div className="mt-0.5 text-xs text-sky-100" data-testid="total-dividido">
+                      Total del trabajo ${Number(job.price).toLocaleString("es-AR")}, dividido entre {lugares} trabajadores
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Lo que va a cobrar de verdad. El precio de arriba es lo que
                   ofrece el cliente; sin esto el trabajador cotiza sobre un
                   número que no recibe y reclama cuando le llega menos. */}
-              <WorkerNetAmount jobId={job.id} className="mb-6" />
+              {/* En un trabajo de varios lugares se calcula sobre el precio de UN lugar (el total se reparte); con un solo lugar, sobre el trabajo entero. */}
+              {variosLugares ? <WorkerNetAmount price={precioPorLugar} className="mb-6" /> : <WorkerNetAmount jobId={job.id} className="mb-6" />}
 
               {/*
                 Justo debajo de cuánto va a cobrar, porque es la otra mitad de
@@ -466,9 +477,19 @@ export default function JobApplicationSummary() {
             </Transicion>
 
             {variosLugares && (
-              <p role="note" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
-                Este trabajo busca <strong>{Number((job as any).maxWorkers)} trabajadores</strong>: tu postulación queda como propuesta y el cliente elige a quiénes contrata.
-              </p>
+              <div role="note" className="mb-4 space-y-1.5 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100" data-testid="aviso-varios-lugares">
+                <p>
+                  Este trabajo busca <strong>{lugares} trabajadores</strong> ({yaElegidos} de {lugares} ya elegidos): tu postulación queda como propuesta y el cliente elige a quiénes contrata.
+                </p>
+                <p>
+                  El total de <strong>${Number(job.price).toLocaleString("es-AR")}</strong> se divide entre los trabajadores: si te eligen, cobrás <strong>${precioPorLugar.toLocaleString("es-AR")}</strong> (si al elegirte el cliente reparte distinto, lo ves en tu contrato).
+                </p>
+                <p>
+                  {puedeEmpezarConMenos
+                    ? `Puede empezar con menos de ${lugares} trabajadores si el cliente lo confirma, así que tu trabajo podría empezar antes de que se complete el equipo.`
+                    : `Necesita los ${lugares} trabajadores para empezar: no arranca hasta cubrir todos los lugares, aunque a vos te hayan elegido.`}
+                </p>
+              </div>
             )}
 
             {/* Action Buttons */}

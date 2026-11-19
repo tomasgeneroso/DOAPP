@@ -49,6 +49,8 @@ interface Contract {
   startDate: string;
   endDate: string;
   createdAt: string;
+  /** El contrato sale del presupuesto que el cliente ya pagó al publicar: no hay nada que pagar de nuevo (lo calcula el servidor). */
+  cubiertoPorLaPublicacion?: boolean;
 }
 
 export default function ContractSummary() {
@@ -152,6 +154,7 @@ export default function ContractSummary() {
   }
 
   const isClient = contract.client.id === user?.id;
+  const cubierto = contract.cubiertoPorLaPublicacion === true;
   const otherParty = isClient ? contract.doer : contract.client;
   const commissionRate = contract.commission > 0 ? ((contract.commission / contract.price) * 100).toFixed(0) : "0";
   const isFreeContract = contract.commission === 0;
@@ -183,7 +186,7 @@ export default function ContractSummary() {
               {t('contracts.summary.title', 'Contract Summary')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              {t('contracts.summary.subtitle', 'Review the details and proceed to escrow payment')}
+              {cubierto ? 'Revisá los detalles del contrato: el pago ya está hecho' : t('contracts.summary.subtitle', 'Review the details and proceed to escrow payment')}
             </p>
           </div>
 
@@ -197,8 +200,10 @@ export default function ContractSummary() {
                 <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
                   {t('contracts.summary.createdSuccess', 'Contract created successfully!')}
                 </h3>
-                <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                  {t('contracts.summary.createdDesc', 'The contract has been created. You must now make the payment to activate the escrow service.')}
+                <p className="mt-1 text-sm text-green-700 dark:text-green-300" data-testid={cubierto ? 'contrato-ya-pago' : undefined}>
+                  {cubierto
+                    ? 'El pago ya está en custodia: lo cubre el pago que hiciste al publicar el trabajo. No tenés que pagar nada más por este contrato.'
+                    : t('contracts.summary.createdDesc', 'The contract has been created. You must now make the payment to activate the escrow service.')}
                 </p>
               </div>
             </div>
@@ -376,12 +381,17 @@ export default function ContractSummary() {
                 {/* Total */}
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-lg font-semibold text-slate-900 dark:text-white">
-                    {t('contracts.summary.totalToPay', 'Total to pay')}
+                    {cubierto ? 'Total a pagar ahora' : t('contracts.summary.totalToPay', 'Total to pay')}
                   </span>
-                  <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">
-                    ${contract.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2 })} ARS
+                  <span className="text-2xl font-bold text-sky-600 dark:text-sky-400" data-testid="total-a-pagar">
+                    {cubierto ? '$0,00 ARS' : `$${contract.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2 })} ARS`}
                   </span>
                 </div>
+                {cubierto && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Los ${contract.price.toLocaleString("es-AR", { minimumFractionDigits: 2 })} de este contrato salen del presupuesto que ya pagaste al publicar. Si el trabajo es de varios trabajadores, el presupuesto se reparte entre ellos.
+                  </p>
+                )}
               </div>
 
               {/* Membership Info */}
@@ -429,7 +439,17 @@ export default function ContractSummary() {
             </div>
 
             {/* Actions */}
-            {isClient && (
+            {isClient && cubierto && (
+              <div className="p-6 flex flex-col gap-3 sm:flex-row">
+                <Link to={`/jobs/${contract.job.id}`} className="flex-1 rounded-lg bg-sky-600 px-6 py-3 text-center font-semibold text-white transition-colors hover:bg-sky-700" data-testid="ver-el-trabajo">
+                  Ver el trabajo
+                </Link>
+                <Link to={`/contracts/${contract.id}`} className="flex-1 rounded-lg border border-slate-300 px-6 py-3 text-center font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
+                  Ver el contrato
+                </Link>
+              </div>
+            )}
+            {isClient && !cubierto && (
               <div className="p-6">
                 <button
                   onClick={handleProceedToPayment}
@@ -455,7 +475,7 @@ export default function ContractSummary() {
               </div>
             )}
 
-            {!isClient && (
+            {!isClient && !cubierto && (
               <div className="p-6">
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
@@ -485,7 +505,9 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">1</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  {isClient ? t('contracts.summary.step1Client', 'Make the payment through MercadoPago') : t('contracts.summary.step1Doer', 'The client makes the payment through MercadoPago')}
+                  {cubierto
+                    ? 'El pago ya está hecho: lo cubre el pago de la publicación'
+                    : isClient ? t('contracts.summary.step1Client', 'Make the payment through MercadoPago') : t('contracts.summary.step1Doer', 'The client makes the payment through MercadoPago')}
                 </p>
               </li>
               <li className="flex items-start gap-3">

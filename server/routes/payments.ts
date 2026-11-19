@@ -17,6 +17,7 @@ import { registrarCostoRealDeMp } from "../services/costoRealDeMp.js";
 import { TRANSFERENCIA_NO_DISPONIBLE } from "../services/datosBancarios.js";
 import { datosBancariosVigentes as datosBancarios, binanceVigente } from "../services/datosDeCobro.js";
 import { validarDatosDeTransferencia, documentoNormalizado } from "../../shared/pagos/transferencia.js";
+import { contratoCubiertoPorLaPublicacion } from "../../shared/pagos/contratoCubierto.js";
 import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env.js";
@@ -1976,6 +1977,17 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
     // Check if already paid
     if (contract.status === "in_progress" || contract.status === "completed") {
       res.status(400).json({ success: false, message: "Contract already paid" });
+      return;
+    }
+
+    // El contrato sale del presupuesto que el cliente ya pagó al publicar: no se cobra otra vez (pedido del dueño, 2026-11-20: en un trabajo de 2 lugares, al elegir al segundo
+    // trabajador la pantalla pedía $5.000 más y esta ruta armaba otra orden de Mercado Pago).
+    if (contratoCubiertoPorLaPublicacion(contract as any, (contract as any).job)) {
+      res.status(409).json({
+        success: false,
+        code: "CUBIERTO_POR_LA_PUBLICACION",
+        message: "Este contrato ya está pago: lo cubre el pago de la publicación del trabajo. No hace falta pagar de nuevo.",
+      });
       return;
     }
 
