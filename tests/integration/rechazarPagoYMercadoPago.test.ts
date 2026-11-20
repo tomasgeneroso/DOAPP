@@ -189,6 +189,35 @@ describe('rechazar y aprobar un pago: DOAPP y Mercado Pago tienen que coincidir'
       expect(Number((await pagoDe(pago.id)).refundedAmount) || 0).toBe(0);
     });
 
+    it('sin el comprobante de la devolución no se devuelve (primero se sube el archivo) y no se toca nada', async () => {
+      const { pago } = await publicacion({ status: 'completed', enMp: true });
+      const r = await devolver(pago.id, { opcion: 'total' });
+      expect(r.status).toBe(400);
+      expect(r.body.code).toBe('COMPROBANTE_REQUERIDO');
+      expect(Number((await pagoDe(pago.id)).refundedAmount) || 0).toBe(0);
+      // una dirección que no salió de la subida tampoco vale
+      const r2 = await devolver(pago.id, { opcion: 'total', comprobanteUrl: 'https://ejemplo.com/comprobante.png' });
+      expect(r2.status).toBe(400);
+      expect(r2.body.code).toBe('COMPROBANTE_REQUERIDO');
+    });
+
+    it('la información previa separa lo devuelto por Mercado Pago de lo acreditado al saldo y marca lo acreditado de más', async () => {
+      const { pago } = await publicacion({ status: 'completed', enMp: true });
+      for (let i = 0; i < 2; i += 1) {
+        await BalanceTransaction.create({
+          userId: cliente.id, type: 'refund', amount: 10000, balanceBefore: 0, balanceAfter: 10000, description: 'devolución de prueba', status: 'completed',
+          metadata: { pagoId: pago.id, origen: 'cancelacion' },
+        } as any);
+      }
+      const r = await request(app).get(`/api/admin/payments/${pago.id}/refund-info`).set(con(admin));
+      expect(r.status).toBe(200);
+      expect(r.body.data.devueltoPorMercadoPago).toBe(0);
+      expect(r.body.data.acreditadoAlSaldo).toBe(20000);
+      expect(r.body.data.movimientosAlSaldo).toHaveLength(2);
+      expect(r.body.data.sobreacreditado).toBe(true);
+      expect(r.body.data.disponible).toBe(0);
+    });
+
     it('si volvió una parte al saldo, solo se puede devolver el resto (no el total)', async () => {
       const { pago } = await publicacion({ status: 'completed', enMp: true });
       await BalanceTransaction.create({

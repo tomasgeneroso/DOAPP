@@ -5,6 +5,7 @@ import { Payment, RESOLVED_PAYMENT_STATUSES, needsVerification } from "../../mod
 import { ESTADOS_SIN_PAGO, SQL_ES_UN_INTENTO_ANIDADO, emparejarIntentos } from "../../../shared/pagos/intentosDePago.js";
 import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
+import { desgloseDelPago, opcionesDeDevolucion } from "../../../shared/pagos/opcionesDeDevolucion.js";
 import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
@@ -95,7 +96,9 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
      * pasarela, y ese resto se retiene a propósito. Para MercadoPago es una
      * devolución parcial; para el negocio, el caso está terminado.
      */
-    const { monto, motivo, esFinal } = req.body;
+    const { monto: montoPedido, motivo, esFinal: esFinalPedido, opcion, comprobanteUrl, referencia } = req.body;
+    let monto = montoPedido;
+    let esFinal = Boolean(esFinalPedido);
     const adminId = req.user.id;
 
     if (!motivo || String(motivo).trim().length < 10) {
@@ -162,18 +165,42 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
 
     const total = Number(payment.amount) || 0;
     const yaDevuelto = Math.round((total - disponibleParaDevolver) * 100) / 100;
-    const parcial = monto !== undefined && monto !== null;
-    const importe = parcial ? Number(monto) : disponibleParaDevolver;
+    const devueltoPorMercadoPago = Math.round((Number((payment as any).refundedAmount) || 0) * 100) / 100;
 
     if (disponibleParaDevolver <= 0) {
+      // Se dice de dónde sale cada parte: lo que volvió por Mercado Pago y lo que ya se acreditó al saldo del cliente por este mismo pago. Si juntas pasan de lo cobrado hay una
+      // acreditación de más (pedido del dueño, 2026-11-20: «$20.000 de $10.560,99», sin saber qué era qué).
+      const demasiado = yaDevuelto > total + 0.01;
       res.status(400).json({
         success: false,
         message:
-          `Este pago ya fue devuelto por completo ($${yaDevuelto.toLocaleString('es-AR')} de ` +
-          `$${total.toLocaleString('es-AR')}). No queda nada por devolver.`,
+          `Este pago ya fue devuelto por completo ($${devueltoPorMercadoPago.toLocaleString('es-AR')} por Mercado Pago y $${acreditadoAlSaldo.toLocaleString('es-AR')} al saldo del cliente, ` +
+          `de $${total.toLocaleString('es-AR')} cobrados). No queda nada por devolver.` +
+          (demasiado ? ' Ojo: lo devuelto o acreditado supera lo cobrado, puede haber una acreditación duplicada: revisá los movimientos antes de seguir.' : ''),
+        devueltoPorMercadoPago,
+        acreditadoAlSaldo,
+        total,
       });
       return;
     }
+
+    // La opción elegida en «Devolver dinero». Las de cancelación se calculan acá, desde las partes del pago, y no con el número que mandó la pantalla; cierran el pago
+    // porque lo que no vuelve (procesamiento y, si corresponde, comisión) se retiene a propósito.
+    const desglose = desgloseDelPago(payment as any);
+    const claveDeOpcion = ['cancelacion_a_tiempo', 'cancelacion_con_trabajador', 'total', 'personalizado'].includes(String(opcion))
+      ? String(opcion)
+      : monto !== undefined && monto !== null ? 'personalizado' : 'total';
+    if (claveDeOpcion === 'cancelacion_a_tiempo' || claveDeOpcion === 'cancelacion_con_trabajador') {
+      const op = opcionesDeDevolucion(desglose, disponibleParaDevolver).find((o) => o.clave === claveDeOpcion)!;
+      if (!op.disponible) {
+        res.status(400).json({ success: false, message: op.motivoNoDisponible || 'Esta opción no se puede usar con este pago.', disponible: disponibleParaDevolver });
+        return;
+      }
+      monto = op.monto;
+      esFinal = true;
+    }
+    const parcial = monto !== undefined && monto !== null;
+    const importe = parcial ? Number(monto) : disponibleParaDevolver;
 
     if (!(importe > 0) || importe > disponibleParaDevolver) {
       res.status(400).json({
@@ -185,6 +212,17 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
             : `El monto a devolver tiene que estar entre $1 y $${total.toLocaleString('es-AR')}.`,
         yaDevuelto,
         disponible: disponibleParaDevolver,
+      });
+      return;
+    }
+
+    // El comprobante va PRIMERO (pedido del dueño, 2026-11-20): no se devuelve plata sin el archivo que la respalda (la captura del reembolso en Mercado Pago, el
+    // comprobante del banco). Tiene que ser un archivo que se acaba de subir por /upload-proof: la dirección no puede apuntar a otro lado.
+    if (typeof comprobanteUrl !== 'string' || !/^\/uploads\/payment-proofs\/[\w.\-]+$/.test(comprobanteUrl)) {
+      res.status(400).json({
+        success: false,
+        code: 'COMPROBANTE_REQUERIDO',
+        message: 'Para devolver dinero primero subí el comprobante de la devolución (imagen o PDF).',
       });
       return;
     }
@@ -282,6 +320,52 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
     // lectura de arriba y esto pasó la llamada a MercadoPago, así que el valor
     // pudo cambiar: se relee dentro de la transacción en vez de confiar en el
     // que teníamos.
+    // El comprobante de la devolución queda guardado con el pago (se ve en «Detalles del pago (equipo)» como un comprobante del equipo) y la devolución anotada con todo
+    // lo que la explica: qué regla se usó, si se descontó la comisión, el monto, el medio y el archivo. Es lo que muestra la clasificación «Devueltos» de Pagos.
+    const referenciaDeLaDevolucion = String(referencia || '').trim().slice(0, 120);
+    const existentesDeComprobantes = await PaymentProof.count({ where: { paymentId: String(payment.id) } });
+    const comprobante: any = await PaymentProof.create({
+      paymentId: String(payment.id),
+      userId: adminId,
+      kind: 'admin_verification',
+      uploadedByRole: 'admin',
+      sequence: existentesDeComprobantes + 1,
+      fileUrl: comprobanteUrl,
+      fileType: ['pdf', 'png', 'jpeg', 'jpg'].includes((comprobanteUrl.split('.').pop() || '').toLowerCase()) ? (comprobanteUrl.split('.').pop() || 'jpg').toLowerCase() : 'jpg',
+      fileName: comprobanteUrl.split('/').pop() || 'comprobante-de-devolucion',
+      fileSize: 0,
+      bankReference: referenciaDeLaDevolucion || null,
+      status: 'approved',
+      verifiedBy: adminId,
+      verifiedAt: new Date(),
+      notes: `Comprobante de la devolución de $${importe.toLocaleString('es-AR')}${referenciaDeLaDevolucion ? ` · referencia ${referenciaDeLaDevolucion}` : ''}`,
+      isActive: false,
+      uploadedAt: new Date(),
+    } as any).catch(() => null);
+
+    const descuentaComision = claveDeOpcion === 'cancelacion_con_trabajador';
+    const entradaDeDevolucion = {
+      id: String((resultado.action as any)?.id || (resultado.action as any)?.externalReference || `dev-${Date.now()}`),
+      fecha: new Date().toISOString(),
+      monto: importe,
+      opcion: claveDeOpcion,
+      // Cancelación a tiempo: no se descuenta la comisión. Con trabajador o fuera de plazo: sí se descuenta (si existe). Total y personalizado: sin regla de cancelación.
+      cancelacion: claveDeOpcion === 'cancelacion_a_tiempo' ? 'a_tiempo' : claveDeOpcion === 'cancelacion_con_trabajador' ? 'con_trabajador' : null,
+      comisionDescontada: claveDeOpcion === 'cancelacion_a_tiempo' || claveDeOpcion === 'cancelacion_con_trabajador' ? descuentaComision && desglose.comision > 0 : null,
+      comision: desglose.comision,
+      ivaComision: desglose.ivaComision,
+      procesamientoRetenido: claveDeOpcion === 'cancelacion_a_tiempo' || claveDeOpcion === 'cancelacion_con_trabajador' ? Math.round((desglose.procesamiento + desglose.ivaProcesamiento) * 100) / 100 : null,
+      cierraElPago: esFinal,
+      medio: 'mercadopago',
+      idDeLaDevolucionEnMercadoPago: (resultado.action as any)?.externalReference ?? null,
+      comprobanteUrl,
+      comprobanteId: comprobante?.id ? String(comprobante.id) : null,
+      referencia: referenciaDeLaDevolucion || null,
+      motivo: String(motivo).trim(),
+      porId: String(adminId),
+      porNombre: (req.user as any)?.name ?? null,
+    };
+
     await sequelize.transaction(async (t) => {
       const bloqueado: any = await Payment.findByPk(payment.id, {
         lock: t.LOCK.UPDATE,
@@ -291,6 +375,8 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       bloqueado.refundedAmount = acumulado;
       bloqueado.refundedAt = new Date();
       bloqueado.refundedBy = adminId;
+      bloqueado.metadata = { ...(bloqueado.metadata || {}), devoluciones: [...(Array.isArray(bloqueado.metadata?.devoluciones) ? bloqueado.metadata.devoluciones : []), entradaDeDevolucion] };
+      bloqueado.changed('metadata', true);
 
       /**
        * Cuándo el pago queda cerrado.
@@ -334,6 +420,8 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       },
       metadata: {
         montoOriginal: total,
+        opcion: claveDeOpcion,
+        comprobanteUrl,
         parcial: !usarTotal,
         motivo: String(motivo).trim(),
         idDevolucion: (resultado.action as any)?.externalReference,
@@ -366,6 +454,64 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
     });
   } catch (error: any) {
     console.error("Error procesando la devolución:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * Lo que «Devolver dinero» necesita ver ANTES de devolver (pedido del dueño, 2026-11-20): las partes del pago (precio, comisión, IVA, procesamiento), lo que ya volvió por
+ * Mercado Pago, lo que ya se acreditó al saldo del cliente por este mismo pago (con cada movimiento), cuánto queda y las opciones calculadas.
+ * GET /api/admin/payments/:paymentId/refund-info
+ */
+router.get("/:paymentId/refund-info", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!isValidUUID(req.params.paymentId)) {
+      res.status(400).json({ success: false, message: "Pago inválido" });
+      return;
+    }
+    const pago: any = await Payment.findByPk(req.params.paymentId);
+    if (!pago) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+    const { sequelize } = await import("../../config/database.js");
+    const { QueryTypes } = await import("sequelize");
+    const { conSistema } = await import("../../db/contextoRls.js");
+    const movimientos = (await conSistema(() =>
+      sequelize.query(
+        `SELECT id, amount, status, type, description, created_at AS "createdAt", metadata->>'origen' AS origen
+           FROM balance_transactions
+          WHERE COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') = :pagoId
+            AND ((type = 'refund' AND status IN ('completed', 'pending'))
+              OR (type = 'adjustment' AND status = 'completed' AND metadata->>'origen' = 'correccion_doble_devolucion'))
+          ORDER BY created_at ASC`,
+        { replacements: { pagoId: String(pago.id) }, type: QueryTypes.SELECT },
+      ),
+    )) as Array<Record<string, unknown>>;
+    const acreditadoAlSaldo = Math.round(movimientos.reduce((s, m) => s + (Number(m.amount) || 0), 0) * 100) / 100;
+    const total = Number(pago.amount) || 0;
+    const devueltoPorMercadoPago = Math.round((Number(pago.refundedAmount) || 0) * 100) / 100;
+    const queda = Math.round((total - devueltoPorMercadoPago - acreditadoAlSaldo) * 100) / 100;
+    const desglose = desgloseDelPago(pago);
+    res.json({
+      success: true,
+      data: {
+        pagoId: String(pago.id),
+        mercadopago: Boolean(pago.mercadopagoPaymentId),
+        estado: pago.status,
+        total,
+        devueltoPorMercadoPago,
+        acreditadoAlSaldo,
+        movimientosAlSaldo: movimientos,
+        disponible: Math.max(0, queda),
+        // Lo devuelto o acreditado pasa de lo cobrado: casi seguro una acreditación duplicada. Se avisa en vez de esconderlo detrás de un «ya se devolvió».
+        sobreacreditado: queda < -0.01,
+        desglose,
+        opciones: opcionesDeDevolucion(desglose, Math.max(0, queda)),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error armando la información de la devolución:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -813,8 +959,14 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
     // Naming the resolved states instead means a payment can only leave this
     // list by actually reaching one of them -- and any status added later
     // surfaces here for review rather than disappearing from the panel.
+    // Condiciones sueltas que se juntan con AND (la búsqueda ocupa `Op.or`).
+    const condiciones: any[] = [];
     if (status === 'all') {
       // no status constraint
+    } else if (status === 'devueltos') {
+      // «Devueltos» (pedido del dueño, 2026-11-20): pagos con algo devuelto por Mercado Pago, cerrados como devueltos o con devoluciones anotadas (las nuevas traen la
+      // regla usada, el monto, el medio y el comprobante).
+      condiciones.push(literal(`("Payment"."status" = 'refunded' OR COALESCE("Payment"."refunded_amount", 0) > 0 OR ("Payment"."metadata"->'devoluciones') IS NOT NULL)`));
     } else if (status && status !== 'unverified') {
       where.status = status;
     } else {
@@ -854,7 +1006,8 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
     // Los intentos de pago sin completar (se tocó «Pagar» varias veces) no se listan por su cuenta: van anidados bajo el último pago de esa operación
     // (pedido del dueño, 2026-11-13). Con una búsqueda o un filtro de otro estado se ven todos (el pago que los lleva podría quedar fuera del resultado).
     const ocultaIntentos = !(search && String(search).trim()) && (!status || ['all', 'unverified', 'pending'].includes(String(status)));
-    if (ocultaIntentos) where[Op.and] = [literal(`NOT ${SQL_ES_UN_INTENTO_ANIDADO}`)];
+    if (ocultaIntentos) condiciones.push(literal(`NOT ${SQL_ES_UN_INTENTO_ANIDADO}`));
+    if (condiciones.length) where[Op.and] = condiciones;
 
     // Date range filter
     if (dateFrom || dateTo) {
@@ -1113,6 +1266,12 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
         comprobanteDuplicado: repetidas.get(String(row.id)) ?? null,
         intentos: intentosPorPago.get(String(row.id)) ?? [],
         enlaces: enlacesDe(row, originalPorId.get(String(row.id)) ?? row),
+        // Las devoluciones de este pago con todo lo que las explica (regla usada, comisión, monto, medio, comprobante). Las anteriores a este registro solo traen el monto.
+        devoluciones: Array.isArray(row.metadata?.devoluciones)
+          ? row.metadata.devoluciones
+          : Number(row.refundedAmount) > 0
+            ? [{ id: 'anterior', fecha: row.refundedAt ?? null, monto: Number(row.refundedAmount), opcion: null, cancelacion: null, comisionDescontada: null, medio: row.mercadopagoPaymentId ? 'mercadopago' : null, comprobanteUrl: null, motivo: null, porNombre: null, anterior: true }]
+            : [],
         situacion: resumen ? { trabajoId: idTrabajo, estadoFinal: resumen.estadoFinal, contrato: resumen.contrato, pago: resumen.pago, alerta: resumen.alerta } : null,
       };
     });

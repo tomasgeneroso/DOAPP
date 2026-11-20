@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import RefundModal from '../../components/admin/RefundModal';
+import DevolucionesDelPago from '../../components/admin/DevolucionesDelPago';
 import ReembolsoPorTransferenciaModal from '../../components/admin/ReembolsoPorTransferenciaModal';
 import PedidosDeReembolso from '../../components/admin/PedidosDeReembolso';
 import { getImageUrl } from "@/utils/imageUrl";
@@ -234,7 +235,7 @@ export default function PendingPayments() {
 
   // Sub-filter state for each tab
   // Con `?search=<id>` (se llega desde otra pantalla a UN pago) se busca en TODOS los estados: en «Pendiente» no aparecería un pago que ya está verificado o devuelto.
-  const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">(() => (new URLSearchParams(window.location.search).get("search") ? "all" : "pending"));
+  const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected" | "devueltos">(() => (new URLSearchParams(window.location.search).get("search") ? "all" : "pending"));
   const [workersSubFilter, setWorkersSubFilter] = useState<"pending" | "paid" | "disputed">("pending");
 
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
@@ -401,6 +402,9 @@ export default function PendingPayments() {
         params.append("status", "disputed");
       } else if (appSubFilter === "rejected") {
         params.append("status", "rejected");
+      } else if (appSubFilter === "devueltos") {
+        // Pagos con algo devuelto: cada uno trae sus devoluciones con la regla usada, el monto, el medio y el comprobante.
+        params.append("status", "devueltos");
       }
       // The search goes to the server. Filtering the loaded page in the
       // browser meant a match outside the first 50 rows of the active
@@ -1497,6 +1501,7 @@ export default function PendingPayments() {
             { id: "confirmed" as const, texto: "Confirmado para Pago", icono: <CheckCircle className="h-3.5 w-3.5" /> },
             { id: "disputed" as const, texto: "En Disputa", icono: <XCircle className="h-3.5 w-3.5" /> },
             { id: "rejected" as const, texto: "Rechazados", icono: <Ban className="h-3.5 w-3.5" /> },
+            { id: "devueltos" as const, texto: "Devueltos", icono: <Undo2 className="h-3.5 w-3.5" /> },
           ]}
         />
       )}
@@ -1655,6 +1660,7 @@ export default function PendingPayments() {
                           {appSubFilter === "confirmed" && "No hay pagos confirmados para pago"}
                           {appSubFilter === "disputed" && "No hay pagos en disputa"}
                           {appSubFilter === "rejected" && "No hay pagos rechazados"}
+                          {appSubFilter === "devueltos" && "No hay pagos con devoluciones"}
                         </td>
                       </tr>
                     ) : (
@@ -2067,6 +2073,14 @@ export default function PendingPayments() {
                             </div>
                           </td>
                         </tr>
+                        {/* «Devueltos»: cada devolución con su regla (a tiempo o no, comisión descontada o no), el monto, el medio y el comprobante. */}
+                        {appSubFilter === "devueltos" && Array.isArray(payment.devoluciones) && payment.devoluciones.length > 0 && (
+                          <tr className="bg-sky-50/50 dark:bg-sky-900/10">
+                            <td colSpan={10} className="px-4 pb-3 pt-1">
+                              <DevolucionesDelPago devoluciones={payment.devoluciones} />
+                            </td>
+                          </tr>
+                        )}
                         {/* Los intentos de pago anteriores de esta operación (se tocó «Pagar» y no se completó): van debajo del pago, del más nuevo al más viejo, solo como rastro. */}
                         {Array.isArray(payment.intentos) && payment.intentos.length > 0 && (
                           <tr className="bg-gray-50/70 dark:bg-gray-900/30" data-testid="intentos-de-pago">
