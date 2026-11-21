@@ -751,6 +751,32 @@ export default function JobDetail() {
 
   // Trabajo de varios trabajadores: quien contrató confirma el trabajo de CADA uno desde «Trabajadores del proyecto» (cada trabajador tiene su contrato).
   const [confirmandoContratoId, setConfirmandoContratoId] = useState<string | null>(null);
+  // «Confirmar que todo el trabajo terminó» (pedido del dueño, 2026-11-21): confirma, uno por uno, los contratos en marcha que quien contrató todavía no confirmó.
+  const [confirmarTodosAbierto, setConfirmarTodosAbierto] = useState(false);
+  const [confirmandoTodos, setConfirmandoTodos] = useState(false);
+  const handleConfirmarTodos = async () => {
+    if (!token || confirmandoTodos) return;
+    const pendientes = (allContractsData?.contracts || []).filter((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed);
+    setConfirmandoTodos(true);
+    let fallo: string | null = null;
+    try {
+      for (const c of pendientes) {
+        const response = await fetch(`/api/contracts/${c.id}/confirm`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
+        const data = await response.json().catch(() => ({}));
+        if (!data.success) { fallo = `${c.doerName || "Un trabajador"}: ${data.message || "no se pudo confirmar"}`; break; }
+        if (data.contract?.status === "completed") setPostWorkPending(true);
+      }
+    } catch {
+      fallo = t("jobs.errorConfirming", "Error confirming the job");
+    } finally {
+      setConfirmandoTodos(false);
+      setConfirmarTodosAbierto(false);
+      fetchAllContracts();
+      setPollKey((k) => k + 1);
+    }
+    if (fallo) { setErrorMessage(fallo); setShowErrorModal(true); } else setShowConfirmationSuccessModal(true);
+  };
+
   const handleConfirmarContratoDe = async (contratoId: string) => {
     if (!token || confirmandoContratoId) return;
     setConfirmandoContratoId(contratoId);
@@ -1890,17 +1916,23 @@ export default function JobDetail() {
                             <div className="rounded-lg bg-slate-50 dark:bg-slate-700/40 p-2 text-sm">
                               {Array.from({ length: job.maxWorkers || 1 }, (_, i) => {
                                 const c = allContractsData?.contracts?.[i];
+                                // Sin trabajador elegido el lugar muestra su parte AUTOMÁTICA (el total en partes iguales), no $0 (pedido del dueño, 2026-11-21).
+                                const automatico = precioDeUnLugar(job as any);
                                 return (
-                                  <div key={i} className="flex justify-between gap-3 py-0.5">
-                                    <span className="text-gray-600 dark:text-gray-400">
+                                  <div key={i} className="flex justify-between gap-3 py-0.5" data-testid="reparto-por-lugar">
+                                    <span className="min-w-0 text-gray-600 dark:text-gray-400">
                                       Trabajador {i + 1}{c ? ` · ${c.doerName}` : " · sin asignar"}
+                                      {!c && <span className="block text-xs text-slate-500 dark:text-slate-400">monto automático</span>}
                                     </span>
-                                    <span className={`font-semibold ${c ? "text-gray-900 dark:text-white" : "text-slate-400"}`}>
-                                      ${Number(c?.price || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <span className={`shrink-0 font-semibold ${c ? "text-gray-900 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}>
+                                      ${Number(c ? c.price || 0 : automatico).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                   </div>
                                 );
                               })}
+                              <p className="mt-1 border-t border-slate-200 pt-1 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-400" data-testid="reparto-automatico-ayuda">
+                                El total se reparte en partes iguales entre los {job.maxWorkers} lugares. Si un trabajador se postula con otro monto, se muestra el suyo.
+                              </p>
                             </div>
                           )}
                           {contractData && Number(contractData.commission) > 0 && (
@@ -2112,6 +2144,11 @@ export default function JobDetail() {
                                     <Clock className="h-5 w-5" />
                                   )}
                                   {c.doerName}
+                                  {c.disputeId && (
+                                    <Link to={`/disputes/${c.disputeId}`} className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300" data-testid="en-reclamo-de-este-trabajador">
+                                      En reclamo · Ver
+                                    </Link>
+                                  )}
                                 </span>
                                 <div className="flex items-center gap-3">
                                   <span
@@ -2332,6 +2369,29 @@ export default function JobDetail() {
                           </Link>
                         </div>
                       </div>
+                    ) : allContractsData && allContractsData.totalContracts > 0 ? (
+                      // Hay contratos del equipo aunque ninguno sea «el mío»: se ve quién terminó el trabajo y quién tiene un reclamo (pedido del dueño, 2026-11-21).
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4" data-testid="confirmaciones-del-equipo">
+                        <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("jobs.completionConfirmations", "Completion Confirmations")}</p>
+                        <div className="space-y-2">
+                          {allContractsData.contracts.map((c) => (
+                            <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded bg-gray-50 p-2 dark:bg-gray-700/50">
+                              <span className="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+                                {c.doerName}
+                                {c.disputeId && (
+                                  <Link to={`/disputes/${c.disputeId}`} className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300" data-testid="en-reclamo-de-este-trabajador">
+                                    En reclamo · Ver
+                                  </Link>
+                                )}
+                              </span>
+                              <span className="flex items-center gap-3 text-sm">
+                                <span className={c.doerConfirmed ? "text-green-600" : "text-slate-400"}>{c.doerConfirmed ? "✓" : "…"} {t("common.worker", "Worker")}</span>
+                                <span className={c.clientConfirmed ? "text-green-600" : "text-slate-400"}>{c.clientConfirmed ? "✓" : "…"} {t("common.client", "Client")}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     ) : (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
@@ -2523,6 +2583,29 @@ export default function JobDetail() {
                                 / {allContractsData.totalContracts}
                               </span>
                             </div>
+                            {isOwnJob && allContractsData.contracts.some((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed) && (
+                              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20" data-testid="confirmar-todo-el-trabajo">
+                                {!confirmarTodosAbierto ? (
+                                  <button type="button" onClick={() => setConfirmarTodosAbierto(true)} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700" data-testid="confirmar-todo-el-trabajo-boton">
+                                    <CheckCircle className="h-4 w-4" />
+                                    Confirmar que todo el trabajo terminó
+                                  </button>
+                                ) : (
+                                  <div>
+                                    <p className="text-sm text-green-900 dark:text-green-100">
+                                      Vas a confirmar el trabajo de <strong>todos</strong> los trabajadores que todavía no confirmaste ({allContractsData.contracts.filter((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed).length}). Si alguno no terminó, confirmá solo a los que sí desde su tarjeta.
+                                    </p>
+                                    <div className="mt-2 flex gap-2">
+                                      <button type="button" onClick={handleConfirmarTodos} disabled={confirmandoTodos} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60" data-testid="confirmar-todo-el-trabajo-si">
+                                        {confirmandoTodos ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                        Sí, confirmar todos
+                                      </button>
+                                      <button type="button" onClick={() => setConfirmarTodosAbierto(false)} disabled={confirmandoTodos} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 dark:border-slate-600 dark:bg-slate-700 dark:text-white">Todavía no</button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {allContractsData.allCompleted && (
                               <div className="mt-3 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
                                 <p className="text-green-700 dark:text-green-300 font-medium">

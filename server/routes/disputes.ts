@@ -787,6 +787,9 @@ router.post(
         ],
       });
 
+      // Notificación en la app para la otra parte, el equipo asignado y, si escribe el equipo, las dos partes (pedido del dueño, 2026-11-21).
+      await (await import('../services/avisosDeMensajes.js')).avisarMensajeDeReclamo(dispute as any, String(userId));
+
       // Send email notification to the other party
       const sender = await User.findByPk(userId);
       const recipientId = dispute.initiatedBy === userId ? dispute.against : dispute.initiatedBy;

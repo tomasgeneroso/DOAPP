@@ -10,6 +10,7 @@ import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
 import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
 import { alCerrarseElTicket, resumenDelProblemaDelTicket } from "../../services/problemasDelTrabajo.js";
+import { avisarMensajeDeTicket } from "../../services/avisosDeMensajes.js";
 
 const router = express.Router();
 
@@ -305,6 +306,9 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
     ticket.changed('messages', true);
     await ticket.save();
     await ticket.reload();
+
+    // Si escribe quien abrió el ticket (por esta ruta), se avisa a quien lo atiende.
+    if (!req.user.adminRole) await avisarMensajeDeTicket(ticket as any, String(req.user.id));
 
     // Notificar al creador si el mensaje es de staff
     if (req.user.adminRole && !messageIsInternal) {

@@ -14,6 +14,7 @@ import { relacionesDelTicket, ErrorDeReporte } from "../services/reportesDeSopor
 import { siguienteNumeroDeTicket } from "../services/numeroDeTicket.js";
 import { sequelize } from "../config/database.js";
 import { logAudit } from "../utils/auditLog.js";
+import { avisarMensajeDeTicket } from "../services/avisosDeMensajes.js";
 import { alCerrarseElTicket, resumenDelProblemaDelTicket, seguirConElMismoTrabajo, ErrorDeProblema } from "../services/problemasDelTrabajo.js";
 
 const router = Router();
@@ -485,6 +486,9 @@ router.post(
           },
         ],
       });
+
+      // Notificación en la app (pedido del dueño, 2026-11-21): a quien lo abrió si responde el equipo, y a quien lo atiende si escribe quien lo abrió. Las notas internas no avisan a la persona.
+      if (!(isInternal && isAdmin)) await avisarMensajeDeTicket(ticket as any, String(req.user.id));
 
       // Send email notification to the other party
       const sender = await User.findByPk(req.user.id);

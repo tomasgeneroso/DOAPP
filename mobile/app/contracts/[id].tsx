@@ -724,6 +724,18 @@ export default function ContractDetailScreen() {
               </Text>
             </View>
 
+            {/* El reclamo de este contrato, para las dos partes (pedido del dueño, 2026-11-21). */}
+            {(contract as any).disputeId && (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: colors.danger[300], borderRadius: borderRadius.lg, paddingVertical: spacing.md, marginTop: spacing.md }}
+                onPress={() => router.push(`/disputes/${(contract as any).disputeId}` as any)}
+                accessibilityRole="link"
+                testID="ver-el-reclamo-del-contrato"
+              >
+                <Text style={{ color: colors.danger[700], fontWeight: fontWeight.semibold, fontSize: fontSize.sm }}>Ver el reclamo de este contrato</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Trabajador: recordatorio de tocar «Completé el trabajo» (si no, se confirma solo a las 24 h sin oposición). Quien contrató: «Hubo problemas durante el trabajo». */}
             {isDoer && !contract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <RecordatorioDeConfirmacion />}
             {isDoer && (contract as any).problemaAbierto && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <AvisoDeProblemaAbierto problema={(contract as any).problemaAbierto} soyQuienContrato={false} />}

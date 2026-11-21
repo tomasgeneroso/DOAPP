@@ -532,6 +532,9 @@ router.post(
         logs: [...currentLogs, newLog],
       });
 
+      // Las dos partes reciben una notificación (antes el equipo escribía y nadie se enteraba hasta entrar al reclamo).
+      await (await import("../../services/avisosDeMensajes.js")).avisarMensajeDeReclamo(dispute as any, String(req.user.id));
+
       // Reload with associations
       await dispute.reload({
         include: [

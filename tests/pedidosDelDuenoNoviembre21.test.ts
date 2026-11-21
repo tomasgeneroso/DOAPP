@@ -85,3 +85,49 @@ describe('devolver dinero después de una cancelación', () => {
     expect(m).toContain('!!info?.bloqueo');
   });
 });
+
+describe('vista del trabajo y del contrato (segundo pedido del 2026-11-21)', () => {
+  it('«Detalles de Pago»: un lugar sin trabajador muestra su parte automática (el total en partes iguales), no $0', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('const automatico = precioDeUnLugar(job as any)');
+    expect(j).toContain('data-testid="reparto-automatico-ayuda"');
+    expect(j).toContain('monto automático');
+  });
+
+  it('con equipo pero sin contrato propio, «Información del trabajo» muestra quién terminó y quién tiene reclamo', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('data-testid="confirmaciones-del-equipo"');
+    expect(j).toContain('data-testid="en-reclamo-de-este-trabajador"');
+  });
+
+  it('quien contrató puede confirmar a todos los trabajadores de una vez («todo el trabajo terminó») además de uno por uno', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('handleConfirmarTodos');
+    expect(j).toContain('data-testid="confirmar-todo-el-trabajo-boton"');
+    // solo los que están en marcha y todavía no confirmó quien contrató
+    expect(j).toContain('!c.clientConfirmed');
+  });
+
+  it('el reclamo se ve también desde el contrato (web y app)', () => {
+    expect(leer('client/pages/ContractDetail.tsx')).toContain('data-testid="ver-el-reclamo-del-contrato"');
+    expect(leer('mobile/app/contracts/[id].tsx')).toContain('testID="ver-el-reclamo-del-contrato"');
+  });
+
+  it('«Puntuación total» se despliega (y no anida un botón dentro de otro)', () => {
+    const m = leer('client/components/user/MultipleRatings.tsx');
+    expect(m).toContain('data-testid="puntuacion-total"');
+    expect(m).toContain('aria-expanded={abierto}');
+    expect(m).toContain('{abierto && (');
+    expect(m).toContain('role="button"');
+  });
+
+  it('los mensajes de reclamos y de tickets avisan con una notificación a quien no los escribió', () => {
+    const s = leer('server/services/avisosDeMensajes.ts');
+    expect(s).toContain('avisarMensajeDeReclamo');
+    expect(s).toContain('avisarMensajeDeTicket');
+    expect(leer('server/routes/disputes.ts')).toContain('avisarMensajeDeReclamo');
+    expect(leer('server/routes/admin/disputes.ts')).toContain('avisarMensajeDeReclamo');
+    expect(leer('server/routes/tickets.ts')).toContain('avisarMensajeDeTicket');
+    expect(leer('server/routes/admin/tickets.ts')).toContain('avisarMensajeDeTicket');
+  });
+});

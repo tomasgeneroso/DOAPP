@@ -10,7 +10,9 @@ import {
   MapPin,
   Briefcase,
   Handshake,
+  ChevronDown,
 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   DimensionKey,
@@ -251,6 +253,8 @@ export default function MultipleRatings({
   showAll = true,
 }: MultipleRatingsProps) {
   const { t } = useTranslation();
+  // «Puntuación total» se despliega para ver el detalle por papel y por dimensión (pedido del dueño, 2026-11-21).
+  const [abierto, setAbierto] = useState(false);
   const hasReviews = toNum(user.reviewsCount) > 0;
 
   const breakdown = user.ratingBreakdown;
@@ -277,7 +281,15 @@ export default function MultipleRatings({
   return (
     <div className="space-y-2">
       {/* Total / overall */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/30 dark:to-indigo-900/30 border border-sky-200 dark:border-sky-800 rounded-xl px-4 py-3 mb-1">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setAbierto((v) => !v)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAbierto((v) => !v); } }}
+        aria-expanded={abierto}
+        data-testid="puntuacion-total"
+        className="flex w-full cursor-pointer items-center justify-between bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/30 dark:to-indigo-900/30 border border-sky-200 dark:border-sky-800 rounded-xl px-4 py-3 mb-1 text-left"
+      >
         <div className="flex items-center gap-2">
           <div className="bg-sky-100 dark:bg-sky-800 rounded-lg p-1.5">
             <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-300" />
@@ -285,7 +297,9 @@ export default function MultipleRatings({
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
               {t("profile.ratings.total", "Puntuación total")}
-              <InfoIcono ayuda="Puntuación total" className="ml-1" />
+              <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <InfoIcono ayuda="Puntuación total" className="ml-1" />
+              </span>
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {hasReviews
@@ -304,9 +318,10 @@ export default function MultipleRatings({
         ) : (
           <span className="text-xs text-gray-400">—</span>
         )}
+        <ChevronDown className={`ml-2 h-4 w-4 shrink-0 text-sky-600 transition-transform dark:text-sky-300 ${abierto ? "rotate-180" : ""}`} aria-hidden="true" />
       </div>
 
-      {hasRoleBreakdown ? (
+      {abierto && (hasRoleBreakdown ? (
         <>
           {toNum(doerStats?.count) > 0 && (
             <RoleSection
@@ -331,7 +346,7 @@ export default function MultipleRatings({
             value={toNum(user[DIMENSION_UI[key].legacyKey])}
           />
         ))
-      )}
+      ))}
     </div>
   );
 }
