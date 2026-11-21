@@ -742,6 +742,36 @@ export default function JobDetail() {
     }
   };
 
+  // Trabajo de varios trabajadores: quien contrató confirma el trabajo de CADA uno desde «Trabajadores del proyecto» (cada trabajador tiene su contrato).
+  const [confirmandoContratoId, setConfirmandoContratoId] = useState<string | null>(null);
+  const handleConfirmarContratoDe = async (contratoId: string) => {
+    if (!token || confirmandoContratoId) return;
+    setConfirmandoContratoId(contratoId);
+    try {
+      const response = await fetch(`/api/contracts/${contratoId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchAllContracts();
+        setPollKey((k) => k + 1);
+        if (data.contract?.status === "completed") setPostWorkPending(true);
+        setShowConfirmationSuccessModal(true);
+      } else {
+        setErrorMessage(data.message || t("jobs.errorConfirming", "Error confirming the job"));
+        setShowErrorModal(true);
+        fetchAllContracts();
+      }
+    } catch (err) {
+      console.error("Error confirming contract:", err);
+      setErrorMessage(t("jobs.errorConfirming", "Error confirming the job"));
+      setShowErrorModal(true);
+    } finally {
+      setConfirmandoContratoId(null);
+    }
+  };
+
   // Handle opening chat with worker/client from contract
   const handleOpenChat = async () => {
     if (!contractData?.id || !token || loadingChat) return;
@@ -2157,6 +2187,9 @@ export default function JobDetail() {
                         {(contractData.status === "in_progress" || contractData.status === "awaiting_confirmation") &&
                           job.endDate &&
                           (() => {
+                            // Quien contrató puede confirmar en cuanto el trabajador avisó que terminó (o el contrato ya espera confirmación), sin esperar a los 5 minutos antes del fin
+                            // (pedido del dueño, 2026-11-21: no aparecía el botón del cliente en la vista del trabajo).
+                            if (isOwnJob && (contractData.doerConfirmed || contractData.status === "awaiting_confirmation")) return true;
                             const now = new Date();
                             const endDate = new Date(job.endDate);
                             const fiveMinutesBefore = new Date(
@@ -2408,6 +2441,28 @@ export default function JobDetail() {
                                     </div>
                                   </div>
                                 </div>
+                                {/* Quien contrató: confirma el trabajo de ESTE trabajador o avisa que hubo problemas. */}
+                                {isOwnJob && ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && (
+                                  <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="acciones-del-cliente-por-trabajador">
+                                    {!c.clientConfirmed && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleConfirmarContratoDe(String(c.id))}
+                                        disabled={confirmandoContratoId === String(c.id)}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                                        data-testid="confirmar-trabajo-de-este-trabajador"
+                                      >
+                                        {confirmandoContratoId === String(c.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                        Confirmar el trabajo de {c.doerName || "este trabajador"}
+                                      </button>
+                                    )}
+                                    {c.doerConfirmed && !c.clientConfirmed && (
+                                      <span className="text-xs text-green-700 dark:text-green-300">El trabajador ya avisó que terminó.</span>
+                                    )}
+                                    <HuboProblemas contractId={String(c.id)} className="!px-3 !py-2" />
+                                    <Link to={`/contracts/${c.id}`} className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">Ver contrato →</Link>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2639,8 +2694,10 @@ export default function JobDetail() {
             {/* Admin Details Panel */}
             {user?.adminRole && <AdminJobDetailsPanel job={job} clientInfo={clientInfo} />}
 
-            {/* Worker(s) Info - Public view of who is doing/did the work */}
-            {((job.doer && typeof job.doer === "object") ||
+            {/* Worker(s) Info - Public view of who is doing/did the work.
+                Quien ve «Trabajadores del proyecto» (el dueño y los trabajadores de un trabajo de varios) no ve esta tarjeta también: era la misma lista dos veces. */}
+            {!((isOwnJob || isWorkerOnJob) && allContractsData && allContractsData.totalContracts > 1) &&
+              ((job.doer && typeof job.doer === "object") ||
               (job.selectedWorkersData &&
                 job.selectedWorkersData.length > 0)) && (
               <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
@@ -4616,10 +4673,12 @@ export default function JobDetail() {
             )}
 
             {/* Trabajadores del Proyecto - Similar to ContractDetail */}
+            {/* Con más de un trabajador esta lista ya está arriba, con la confirmación de cada uno: no se repite acá (pedido del dueño, 2026-11-21). */}
             {isOwnJob &&
               allContractsData &&
               allContractsData.contracts &&
-              allContractsData.contracts.length > 0 && (
+              allContractsData.contracts.length > 0 &&
+              !(allContractsData.totalContracts > 1) && (
                 <div className="rounded-2xl border border-slate-700 bg-slate-800 overflow-hidden">
                   <div className="bg-slate-900/50 px-4 py-3 border-b border-slate-700">
                     <h3 className="font-semibold text-white flex items-center gap-2">

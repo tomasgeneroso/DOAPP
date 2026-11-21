@@ -45,6 +45,8 @@ import EmergencyButton from '../../components/EmergencyButton';
 import EscribirASoporte from '../../components/EscribirASoporte';
 import CompartirContrato from '../../components/CompartirContrato';
 import LiquidacionDelPago from '../../components/LiquidacionDelPago';
+import HuboProblemas from '../../components/HuboProblemas';
+import RecordatorioDeConfirmacion from '../../components/RecordatorioDeConfirmacion';
 import SituacionDeLaOperacion from '../../components/SituacionDeLaOperacion';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
@@ -489,6 +491,16 @@ export default function ContractDetailScreen() {
           />
         )}
 
+        {/* El contrato sale del presupuesto que el cliente ya pagó al publicar: no hay que pagar de nuevo. */}
+        {isClient && (contract as any).cubiertoPorLaPublicacion === true && ['pending', 'ready', 'accepted', 'in_progress'].includes(String(contract.status)) && (
+          <View style={[styles.section, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]} testID="contrato-ya-pago">
+            <Text style={[styles.sectionTitle, { color: colors.success[700] }]}>El pago ya está hecho</Text>
+            <Text style={{ color: colors.success[700], fontSize: fontSize.sm, lineHeight: 19 }}>
+              Este contrato está cubierto por el pago que hiciste al publicar el trabajo: queda en custodia y no tenés que pagar nada más. Si el trabajo es de varios trabajadores, el presupuesto se reparte entre ellos.
+            </Text>
+          </View>
+        )}
+
         {/* Contract Details */}
         <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
@@ -711,6 +723,10 @@ export default function ContractDetailScreen() {
                 {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} - {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
+
+            {/* Trabajador: recordatorio de tocar «Completé el trabajo» (si no, se confirma solo a las 24 h sin oposición). Quien contrató: «Hubo problemas durante el trabajo». */}
+            {isDoer && !contract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <RecordatorioDeConfirmacion />}
+            {isClient && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <HuboProblemas contractId={String(contract.id || (contract as any)._id)} />}
 
             {/* Horas propuestas */}
             {contract.proposedStartTime && (

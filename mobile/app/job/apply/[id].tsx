@@ -7,6 +7,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { get, post } from '../../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
+import { lugaresDelTrabajo, precioDeUnLugar } from '../../../../shared/jobs/precioDelLugar';
 
 export default function JobApplyScreen() {
   const router = useRouter();
@@ -28,7 +29,8 @@ export default function JobApplyScreen() {
       const res = await get<any>(`/jobs/${id}`);
       if (res.success) {
         setJob(res.job);
-        setProposedPrice(res.job.price?.toString() || '');
+        // En un trabajo de varios lugares el precio de partida es el de UN lugar (el total se reparte); si no, pedir el total se mostraba como «contraoferta».
+        setProposedPrice(precioDeUnLugar(res.job).toString() || '');
       }
     } catch (err) {
       console.error('Error loading job:', err);
@@ -116,9 +118,26 @@ export default function JobApplyScreen() {
               <View style={styles.jobMeta}>
                 <DollarSign size={14} color={themeColors.text.muted} />
                 <Text style={[styles.jobMetaText, { color: colors.primary[600] }]}>
-                  Presupuesto: ${Number(job.price).toLocaleString('es-AR')} ARS
+                  {lugaresDelTrabajo(job) > 1
+                    ? `Para vos (un lugar): $${precioDeUnLugar(job).toLocaleString('es-AR')} ARS`
+                    : `Presupuesto: $${Number(job.price).toLocaleString('es-AR')} ARS`}
                 </Text>
               </View>
+              {lugaresDelTrabajo(job) > 1 && (
+                <View style={[styles.avisoLugares, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]} testID="aviso-varios-lugares">
+                  <Text style={[styles.avisoTexto, { color: colors.primary[800] }]}>
+                    Este trabajo busca {lugaresDelTrabajo(job)} trabajadores ({Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 0} de {lugaresDelTrabajo(job)} ya elegidos): tu postulación queda como propuesta y el cliente elige a quiénes contrata.
+                  </Text>
+                  <Text style={[styles.avisoTexto, { color: colors.primary[800] }]}>
+                    El total de ${Number(job.price).toLocaleString('es-AR')} se divide entre los trabajadores: si te eligen, cobrás ${precioDeUnLugar(job).toLocaleString('es-AR')} (si al elegirte el cliente reparte distinto, lo ves en tu contrato).
+                  </Text>
+                  <Text style={[styles.avisoTexto, { color: colors.primary[800] }]}>
+                    {job.partialStartAllowed === false
+                      ? `Necesita los ${lugaresDelTrabajo(job)} trabajadores para empezar: no arranca hasta cubrir todos los lugares, aunque a vos te hayan elegido.`
+                      : `Puede empezar con menos de ${lugaresDelTrabajo(job)} trabajadores si el cliente lo confirma, así que tu trabajo podría empezar antes de que se complete el equipo.`}
+                  </Text>
+                </View>
+              )}
               {job.startDate && (
                 <View style={styles.jobMeta}>
                   <Calendar size={14} color={themeColors.text.muted} />
@@ -176,6 +195,8 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 17, fontWeight: '700', marginBottom: 10 },
   jobMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   jobMetaText: { fontSize: 14 },
+  avisoLugares: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 10, gap: 6 },
+  avisoTexto: { fontSize: 13, lineHeight: 18 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 8, marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 16 },
   textArea: { height: 140, textAlignVertical: 'top' },

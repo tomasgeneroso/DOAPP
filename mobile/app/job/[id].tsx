@@ -50,7 +50,10 @@ import CambiarPresupuesto from '../../components/CambiarPresupuesto';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { leerLista, contratosDelTrabajo } from '../../services/respuesta';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
-import { getContractsByJob, confirmContract } from '../../services/contracts';
+import { getContractsByJob, confirmContract, getAllContractsByJob, type ContratoDelEquipo } from '../../services/contracts';
+import HuboProblemas from '../../components/HuboProblemas';
+import RecordatorioDeConfirmacion from '../../components/RecordatorioDeConfirmacion';
+import { precioDeUnLugar } from '../../../shared/jobs/precioDelLugar';
 import { Job, Proposal, UserSummary, Contract } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { getCategoryById } from '../../services/jobs';
@@ -407,6 +410,19 @@ export default function JobDetailScreen() {
     (job.doer as UserSummary)?.id === user.id
   ));
 
+  // «Trabajadores del proyecto»: en un trabajo de varios trabajadores, un contrato por cada uno. Se vuelve a pedir cada vez que cambia algo del trabajo o de los contratos.
+  const [equipo, setEquipo] = useState<ContratoDelEquipo[]>([]);
+  const esDeVariosLugares = (job?.maxWorkers || 1) > 1;
+  const veElEquipo = esDeVariosLugares && (isOwner || isWorkerSelected);
+  useEffect(() => {
+    if (!id || !isAuthenticated || !veElEquipo) { setEquipo([]); return; }
+    let vigente = true;
+    getAllContractsByJob(id)
+      .then((r) => { if (vigente && r.success) setEquipo((r as any).contracts || []); })
+      .catch(() => { /* el listado es un extra: si falla, queda lo último que se vio */ });
+    return () => { vigente = false; };
+  }, [id, isAuthenticated, veElEquipo, contracts, job?.status]);
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -549,7 +565,8 @@ export default function JobDetailScreen() {
             <View style={styles.infoRow}>
               <Users size={18} color={themeColors.text.secondary} />
               <Text style={[styles.infoText, { color: themeColors.text.primary }]}>
-                {job.maxWorkers} trabajadores máximo
+                {job.maxWorkers} trabajadores · el total se divide: ${precioDeUnLugar(job).toLocaleString('es-AR')} para cada uno
+                {(job as any).partialStartAllowed === false ? ' · necesita el equipo completo para empezar' : ' · puede empezar con menos si el cliente lo confirma'}
               </Text>
             </View>
           )}
@@ -756,6 +773,76 @@ export default function JobDetailScreen() {
                 )}
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* Recordatorio al trabajador: al terminar, «Completé el trabajo»; si no, se confirma solo a las 24 h sin oposición. */}
+        {!isOwner && isWorkerSelected && myContract && !myContract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(String(myContract.status)) && <RecordatorioDeConfirmacion />}
+
+        {/* Un trabajo de varios trabajadores: una sola lista, «Trabajadores del proyecto», con la confirmación y los problemas de cada uno. */}
+        {veElEquipo && equipo.length > 1 && (
+          <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} testID="trabajadores-del-proyecto">
+            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Trabajadores del proyecto ({equipo.length})</Text>
+            {equipo.map((c) => {
+              const enMarcha = ['in_progress', 'awaiting_confirmation'].includes(String(c.status));
+              return (
+                <View key={c.id} style={[styles.proposalItem, { borderColor: themeColors.border }]}>
+                  <Text style={[styles.proposalDoer, { color: themeColors.text.primary }]}>{c.doerName || 'Trabajador'}</Text>
+                  <View style={styles.confirmRow}>
+                    <View style={styles.confirmStatus}>
+                      <CheckCircle size={16} color={c.doerConfirmed ? colors.success[500] : colors.slate[300]} />
+                      <Text style={[styles.confirmLabel, { color: themeColors.text.secondary }]}>Trabajador: {c.doerConfirmed ? 'confirmó' : 'pendiente'}</Text>
+                    </View>
+                    <View style={styles.confirmStatus}>
+                      <CheckCircle size={16} color={c.clientConfirmed ? colors.success[500] : colors.slate[300]} />
+                      <Text style={[styles.confirmLabel, { color: themeColors.text.secondary }]}>Cliente: {c.clientConfirmed ? 'confirmó' : 'pendiente'}</Text>
+                    </View>
+                  </View>
+                  {isOwner && enMarcha && (
+                    <>
+                      {!c.clientConfirmed && (
+                        <TouchableOpacity
+                          style={[styles.confirmButton, actionLoading && styles.buttonDisabled]}
+                          onPress={() => handleConfirmContract(String(c.id))}
+                          disabled={actionLoading}
+                          testID="confirmar-trabajo-de-este-trabajador"
+                        >
+                          {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                            <>
+                              <CheckCircle size={18} color="#fff" />
+                              <Text style={styles.confirmButtonText}>Confirmar el trabajo de {c.doerName || 'este trabajador'}</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      <HuboProblemas contractId={String(c.id)} />
+                    </>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Un solo trabajador: quien contrató confirma o avisa que hubo problemas mientras el trabajo está en marcha. */}
+        {isOwner && !esDeVariosLugares && myContract && ['in_progress', 'awaiting_confirmation'].includes(String(myContract.status)) && (
+          <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            {!myContract.clientConfirmed && myContract.status === 'in_progress' && myContract.doerConfirmed && (
+              <TouchableOpacity
+                style={[styles.confirmButton, actionLoading && styles.buttonDisabled]}
+                onPress={() => handleConfirmContract(myContract.id || '')}
+                disabled={actionLoading}
+                testID="confirmar-trabajo"
+              >
+                {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                  <>
+                    <CheckCircle size={18} color="#fff" />
+                    <Text style={styles.confirmButtonText}>El trabajador terminó: confirmar el trabajo</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+            <HuboProblemas contractId={String(myContract.id || '')} />
           </View>
         )}
 

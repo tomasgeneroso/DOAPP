@@ -9,6 +9,7 @@ import { get, put, post } from '../../services/api';
 import { useQuoteStatus } from '../../hooks/useSocket';
 import { origenDelPago } from '../../services/pagos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import { lugaresDelTrabajo, precioDeUnLugar } from '../../../shared/jobs/precioDelLugar';
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: 'Pendiente',  color: '#92400e', bg: '#fef3c7' },
@@ -85,10 +86,54 @@ export default function ProposalDetailScreen() {
     }
   };
 
-  const handleApprove = () => {
+  /**
+   * Elegir a este trabajador. En un trabajo de varios lugares (pedido del dueño, 2026-11-21, igual que en la web) se ofrece «elegir y esperar al resto» o «elegir y empezar
+   * con los elegidos», con cuántos van de cuántos y cuánto cobra cada uno. Empezar con los elegidos exige que uno ya haya aceptado su contrato: si todavía no, se explica.
+   */
+  const handleApprove = async () => {
+    const jobId = proposal?.job?.id || proposal?.job?._id || proposal?.jobId;
+    let lugares = 1;
+    let elegidos = 0;
+    let precioPorLugar = 0;
+    let puedeEmpezarConMenos = true;
+    if (jobId) {
+      try {
+        const r = await get<any>(`/jobs/${jobId}`);
+        const job = (r as any)?.job;
+        if (r.success && job) {
+          lugares = lugaresDelTrabajo(job);
+          elegidos = Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 0;
+          precioPorLugar = precioDeUnLugar(job);
+          puedeEmpezarConMenos = job.partialStartAllowed !== false;
+        }
+      } catch {
+        /* si no se pudo leer el trabajo, sigue la confirmación común: el servidor igual valida los lugares */
+      }
+    }
+    if (lugares > 1) {
+      const quedanLugares = elegidos + 1 < lugares;
+      const cuerpo =
+        `Este trabajo es de ${lugares} trabajadores y el total se divide entre ellos: cada uno cobra ${pesos(precioPorLugar)}.\n` +
+        `Ya tenés ${elegidos} elegido${elegidos === 1 ? '' : 's'}; con este van a ser ${elegidos + 1} de ${lugares}.` +
+        (quedanLugares
+          ? puedeEmpezarConMenos
+            ? '\n\nPodés esperar a completar el equipo o empezar con los elegidos (se cierran los lugares que faltan y lo no usado vuelve a tu saldo).'
+            : '\n\nEsta publicación necesita el equipo completo: no empieza hasta cubrir todos los lugares.'
+          : '');
+      const botones: any[] = [{ text: 'Cancelar', style: 'cancel' }];
+      botones.push({ text: quedanLugares ? 'Elegir y esperar al resto' : 'Elegir', onPress: () => aprobar(false, { jobId, lugares, elegidos }) });
+      if (quedanLugares && puedeEmpezarConMenos) botones.push({ text: 'Elegir y empezar con los elegidos', onPress: () => aprobar(true, { jobId, lugares, elegidos }) });
+      Alert.alert(`Elegir trabajador (${elegidos + 1} de ${lugares})`, cuerpo, botones);
+      return;
+    }
     Alert.alert('Aceptar propuesta', '¿Aceptás esta propuesta? Se creará el contrato automáticamente.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Aceptar', style: 'default', onPress: async () => {
+      { text: 'Aceptar', style: 'default', onPress: () => aprobar(false) },
+    ]);
+  };
+
+  const aprobar = async (empezar: boolean, varios?: { jobId: string; lugares: number; elegidos: number }) => {
+    {
         setActionLoading(true);
         try {
           const res = await put<any>(`/proposals/${proposal.id || id}/approve`, {});
@@ -116,9 +161,25 @@ export default function ProposalDetailScreen() {
           }
 
           if (res.success) {
-            Alert.alert('¡Aprobada!', 'La propuesta fue aprobada y el contrato creado.', [
-              { text: 'OK', onPress: () => router.back() },
-            ]);
+            let mensaje = 'La propuesta fue aprobada y el contrato creado.';
+            if (varios) {
+              mensaje = `Elegiste ${varios.elegidos + 1} de ${varios.lugares} trabajadores.`;
+              if (empezar && varios.elegidos + 1 < varios.lugares) {
+                try {
+                  const e = await post<any>(`/jobs/${varios.jobId}/start-with-current`, {});
+                  mensaje = e.success
+                    ? ((e as any).message || 'El trabajo empieza con los trabajadores elegidos.')
+                    : `${mensaje} Todavía no se puede empezar: ${(e as any).message || 'falta que el elegido acepte su contrato.'} Cuando se pueda, vas a ver el botón «Empezar con ${varios.elegidos + 1} de ${varios.lugares}» en el trabajo.`;
+                } catch {
+                  mensaje += ' No pudimos empezar ahora: probalo desde el trabajo cuando el elegido acepte su contrato.';
+                }
+              } else if (varios.elegidos + 1 < varios.lugares) {
+                mensaje += ` Faltan ${varios.lugares - varios.elegidos - 1}: el trabajo sigue abierto para recibir postulaciones.`;
+              } else {
+                mensaje += ' El equipo está completo.';
+              }
+            }
+            Alert.alert('¡Aprobada!', mensaje, [{ text: 'OK', onPress: () => router.back() }]);
           } else {
             Alert.alert('Error', (res as any).message || 'Error al aceptar');
           }
@@ -127,8 +188,7 @@ export default function ProposalDetailScreen() {
         } finally {
           setActionLoading(false);
         }
-      }},
-    ]);
+    }
   };
 
   const handleReject = () => {

@@ -56,7 +56,7 @@ const statusLabels: Record<string, string> = {
 
 export default function CreateDisputeScreen() {
   const router = useRouter();
-  const { contractId: contractIdFromUrl } = useLocalSearchParams<{ contractId?: string }>();
+  const { contractId: contractIdFromUrl, category: categoriaDeLaUrl } = useLocalSearchParams<{ contractId?: string; category?: string }>();
   const { colors: themeColors } = useTheme();
 
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -66,7 +66,8 @@ export default function CreateDisputeScreen() {
   const [formData, setFormData] = useState({
     reason: '',
     description: '',
-    category: 'quality_issues',
+    // «Hubo problemas durante el trabajo» (botón del contrato) llega con la categoría ya elegida.
+    category: ['service_not_delivered', 'incomplete_work', 'quality_issues', 'payment_issues', 'breach_of_contract', 'other'].includes(String(categoriaDeLaUrl)) ? String(categoriaDeLaUrl) : 'quality_issues',
   });
 
   const [loading, setLoading] = useState(false);

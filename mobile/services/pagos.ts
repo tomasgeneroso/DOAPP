@@ -228,6 +228,8 @@ export function puedePagarElContrato(contrato: any, soyElCliente: boolean): bool
   return Boolean(
     soyElCliente &&
       contrato &&
+      // Si el contrato sale del presupuesto que ya se pagó al publicar, no se paga de nuevo (lo calcula el servidor: `cubiertoPorLaPublicacion`).
+      contrato.cubiertoPorLaPublicacion !== true &&
       contrato.paymentMode !== 'on_completion' &&
       ['ready', 'accepted'].includes(String(contrato.status)) &&
       String(contrato.paymentStatus) === 'pending',

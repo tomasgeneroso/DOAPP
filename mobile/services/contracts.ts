@@ -54,6 +54,22 @@ export async function getContractsByJob(jobId: string): Promise<ApiResponse<{ co
 }
 
 /**
+ * Todos los contratos de un trabajo (trabajo de varios trabajadores): uno por trabajador, con quién confirmó. Solo lo ven las partes.
+ */
+export interface ContratoDelEquipo {
+  id: string;
+  doerId?: string;
+  doerName?: string;
+  status: string;
+  doerConfirmed: boolean;
+  clientConfirmed: boolean;
+  price?: number;
+}
+export async function getAllContractsByJob(jobId: string): Promise<ApiResponse<{ contracts: ContratoDelEquipo[]; totalContracts: number }>> {
+  return get<{ contracts: ContratoDelEquipo[]; totalContracts: number }>(`/contracts/all-by-job/${jobId}`);
+}
+
+/**
  * Crear contrato desde propuesta aprobada
  */
 export async function createContract(data: {

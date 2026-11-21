@@ -37,6 +37,24 @@ describe('confirmar el trabajo', () => {
   });
 });
 
+describe('la vista del trabajo: una sola lista de trabajadores y el botón de quien contrató', () => {
+  it('quien ve «Trabajadores del proyecto» no ve también «Trabajando en este proyecto»', () => {
+    const jd = leer('client/pages/JobDetail.tsx');
+    expect(jd).toContain('!((isOwnJob || isWorkerOnJob) && allContractsData && allContractsData.totalContracts > 1)');
+  });
+
+  it('la lista «Trabajadores del proyecto» de la barra lateral solo aparece con un trabajador (con más, ya está arriba)', () => {
+    expect(leer('client/pages/JobDetail.tsx')).toContain('!(allContractsData.totalContracts > 1) && (');
+  });
+
+  it('quien contrató confirma a cada trabajador desde la lista, y puede confirmar en cuanto el trabajador avisó que terminó', () => {
+    const jd = leer('client/pages/JobDetail.tsx');
+    expect(jd).toContain('data-testid="confirmar-trabajo-de-este-trabajador"');
+    expect(jd).toContain('handleConfirmarContratoDe');
+    expect(jd).toContain('if (isOwnJob && (contractData.doerConfirmed || contractData.status === "awaiting_confirmation")) return true;');
+  });
+});
+
 describe('recordatorio al trabajador y «Hubo problemas durante el trabajo»', () => {
   it('se recuerda al ser elegido y al empezar el trabajo que hay que tocar «Completé el trabajo» (se confirma solo a las 24 h si nadie se opone)', () => {
     expect(leer('server/routes/proposals.ts')).toContain('tocá «Completé el trabajo»');
