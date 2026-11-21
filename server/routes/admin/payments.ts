@@ -35,6 +35,33 @@ import { ErrorResponse } from '../../middleware/errorHandler.js';
 const router = Router();
 
 /**
+ * ¿La cancelación ya devolvió este pago? (pedido del dueño, 2026-11-21)
+ *
+ * Una cancelación devuelve sola lo que corresponde (a tiempo: monto − pasarela − IVA; con trabajador: además sin comisión) y retiene a propósito el resto. Si después se podía
+ * «Devolver dinero» a mano, se sumaba una segunda devolución sobre la misma plata (el caso de la auditoría «se devolvió más de lo que costó el pago»). Mientras haya un asiento de
+ * devolución por cancelación de este pago (acreditado o a favor pendiente de liquidar), no se devuelve más a mano: lo que falta se corrige con `ajustarSaldo`, con rastro.
+ */
+async function devolucionPorCancelacion(pagoId: string): Promise<{ cantidad: number; monto: number }> {
+  const { sequelize } = await import("../../config/database.js");
+  const { QueryTypes } = await import("sequelize");
+  const { conSistema } = await import("../../db/contextoRls.js");
+  const filas = (await conSistema(() =>
+    sequelize.query(
+      `SELECT COUNT(*)::int AS cantidad, COALESCE(SUM(amount), 0)::float AS monto
+         FROM balance_transactions
+        WHERE COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') = :pagoId
+          AND type = 'refund' AND status IN ('completed', 'pending')
+          AND metadata->>'origen' = 'cancelacion'`,
+      { replacements: { pagoId }, type: QueryTypes.SELECT },
+    ),
+  )) as Array<{ cantidad: number; monto: number }>;
+  return { cantidad: Number(filas[0]?.cantidad) || 0, monto: Number(filas[0]?.monto) || 0 };
+}
+
+const MENSAJE_YA_DEVUELTO_POR_CANCELACION = (monto: number) =>
+  `La cancelación ya devolvió este pago ($${monto.toLocaleString('es-AR')} al saldo del cliente, el resto se retiene a propósito). No se devuelve más a mano: así no se devuelve dos veces la misma plata. Si falta algo, se corrige con un ajuste de saldo que deje rastro.`;
+
+/**
  * Cómo se pagó, para los rótulos de la lista. Antes todo pago sin id de Mercado Pago figuraba como «Transferencia Bancaria», aunque se hubiera pagado por
  * Mercado Pago y todavía no estuviera confirmado: ahora manda lo que se eligió al pagar (`payments.payment_method`) y, si no está, el id de la pasarela.
  */
@@ -148,6 +175,12 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
      * dos pedidos llegan con milisegundos de diferencia: los dos leen el mismo
      * valor viejo y los dos se creen dentro del límite.
      */
+    const porCancelacion = await devolucionPorCancelacion(String(payment.id));
+    if (porCancelacion.cantidad > 0) {
+      res.status(409).json({ success: false, code: 'YA_DEVUELTO_POR_CANCELACION', message: MENSAJE_YA_DEVUELTO_POR_CANCELACION(porCancelacion.monto), acreditadoPorCancelacion: porCancelacion.monto });
+      return;
+    }
+
     const { sequelize } = await import("../../config/database.js");
     // Un pago existe en DOS lugares: lo que ya volvió por Mercado Pago (`refundedAmount`) y lo que el libro ya le acreditó al SALDO del cliente por ese mismo pago
     // (una cancelación, una baja de precio). Si se mirara solo el primero, un pago devuelto al saldo se podía devolver otra vez al medio de pago: dos veces la misma plata.
@@ -493,9 +526,12 @@ router.get("/:paymentId/refund-info", protect, requireRole('admin', 'super_admin
     const devueltoPorMercadoPago = Math.round((Number(pago.refundedAmount) || 0) * 100) / 100;
     const queda = Math.round((total - devueltoPorMercadoPago - acreditadoAlSaldo) * 100) / 100;
     const desglose = desgloseDelPago(pago);
+    const porCancelacion = await devolucionPorCancelacion(String(pago.id));
     res.json({
       success: true,
       data: {
+        // La cancelación ya devolvió este pago: la pantalla explica por qué no se puede devolver más y apaga las opciones.
+        bloqueo: porCancelacion.cantidad > 0 ? { codigo: 'YA_DEVUELTO_POR_CANCELACION', motivo: MENSAJE_YA_DEVUELTO_POR_CANCELACION(porCancelacion.monto) } : null,
         pagoId: String(pago.id),
         mercadopago: Boolean(pago.mercadopagoPaymentId),
         estado: pago.status,
@@ -536,6 +572,11 @@ router.post("/:paymentId/refund-transfer", protect, requireRole('admin', 'super_
     const bloqueoPropio = bloqueoPorAprobacionPropia(pago, req.user);
     if (bloqueoPropio) {
       res.status(bloqueoPropio.status).json(bloqueoPropio.body);
+      return;
+    }
+    const porCancelacion = await devolucionPorCancelacion(String(pago.id));
+    if (porCancelacion.cantidad > 0) {
+      res.status(409).json({ success: false, code: 'YA_DEVUELTO_POR_CANCELACION', message: MENSAJE_YA_DEVUELTO_POR_CANCELACION(porCancelacion.monto) });
       return;
     }
     const bloqueo = await bloqueoDelReembolso(pago);

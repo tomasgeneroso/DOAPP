@@ -64,6 +64,10 @@ export interface ContratoDelEquipo {
   doerConfirmed: boolean;
   clientConfirmed: boolean;
   price?: number;
+  /** Hay un aviso de «hubo problemas durante el trabajo» abierto en este contrato. */
+  problemaAbierto?: boolean;
+  /** El reclamo de este contrato (cada trabajador tiene el suyo). */
+  disputeId?: string | null;
 }
 export async function getAllContractsByJob(jobId: string): Promise<ApiResponse<{ contracts: ContratoDelEquipo[]; totalContracts: number }>> {
   return get<{ contracts: ContratoDelEquipo[]; totalContracts: number }>(`/contracts/all-by-job/${jobId}`);

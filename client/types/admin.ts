@@ -97,6 +97,8 @@ export interface TicketMessage {
 
 export interface Ticket {
   contractId: import("react/jsx-runtime").JSX.Element;
+  /** Si es un «hubo problemas durante el trabajo»: llevarlo a reclamo o seguir con el mismo trabajo. */
+  problemaDelTrabajo?: import("../../shared/tickets/problemasDelTrabajo").ProblemaDelTrabajo | null;
   id: string;
   ticketNumber: string;
   subject: string;

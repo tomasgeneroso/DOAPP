@@ -18,6 +18,7 @@ import {
   Sun,
   Moon,
   Gift,
+  Megaphone,
   Activity,
   Wifi,
   WifiOff,
@@ -231,8 +232,18 @@ export default function AdminLayout() {
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publicaciones'), roles: ["owner", "super_admin", "admin", "marketing", "support"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
+      ]
+    },
+    {
+      // Marketing (pedido del dueño, 2026-11-21): lo que sirve para comunicarse y captar gente va junto.
+      label: "marketing",
+      icon: Megaphone,
+      roles: ["owner", "super_admin", "admin", "marketing"],
+      items: [
         { path: "/admin/content-agent", icon: Sparkles, label: "Agente de contenido", roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/correos", icon: Mail, label: 'Correos a usuarios', roles: ["owner", "super_admin", "admin", "marketing"] },
+        // Códigos de familia e invitaciones de influencers: una sola entrada con dos pestañas.
+        { path: "/admin/codigos", icon: Gift, label: t('admin.sidebar.accessCodes', 'Códigos e invitaciones'), roles: ["owner"] },
       ]
     },
     {
@@ -269,8 +280,6 @@ export default function AdminLayout() {
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/auditoria-saldos", icon: Scale, label: t('admin.sidebar.balanceAudit', 'Auditoría de saldos'), roles: ["owner", "super_admin"] },
-        // Códigos de familia e invitaciones de influencers: una sola entrada con dos pestañas.
-        { path: "/admin/codigos", icon: Gift, label: t('admin.sidebar.accessCodes', 'Códigos e invitaciones'), roles: ["owner"] },
         { path: "/admin/business-plan", icon: Calculator, label: t('admin.sidebar.businessPlan', 'Proyección de gastos'), roles: ["owner"] },
         { path: "/admin/unit-economics", icon: TrendingUp, label: t('admin.sidebar.unitEconomics', 'Economía unitaria'), roles: ["owner"] },
       ]
@@ -304,6 +313,7 @@ export default function AdminLayout() {
     hubs: t('admin.sections.hubs', 'Hubs'),
     general: t('admin.sections.general', 'General'),
     operations: t('admin.sections.operations', 'Operations'),
+    marketing: t('admin.sections.marketing', 'Marketing'),
     padrones: t('admin.sections.padrones', 'Padrones'),
     finance: t('admin.sections.finance', 'Finance'),
     support: t('admin.sections.support', 'Support'),

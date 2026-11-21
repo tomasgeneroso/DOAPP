@@ -33,6 +33,7 @@ import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
 import { completarTrabajoSiTerminaron } from "../services/trabajoTerminado.js";
+import { reportarProblema, ErrorDeProblema, resumenDelProblemaDelContrato, contratosConProblemaAbierto, alConfirmarQuienContrato } from "../services/problemasDelTrabajo.js";
 
 const router = express.Router();
 
@@ -272,6 +273,8 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
       contract,
       // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
       liquidacion: await liquidacionDelContrato(contract),
+      // «Hubo problemas durante el trabajo» abierto en este contrato (para no ofrecer otro aviso y decir que el pago no se libera solo).
+      problemaAbierto: await resumenDelProblemaDelContrato(String(contract.id), { id: userId, adminRole: req.user.adminRole }),
     });
   } catch (error: any) {
     res.status(500).json({
@@ -863,13 +866,19 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
           attributes: ['id', 'name', 'avatar']
         }
       ],
-      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price']
+      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price', 'disputeId']
     });
+
+    const conProblema = await contratosConProblemaAbierto(contracts.map((c) => String(c.id)));
 
     res.json({
       success: true,
       contracts: contracts.map(c => ({
         price: Number((c as any).price) || 0,
+        // Hay un aviso de «hubo problemas» abierto: la vista del trabajo no vuelve a ofrecer el botón y dice que el pago no se libera solo.
+        problemaAbierto: conProblema.has(String(c.id)),
+        // El reclamo de ESTE contrato (cada trabajador tiene el suyo): la lista del equipo lleva a verlo.
+        disputeId: (c as any).disputeId ?? null,
         id: c.id,
         doerId: c.doerId,
         doerName: (c.doer as any)?.name || 'Trabajador',
@@ -969,6 +978,9 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Si el contrato sale del presupuesto que el cliente ya pagó al publicar: la pantalla del contrato no tiene que pedir otro pago (en un trabajo de 2 lugares pedía $5.000 más).
     plano.cubiertoPorLaPublicacion = contratoCubiertoPorLaPublicacion(contract as any, (contract as any).job);
+
+    // «Hubo problemas durante el trabajo» abierto: la pantalla muestra el ticket y que el pago no se libera solo. Lo ven las dos partes.
+    if (isParticipant) plano.problemaAbierto = await resumenDelProblemaDelContrato(String(contract.id), { id: String(req.user.id), adminRole: req.user.adminRole });
 
     // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
     plano.liquidacion = await liquidacionDelContrato(contract);
@@ -1390,6 +1402,24 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
  * Regla: el trabajador solo puede confirmar después de que transcurrió 30% de la duración del contrato.
  * Gracia: 5 horas para que la otra parte responda (auto-confirm).
  */
+// @route   POST /api/contracts/:id/hubo-problemas
+// @desc    Quien contrató avisa que hubo problemas durante el trabajo: abre un ticket y detiene la confirmación automática (pedido del dueño, 2026-11-21)
+// @access  Private (cliente del contrato)
+router.post("/:id/hubo-problemas", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { ticket, contract } = await reportarProblema({ contractId: req.params.id, userId: req.user.id.toString(), categoria: req.body?.categoria, detalle: req.body?.detalle });
+    socketService.notifyContractUpdate(contract.id.toString(), contract.clientId.toString(), contract.doerId.toString(), { action: 'problem_reported', contractId: contract.id });
+    cacheService.delPattern('contracts:*');
+    res.status(201).json({ success: true, ticket: { id: ticket.id, ticketNumber: ticket.ticketNumber }, message: 'Avisamos al equipo de DOAPP. La confirmación automática quedó detenida.' });
+  } catch (error: any) {
+    if (error instanceof ErrorDeProblema) {
+      res.status(error.status).json({ success: false, code: error.code, message: error.message, ...error.extra });
+      return;
+    }
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
 router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -1512,6 +1542,9 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       contract.confirmationHistory = history;
 
       await contract.save();
+
+      // Si había un aviso de «hubo problemas» abierto y quien contrató confirma, el problema queda resuelto.
+      if (isClient) await alConfirmarQuienContrato(String(contract.id)).catch(() => {});
 
       // Notificar a la otra parte
       const emailService = (await import('../services/email.js')).default;
@@ -1691,6 +1724,8 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     await contract.save();
+
+    if (isClient) await alConfirmarQuienContrato(String(contract.id)).catch(() => {});
 
     // El trabajo termina cuando terminaron todos sus contratos vigentes (ya no cuentan los cancelados ni rechazados).
     if (job) await completarTrabajoSiTerminaron(String(job.id));

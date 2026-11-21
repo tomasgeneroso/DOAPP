@@ -80,7 +80,7 @@ import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
 import ComprobantesDelPagoEquipo from "../components/jobs/ComprobantesDelPagoEquipo";
-import HuboProblemas from "../components/contracts/HuboProblemas";
+import HuboProblemas, { AvisoDeProblemaAbierto, type ProblemaAbierto } from "../components/contracts/HuboProblemas";
 import RecordatorioDeConfirmacion from "../components/contracts/RecordatorioDeConfirmacion";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
@@ -166,6 +166,8 @@ export default function JobDetail() {
     price?: number;
     commission?: number;
     totalPrice?: number;
+    /** «Hubo problemas durante el trabajo» abierto en este contrato (el pago no se libera solo). */
+    problemaAbierto?: ProblemaAbierto | null;
   } | null>(null);
 
   // All contracts for team jobs (to check if all workers confirmed)
@@ -180,6 +182,10 @@ export default function JobDetail() {
       status: string;
       /** Lo que cobra este trabajador (su parte del presupuesto). */
       price?: number;
+      /** Hay un aviso de «hubo problemas» abierto en este contrato. */
+      problemaAbierto?: boolean;
+      /** El reclamo de este contrato (cada trabajador tiene el suyo). */
+      disputeId?: string | null;
     }>;
     totalContracts: number;
     allClientConfirmed: boolean;
@@ -636,6 +642,7 @@ export default function JobDetail() {
             price: data.contract.price,
             commission: data.contract.commission,
             totalPrice: data.contract.totalPrice,
+            problemaAbierto: data.problemaAbierto ?? null,
           });
         }
       } catch (err) {
@@ -2441,6 +2448,15 @@ export default function JobDetail() {
                                     </div>
                                   </div>
                                 </div>
+                                {/* El reclamo de ESTE contrato, para las dos partes: cada trabajador tiene el suyo (pedido del dueño, 2026-11-21). */}
+                                {c.disputeId && (
+                                  <div className="mt-3" data-testid="reclamo-de-este-trabajador">
+                                    <Link to={`/disputes/${c.disputeId}`} className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20">
+                                      <AlertTriangle className="h-3.5 w-3.5" />
+                                      Ver el reclamo de {c.doerName || "este trabajador"}
+                                    </Link>
+                                  </div>
+                                )}
                                 {/* Quien contrató: confirma el trabajo de ESTE trabajador o avisa que hubo problemas. */}
                                 {isOwnJob && ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && (
                                   <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="acciones-del-cliente-por-trabajador">
@@ -2459,7 +2475,7 @@ export default function JobDetail() {
                                     {c.doerConfirmed && !c.clientConfirmed && (
                                       <span className="text-xs text-green-700 dark:text-green-300">El trabajador ya avisó que terminó.</span>
                                     )}
-                                    <HuboProblemas contractId={String(c.id)} className="!px-3 !py-2" />
+                                    <HuboProblemas contractId={String(c.id)} problema={c.problemaAbierto === true} className="!px-3 !py-2" />
                                     <Link to={`/contracts/${c.id}`} className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">Ver contrato →</Link>
                                   </div>
                                 )}
@@ -3162,7 +3178,8 @@ export default function JobDetail() {
 
                         {/* Trabajador: recordatorio de confirmar. Quien contrató: «Hubo problemas durante el trabajo». */}
                         {isWorkerOnJob && contractData && !contractData.doerConfirmed && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <RecordatorioDeConfirmacion className="mb-3" />}
-                        {isOwnJob && contractData && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <HuboProblemas contractId={String(contractData.id)} className="mb-3" />}
+                        {isWorkerOnJob && contractData?.problemaAbierto && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <AvisoDeProblemaAbierto problema={contractData.problemaAbierto} soyQuienContrato={false} className="mb-3" />}
+                        {isOwnJob && contractData && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <HuboProblemas contractId={String(contractData.id)} problema={contractData.problemaAbierto || null} className="mb-3" />}
 
                         <div className="flex flex-wrap items-center gap-3">
                           {contractData && !contractData.doerConfirmed && (

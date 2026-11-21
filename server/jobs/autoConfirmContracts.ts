@@ -9,6 +9,7 @@ import emailService from '../services/email.js';
 import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { pagableDesde } from '../services/liberacionDeSaldo.js';
 import { completarTrabajoSiTerminaron } from '../services/trabajoTerminado.js';
+import { confirmacionDetenidaPorProblema } from '../services/problemasDelTrabajo.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -80,6 +81,12 @@ export function startAutoConfirmContractsJob() {
 
         for (const contract of contractsToAutoConfirm) {
           try {
+            // «Hubo problemas durante el trabajo» (pedido del dueño, 2026-11-21): con un aviso abierto no se confirma solo ni se libera el pago; al resolverlo, el plazo empieza de nuevo.
+            if (await confirmacionDetenidaPorProblema(String(contract.id))) {
+              console.log(`⏸️ [CRON] Contrato "${contract.id}" con un problema avisado: no se confirma solo`);
+              continue;
+            }
+
             const job = contract.job;
             const client = contract.client as any;
             const doer = contract.doer as any;

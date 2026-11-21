@@ -43,6 +43,8 @@ interface Info {
   movimientosAlSaldo: Array<{ id: string; amount: number; status: string; description?: string; createdAt?: string; origen?: string }>;
   disponible: number;
   sobreacreditado: boolean;
+  /** La cancelación ya devolvió este pago: no se devuelve más a mano. */
+  bloqueo?: { codigo: string; motivo: string } | null;
   desglose: DesgloseDelPago;
   opciones: OpcionDeDevolucion[];
 }
@@ -237,6 +239,13 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
                 <div className="flex justify-between px-3 py-2 bg-slate-50 dark:bg-slate-900/40"><span className="font-semibold text-slate-900 dark:text-white">Se puede devolver hasta</span><span className="font-semibold text-slate-900 dark:text-white" data-testid="se-puede-devolver">{pesos(info.disponible)}</span></div>
               </div>
 
+              {info.bloqueo && (
+                <div className="flex gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-700 dark:bg-red-900/20 dark:text-red-100" role="alert" data-testid="devolucion-bloqueada">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{info.bloqueo.motivo}</span>
+                </div>
+              )}
+
               {info.sobreacreditado && (
                 <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100" role="alert" data-testid="aviso-sobreacreditado">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -250,7 +259,7 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
               <fieldset>
                 <legend className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Qué devolver</legend>
                 <div className="space-y-2">
-                  {info.opciones.map((o) => (
+                  {(info.bloqueo ? [] : info.opciones).map((o) => (
                     <label
                       key={o.clave}
                       className={`flex gap-3 items-start rounded-lg border p-3 ${o.disponible ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} ${opcion === o.clave ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-200 dark:border-slate-700'}`}
@@ -373,7 +382,7 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
             </button>
             <button
               onClick={devolver}
-              disabled={enviando || montoInvalido || !!falta}
+              disabled={enviando || montoInvalido || !!falta || !!info?.bloqueo}
               title={falta || undefined}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="confirmar-devolucion"

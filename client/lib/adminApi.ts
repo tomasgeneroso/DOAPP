@@ -12,6 +12,8 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
   return fetch(url, {
 
+    // El panel siempre muestra lo de ahora: una lectura guardada por el navegador dejaba el estado o la conversación como antes de cambiarlos.
+    cache: 'no-store',
     ...options,
     headers: {
 

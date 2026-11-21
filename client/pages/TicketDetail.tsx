@@ -2,7 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useEventoEnVivo } from "../hooks/useSocket";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import PanelDelProblema from "../components/contracts/PanelDelProblema";
+import type { ProblemaDelTrabajo } from "../../shared/tickets/problemasDelTrabajo";
 import {
   ArrowLeft,
   Send,
@@ -38,6 +41,8 @@ interface Ticket {
   updatedAt: string;
   resolution?: string;
   messages: TicketMessage[];
+  /** Si es un «hubo problemas durante el trabajo»: se puede llevar a reclamo o seguir con el mismo trabajo. */
+  problemaDelTrabajo?: ProblemaDelTrabajo | null;
   creator?: {
     id: string;
     name: string;
@@ -89,9 +94,10 @@ export default function TicketDetail() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadTicket = useCallback(async () => {
+  const loadTicket = useCallback(async (silencioso = false) => {
     try {
-      setLoading(true);
+      // Una recarga por un aviso en vivo no tapa la pantalla con el círculo de carga.
+      if (silencioso !== true) setLoading(true);
       const response = await fetch(`/api/tickets/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -112,6 +118,11 @@ export default function TicketDetail() {
   useEffect(() => {
     if (id) loadTicket();
   }, [id, loadTicket]);
+
+  // En vivo (regla del dueño, 2026-11-03): una respuesta nueva o un cambio de estado se ven sin recargar.
+  useEventoEnVivo(['ticket:updated', 'socket:reconectado'], (datos?: { ticketId?: string }) => {
+    if (!datos?.ticketId || datos.ticketId === id) void loadTicket(true);
+  });
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,6 +248,9 @@ export default function TicketDetail() {
             </div>
           )}
         </div>
+
+        {/* «Hubo problemas durante el trabajo»: llevarlo a reclamo o seguir con el mismo trabajo */}
+        {ticket.problemaDelTrabajo && <PanelDelProblema ticketId={ticket.id} problema={ticket.problemaDelTrabajo} onCambio={() => loadTicket(true)} />}
 
         {/* Messages */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">

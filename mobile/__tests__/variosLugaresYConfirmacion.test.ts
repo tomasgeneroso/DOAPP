@@ -11,6 +11,7 @@ import { esContraoferta, precioDeUnLugar } from '../../shared/jobs/precioDelLuga
  */
 const RAIZ = join(__dirname, '..');
 const leer = (ruta: string) => readFileSync(join(RAIZ, ruta), 'utf8').split('\r\n').join('\n');
+const leerShared = (ruta: string) => readFileSync(join(RAIZ, '..', 'shared', ruta), 'utf8').split('\r\n').join('\n');
 
 describe('contrato cubierto por la publicación', () => {
   const contrato = (over: Record<string, unknown> = {}) => ({ status: 'accepted', paymentStatus: 'pending', paymentMode: 'escrow', ...over });
@@ -63,12 +64,27 @@ describe('confirmar el trabajo y problemas', () => {
     expect(leer('components/RecordatorioDeConfirmacion.tsx')).toContain('Completé el trabajo');
     const h = leer('components/HuboProblemas.tsx');
     expect(h).toContain('Hubo problemas durante el trabajo');
-    expect(h).toContain("pathname: '/disputes/create'");
-    for (const c of ['incomplete_work', 'service_not_delivered', 'quality_issues', 'other']) expect(h).toContain(c);
+    // abre un ticket con lo que pasó (el reclamo se abre después, desde el ticket) y lleva a verlo
+    expect(h).toContain('/hubo-problemas');
+    expect(h).toContain('/tickets/${ticketId}');
+    expect(h).toContain('LARGO_MINIMO_DEL_RELATO');
+    for (const c of ['incomplete_work', 'service_not_delivered', 'quality_issues', 'other']) expect(leerShared('tickets/problemasDelTrabajo.ts')).toContain(c);
     const contrato = leer('app/contracts/[id].tsx');
     expect(contrato).toContain('<RecordatorioDeConfirmacion />');
     expect(contrato).toContain('<HuboProblemas');
+    expect(contrato).toContain('<AvisoDeProblemaAbierto');
     expect(leer('app/disputes/create.tsx')).toContain('categoriaDeLaUrl');
+  });
+
+  it('en el ticket de «hubo problemas» la app ofrece seguir con el mismo trabajo o llevarlo a reclamo', () => {
+    const p = leer('components/PanelDelProblema.tsx');
+    expect(p).toContain('testID="seguir-con-el-mismo-trabajo"');
+    expect(p).toContain('testID="llevar-a-reclamo"');
+    expect(p).toContain('/seguir-con-el-trabajo');
+    expect(p).toContain("pathname: '/disputes/create'");
+    expect(leer('app/tickets/[id].tsx')).toContain('<PanelDelProblema');
+    // la vista del trabajo no ofrece otro aviso si ya hay uno abierto
+    expect(leer('app/job/[id].tsx')).toContain('problema={c.problemaAbierto === true}');
   });
 
   it('en el trabajo hay una sola lista «Trabajadores del proyecto» con la confirmación de cada uno', () => {

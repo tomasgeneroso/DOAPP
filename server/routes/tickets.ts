@@ -13,6 +13,8 @@ import { esCategoriaDeTicket } from "../../shared/tickets/reportes.js";
 import { relacionesDelTicket, ErrorDeReporte } from "../services/reportesDeSoporte.js";
 import { siguienteNumeroDeTicket } from "../services/numeroDeTicket.js";
 import { sequelize } from "../config/database.js";
+import { logAudit } from "../utils/auditLog.js";
+import { alCerrarseElTicket, resumenDelProblemaDelTicket, seguirConElMismoTrabajo, ErrorDeProblema } from "../services/problemasDelTrabajo.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -378,9 +380,12 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    // Si es un «hubo problemas durante el trabajo», la pantalla ofrece llevarlo a un reclamo o seguir con el mismo trabajo.
+    const problemaDelTrabajo = await resumenDelProblemaDelTicket(ticket as any);
+
     res.json({
       success: true,
-      ticket,
+      ticket: { ...(ticket.toJSON() as any), problemaDelTrabajo },
     });
   } catch (error: any) {
     console.error("Get ticket error:", error);
@@ -553,6 +558,7 @@ router.put("/:id/close", protect, async (req: AuthRequest, res: Response): Promi
     ticket.closedBy = req.user.id;
 
     await ticket.save();
+    await alCerrarseElTicket(ticket as any);
 
     res.json({
       success: true,
@@ -565,6 +571,38 @@ router.put("/:id/close", protect, async (req: AuthRequest, res: Response): Promi
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+/**
+ * «Hubo problemas durante el trabajo» resuelto con el mismo trabajo (pedido del dueño, 2026-11-21): el ticket se cierra como resuelto, el contrato sigue y quien contrató
+ * puede aceptar el fin del trabajo de nuevo (el plazo de 24 h de la confirmación automática empieza de cero). Lo hace quien abrió el ticket o el equipo.
+ * POST /api/tickets/:id/seguir-con-el-trabajo
+ */
+router.post("/:id/seguir-con-el-trabajo", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { ticket, plazoNuevo } = await seguirConElMismoTrabajo({ ticketId: req.params.id, quien: { id: String(req.user.id), adminRole: req.user.adminRole }, nota: req.body?.nota });
+    if (req.user.adminRole) {
+      await logAudit({
+        req,
+        action: "ticket.seguir_con_el_trabajo",
+        category: "ticket",
+        severity: "low",
+        description: `Ticket ${ticket.ticketNumber} resuelto con el mismo trabajo`,
+        targetModel: "Ticket",
+        targetId: ticket.id.toString(),
+        targetIdentifier: ticket.ticketNumber,
+        metadata: { contractId: ticket.relatedContract, plazoNuevo },
+      }).catch(() => {});
+    }
+    res.json({ success: true, message: "El trabajo sigue. Quien contrató puede aceptar el fin del trabajo de nuevo.", plazoNuevo, ticket });
+  } catch (error: any) {
+    if (error instanceof ErrorDeProblema) {
+      res.status(error.status).json({ success: false, code: error.code, message: error.message });
+      return;
+    }
+    console.error("Seguir con el trabajo error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 

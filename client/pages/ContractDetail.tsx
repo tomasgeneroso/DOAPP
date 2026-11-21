@@ -49,7 +49,7 @@ import OrdenDePago from "@/components/pagos/OrdenDePago";
 import BotonReclamo from "@/components/pagos/BotonReclamo";
 import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
 import LiquidacionDelPago from "@/components/LiquidacionDelPago";
-import HuboProblemas from "@/components/contracts/HuboProblemas";
+import HuboProblemas, { AvisoDeProblemaAbierto } from "@/components/contracts/HuboProblemas";
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 
 export default function ContractDetail() {
@@ -963,7 +963,8 @@ export default function ContractDetail() {
 
                     {/* El trabajador: recordatorio de tocar «Completé el trabajo» (si no, se confirma solo a las 24 h sin oposición). Quien contrató: «Hubo problemas durante el trabajo». */}
                     {isDoer && !contract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && <RecordatorioDeConfirmacion className="mb-3" />}
-                    {isClient && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && <HuboProblemas contractId={String(contract.id)} className="mb-3 w-full" />}
+                    {isDoer && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && (contract as any).problemaAbierto && <AvisoDeProblemaAbierto problema={(contract as any).problemaAbierto} soyQuienContrato={false} className="mb-3" />}
+                    {isClient && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && <HuboProblemas contractId={String(contract.id)} problema={(contract as any).problemaAbierto || null} className="mb-3 w-full" />}
 
                     {/* Horas propuestas (si existen) */}
                     {contract.proposedStartTime && (

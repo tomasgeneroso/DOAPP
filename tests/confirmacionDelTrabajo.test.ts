@@ -75,14 +75,60 @@ describe('recordatorio al trabajador y «Hubo problemas durante el trabajo»', (
     expect(jd).toContain('<RecordatorioDeConfirmacion');
   });
 
-  it('«Hubo problemas durante el trabajo» abre el reclamo con la categoría elegida (lo que detiene la confirmación automática)', () => {
+  it('«Hubo problemas durante el trabajo» abre un TICKET con lo que pasó (no un reclamo directo) y lleva a verlo', () => {
     const h = leer('client/components/contracts/HuboProblemas.tsx');
     expect(h).toContain('Hubo problemas durante el trabajo');
-    expect(h).toContain('/disputes/create?contractId=');
-    for (const c of ['incomplete_work', 'service_not_delivered', 'quality_issues', 'other']) expect(h).toContain(c);
+    expect(h).toContain('/hubo-problemas');
+    expect(h).toContain('navigate(`/tickets/${data.ticket.id}`)');
+    expect(h).toContain('LARGO_MINIMO_DEL_RELATO');
+    // sin tocar «Enviar aviso» con el relato escrito no se manda nada
+    expect(h).toContain('disabled={!puedeEnviar}');
+    expect(leer('shared/tickets/problemasDelTrabajo.ts')).toContain("['incomplete_work', 'service_not_delivered', 'quality_issues', 'other']");
+  });
+
+  it('el reclamo sigue pudiéndose abrir desde el ticket, con la categoría elegida, y detiene la confirmación automática', () => {
+    expect(leer('client/components/contracts/PanelDelProblema.tsx')).toContain('/disputes/create?contractId=');
     expect(leer('client/pages/CreateDispute.tsx')).toContain("searchParams.get('category')");
     // la confirmación automática solo mira contratos «esperando confirmación»: un reclamo pasa el contrato a «disputed»
     expect(leer('server/jobs/autoConfirmContracts.ts')).toContain("status: 'awaiting_confirmation'");
     expect(leer('server/routes/disputes.ts')).toContain('contract.status = "disputed"');
+    // y el ticket del problema queda «llevado a reclamo»
+    expect(leer('server/routes/disputes.ts')).toContain('alAbrirseUnReclamo');
+  });
+});
+
+describe('el ticket de «hubo problemas»: pausa, seguir con el mismo trabajo o llevar a reclamo (pedido del dueño, 2026-11-21)', () => {
+  it('con un aviso abierto la confirmación automática se detiene, y tras resolverlo empieza un plazo nuevo', () => {
+    const cron = leer('server/jobs/autoConfirmContracts.ts');
+    expect(cron).toContain('confirmacionDetenidaPorProblema');
+    const s = leer('server/services/problemasDelTrabajo.ts');
+    expect(s).toContain('empezarPlazoNuevo');
+    expect(s).toContain('seguirConElMismoTrabajo');
+    expect(s).toContain('alAbrirseUnReclamo');
+  });
+
+  it('el servidor tiene la ruta para avisar y la de seguir con el mismo trabajo (quien abrió el ticket o el equipo)', () => {
+    expect(leer('server/routes/contracts.ts')).toContain('"/:id/hubo-problemas"');
+    expect(leer('server/routes/tickets.ts')).toContain('"/:id/seguir-con-el-trabajo"');
+    // cerrar el ticket por la vía de siempre también devuelve el plazo
+    expect(leer('server/routes/admin/tickets.ts')).toContain('alCerrarseElTicket');
+    expect(leer('server/routes/tickets.ts')).toContain('alCerrarseElTicket');
+  });
+
+  it('la web ofrece «seguir con el mismo trabajo» y «llevar a reclamo» en el ticket de quien contrató y en el del equipo', () => {
+    const p = leer('client/components/contracts/PanelDelProblema.tsx');
+    expect(p).toContain('data-testid="seguir-con-el-mismo-trabajo"');
+    expect(p).toContain('data-testid="llevar-a-reclamo"');
+    expect(p).toContain('/seguir-con-el-trabajo');
+    expect(leer('client/pages/TicketDetail.tsx')).toContain('<PanelDelProblema');
+    expect(leer('client/pages/admin/TicketDetail.tsx')).toContain('<PanelDelProblema');
+  });
+
+  it('el contrato y la vista del trabajo dicen que hay un aviso abierto y no ofrecen otro', () => {
+    expect(leer('client/pages/ContractDetail.tsx')).toContain('<AvisoDeProblemaAbierto');
+    expect(leer('client/pages/ContractDetail.tsx')).toContain('problema={(contract as any).problemaAbierto || null}');
+    const jd = leer('client/pages/JobDetail.tsx');
+    expect(jd).toContain('problema={c.problemaAbierto === true}');
+    expect(jd).toContain('<AvisoDeProblemaAbierto');
   });
 });

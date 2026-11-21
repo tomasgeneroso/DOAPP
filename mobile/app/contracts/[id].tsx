@@ -45,7 +45,7 @@ import EmergencyButton from '../../components/EmergencyButton';
 import EscribirASoporte from '../../components/EscribirASoporte';
 import CompartirContrato from '../../components/CompartirContrato';
 import LiquidacionDelPago from '../../components/LiquidacionDelPago';
-import HuboProblemas from '../../components/HuboProblemas';
+import HuboProblemas, { AvisoDeProblemaAbierto } from '../../components/HuboProblemas';
 import RecordatorioDeConfirmacion from '../../components/RecordatorioDeConfirmacion';
 import SituacionDeLaOperacion from '../../components/SituacionDeLaOperacion';
 import { Contract, Job, User as UserType } from '../../types';
@@ -726,7 +726,8 @@ export default function ContractDetailScreen() {
 
             {/* Trabajador: recordatorio de tocar «Completé el trabajo» (si no, se confirma solo a las 24 h sin oposición). Quien contrató: «Hubo problemas durante el trabajo». */}
             {isDoer && !contract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <RecordatorioDeConfirmacion />}
-            {isClient && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <HuboProblemas contractId={String(contract.id || (contract as any)._id)} />}
+            {isDoer && (contract as any).problemaAbierto && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <AvisoDeProblemaAbierto problema={(contract as any).problemaAbierto} soyQuienContrato={false} />}
+            {isClient && ['in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && <HuboProblemas contractId={String(contract.id || (contract as any)._id)} problema={(contract as any).problemaAbierto || null} />}
 
             {/* Horas propuestas */}
             {contract.proposedStartTime && (

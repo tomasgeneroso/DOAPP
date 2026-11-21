@@ -7,6 +7,7 @@
  * - `withdrawal:updated`   cambió un pedido de retiro suyo.
  * - `payment:updated`      cambió un pago en el que participa.
  * - `dispute:updated`      cambió un reclamo de un contrato suyo.
+ * - `ticket:updated`       cambió un ticket suyo (una respuesta nueva, un cambio de estado).
  * - `chat:actualizado`     hay un mensaje o una conversación nueva/cambiada (lista de chats y contador de no leídos).
  * - `notifications:refresh` cambiaron sus notificaciones sin ser nuevas (leídas desde otra pestaña).
  * - `admin:cambio`         a la sala de administración: algo de dinero, contratos, trabajos o reclamos cambió (las pantallas de administración recargan).
@@ -108,6 +109,19 @@ const TAREAS: Fuente = {
       delAdministrador('job', t.jobId),
     ];
   },
+};
+
+/**
+ * Los tickets: quien lo abrió y quien lo atiende ven al instante una respuesta nueva o un cambio de estado (antes la conversación quedaba como estaba hasta recargar), y el
+ * panel del equipo también (pedido del dueño, 2026-11-21).
+ */
+const TICKETS: Fuente = {
+  modelo: Ticket as never,
+  columnas: ['id', 'status', 'createdBy', 'assignedTo'],
+  avisos: (t: Fila) => [
+    { usuarios: [t.createdBy, t.assignedTo], evento: 'ticket:updated', datos: { ticketId: String(t.id), status: t.status }, clave: `ticket:${t.id}` },
+    delAdministrador('ticket', t.id),
+  ],
 };
 
 const PROPUESTAS: Fuente = {
@@ -314,8 +328,8 @@ export function instalarAvisosPorCambios(): void {
     NOTIFICACIONES,
     MENSAJES,
     CONVERSACIONES,
+    TICKETS,
     // Solo administración
-    soloParaAdministracion(Ticket, 'ticket', ['id', 'status']),
     soloParaAdministracion(AuditLog, 'audit'),
     soloParaAdministracion(BannedIdentity, 'user'),
     soloParaAdministracion(FamilyCode, 'code'),

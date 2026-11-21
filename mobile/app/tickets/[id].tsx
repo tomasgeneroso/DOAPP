@@ -29,7 +29,10 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, post } from '../../services/api';
+import { useSocket } from '../../hooks/useSocket';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import PanelDelProblema from '../../components/PanelDelProblema';
+import type { ProblemaDelTrabajo } from '../../../shared/tickets/problemasDelTrabajo';
 
 interface TicketMessage {
   id?: string;
@@ -51,6 +54,8 @@ interface Ticket {
   updatedAt: string;
   resolution?: string;
   messages: TicketMessage[];
+  /** Si es un «hubo problemas durante el trabajo»: llevarlo a reclamo o seguir con el mismo trabajo. */
+  problemaDelTrabajo?: ProblemaDelTrabajo | null;
   creator?: {
     id: string;
     name: string;
@@ -95,6 +100,7 @@ export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: themeColors } = useTheme();
   const { user } = useAuth();
+  const { subscribe } = useSocket();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +130,16 @@ export default function TicketDetailScreen() {
   useEffect(() => {
     if (id) loadTicket();
   }, [id, loadTicket]);
+
+  // En vivo: una respuesta nueva o un cambio de estado se ven sin recargar.
+  useEffect(() => {
+    if (!id) return;
+    const baja = subscribe('ticket:updated', (datos: { ticketId?: string }) => {
+      if (!datos?.ticketId || datos.ticketId === id) void loadTicket();
+    });
+    const bajaReconexion = subscribe('socket:reconectado', () => { void loadTicket(); });
+    return () => { baja?.(); bajaReconexion?.(); };
+  }, [id, subscribe, loadTicket]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -278,6 +294,9 @@ export default function TicketDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* «Hubo problemas durante el trabajo»: llevarlo a reclamo o seguir con el mismo trabajo */}
+          {ticket.problemaDelTrabajo && <PanelDelProblema ticketId={ticket.id} problema={ticket.problemaDelTrabajo} onCambio={loadTicket} />}
 
           {/* Messages */}
           <View style={[styles.messagesCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>

@@ -27,6 +27,7 @@ import {
   Send,
   AlertCircle,
   CheckCircle,
+  AlertTriangle,
   Users,
   Key,
   Copy,
@@ -51,7 +52,7 @@ import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { leerLista, contratosDelTrabajo } from '../../services/respuesta';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
 import { getContractsByJob, confirmContract, getAllContractsByJob, type ContratoDelEquipo } from '../../services/contracts';
-import HuboProblemas from '../../components/HuboProblemas';
+import HuboProblemas, { AvisoDeProblemaAbierto, type ProblemaAbierto } from '../../components/HuboProblemas';
 import RecordatorioDeConfirmacion from '../../components/RecordatorioDeConfirmacion';
 import { precioDeUnLugar } from '../../../shared/jobs/precioDelLugar';
 import { Job, Proposal, UserSummary, Contract } from '../../types';
@@ -76,6 +77,7 @@ export default function JobDetailScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [problemaAbierto, setProblemaAbierto] = useState<ProblemaAbierto | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -167,6 +169,8 @@ export default function JobDetailScreen() {
       const response = await getContractsByJob(id);
       // by-job devuelve UN contrato ({ success, contract }); la pantalla trabaja con una lista.
       setContracts(contratosDelTrabajo(response));
+      // «Hubo problemas durante el trabajo» abierto en este contrato (el pago no se libera solo).
+      setProblemaAbierto((response as any)?.problemaAbierto ?? null);
     } catch (error) {
       console.error('Error fetching contracts:', error);
     }
@@ -778,6 +782,7 @@ export default function JobDetailScreen() {
 
         {/* Recordatorio al trabajador: al terminar, «Completé el trabajo»; si no, se confirma solo a las 24 h sin oposición. */}
         {!isOwner && isWorkerSelected && myContract && !myContract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(String(myContract.status)) && <RecordatorioDeConfirmacion />}
+        {!isOwner && isWorkerSelected && myContract && problemaAbierto && ['in_progress', 'awaiting_confirmation'].includes(String(myContract.status)) && <AvisoDeProblemaAbierto problema={problemaAbierto} soyQuienContrato={false} />}
 
         {/* Un trabajo de varios trabajadores: una sola lista, «Trabajadores del proyecto», con la confirmación y los problemas de cada uno. */}
         {veElEquipo && equipo.length > 1 && (
@@ -798,6 +803,17 @@ export default function JobDetailScreen() {
                       <Text style={[styles.confirmLabel, { color: themeColors.text.secondary }]}>Cliente: {c.clientConfirmed ? 'confirmó' : 'pendiente'}</Text>
                     </View>
                   </View>
+                  {c.disputeId && (
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { backgroundColor: colors.danger[600] }]}
+                      onPress={() => router.push(`/disputes/${c.disputeId}` as any)}
+                      accessibilityRole="link"
+                      testID="reclamo-de-este-trabajador"
+                    >
+                      <AlertTriangle size={18} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Ver el reclamo de {c.doerName || 'este trabajador'}</Text>
+                    </TouchableOpacity>
+                  )}
                   {isOwner && enMarcha && (
                     <>
                       {!c.clientConfirmed && (
@@ -815,7 +831,7 @@ export default function JobDetailScreen() {
                           )}
                         </TouchableOpacity>
                       )}
-                      <HuboProblemas contractId={String(c.id)} />
+                      <HuboProblemas contractId={String(c.id)} problema={c.problemaAbierto === true} />
                     </>
                   )}
                 </View>
@@ -842,7 +858,7 @@ export default function JobDetailScreen() {
                 )}
               </TouchableOpacity>
             )}
-            <HuboProblemas contractId={String(myContract.id || '')} />
+            <HuboProblemas contractId={String(myContract.id || '')} problema={problemaAbierto} />
           </View>
         )}
 

@@ -1,5 +1,6 @@
 import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import Pestanas from "../../components/ui/Pestanas";
+import PanelDelProblema from "../../components/contracts/PanelDelProblema";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from "react-router-dom";
@@ -71,10 +72,11 @@ export default function TicketDetail() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [isInternal, setIsInternal] = useState(false);
   const [activeTab, setActiveTab] = useState<"conversation" | "notes">(
     "conversation",
   );
+  // Lo que se escribe es nota interna cuando se está mirando la pestaña de notas; en la conversación es una respuesta pública.
+  const isInternal = activeTab === "notes";
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [resolution, setResolution] = useState("");
   const [closingTicket, setClosingTicket] = useState(false);
@@ -112,8 +114,12 @@ export default function TicketDetail() {
     if (!message.trim() || !id) return;
     setSending(true);
     try {
-      await adminApi.tickets.addMessage(id, message, isInternal);
-      setMessage("");
+      const res = await adminApi.tickets.addMessage(id, message, isInternal);
+      if (!res?.success) {
+        alert((res as any)?.message || "Error al enviar el mensaje");
+      } else {
+        setMessage("");
+      }
       await loadTicket();
     } catch {
       alert("Error al enviar el mensaje");
@@ -132,7 +138,9 @@ export default function TicketDetail() {
         setUpdatingStatus(false);
         return;
       }
-      await adminApi.tickets.updateStatus(id, newStatus);
+      const res = await adminApi.tickets.updateStatus(id, newStatus);
+      // Antes no se miraba la respuesta: si el servidor lo rechazaba, la pantalla quedaba igual y no decía nada.
+      if (!res?.success) alert((res as any)?.message || "No se pudo cambiar el estado");
       await loadTicket();
     } catch {
       alert("Error al actualizar el estado");
@@ -297,6 +305,9 @@ export default function TicketDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
+          {/* «Hubo problemas durante el trabajo»: seguir con el mismo trabajo (el contrato vuelve a poder confirmarse) o que quien contrató lo lleve a reclamo */}
+          {ticket.problemaDelTrabajo && <PanelDelProblema ticketId={ticket.id} problema={ticket.problemaDelTrabajo} comoEquipo onCambio={loadTicket} />}
+
           {/* Tabs */}
           <Pestanas
             ariaLabel="Conversación y notas internas"
@@ -423,32 +434,11 @@ export default function TicketDetail() {
             {!isClosed && (
               <div className="border-t border-slate-200 dark:border-slate-700 p-4">
                 <form onSubmit={handleSendMessage}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsInternal(false)}
-                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-colors ${
-                        !isInternal
-                          ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-semibold"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                      }`}
-                    >
-                      <MessageSquare className="h-3 w-3" />
-                      Respuesta pública
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsInternal(true)}
-                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-colors ${
-                        isInternal
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                      }`}
-                    >
-                      <Lock className="h-3 w-3" />
-                      Nota interna
-                    </button>
-                  </div>
+                  {/* El modo sigue a la pestaña de arriba (antes había dos «notas internas»: la pestaña y este selector). */}
+                  <p className="mb-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400" data-testid="modo-de-escritura">
+                    {isInternal ? <Lock className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                    {isInternal ? "Escribís una nota interna: solo la ve el equipo." : "Escribís una respuesta pública: la ve quien abrió el ticket."}
+                  </p>
                   <div
                     className={`rounded-xl border transition-colors ${
                       isInternal

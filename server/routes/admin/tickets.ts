@@ -9,6 +9,7 @@ import { requirePermission, requireAdminRole } from "../../middleware/permission
 import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
 import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
+import { alCerrarseElTicket, resumenDelProblemaDelTicket } from "../../services/problemasDelTrabajo.js";
 
 const router = express.Router();
 
@@ -186,9 +187,12 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
       }
     }
 
+    // «Hubo problemas durante el trabajo»: el equipo ve si puede llevarlo a un reclamo o resolverlo con el mismo trabajo.
+    const problemaDelTrabajo = await resumenDelProblemaDelTicket(ticket as any);
+
     res.json({
       success: true,
-      data: ticket,
+      data: { ...(ticket.toJSON() as any), problemaDelTrabajo },
     });
   } catch (error: any) {
     res.status(500).json({
@@ -287,15 +291,19 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
     // Solo staff puede hacer comentarios internos
     const messageIsInternal = req.user.adminRole ? isInternal : false;
 
-    const messages = ticket.messages || [];
-    messages.push({
-      author: req.user.id,
-      message,
-      isInternal: messageIsInternal,
-      createdAt: new Date(),
-    } as any);
-
-    await ticket.update({ messages });
+    // Una lista NUEVA y `changed`: agregar al arreglo que ya tenía el ticket no le avisaba a Sequelize que la columna cambió, y la respuesta no se guardaba
+    // (el aviso salía igual, pero la conversación quedaba como estaba; reporte del dueño, 2026-11-21).
+    ticket.messages = [
+      ...(ticket.messages || []),
+      {
+        author: req.user.id,
+        message,
+        isInternal: messageIsInternal,
+        createdAt: new Date(),
+      } as any,
+    ];
+    ticket.changed('messages', true);
+    await ticket.save();
     await ticket.reload();
 
     // Notificar al creador si el mensaje es de staff
@@ -309,7 +317,8 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
         message: `${req.user.name} ha respondido a tu ticket`,
         relatedModel: "Ticket",
         relatedId: ticket.id,
-        actionUrl: `/admin/tickets/${ticket.id}`,
+        // La pantalla de quien abrió el ticket, no la del panel (a esa no puede entrar).
+        actionUrl: `/tickets/${ticket.id}`,
         actionText: "Ver ticket",
         sentVia: ["in_app"],
       });
@@ -419,6 +428,7 @@ router.put(
       if (status === 'resolved' && !(ticket as any).resolvedAt) updateData.resolvedAt = new Date();
       if (status === 'closed') updateData.closedAt = new Date();
       await ticket.update(updateData);
+      await alCerrarseElTicket(ticket as any);
       await ticket.reload({
         include: [{ model: User, as: 'creator', attributes: ['name', 'email'] }]
       });
@@ -510,6 +520,7 @@ router.put(
         closedAt: new Date(),
         closedBy: req.user.id,
       });
+      await alCerrarseElTicket(ticket as any);
 
       await ticket.reload({
         include: [
@@ -540,7 +551,7 @@ router.put(
         message: resolution || "Tu ticket ha sido cerrado",
         relatedModel: "Ticket",
         relatedId: ticket.id,
-        actionUrl: `/admin/tickets/${ticket.id}`,
+        actionUrl: `/tickets/${ticket.id}`,
         actionText: "Ver ticket",
         sentVia: ["in_app"],
       });

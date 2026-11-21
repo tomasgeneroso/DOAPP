@@ -55,6 +55,8 @@ interface Dispute {
 
 interface DisputeStats {
   total: number;
+  /** Reclamos que todavía están en manos de las partes (reclamo directo). */
+  negotiation?: number;
   open: number;
   inReview: number;
   resolved: number;
@@ -70,6 +72,18 @@ interface DisputeStats {
     partial_refund?: number;
   };
 }
+
+/** Cuánto le queda a las partes para arreglarlo entre ellas; vencido, el reclamo pasa solo a mediación en el próximo barrido. */
+const PlazoEntreLasPartes: React.FC<{ limite?: string | Date | null }> = ({ limite }) => {
+  if (!limite) return <span className="text-xs text-gray-500 dark:text-gray-400">Plazo sin fecha</span>;
+  const ms = new Date(limite).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  if (ms <= 0) return <span className="text-xs font-semibold text-red-600 dark:text-red-400">Plazo vencido: pasa solo a mediación</span>;
+  const horas = Math.floor(ms / 3_600_000);
+  const minutos = Math.floor((ms % 3_600_000) / 60_000);
+  const poco = ms < 24 * 3_600_000;
+  return <span className={`text-xs font-semibold ${poco ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>Quedan {horas} h {minutos} min</span>;
+};
 
 const AdminDisputeManager: React.FC = () => {
   const { t } = useTranslation();
@@ -110,6 +124,22 @@ const AdminDisputeManager: React.FC = () => {
       console.error('Error fetching disputes:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Pasar un reclamo directo a mediación del equipo antes de que venza el plazo de las partes (pedido del dueño, 2026-11-21). Pide la justificación acá mismo: sin ella
+   * el servidor rechaza, y con ella queda en el registro que ven las dos partes.
+   */
+  const pasarAMediacion = async (disputeId: string) => {
+    const justificacion = window.prompt(`El reclamo está en manos de las partes por ${POLITICAS.RECLAMO_DIRECTO_HORAS} h. ¿Por qué pasarlo ya a mediación? (15 caracteres o más; lo ven las dos partes en el registro)`);
+    if (justificacion === null) return;
+    try {
+      await axios.post(`${API_URL}/admin/disputes/${disputeId}/intervenir`, { justificacion }, { headers: { Authorization: `Bearer ${token}` } });
+      await fetchDisputes();
+      await fetchStats();
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'No se pudo pasar a mediación');
     }
   };
 
@@ -421,7 +451,7 @@ const AdminDisputeManager: React.FC = () => {
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <div
               onClick={() => { setFilterStatus(''); setPage(1); }}
               className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === '' ? 'ring-2 ring-sky-500' : ''}`}
@@ -437,6 +467,16 @@ const AdminDisputeManager: React.FC = () => {
                   </svg>
                 </div>
               </div>
+            </div>
+
+            <div
+              onClick={() => { setFilterStatus('negotiation'); setPage(1); }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'negotiation' ? 'ring-2 ring-sky-500' : ''}`}
+              data-testid="tarjeta-entre-las-partes"
+            >
+              <p className="text-sm text-gray-600 dark:text-gray-400">Entre las partes</p>
+              <p className="text-2xl font-bold text-sky-600">{stats.negotiation ?? 0}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Lo están hablando ellos ({POLITICAS.RECLAMO_DIRECTO_HORAS} h)</p>
             </div>
 
             <div
@@ -582,6 +622,7 @@ const AdminDisputeManager: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="">{t('common.all', 'All')}</option>
+                <option value="negotiation">Entre las partes (reclamo directo)</option>
                 <option value="open">{t('common.status.open', 'Open')}</option>
                 <option value="in_review">{t('common.status.inReview', 'In Review')}</option>
                 <option value="awaiting_info">{t('common.status.awaitingInfo', 'Awaiting Info')}</option>
@@ -746,6 +787,20 @@ const AdminDisputeManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(dispute.status)}
+                        {dispute.status === 'negotiation' && (
+                          <div className="mt-1.5 space-y-1" data-testid="plazo-entre-las-partes">
+                            <PlazoEntreLasPartes limite={(dispute as any).negotiationDeadline} />
+                            <button
+                              type="button"
+                              onClick={() => pasarAMediacion(dispute.id)}
+                              className="rounded-md border border-sky-300 px-2 py-0.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:text-sky-300 dark:hover:bg-sky-900/20"
+                              title="El plazo es de las partes. Pasarlo antes a mediación exige una justificación que queda en el registro."
+                              data-testid="pasar-a-mediacion"
+                            >
+                              Pasar a mediación
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getPaymentBadge(dispute.hasPayment)}
