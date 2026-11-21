@@ -131,3 +131,47 @@ describe('vista del trabajo y del contrato (segundo pedido del 2026-11-21)', () 
     expect(leer('server/routes/admin/tickets.ts')).toContain('avisarMensajeDeTicket');
   });
 });
+
+describe('quién terminó, quién aceptó y reclamos en la vista del trabajo y del contrato (tercer pedido del 2026-11-21)', () => {
+  it('«Trabajando en este proyecto», «Partes del contrato» y el contrato muestran si terminó, si aceptó y si hay reclamo', () => {
+    const e = leer('client/components/contracts/EstadoDeConfirmaciones.tsx');
+    expect(e).toContain('Terminó el trabajo');
+    expect(e).toContain('Aceptó el trabajo');
+    expect(e).toContain('data-testid="estado-en-reclamo"');
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('contratoDeTrabajador(worker.id)');
+    expect(j).toContain('data-testid="partes-del-equipo"');
+    expect(j).toContain('data-testid="cliente-acepto-n-de-n"');
+    expect(leer('client/pages/ContractDetail.tsx')).toContain('<EstadoDeConfirmaciones');
+    expect(leer('mobile/app/contracts/[id].tsx')).toContain('<EstadoDeConfirmaciones');
+  });
+
+  it('el trabajador llega a su contrato desde la vista del trabajo (el enlace es solo del contrato propio; quien contrató abre cualquiera)', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('const puedeAbrirElContrato');
+    expect(j).toContain('contractId={puedeAbrirElContrato(');
+  });
+
+  it('el aviso «el contrato va a aparecer» solo sale si de verdad no hay trabajador; con equipo elegido y el trabajo en curso se dice que no se pudo cargar y se puede reintentar', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('data-testid="contrato-no-cargo"');
+    expect(j).toContain('data-testid="reintentar-contrato"');
+  });
+
+  it('«Confirmar que todo el trabajo terminó» también está donde se ve el equipo sin contrato propio', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('const renderConfirmarTodo');
+    expect((j.match(/renderConfirmarTodo\(\)/g) || []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('el lugar libre dice qué es: «libre / todavía sin trabajador elegido» (antes «sin asignar» no se entendía)', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('todavía sin trabajador elegido · monto automático');
+    expect(j).not.toContain('" · sin asignar"');
+  });
+
+  it('un error al leer los avisos de problemas no rompe el contrato ni la lista del equipo', () => {
+    const s = leer('server/services/problemasDelTrabajo.ts');
+    expect((s.match(/\} catch \(error\) \{/g) || []).length).toBeGreaterThanOrEqual(3);
+  });
+});

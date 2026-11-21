@@ -46,6 +46,7 @@ import EscribirASoporte from '../../components/EscribirASoporte';
 import CompartirContrato from '../../components/CompartirContrato';
 import LiquidacionDelPago from '../../components/LiquidacionDelPago';
 import HuboProblemas, { AvisoDeProblemaAbierto } from '../../components/HuboProblemas';
+import EstadoDeConfirmaciones from '../../components/EstadoDeConfirmaciones';
 import RecordatorioDeConfirmacion from '../../components/RecordatorioDeConfirmacion';
 import SituacionDeLaOperacion from '../../components/SituacionDeLaOperacion';
 import { Contract, Job, User as UserType } from '../../types';
@@ -723,6 +724,11 @@ export default function ContractDetailScreen() {
                 {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} - {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
+
+            {/* Quién terminó y quién aceptó el trabajo, para las dos partes (pedido del dueño, 2026-11-21). */}
+            {(isClient || isDoer) && ['in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(String(contract.status)) && (
+              <EstadoDeConfirmaciones terminoElTrabajador={!!contract.doerConfirmed} acepto={!!contract.clientConfirmed} />
+            )}
 
             {/* El reclamo de este contrato, para las dos partes (pedido del dueño, 2026-11-21). */}
             {(contract as any).disputeId && (

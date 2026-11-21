@@ -50,6 +50,7 @@ import BotonReclamo from "@/components/pagos/BotonReclamo";
 import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
 import LiquidacionDelPago from "@/components/LiquidacionDelPago";
 import HuboProblemas, { AvisoDeProblemaAbierto } from "@/components/contracts/HuboProblemas";
+import EstadoDeConfirmaciones from "@/components/contracts/EstadoDeConfirmaciones";
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 
 export default function ContractDetail() {
@@ -746,6 +747,10 @@ export default function ContractDetail() {
                       {contract.client?.name || "N/A"}
                     </p>
                   )}
+                  {/* Si aceptó el fin del trabajo (lo ven las dos partes; pedido del dueño, 2026-11-21) */}
+                  {(isClient || isDoer) && (
+                    <EstadoDeConfirmaciones className="mt-1.5" mostrar="cliente" terminoElTrabajador={!!contract.doerConfirmed} acepto={!!contract.clientConfirmed} />
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.provider', 'Provider')}</p>
@@ -760,6 +765,10 @@ export default function ContractDetail() {
                     <p className="font-medium text-gray-900 dark:text-white">
                       {contract.doer?.name || "N/A"}
                     </p>
+                  )}
+                  {/* Si terminó el trabajo y si hay un reclamo */}
+                  {(isClient || isDoer) && (
+                    <EstadoDeConfirmaciones className="mt-1.5" mostrar="trabajador" terminoElTrabajador={!!contract.doerConfirmed} acepto={!!contract.clientConfirmed} disputeId={(contract as any).disputeId} />
                   )}
                 </div>
               </div>

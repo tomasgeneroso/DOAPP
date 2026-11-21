@@ -57,28 +57,40 @@ export async function problemaAbierto(contractId: string): Promise<Ticket | null
  * (si no, el contrato se confirmaba solo apenas se cerraba el ticket, porque el reloj viejo ya había vencido).
  */
 export async function confirmacionDetenidaPorProblema(contractId: string, ahora = new Date()): Promise<boolean> {
-  if (await problemaAbierto(contractId)) return true;
-  const ultimo = await conSistema(() =>
-    Ticket.findOne({
-      where: { relatedContract: contractId, tags: conLaEtiqueta } as any,
-      order: [['updatedAt', 'DESC']],
-      attributes: ['id', 'updatedAt'],
-    }),
-  );
-  if (!ultimo) return false;
-  return ahora.getTime() - new Date(ultimo.updatedAt as any).getTime() < HORAS * 60 * 60 * 1000;
+  try {
+    if (await problemaAbierto(contractId)) return true;
+    const ultimo = await conSistema(() =>
+      Ticket.findOne({
+        where: { relatedContract: contractId, tags: conLaEtiqueta } as any,
+        order: [['updatedAt', 'DESC']],
+        attributes: ['id', 'updatedAt'],
+      }),
+    );
+    if (!ultimo) return false;
+    return ahora.getTime() - new Date(ultimo.updatedAt as any).getTime() < HORAS * 60 * 60 * 1000;
+  } catch (error) {
+    // Ante la duda NO se confirma solo ni se libera plata: este barrido mueve dinero.
+    console.error('[problemasDelTrabajo] no se pudo comprobar si hay un aviso; se deja el contrato como está:', error);
+    return true;
+  }
 }
 
 /** Qué contratos de la lista tienen un problema abierto (para marcar cada trabajador en la vista del trabajo). */
 export async function contratosConProblemaAbierto(contractIds: string[]): Promise<Set<string>> {
   if (contractIds.length === 0) return new Set();
-  const tickets = await conSistema(() =>
-    Ticket.findAll({
-      where: { relatedContract: { [Op.in]: contractIds }, tags: conLaEtiqueta, status: { [Op.notIn]: ESTADOS_CERRADOS } } as any,
-      attributes: ['relatedContract'],
-    }),
-  );
-  return new Set(tickets.map((t) => String(t.relatedContract)));
+  // Los avisos de problemas son un agregado: si la consulta falla, la lista del equipo y los contratos se ven igual (antes un error acá dejaba la vista del trabajo sin contratos).
+  try {
+    const tickets = await conSistema(() =>
+      Ticket.findAll({
+        where: { relatedContract: { [Op.in]: contractIds }, tags: conLaEtiqueta, status: { [Op.notIn]: ESTADOS_CERRADOS } } as any,
+        attributes: ['relatedContract'],
+      }),
+    );
+    return new Set(tickets.map((t) => String(t.relatedContract)));
+  } catch (error) {
+    console.error('[problemasDelTrabajo] no se pudieron leer los avisos abiertos:', error);
+    return new Set();
+  }
 }
 
 /**
@@ -86,16 +98,22 @@ export async function contratosConProblemaAbierto(contractIds: string[]): Promis
  * solo sabe que hay un aviso abierto y de qué tipo, no lo que se escribió.
  */
 export async function resumenDelProblemaDelContrato(contractId: string, quienMira: { id: string; adminRole?: string | null }) {
-  const t = await problemaAbierto(contractId);
-  if (!t) return null;
-  const esDelTicket = String(t.createdBy) === String(quienMira.id) || hayEquipo(quienMira.adminRole);
-  return {
-    ticketId: esDelTicket ? t.id : null,
-    ticketNumber: esDelTicket ? t.ticketNumber : null,
-    categoria: problemaDeLasEtiquetas(t.tags)?.categoria ?? 'other',
-    abiertoEl: t.createdAt,
-    esMio: esDelTicket,
-  };
+  // Igual que arriba: el contrato se ve aunque no se pueda leer el aviso (el trabajador no podía abrir su contrato si esta consulta fallaba).
+  try {
+    const t = await problemaAbierto(contractId);
+    if (!t) return null;
+    const esDelTicket = String(t.createdBy) === String(quienMira.id) || hayEquipo(quienMira.adminRole);
+    return {
+      ticketId: esDelTicket ? t.id : null,
+      ticketNumber: esDelTicket ? t.ticketNumber : null,
+      categoria: problemaDeLasEtiquetas(t.tags)?.categoria ?? 'other',
+      abiertoEl: t.createdAt,
+      esMio: esDelTicket,
+    };
+  } catch (error) {
+    console.error('[problemasDelTrabajo] no se pudo leer el aviso del contrato:', error);
+    return null;
+  }
 }
 
 /** Lo que la pantalla de un ticket necesita para ofrecer «llevar a reclamo» y «seguir con el mismo trabajo». `null` si el ticket no es de un problema del trabajo. */

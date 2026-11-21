@@ -80,6 +80,7 @@ import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
 import ComprobantesDelPagoEquipo from "../components/jobs/ComprobantesDelPagoEquipo";
+import EstadoDeConfirmaciones from "../components/contracts/EstadoDeConfirmaciones";
 import HuboProblemas, { AvisoDeProblemaAbierto, type ProblemaAbierto } from "../components/contracts/HuboProblemas";
 import RecordatorioDeConfirmacion from "../components/contracts/RecordatorioDeConfirmacion";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
@@ -168,6 +169,8 @@ export default function JobDetail() {
     totalPrice?: number;
     /** «Hubo problemas durante el trabajo» abierto en este contrato (el pago no se libera solo). */
     problemaAbierto?: ProblemaAbierto | null;
+    /** El reclamo de este contrato. */
+    disputeId?: string | null;
   } | null>(null);
 
   // All contracts for team jobs (to check if all workers confirmed)
@@ -643,6 +646,7 @@ export default function JobDetail() {
             commission: data.contract.commission,
             totalPrice: data.contract.totalPrice,
             problemaAbierto: data.problemaAbierto ?? null,
+            disputeId: data.contract.disputeId ?? null,
           });
         }
       } catch (err) {
@@ -1471,6 +1475,47 @@ export default function JobDetail() {
   const clientId = clientInfo?.id;
   const userId = user?.id;
   const isOwnJob = user && clientId === userId;
+
+  /**
+   * El contrato de un trabajador para mostrar quién terminó, quién aceptó y si hay reclamo. Sale de la lista del equipo; si el trabajo tiene un solo contrato, del propio.
+   * Solo lo ven las partes (el público no ve confirmaciones ni reclamos). Quien contrató ve el contrato de cada uno; cada trabajador, el suyo.
+   */
+  const contratoDeTrabajador = (workerId?: string | null) => {
+    if (!workerId) return null;
+    const delEquipo = allContractsData?.contracts?.find((c) => String(c.doerId) === String(workerId));
+    if (delEquipo) return { id: delEquipo.id, doerId: delEquipo.doerId, terminoElTrabajador: !!delEquipo.doerConfirmed, acepto: !!delEquipo.clientConfirmed, disputeId: delEquipo.disputeId ?? null };
+    if (contractData && String(contractData.doerId) === String(workerId)) return { id: contractData.id, doerId: contractData.doerId, terminoElTrabajador: !!contractData.doerConfirmed, acepto: !!contractData.clientConfirmed, disputeId: contractData.disputeId ?? null };
+    return null;
+  };
+  const veLasConfirmaciones = () => Boolean(isOwnJob || isWorkerOnJob);
+  /** «Confirmar que todo el trabajo terminó»: se ofrece donde se ve el equipo, mientras haya trabajadores en marcha que quien contrató todavía no confirmó. */
+  const renderConfirmarTodo = () => {
+    if (!allContractsData || !allContractsData.contracts.some((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed)) return null;
+    return (
+          <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20" data-testid="confirmar-todo-el-trabajo">
+            {!confirmarTodosAbierto ? (
+              <button type="button" onClick={() => setConfirmarTodosAbierto(true)} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700" data-testid="confirmar-todo-el-trabajo-boton">
+                <CheckCircle className="h-4 w-4" />
+                Confirmar que todo el trabajo terminó
+              </button>
+            ) : (
+              <div>
+                <p className="text-sm text-green-900 dark:text-green-100">
+                  Vas a confirmar el trabajo de <strong>todos</strong> los trabajadores que todavía no confirmaste ({allContractsData.contracts.filter((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed).length}). Si alguno no terminó, confirmá solo a los que sí desde su tarjeta.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={handleConfirmarTodos} disabled={confirmandoTodos} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60" data-testid="confirmar-todo-el-trabajo-si">
+                    {confirmandoTodos ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    Sí, confirmar todos
+                  </button>
+                  <button type="button" onClick={() => setConfirmarTodosAbierto(false)} disabled={confirmandoTodos} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 dark:border-slate-600 dark:bg-slate-700 dark:text-white">Todavía no</button>
+                </div>
+              </div>
+            )}
+          </div>
+    );
+  };
+  const puedeAbrirElContrato = (doerId?: string | null) => Boolean(isOwnJob || (doerId && String(doerId) === String(userId)));
   const isDraft = job.status === "draft" || job.status === "pending_payment";
   // Un contrato que todavía no empezó (pendiente, listo o aceptado) no puede estar «terminado» aunque ya haya pasado la hora de fin: empieza solo a la
   // hora de inicio (server/services/cicloDelContrato.ts). Si no empezó es porque falta algo (el pago acreditado o resolver un pedido abierto), y eso
@@ -1855,6 +1900,15 @@ export default function JobDetail() {
                               {getClientInfo(job?.client)?.name ||
                                 t("common.client", "Client")}
                             </Link>
+                            {/* Quien contrató: si aceptó el fin del trabajo (de uno solo, o de cuántos trabajadores) */}
+                            {veLasConfirmaciones() && contractData && !(allContractsData && allContractsData.totalContracts > 1) && (
+                              <EstadoDeConfirmaciones className="mt-1.5" mostrar="cliente" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} />
+                            )}
+                            {veLasConfirmaciones() && allContractsData && allContractsData.totalContracts > 1 && (
+                              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400" data-testid="cliente-acepto-n-de-n">
+                                Aceptó el trabajo de {allContractsData.contracts.filter((c) => c.clientConfirmed).length} de {allContractsData.totalContracts} trabajadores
+                              </p>
+                            )}
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1883,6 +1937,21 @@ export default function JobDetail() {
                               <p className="font-medium text-gray-900 dark:text-white">
                                 {t("jobs.detail.pendingAssignment")}
                               </p>
+                            )}
+                            {/* Un trabajador: si terminó y si hay reclamo */}
+                            {veLasConfirmaciones() && contractData && !(allContractsData && allContractsData.totalContracts > 1) && (
+                              <EstadoDeConfirmaciones className="mt-1.5" mostrar="trabajador" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} disputeId={contractData.disputeId} contractId={puedeAbrirElContrato(contractData.doerId) ? contractData.id : null} />
+                            )}
+                            {/* Varios: cada trabajador con lo suyo */}
+                            {veLasConfirmaciones() && allContractsData && allContractsData.totalContracts > 1 && (
+                              <ul className="mt-2 space-y-2" data-testid="partes-del-equipo">
+                                {allContractsData.contracts.map((c) => (
+                                  <li key={c.id} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-700/40">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white">{c.doerName}</p>
+                                    <EstadoDeConfirmaciones className="mt-1" mostrar="trabajador" terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId} contractId={puedeAbrirElContrato(c.doerId) ? c.id : null} />
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                           </div>
                         </div>
@@ -1921,8 +1990,8 @@ export default function JobDetail() {
                                 return (
                                   <div key={i} className="flex justify-between gap-3 py-0.5" data-testid="reparto-por-lugar">
                                     <span className="min-w-0 text-gray-600 dark:text-gray-400">
-                                      Trabajador {i + 1}{c ? ` · ${c.doerName}` : " · sin asignar"}
-                                      {!c && <span className="block text-xs text-slate-500 dark:text-slate-400">monto automático</span>}
+                                      Lugar {i + 1}{c ? ` · ${c.doerName}` : " · libre"}
+                                      {!c && <span className="block text-xs text-slate-500 dark:text-slate-400">todavía sin trabajador elegido · monto automático</span>}
                                     </span>
                                     <span className={`shrink-0 font-semibold ${c ? "text-gray-900 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}>
                                       ${Number(c ? c.price || 0 : automatico).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -2391,6 +2460,17 @@ export default function JobDetail() {
                             </div>
                           ))}
                         </div>
+                        {isOwnJob && renderConfirmarTodo()}
+                      </div>
+                    ) : job.selectedWorkers && job.selectedWorkers.length > 0 && ["in_progress", "completed"].includes(String(job.status)) ? (
+                      // Ya hay trabajadores elegidos y el trabajo está en curso (o terminado): decir «va a aparecer cuando haya un trabajador» era falso. Se dice lo que pasa y se puede reintentar.
+                      <div className="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20" data-testid="contrato-no-cargo">
+                        <p className="text-sm text-amber-900 dark:text-amber-100">
+                          No pudimos cargar el contrato de este trabajo, aunque ya hay trabajadores elegidos. Probá de nuevo; si sigue así, escribinos desde «Escribir a soporte».
+                        </p>
+                        <button type="button" onClick={() => { fetchAllContracts(); setPollKey((k) => k + 1); }} className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700" data-testid="reintentar-contrato">
+                          Reintentar
+                        </button>
                       </div>
                     ) : (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
@@ -2583,29 +2663,7 @@ export default function JobDetail() {
                                 / {allContractsData.totalContracts}
                               </span>
                             </div>
-                            {isOwnJob && allContractsData.contracts.some((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed) && (
-                              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20" data-testid="confirmar-todo-el-trabajo">
-                                {!confirmarTodosAbierto ? (
-                                  <button type="button" onClick={() => setConfirmarTodosAbierto(true)} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700" data-testid="confirmar-todo-el-trabajo-boton">
-                                    <CheckCircle className="h-4 w-4" />
-                                    Confirmar que todo el trabajo terminó
-                                  </button>
-                                ) : (
-                                  <div>
-                                    <p className="text-sm text-green-900 dark:text-green-100">
-                                      Vas a confirmar el trabajo de <strong>todos</strong> los trabajadores que todavía no confirmaste ({allContractsData.contracts.filter((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed).length}). Si alguno no terminó, confirmá solo a los que sí desde su tarjeta.
-                                    </p>
-                                    <div className="mt-2 flex gap-2">
-                                      <button type="button" onClick={handleConfirmarTodos} disabled={confirmandoTodos} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60" data-testid="confirmar-todo-el-trabajo-si">
-                                        {confirmandoTodos ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                        Sí, confirmar todos
-                                      </button>
-                                      <button type="button" onClick={() => setConfirmarTodosAbierto(false)} disabled={confirmandoTodos} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 dark:border-slate-600 dark:bg-slate-700 dark:text-white">Todavía no</button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            {isOwnJob && renderConfirmarTodo()}
                             {allContractsData.allCompleted && (
                               <div className="mt-3 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
                                 <p className="text-green-700 dark:text-green-300 font-medium">
@@ -2840,14 +2898,20 @@ export default function JobDetail() {
                       <ExternalLink className="h-4 w-4 text-slate-400" />
                     </Link>
                   )}
+                {veLasConfirmaciones() && job.doer && typeof job.doer === "object" && !job.selectedWorkersData?.length && contratoDeTrabajador(job.doer.id) && (() => {
+                  const dt = contratoDeTrabajador(job.doer.id)!;
+                  return <EstadoDeConfirmaciones className="mt-3" terminoElTrabajador={dt.terminoElTrabajador} acepto={dt.acepto} disputeId={dt.disputeId} contractId={puedeAbrirElContrato(dt.doerId) ? dt.id : null} />;
+                })()}
 
                 {/* Multiple workers (team job) */}
                 {job.selectedWorkersData &&
                   job.selectedWorkersData.length > 0 && (
                     <div className="space-y-3">
-                      {job.selectedWorkersData.map((worker: any) => (
+                      {job.selectedWorkersData.map((worker: any) => {
+                        const delTrabajador = veLasConfirmaciones() ? contratoDeTrabajador(worker.id) : null;
+                        return (
+                        <div key={worker.id}>
                         <Link
-                          key={worker.id}
                           to={`/profile/${worker.id}`}
                           className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
                         >
@@ -2872,7 +2936,12 @@ export default function JobDetail() {
                           </div>
                           <ExternalLink className="h-4 w-4 text-slate-400" />
                         </Link>
-                      ))}
+                        {delTrabajador && (
+                          <EstadoDeConfirmaciones className="mt-2" terminoElTrabajador={delTrabajador.terminoElTrabajador} acepto={delTrabajador.acepto} disputeId={delTrabajador.disputeId} contractId={puedeAbrirElContrato(delTrabajador.doerId) ? delTrabajador.id : null} />
+                        )}
+                        </div>
+                        );
+                      })}
                     </div>
                   )}
 

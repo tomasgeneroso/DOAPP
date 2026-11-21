@@ -218,6 +218,28 @@ describe('hubo problemas durante el trabajo: ticket, pausa y vuelta a confirmar'
     expect(despues.body.contracts[0].problemaAbierto).toBe(true);
   });
 
+  it('si no se pueden leer los avisos de problemas, el contrato y la lista del equipo se ven igual (antes un error acá dejaba la vista del trabajo sin contratos)', async () => {
+    const c = await nuevo();
+    const f1 = jest.spyOn(Ticket, 'findAll').mockRejectedValue(new Error('falla simulada'));
+    const f2 = jest.spyOn(Ticket, 'findOne').mockRejectedValue(new Error('falla simulada'));
+    const silencio = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const equipo = await request(app).get(`/api/contracts/all-by-job/${c.jobId}`).set(como(cliente));
+      expect(equipo.status).toBe(200);
+      expect(equipo.body.contracts).toHaveLength(1);
+      expect(equipo.body.contracts[0].problemaAbierto).toBe(false);
+      for (const quien of [cliente, trabajador]) {
+        const g = await request(app).get(`/api/contracts/${c.id}`).set(como(quien));
+        expect(g.status).toBe(200);
+        expect(g.body.contract.problemaAbierto ?? null).toBeNull();
+      }
+      const porTrabajo = await request(app).get(`/api/contracts/by-job/${c.jobId}`).set(como(cliente));
+      expect(porTrabajo.status).toBe(200);
+    } finally {
+      f1.mockRestore(); f2.mockRestore(); silencio.mockRestore();
+    }
+  });
+
   it('la pantalla del ticket sabe si es un problema del trabajo y si se puede seguir con el mismo trabajo', async () => {
     const c = await nuevo();
     const r = await avisar(c.id, cliente);
