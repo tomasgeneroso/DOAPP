@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useSocket } from "../../hooks/useSocket";
+import { useSocket, useEventoEnVivo } from "../../hooks/useSocket";
 import {
   CheckCircle2,
   Circle,
@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Transicion from "../ui/Transicion";
+import RecordatorioDeConfirmacion from "../contracts/RecordatorioDeConfirmacion";
 
 interface JobTask {
   id: string;
@@ -36,6 +37,8 @@ interface JobWithTasks {
       avatar?: string;
     };
   };
+  /** El contrato de esta persona en el trabajo (cada trabajador tiene el suyo) y si ya confirmó. */
+  miContrato?: { id: string; status: string; doerConfirmed: boolean; clientConfirmed: boolean } | null;
   tasks: JobTask[];
   progress: number;
   totalTasks: number;
@@ -56,11 +59,12 @@ export default function WorkInProgress() {
   const [aviso, setAviso] = useState<{ jobId: string; ok: boolean; texto: string } | null>(null);
 
   // Fetch active tasks
-  const fetchActiveTasks = useCallback(async () => {
+  const fetchActiveTasks = useCallback(async (silencioso = false) => {
     if (!token) return;
 
     try {
-      setLoading(true);
+      // Las recargas en vivo y después de tocar algo no vuelven a tapar la tarjeta con el círculo.
+      if (!silencioso) setLoading(true);
       const response = await fetch("/api/jobs/my-active-tasks", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -88,11 +92,15 @@ export default function WorkInProgress() {
   const handleJobUpdate = useCallback((data: any) => {
     if (data.tasks && data.progress !== undefined) {
       // Refresh the list to get updated data
-      fetchActiveTasks();
+      fetchActiveTasks(true);
     }
   }, [fetchActiveTasks]);
 
   useEffect(() => registerJobUpdateHandler(handleJobUpdate), [registerJobUpdateHandler, handleJobUpdate]);
+
+  // Otra persona cambió una tarea (la lista es una sola y la comparten todos los trabajadores), alguien confirmó el trabajo o cambió el contrato: la tarjeta se pone al día sola
+  // (pedido del dueño, 2026-11-21: después de confirmar seguía ofreciendo «Completé el trabajo» y, con la lista vieja, decía «no puedes cambiar de in_progress a in_progress»).
+  useEventoEnVivo(['job:updated', 'contract:updated', 'socket:reconectado'], () => { void fetchActiveTasks(true); });
 
   // Update task status
   const handleUpdateStatus = async (jobId: string, task: JobTask, newStatus: "in_progress" | "completed") => {
@@ -115,9 +123,11 @@ export default function WorkInProgress() {
 
       if (data.success) {
         // Refresh the list
-        fetchActiveTasks();
+        fetchActiveTasks(true);
       } else {
         setError(data.message);
+        // Si el servidor rechazó el cambio es casi seguro porque la lista ya cambió (otro trabajador la tocó): se pone al día.
+        fetchActiveTasks(true);
       }
     } catch (err: any) {
       setError(err.message || t('jobs.errorUpdatingStatus', 'Error updating status'));
@@ -127,21 +137,27 @@ export default function WorkInProgress() {
   };
 
   /** «Completé el trabajo»: confirma el contrato como trabajador (la otra parte confirma después y se libera el pago). */
-  const completarTrabajo = async (jobId: string) => {
+  const completarTrabajo = async (jobId: string, contratoId?: string) => {
     if (!token) return;
     setTerminando(jobId);
     setAviso(null);
     try {
-      const cr = await fetch(`/api/contracts/by-job/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
-      const cd = await cr.json();
-      if (!cd.success || !cd.contract?.id) throw new Error(cd.message || 'No encontramos el contrato de este trabajo.');
-      const r = await fetch(`/api/contracts/${cd.contract.id}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+      let idDelContrato = contratoId;
+      if (!idDelContrato) {
+        const cr = await fetch(`/api/contracts/by-job/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const cd = await cr.json();
+        if (!cd.success || !cd.contract?.id) throw new Error(cd.message || 'No encontramos el contrato de este trabajo.');
+        idDelContrato = String(cd.contract.id);
+      }
+      const r = await fetch(`/api/contracts/${idDelContrato}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
       const d = await r.json();
       if (!d.success) throw new Error(d.message || 'No se pudo confirmar el trabajo.');
       setAviso({ jobId, ok: true, texto: d.message || 'Listo: avisamos que completaste el trabajo. Cuando el cliente lo confirme, se libera el pago.' });
-      fetchActiveTasks();
+      fetchActiveTasks(true);
     } catch (e) {
       setAviso({ jobId, ok: false, texto: e instanceof Error ? e.message : 'No se pudo confirmar el trabajo.' });
+      // Un «ya confirmaste» significa que la tarjeta estaba vieja: se actualiza para dejar de ofrecer el botón.
+      fetchActiveTasks(true);
     } finally {
       setTerminando(null);
     }
@@ -205,7 +221,7 @@ export default function WorkInProgress() {
       </Transicion>
 
       <div className="space-y-4">
-        {jobsWithTasks.map(({ job, tasks, progress, completedTasks, totalTasks }) => {
+        {jobsWithTasks.map(({ job, tasks, progress, completedTasks, totalTasks, miContrato }) => {
           // Cap progress at 90% (remaining 10% is for contract completion)
           const displayProgress = Math.min(Math.round(progress * 0.9), 90);
 
@@ -341,16 +357,28 @@ export default function WorkInProgress() {
 
               {/* Decir que se completó el trabajo, sin tener que abrirlo */}
               <div className="pt-2">
+                {!miContrato?.doerConfirmed && <RecordatorioDeConfirmacion className="mb-2" />}
+                {miContrato?.doerConfirmed ? (
+                  // Ya dijo que terminó: no se vuelve a ofrecer el botón, se dice en qué está.
+                  <p role="status" className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200" data-testid="trabajo-ya-confirmado">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {miContrato.clientConfirmed || miContrato.status === 'completed'
+                      ? 'Trabajo confirmado por las dos partes.'
+                      : 'Ya avisaste que completaste el trabajo. Esperando que el cliente lo confirme.'}
+                  </p>
+                ) : (
                 <button
                   type="button"
-                  onClick={() => completarTrabajo(job.id)}
+                  onClick={() => completarTrabajo(job.id, miContrato?.id)}
                   disabled={terminando === job.id}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  data-testid="completar-trabajo"
                 >
                   {terminando === job.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   Completé el trabajo
                 </button>
-                {aviso && aviso.jobId === job.id && (
+                )}
+                {aviso && aviso.jobId === job.id && !miContrato?.doerConfirmed && (
                   <p role={aviso.ok ? 'status' : 'alert'} className={`mt-2 text-sm ${aviso.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
                     {aviso.texto}
                   </p>

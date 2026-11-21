@@ -288,6 +288,14 @@ router.put(
           return;
         }
 
+        // La lista de tareas es una sola por trabajo y la comparten todos los trabajadores: si otro ya la pasó a ese estado, pedirlo de nuevo no es un error (antes decía
+        // «No puedes cambiar de "in_progress" a "in_progress"» a quien tenía la pantalla sin actualizar). Se responde que está hecho y la pantalla se pone al día.
+        if (status && task.status === status) {
+          const tareas = await getTasksWithStatus(jobId);
+          res.json({ success: true, message: "La tarea ya estaba en ese estado.", task: task.toJSON(), tasks: tareas, progress: JobTask.getProgressPercentage(tareas), sinCambios: true });
+          return;
+        }
+
         if (status) {
           // Check if task is unlocked
           if (!task.isUnlocked(allTasks)) {

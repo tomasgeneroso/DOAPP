@@ -49,6 +49,8 @@ import OrdenDePago from "@/components/pagos/OrdenDePago";
 import BotonReclamo from "@/components/pagos/BotonReclamo";
 import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
 import LiquidacionDelPago from "@/components/LiquidacionDelPago";
+import HuboProblemas from "@/components/contracts/HuboProblemas";
+import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -958,6 +960,10 @@ export default function ContractDetail() {
                         <span>{t('contracts.end', 'End')}: {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
+
+                    {/* El trabajador: recordatorio de tocar «Completé el trabajo» (si no, se confirma solo a las 24 h sin oposición). Quien contrató: «Hubo problemas durante el trabajo». */}
+                    {isDoer && !contract.doerConfirmed && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && <RecordatorioDeConfirmacion className="mb-3" />}
+                    {isClient && ['in_progress', 'awaiting_confirmation'].includes(contract.status) && <HuboProblemas contractId={String(contract.id)} className="mb-3 w-full" />}
 
                     {/* Horas propuestas (si existen) */}
                     {contract.proposedStartTime && (

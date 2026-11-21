@@ -93,8 +93,9 @@ export async function iniciarContratosQueLlegaronASuHora(ahora: Date = new Date(
       empezaron += 1;
 
       const titulo = trabajo.title || 'el trabajo';
-      await avisar(String(contrato.clientId), String(contrato.id), 'Empezó el trabajo', `Llegó la hora de inicio de "${titulo}": el contrato está en progreso.`);
-      await avisar(String(contrato.doerId), String(contrato.id), 'Empezó el trabajo', `Llegó la hora de inicio de "${titulo}": el contrato está en progreso.`);
+      await avisar(String(contrato.clientId), String(contrato.id), 'Empezó el trabajo', `Llegó la hora de inicio de "${titulo}": el contrato está en progreso. Si hay algún problema durante el trabajo, tocá «Hubo problemas durante el trabajo» en el contrato.`);
+      // Recordatorio al trabajador (pedido del dueño, 2026-11-21): al terminar tiene que tocar «Completé el trabajo»; si no, se confirma solo.
+      await avisar(String(contrato.doerId), String(contrato.id), 'Empezó el trabajo', `Llegó la hora de inicio de "${titulo}": el contrato está en progreso. Cuando termines, tocá «Completé el trabajo»: si no lo hacés, se confirma solo ${POLITICAS.AUTO_CONFIRMACION_HORAS} horas después de la hora de fin, salvo que quien contrató se oponga.`);
     } catch (e) {
       console.error(`[ciclo del contrato] no se pudo iniciar el contrato ${contrato.id}:`, (e as Error).message);
     }

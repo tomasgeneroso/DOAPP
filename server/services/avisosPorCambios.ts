@@ -15,6 +15,7 @@ import { conSistema } from '../db/contextoRls.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Proposal } from '../models/sql/Proposal.model.js';
+import { JobTask } from '../models/sql/JobTask.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { PaymentProof } from '../models/sql/PaymentProof.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
@@ -87,6 +88,24 @@ const TRABAJOS: Fuente = {
       { usuarios: [j.clientId], evento: 'myjobs:refresh', datos: { jobId: String(j.id) } },
       { usuarios, evento: 'dashboard:refresh' },
       delAdministrador('job', j.id),
+    ];
+  },
+};
+
+/**
+ * Las tareas de un trabajo: la lista es una sola y la comparten el dueño y todos los trabajadores elegidos. Cuando una cambia (alguien la empezó o la terminó) los demás la
+ * ven al instante; antes la tarjeta de «Trabajo en curso» quedaba con el estado viejo y, al tocar, el servidor decía «no puedes cambiar de in_progress a in_progress».
+ */
+const TAREAS: Fuente = {
+  modelo: JobTask as never,
+  columnas: ['id', 'jobId', 'status'],
+  avisos: async (t: Fila) => {
+    const trabajo = (await conSistema(() => Job.findByPk(String(t.jobId), { attributes: ['id', 'clientId', 'doerId', 'selectedWorkers'], raw: true }))) as unknown as Fila | null;
+    if (!trabajo) return [];
+    const usuarios = [trabajo.clientId, trabajo.doerId, ...(Array.isArray(trabajo.selectedWorkers) ? trabajo.selectedWorkers : [])];
+    return [
+      { usuarios, evento: 'job:updated', datos: { jobId: String(t.jobId), action: 'task_updated' }, clave: `tareas:${t.jobId}` },
+      delAdministrador('job', t.jobId),
     ];
   },
 };
@@ -281,6 +300,7 @@ export function instalarAvisosPorCambios(): void {
   for (const fuente of [
     CONTRATOS,
     TRABAJOS,
+    TAREAS,
     PROPUESTAS,
     COTIZACIONES,
     PAGOS,

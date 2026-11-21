@@ -24,6 +24,7 @@ import { settleQuote } from "../services/quotePayment.js";
 import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { esContraoferta, lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 
 
 const router = express.Router();
@@ -1123,7 +1124,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
       type: "success",
       category: "contract",
       title: "¡Has sido seleccionado!",
-      message: `Felicitaciones! Fuiste elegido para el trabajo "${job?.title}". Revisa los detalles del contrato.`,
+      message: `Felicitaciones! Fuiste elegido para el trabajo "${job?.title}". Revisa los detalles del contrato. Recordá: cuando termines tocá «Completé el trabajo»; si no lo hacés, se confirma solo ${POLITICAS.AUTO_CONFIRMACION_HORAS} horas después de la hora de fin, salvo que quien contrató se oponga.`,
       relatedModel: 'Contract',
       relatedId: contract.id,
       actionText: 'Ver contrato',

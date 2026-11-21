@@ -75,11 +75,12 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   // Fetch tasks
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (silencioso = false) => {
     if (!token) return;
 
     try {
-      setLoading(true);
+      // Las recargas en vivo (otra persona cambió una tarea) no vuelven a tapar la lista con el círculo.
+      if (!silencioso) setLoading(true);
       const response = await fetch(`/api/jobs/${jobId}/tasks`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -111,8 +112,11 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
       if (data.progress !== undefined) {
         setProgress(data.progress);
       }
+    } else if (data?.jobId === jobId && data.action === 'task_updated') {
+      // El aviso del modelo no trae la lista: se vuelve a pedir (la lista es una sola y la comparten todos los trabajadores).
+      void fetchTasks(true);
     }
-  }, [jobId]);
+  }, [jobId, fetchTasks]);
 
   useEffect(() => registerJobUpdateHandler(handleJobUpdate), [registerJobUpdateHandler, handleJobUpdate]);
 

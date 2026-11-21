@@ -65,10 +65,13 @@ const CreateDispute: React.FC = () => {
   const [selectedContract, setSelectedContract] = useState<string>(contractIdFromUrl || '');
   const [loadingContracts, setLoadingContracts] = useState(false);
 
+  // «Hubo problemas durante el trabajo» (botón del contrato) llega con la categoría ya elegida.
+  const categoriaDeLaUrl = searchParams.get('category');
+  const CATEGORIAS = ['service_not_delivered', 'incomplete_work', 'quality_issues', 'payment_issues', 'breach_of_contract', 'other'];
   const [formData, setFormData] = useState({
     reason: '',
     description: '',
-    category: 'quality_issues',
+    category: categoriaDeLaUrl && CATEGORIAS.includes(categoriaDeLaUrl) ? categoriaDeLaUrl : 'quality_issues',
   });
 
   const [files, setFiles] = useState<FileWithPreview[]>([]);

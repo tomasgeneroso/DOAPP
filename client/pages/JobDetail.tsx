@@ -80,6 +80,8 @@ import { rutaAnterior } from "../utils/rutaAnterior";
 import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
 import ComprobantesDelPagoEquipo from "../components/jobs/ComprobantesDelPagoEquipo";
+import HuboProblemas from "../components/contracts/HuboProblemas";
+import RecordatorioDeConfirmacion from "../components/contracts/RecordatorioDeConfirmacion";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 
 export default function JobDetail() {
@@ -3100,6 +3102,10 @@ export default function JobDetail() {
                             </div>
                           )
                         )}
+
+                        {/* Trabajador: recordatorio de confirmar. Quien contrató: «Hubo problemas durante el trabajo». */}
+                        {isWorkerOnJob && contractData && !contractData.doerConfirmed && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <RecordatorioDeConfirmacion className="mb-3" />}
+                        {isOwnJob && contractData && ["in_progress", "awaiting_confirmation"].includes(String(contractData.status)) && <HuboProblemas contractId={String(contractData.id)} className="mb-3" />}
 
                         <div className="flex flex-wrap items-center gap-3">
                           {contractData && !contractData.doerConfirmed && (

@@ -647,6 +647,14 @@ router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response):
       const tasks = await getTasksWithStatus(jobId);
       const progress = JobTask.getProgressPercentage(tasks);
 
+      // El contrato DE ESTA PERSONA en el trabajo y si ya confirmó: en un trabajo de varios lugares cada trabajador tiene el suyo y la tarjeta tiene que dejar de ofrecer
+      // «Completé el trabajo» cuando ya lo dijo (pedido del dueño, 2026-11-21: el botón seguía igual después de confirmar).
+      const miContrato: any = await Contract.findOne({
+        where: { jobId: job.id, doerId: userId, status: { [Op.notIn]: ['cancelled', 'rejected'] } } as any,
+        attributes: ['id', 'status', 'doerConfirmed', 'clientConfirmed'],
+        order: [['createdAt', 'DESC']],
+      });
+
       if (tasks.length > 0) {
         result.push({
           job: {
@@ -655,6 +663,9 @@ router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response):
             status: job.status,
             client: job.client,
           },
+          miContrato: miContrato
+            ? { id: String(miContrato.id), status: miContrato.status, doerConfirmed: Boolean(miContrato.doerConfirmed), clientConfirmed: Boolean(miContrato.clientConfirmed) }
+            : null,
           tasks,
           progress,
           totalTasks: tasks.length,
