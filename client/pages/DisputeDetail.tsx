@@ -1,3 +1,6 @@
+import PruebasDelReclamo from '../components/disputes/PruebasDelReclamo';
+import { cierreDeReclamo } from '../../shared/disputes/estadoDeCierre';
+import ResolucionDelReclamo from '../components/disputes/ResolucionDelReclamo';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -179,7 +182,8 @@ const DisputeDetail: React.FC = () => {
     setMessageFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, resolucion?: string | null) => {
+    const cierre = status === 'cancelled' ? cierreDeReclamo(resolucion) : null;
     const styles = {
       negotiation: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
       open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -203,8 +207,8 @@ const DisputeDetail: React.FC = () => {
     };
 
     return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${styles[status as keyof typeof styles] || styles.open}`}>
-        {labels[status as keyof typeof labels] || status}
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ${cierre?.resuelto ? styles.resolved_released : styles[status as keyof typeof styles] || styles.open}`}>
+        {cierre?.texto ?? labels[status as keyof typeof labels] ?? status}
       </span>
     );
   };
@@ -219,7 +223,7 @@ const DisputeDetail: React.FC = () => {
 
     return (
       <span className={`px-2 py-1 rounded text-xs font-medium ${styles[priority as keyof typeof styles]}`}>
-        {priority.toUpperCase()}
+        {({ low: "BAJA", medium: "MEDIA", high: "ALTA", urgent: "URGENTE" } as Record<string, string>)[priority] || priority.toUpperCase()}
       </span>
     );
   };
@@ -292,7 +296,7 @@ const DisputeDetail: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{dispute.reason}</h1>
               <div className="flex items-center gap-3">
-                {getStatusBadge(dispute.status)}
+                {getStatusBadge(dispute.status, dispute.resolution)}
                 {getPriorityBadge(dispute.priority)}
               </div>
             </div>
@@ -302,6 +306,8 @@ const DisputeDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Cómo terminó, arriba de todo (pedido del dueño, 2026-11-22). */}
+            <ResolucionDelReclamo estado={dispute.status} resolucion={dispute.resolution} tipo={(dispute as any).resolutionType} resueltaEl={(dispute as any).resolvedAt} />
             {/* Reclamo directo: reloj y acuerdo entre las partes, antes del admin */}
             {user && (
               <ReclamoDirectoPanel
@@ -325,65 +331,15 @@ const DisputeDetail: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.evidence', 'Evidence')}</h2>
 
-              {dispute.evidence && dispute.evidence.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                  {dispute.evidence.map((attachment, index) => (
-                    <a
-                      key={index}
-                      href={getImageUrl(attachment.fileUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 hover:ring-2 hover:ring-red-500 transition-all hover:shadow-lg"
-                    >
-                      {attachment.fileType === 'image' ? (
-                        <img
-                          src={getImageUrl(attachment.fileUrl)}
-                          alt={attachment.fileName}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        />
-                      ) : attachment.fileType === 'video' ? (
-                        <div className="relative w-full h-full">
-                          <video
-                            src={getImageUrl(attachment.fileUrl)}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-                              <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
-                          <svg className="w-12 h-12 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                          </svg>
-                          <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 text-center truncate w-full font-medium">
-                            {attachment.fileName}
-                          </p>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                        <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 mb-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-400 font-medium mb-1">{t('disputes.noEvidence', 'No evidence attached')}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">{t('disputes.uploadEvidenceHint', 'Upload photos, videos or PDFs to support your case')}</p>
-                </div>
-              )}
+              <PruebasDelReclamo
+                disputeId={dispute.id}
+                token={token}
+                pruebas={(dispute.evidence || []) as any}
+                partes={[{ id: dispute.initiatedBy, nombre: dispute.initiator?.name }, { id: dispute.against, nombre: dispute.defendant?.name }]}
+                puedeAgregarNota={!dispute.status.startsWith('resolved') && dispute.status !== 'cancelled'}
+                alCambiar={fetchDispute}
+                textoVacio={t('disputes.noEvidence', 'Todavía no hay pruebas adjuntas')}
+              />
 
               {/* Upload more evidence */}
               {!dispute.status.startsWith('resolved') && (
@@ -611,25 +567,6 @@ const DisputeDetail: React.FC = () => {
               )}
             </div>
 
-            {/* Resolution */}
-            {dispute.resolution && (
-              <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-6">
-                <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-green-900 dark:text-green-200 mb-2">{t('disputes.resolution', 'Resolution')}</h3>
-                    <p className="text-green-800 dark:text-green-300">{dispute.resolution}</p>
-                    {dispute.resolvedAt && (
-                      <p className="mt-2 text-sm text-green-700 dark:text-green-400">
-                        {t('disputes.resolvedOn', 'Resolved on')} {new Date(dispute.resolvedAt).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Sidebar */}

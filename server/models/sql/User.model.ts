@@ -43,6 +43,8 @@ interface NotificationPreferences {
   contractUpdate: boolean;
   paymentUpdate: boolean;
   marketing: boolean;
+  /** Que otras personas lo etiqueten en publicaciones de trabajos terminados (sin valor = sí). Se cambia en Configuración. */
+  canBeTagged?: boolean;
 }
 
 interface Address {

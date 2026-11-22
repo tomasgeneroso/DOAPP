@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from "../utils/imageUrl";
+import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import WorkerNetAmount from "@/components/jobs/WorkerNetAmount";
 import { useTranslation, Trans } from 'react-i18next';
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
@@ -423,16 +425,7 @@ export default function JobApplicationSummary() {
                     Cliente
                   </h3>
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
-                      <img
-                        src={
-                          clientInfo.avatar ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${clientInfo.name}`
-                        }
-                        alt={clientInfo.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
+                    <AvatarConInicial src={clientInfo.avatar ? getImageUrl(clientInfo.avatar) : null} nombre={clientInfo.name} className="h-12 w-12 rounded-full" />
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-white">
                         {clientInfo.name}

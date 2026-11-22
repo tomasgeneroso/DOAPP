@@ -1,3 +1,4 @@
+import { cierreDeReclamo } from '../../shared/disputes/estadoDeCierre';
 import { useState, useEffect } from 'react';
 import InfoIcono from "../components/ui/InfoIcono";
 import { useTranslation, Trans } from 'react-i18next';
@@ -217,7 +218,9 @@ export default function MyDisputes() {
               filteredDisputes.map((dispute) => {
                 const category = categoryLabels[dispute.category] || categoryLabels.other;
                 const priority = priorityLabels[dispute.priority] || priorityLabels.medium;
-                const status = statusLabels[dispute.status] || statusLabels.open;
+                const baseDeEstado = statusLabels[dispute.status] || statusLabels.open;
+                const cierre = dispute.status === 'cancelled' ? cierreDeReclamo((dispute as any).resolution) : null;
+                const status = cierre ? { ...baseDeEstado, label: cierre.texto, color: cierre.resuelto ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : baseDeEstado.color } : baseDeEstado;
                 const CategoryIcon = category.icon;
                 const StatusIcon = status.icon;
 

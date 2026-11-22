@@ -357,12 +357,17 @@ export default function MyJobsScreen() {
       onPress={() => router.push(`/job/${item.id}`)}
     >
       <View style={styles.jobHeader}>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {getStatusText(item.status)}
-          </Text>
-        </View>
+        {/* Con el trabajo en curso, terminado o cancelado el estado que importa es el de punta a punta (abajo): «Completado» junto a «Terminado: DOAPP le paga…» confundía. */}
+        {['in_progress', 'completed', 'cancelled'].includes(String(item.status)) && (item as any).situacion ? (
+          <View />
+        ) : (
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+              {getStatusText(item.status)}
+            </Text>
+          </View>
+        )}
         <ChevronRight size={20} color={themeColors.text.muted} />
       </View>
       {/* En qué está de punta a punta (el mismo estado que ve el equipo): solo cuando ya hay algo más que contar que «publicado / en revisión». */}
@@ -844,7 +849,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  },
   listContent: {
     padding: spacing.lg,
     paddingBottom: spacing['3xl'],

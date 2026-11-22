@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { getImageUrl } from "../../utils/imageUrl";
+import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
@@ -233,16 +235,7 @@ export default function WorkInProgress() {
             {/* Job Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                  <img
-                    src={
-                      job.client.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.client.name}`
-                    }
-                    alt={job.client.name}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <AvatarConInicial src={job.client.avatar ? getImageUrl(job.client.avatar) : null} nombre={job.client.name} className="h-10 w-10 rounded-full" />
                 <div>
                   <h3 className="font-bold text-amber-900 dark:text-amber-100">
                     {job.title}

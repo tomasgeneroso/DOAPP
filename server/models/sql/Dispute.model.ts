@@ -65,6 +65,10 @@ export interface IAttachment {
   fileType: 'image' | 'video' | 'pdf' | 'other';
   fileSize: number;
   uploadedAt: Date;
+  /** Quién la subió (id). Las pruebas de antes de este cambio no lo traen. */
+  uploadedBy?: string;
+  /** Notas sobre esta prueba (qué se ve): se suman, cada una con quién la escribió y cuándo. */
+  notes?: Array<{ by: string; text: string; at: Date | string }>;
 }
 
 export interface IDisputeMessage {

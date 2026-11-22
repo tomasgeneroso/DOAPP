@@ -14,6 +14,7 @@ import { requirePostWorkRating, requireNotSuspended } from "../middleware/postWo
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
+import { ATRIBUTOS_DE_PUNTUACION } from "../services/userRatings.js";
 import { config } from "../config/env.js";
 import { socketService } from "../index.js";
 import { Op, Sequelize } from 'sequelize';
@@ -335,7 +336,7 @@ router.get("/:id",
           // Sin email: la otra parte no recibe datos de contacto antes de
           // contratar (es la misma regla que el filtro del chat). La marca de
           // cancelaciones si, porque es lo que el cliente necesita para elegir.
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs', 'cancellationMarkUntil']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', ...ATRIBUTOS_DE_PUNTUACION, 'completedJobs', 'cancellationMarkUntil']
         },
         {
           model: User,

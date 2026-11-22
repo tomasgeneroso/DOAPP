@@ -5,6 +5,7 @@ import { Dispute } from "../../models/sql/Dispute.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
+import { Job } from "../../models/sql/Job.model.js";
 import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
 import { body, validationResult } from "express-validator";
 import { logAudit } from "../../utils/auditLog.js";
@@ -35,7 +36,7 @@ router.get(
       const disputes = await Dispute.findAll({
         where,
         include: [
-          { model: Contract, as: "contract", attributes: ["price"] },
+          { model: Contract, as: "contract", attributes: ["price", "jobId"] },
           { model: Payment, as: "payment", attributes: ["id", "status", "amount"] },
           { model: User, as: "initiator", attributes: ["name", "email", "avatar", ...ATRIBUTOS_DE_MEMBRESIA] },
           { model: User, as: "defendant", attributes: ["name", "email", "avatar", ...ATRIBUTOS_DE_MEMBRESIA] },
@@ -48,12 +49,17 @@ router.get(
         offset: (Number(page) - 1) * Number(limit),
       });
 
-      // Add hasPayment flag for admin visibility
+      // «Con pago»: hay dinero retenido por DOAPP detrás del reclamo, sea un pago del contrato o el de la publicación del trabajo (el flujo normal es «primero se paga, después se elige»:
+      // ese contrato no tiene pago propio y antes figuraba «Sin pago» aunque el dinero estaba).
+      const trabajos = Array.from(new Set(disputes.map((d) => String((d as any).contract?.jobId || "")).filter(Boolean)));
+      const trabajosPagados = new Set(
+        trabajos.length ? (await Job.findAll({ where: { id: trabajos, publicationPaid: true }, attributes: ["id"] })).map((j) => String(j.id)) : [],
+      );
       const disputesWithPaymentFlag = disputes.map(d => {
         const plain = d.toJSON();
         return {
           ...plain,
-          hasPayment: !!plain.payment,
+          hasPayment: !!plain.payment || trabajosPagados.has(String((plain as any).contract?.jobId || "")),
           premium: esPremium((d as any).initiator) || esPremium((d as any).defendant),
         };
       });

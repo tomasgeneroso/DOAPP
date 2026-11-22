@@ -1,3 +1,4 @@
+import { cierreDeReclamo } from '../../shared/disputes/estadoDeCierre';
 import { useState, useEffect } from "react";
 import InfoIcono from "../components/ui/InfoIcono";
 import { Link } from "react-router-dom";
@@ -70,24 +71,25 @@ const ticketCategoryLabels: Record<string, { label: string; icon: any; color: st
 };
 
 const statusLabels: Record<string, { label: string; tKey: string; color: string; icon: any }> = {
-  open: { label: 'Open', tKey: 'help.status.open', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
-  in_review: { label: 'In review', tKey: 'help.status.inReview', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
-  in_progress: { label: 'In progress', tKey: 'help.status.inProgress', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
-  awaiting_info: { label: 'Awaiting info', tKey: 'help.status.awaitingInfo', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
-  waiting_response: { label: 'Waiting for response', tKey: 'help.status.waitingResponse', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
-  resolved: { label: 'Resolved', tKey: 'help.status.resolved', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_released: { label: 'Resolved - Released', tKey: 'help.status.resolvedReleased', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_refunded: { label: 'Resolved - Refunded', tKey: 'help.status.resolvedRefunded', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_partial: { label: 'Resolved - Partial', tKey: 'help.status.resolvedPartial', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  closed: { label: 'Closed', tKey: 'help.status.closed', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
-  cancelled: { label: 'Cancelled', tKey: 'help.status.cancelled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+  negotiation: { label: 'Reclamo directo', tKey: 'help.status.negotiation', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300', icon: MessageCircle },
+  open: { label: 'Abierto', tKey: 'help.status.open', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
+  in_review: { label: 'En revisión', tKey: 'help.status.inReview', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
+  in_progress: { label: 'En curso', tKey: 'help.status.inProgress', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
+  awaiting_info: { label: 'Esperando información', tKey: 'help.status.awaitingInfo', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
+  waiting_response: { label: 'Esperando respuesta', tKey: 'help.status.waitingResponse', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
+  resolved: { label: 'Resuelto', tKey: 'help.status.resolved', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_released: { label: 'Resuelto: pago liberado', tKey: 'help.status.resolvedReleased', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_refunded: { label: 'Resuelto: reembolsado', tKey: 'help.status.resolvedRefunded', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_partial: { label: 'Resuelto: parcial', tKey: 'help.status.resolvedPartial', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  closed: { label: 'Cerrado', tKey: 'help.status.closed', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+  cancelled: { label: 'Cancelado', tKey: 'help.status.cancelled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
 };
 
 const priorityLabels: Record<string, { label: string; tKey: string; color: string }> = {
-  low: { label: 'Low', tKey: 'help.priority.low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  medium: { label: 'Medium', tKey: 'help.priority.medium', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  high: { label: 'High', tKey: 'help.priority.high', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
-  urgent: { label: 'Urgent', tKey: 'help.priority.urgent', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  low: { label: 'Baja', tKey: 'help.priority.low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+  medium: { label: 'Media', tKey: 'help.priority.medium', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  high: { label: 'Alta', tKey: 'help.priority.high', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  urgent: { label: 'Urgente', tKey: 'help.priority.urgent', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
 };
 
 export default function HelpPage() {
@@ -95,7 +97,15 @@ export default function HelpPage() {
   const { token, user } = useAuth();
   const { hasPermission, PERMISSIONS } = usePermissions();
   const isGuest = !token || !user;
-  const [activeTab, setActiveTab] = useState<'overview' | 'disputes' | 'tickets'>('overview');
+  // «Ayuda y Soporte» con un reclamo abierto llega con ?tab=disputes: abre directo en «Mis disputas».
+  const [activeTab, setActiveTab] = useState<'overview' | 'disputes' | 'tickets'>(() => {
+    try {
+      const pedida = new URLSearchParams(window.location.search).get('tab');
+      return pedida === 'disputes' || pedida === 'tickets' ? pedida : 'overview';
+    } catch {
+      return 'overview';
+    }
+  });
   const [disputes, setDisputes] = useState<DisputeItem[]>([]);
   const [tickets, setTickets] = useState<TicketItem[]>([]);
   const [loadingDisputes, setLoadingDisputes] = useState(false);
@@ -444,7 +454,9 @@ export default function HelpPage() {
                     {filteredDisputes.map((dispute) => {
                       const category = categoryLabels[dispute.category] || categoryLabels.other;
                       const priority = priorityLabels[dispute.priority] || priorityLabels.medium;
-                      const status = statusLabels[dispute.status] || statusLabels.open;
+                      const baseDeEstado = statusLabels[dispute.status] || statusLabels.open;
+                      const cierre = dispute.status === 'cancelled' ? cierreDeReclamo((dispute as any).resolution) : null;
+                      const status = cierre ? { ...baseDeEstado, label: cierre.texto, tKey: '', color: cierre.resuelto ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : baseDeEstado.color } : baseDeEstado;
                       const CategoryIcon = category.icon;
                       const StatusIcon = status.icon;
 
@@ -474,7 +486,7 @@ export default function HelpPage() {
                             <div className="flex items-center gap-3 mt-1">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${status.color}`}>
                                 <StatusIcon className="h-3 w-3" />
-                                {t(status.tKey, status.label)}
+                                {status.tKey ? t(status.tKey, status.label) : status.label}
                               </span>
                               <span className="text-xs text-slate-500">
                                 {new Date(dispute.createdAt).toLocaleDateString('es-AR')}

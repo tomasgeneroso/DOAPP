@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { sanitizePlainText } from "../utils/sanitizer.js";
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth";
 import { Dispute } from "../models/sql/Dispute.model.js";
@@ -75,6 +76,7 @@ router.post(
           fileType,
           fileSize: file.size,
           uploadedAt: new Date(),
+          uploadedBy: String(userId),
         };
       }) : [];
 
@@ -369,6 +371,9 @@ router.get("/my-disputes", protect, async (req: AuthRequest, res: Response): Pro
         createdAt: dispute.createdAt,
         updatedAt: dispute.updatedAt,
         importanceLevel: dispute.importanceLevel,
+        // Cómo terminó (para decir «resuelta por acuerdo» y no «cancelada» en la lista).
+        resolution: dispute.resolution,
+        resolvedAt: dispute.resolvedAt,
         contract: contractData ? {
           id: contractData.id,
           title: contractData.job?.title || `Contrato #${contractData.id.slice(0, 8)}`,
@@ -883,6 +888,7 @@ router.post(
           fileType,
           fileSize: file.size,
           uploadedAt: new Date(),
+          uploadedBy: String(userId),
         };
       });
 
@@ -926,5 +932,61 @@ router.post(
     }
   }
 );
+
+/**
+ * Una nota sobre una prueba (qué se ve en la foto). Las partes y el equipo pueden agregar; las notas se suman, cada una con quién la escribió y cuándo.
+ * POST /api/disputes/:id/evidence/:index/notes   { text }
+ */
+router.post("/:id/evidence/:index/notes", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const indice = Number.parseInt(req.params.index, 10);
+    const userId = String(req.user.id);
+    const texto = sanitizePlainText(String(req.body?.text ?? "")).trim();
+
+    if (!texto) {
+      res.status(400).json({ success: false, message: "Escribí la nota." });
+      return;
+    }
+    if (texto.length > 500) {
+      res.status(400).json({ success: false, message: "La nota puede tener hasta 500 caracteres." });
+      return;
+    }
+
+    const dispute = await Dispute.findByPk(id);
+    if (!dispute) {
+      res.status(404).json({ success: false, message: "Disputa no encontrada" });
+      return;
+    }
+
+    const esParte = String(dispute.initiatedBy) === userId || String(dispute.against) === userId;
+    if (!esParte && !(req.user as any).adminRole) {
+      res.status(403).json({ success: false, message: "No tienes permiso para agregar notas en esta disputa" });
+      return;
+    }
+    if (dispute.status.startsWith("resolved") || dispute.status === "cancelled") {
+      res.status(400).json({ success: false, message: "El reclamo ya está cerrado: no se agregan más notas." });
+      return;
+    }
+    if (!Number.isInteger(indice) || indice < 0 || indice >= (dispute.evidence || []).length) {
+      res.status(404).json({ success: false, message: "Esa prueba no existe." });
+      return;
+    }
+
+    const nota = { by: userId, text: texto, at: new Date() };
+    dispute.evidence = dispute.evidence.map((e, i) => (i === indice ? { ...e, notes: [...(e.notes || []), nota] } : e));
+    dispute.changed("evidence", true);
+    dispute.logs = [
+      ...dispute.logs,
+      { action: "Nota en una prueba", performedBy: userId, timestamp: new Date(), details: `Prueba ${indice + 1}: ${texto.slice(0, 120)}` },
+    ];
+    dispute.changed("logs", true);
+    await dispute.save();
+
+    res.json({ success: true, data: { evidence: dispute.evidence } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
 
 export default router;

@@ -207,8 +207,12 @@ describe('reclamos, código de emparejamiento, vista única y chat del equipo (c
   it('una sola vista: el contrato vive dentro de la vista del trabajo y /contracts/:id lleva ahí a las partes', () => {
     const j = leer('client/pages/JobDetail.tsx');
     expect(j).toContain('data-testid="seguimiento-del-contrato"');
-    expect(j).toContain('<ContractDetail key={contratoDelSeguimiento.id} embebido');
-    expect(j).toContain('data-testid="confirmar-trabajo-de-este-trabajador-seguimiento"');
+    expect(j).toContain('<ContractDetail');
+    expect(j).toContain('embebido');
+    // una sola sección con la lista del equipo, la confirmación por trabajador y el contrato (antes eran tres tarjetas que hacían lo mismo)
+    expect(j).toContain('data-testid="equipo-del-trabajo"');
+    expect(j).toContain('data-testid="confirmar-trabajo-de-este-trabajador"');
+    expect(j).toContain('seguimientoUnico');
     // los hooks del seguimiento van antes de los return tempranos
     expect(j.indexOf('useSearchParams()')).toBeLessThan(j.indexOf('  if (loading) {'));
     const c = leer('client/pages/ContractDetail.tsx');

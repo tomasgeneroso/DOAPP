@@ -5,6 +5,7 @@ import { protect } from "../middleware/auth.js";
 import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
+import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas } from "../services/etiquetasDePublicaciones.js";
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       success: true,
-      posts: transformedPosts,
+      posts: await presentarEtiquetados(transformedPosts),
       pagination: {
         page,
         limit,
@@ -117,7 +118,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       success: true,
-      post: transformedPost,
+      post: (await presentarEtiquetados([transformedPost]))[0],
     });
   } catch (error: any) {
     res.status(500).json({
@@ -137,7 +138,27 @@ router.post(
   verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { title, description, price, currency, type, tags, linkedContract, captions } = req.body;
+      const { title, description, price, currency, type, tags, linkedContract, captions, linkedJob, taggedUsers } = req.body;
+
+      // Un trabajo terminado que se comparte: se comprueba que quien publica haya participado y se arma a quién se etiqueta (solo a quien trabajó y lo permite).
+      let contratoDelTrabajo: string | undefined;
+      let etiquetados: string[] = [];
+      let noPermiten: string[] = [];
+      const pedidos = leerIds(taggedUsers);
+      if (linkedJob) {
+        const r = await resolverEtiquetas(String(req.user.id), String(linkedJob), pedidos);
+        if (!r.ok) {
+          const falla = r as { estado: number; mensaje: string };
+          res.status(falla.estado).json({ success: false, message: falla.mensaje });
+          return;
+        }
+        contratoDelTrabajo = r.contratoId;
+        etiquetados = r.etiquetados;
+        noPermiten = r.noPermiten;
+      } else if (pedidos.length > 0) {
+        res.status(400).json({ success: false, message: 'Solo se puede etiquetar en la publicación de un trabajo.' });
+        return;
+      }
 
       // Parse captions if provided
       const captionsArray = captions ? JSON.parse(captions) : [];
@@ -177,8 +198,12 @@ router.post(
         currency: currency || "ARS",
         type: type || "post",
         tags: parsedTags,
-        linkedContract: linkedContract || undefined,
+        linkedContract: linkedContract || contratoDelTrabajo || undefined,
+        taggedUsers: etiquetados,
       });
+      if (etiquetados.length > 0) {
+        await avisarEtiquetas(post.id, post.title, (req.user as any).name || 'Alguien', etiquetados);
+      }
 
       const populatedPost = await Post.findByPk(post.id, {
         include: [{
@@ -191,6 +216,8 @@ router.post(
         success: true,
         message: "Publicación creada exitosamente",
         post: populatedPost,
+        // Quién no quedó etiquetado porque apagó la opción en su configuración (para decírselo a quien publica).
+        noEtiquetados: noPermiten.length,
       });
     } catch (error: any) {
       res.status(500).json({

@@ -53,14 +53,15 @@ interface PostWorkRatingModalProps {
   onSubmitted?: () => void;
 }
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3;
 
 /**
- * Puntuación post-trabajo. Un solo modal con dos pantallas, ambas obligatorias:
+ * Puntuación post-trabajo. Un solo modal con tres pantallas, todas obligatorias. Primero TODO lo de la persona y después lo de la app (pedido del dueño, 2026-11-22):
  *
- *   Pantalla 1 — puntuación del trabajo + sus dimensiones
+ *   Pantalla 1 — puntuación de la persona + sus dimensiones
  *                (puntualidad, como persona, calidad, etc.)
- *   Pantalla 2 — ¿recomendarías DoApp? + nota
+ *   Pantalla 2 — la reseña pública sobre la persona + la nota privada
+ *   Pantalla 3 — ¿recomendarías DoApp?
  *
  * No se puede cerrar sin completarlas: no hay botón de omitir ni cierre.
  */
@@ -124,7 +125,7 @@ export default function PostWorkRatingModal({
     setRecommendsApp(draft?.recommendsApp ?? null);
     setNote(draft?.note || "");
     setPrivateNote(draft?.privateNote || "");
-    // Si ya había puntuado el trabajo, retomamos en la segunda pantalla
+    // Si ya había puntuado a la persona, retomamos en la segunda pantalla (su reseña)
     setStep(draft?.rating ? 2 : 1);
     setError("");
     setDone(false);
@@ -268,6 +269,21 @@ export default function PostWorkRatingModal({
     void saveDraft();
   };
 
+  const goToStep3 = () => {
+    if (note.trim().length < 10) {
+      setError(
+        t(
+          "review.postWork.errorPublicNote",
+          "Escribí una reseña pública de al menos 10 caracteres: es lo que va a leer el próximo que contrate.",
+        ),
+      );
+      return;
+    }
+    setError("");
+    setStep(3);
+    void saveDraft();
+  };
+
   const handleSubmit = async () => {
     if (recommendsApp === null) {
       setError(
@@ -363,7 +379,7 @@ export default function PostWorkRatingModal({
             <div className="mb-5">
               <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-sky-400">
-                  {t("review.postWork.stepOf", "Paso {{step}} de 2", { step })}
+                  {t("review.postWork.stepOf3", "Paso {{step}} de 3", { step })}
                 </p>
                 {/* Un trabajo con varios trabajadores se puntúa de a uno: sin esto
                     la misma pantalla reaparece y parece que no se guardó nada. */}
@@ -379,7 +395,9 @@ export default function PostWorkRatingModal({
               <h3 className="text-xl font-bold text-white">
                 {step === 1
                   ? ratingQuestion
-                  : t("review.postWork.step2Title", "Una última cosa")}
+                  : step === 2
+                    ? t("review.postWork.reviewTitle", "Tu reseña sobre {{name}}", { name: displayName })
+                    : t("review.postWork.step2Title", "Una última cosa")}
               </h3>
               {jobTitle && (
                 <p className="mt-0.5 truncate text-sm text-slate-300">{jobTitle}</p>
@@ -390,16 +408,27 @@ export default function PostWorkRatingModal({
                       "review.postWork.step1Subtitle",
                       "Es obligatorio para cerrar el trabajo.",
                     )
-                  : t(
-                      "review.postWork.step2Subtitle",
-                      "Contanos qué te pareció DoApp.",
-                    )}
+                  : step === 2
+                    ? t(
+                        "review.postWork.reviewSubtitle",
+                        "Lo que escribas sobre {{name}} lo lee el próximo que contrate.",
+                        { name: displayName },
+                      )
+                    : t(
+                        "review.postWork.step2Subtitle",
+                        "Contanos qué te pareció DoApp.",
+                      )}
               </p>
               <div className="mt-3 flex gap-1.5">
                 <span className="h-1 flex-1 rounded-full bg-sky-500" />
                 <span
                   className={`h-1 flex-1 rounded-full ${
-                    step === 2 ? "bg-sky-500" : "bg-slate-700"
+                    step >= 2 ? "bg-sky-500" : "bg-slate-700"
+                  }`}
+                />
+                <span
+                  className={`h-1 flex-1 rounded-full ${
+                    step === 3 ? "bg-sky-500" : "bg-slate-700"
                   }`}
                 />
               </div>
@@ -506,47 +535,8 @@ export default function PostWorkRatingModal({
                   {t("review.postWork.next", "Continuar")}
                 </button>
               </>
-            ) : (
+            ) : step === 2 ? (
               <>
-                {/* ¿Recomendarías la app? */}
-                <div className="mb-4 rounded-xl bg-slate-800/60 p-4">
-                  <p className="mb-3 text-sm font-medium text-white">
-                    {t("review.postWork.recommendApp", "¿Recomendarías DoApp?")}
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        markDirty();
-                        setRecommendsApp(true);
-                      }}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                        recommendsApp === true
-                          ? "border-green-500 bg-green-500/20 text-green-400"
-                          : "border-slate-700 text-slate-300 hover:border-slate-500"
-                      }`}
-                    >
-                      <ThumbsUp className="h-4 w-4" />
-                      {t("common.yes", "Sí")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        markDirty();
-                        setRecommendsApp(false);
-                      }}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                        recommendsApp === false
-                          ? "border-red-500 bg-red-500/20 text-red-400"
-                          : "border-slate-700 text-slate-300 hover:border-slate-500"
-                      }`}
-                    >
-                      <ThumbsDown className="h-4 w-4" />
-                      {t("common.no", "No")}
-                    </button>
-                  </div>
-                </div>
-
                 {/* Reseña pública: obligatoria, se ve en el perfil */}
                 <div className="mb-4">
                   <label htmlFor="postwork-note" className="mb-1.5 block text-sm font-medium text-slate-300">
@@ -630,6 +620,77 @@ export default function PostWorkRatingModal({
                       setError("");
                       setStep(1);
                     }}
+                    className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    {t("review.postWork.back", "Volver")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToStep3}
+                    disabled={note.trim().length < 10}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {t("review.postWork.next", "Continuar")}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* ¿Recomendarías la app? Va al final: primero todo lo de la persona, después lo de DoApp. */}
+                <div className="mb-4 rounded-xl bg-slate-800/60 p-4">
+                  <p className="mb-3 text-sm font-medium text-white">
+                    {t("review.postWork.recommendApp", "¿Recomendarías DoApp?")}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markDirty();
+                        setRecommendsApp(true);
+                      }}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                        recommendsApp === true
+                          ? "border-green-500 bg-green-500/20 text-green-400"
+                          : "border-slate-700 text-slate-300 hover:border-slate-500"
+                      }`}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                      {t("common.yes", "Sí")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markDirty();
+                        setRecommendsApp(false);
+                      }}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                        recommendsApp === false
+                          ? "border-red-500 bg-red-500/20 text-red-400"
+                          : "border-slate-700 text-slate-300 hover:border-slate-500"
+                      }`}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                      {t("common.no", "No")}
+                    </button>
+                  </div>
+                </div>
+
+                <Transicion mostrar={!!error}>
+                {error && (
+                  <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                    {error}
+                  </p>
+                )}
+                </Transicion>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError("");
+                      setStep(2);
+                    }}
                     disabled={loading}
                     className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:opacity-50"
                   >
@@ -639,7 +700,7 @@ export default function PostWorkRatingModal({
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading || recommendsApp === null || note.trim().length < 10}
+                    disabled={loading || recommendsApp === null}
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -149,6 +149,14 @@ export class Post extends Model {
   })
   tags?: string[];
 
+  /** Personas etiquetadas en la publicación (ids). Solo se etiqueta a quien trabajó en el trabajo y lo permite en su configuración (`services/etiquetasDePublicaciones.ts`). */
+  @Column({
+    type: DataType.JSONB,
+    allowNull: false,
+    defaultValue: [],
+  })
+  taggedUsers!: string[];
+
   @ForeignKey(() => Contract)
   @Column({
     type: DataType.UUID,

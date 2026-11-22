@@ -58,7 +58,7 @@ import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeCon
  * El contrato. Con `embebido` vive DENTRO de la vista del trabajo (pedido del dueño, 2026-11-22): no repite lo que el trabajo ya muestra (título, partes, detalles del pago, fechas)
  * y deja lo que se hace en el contrato: control diario, fotos de entrega, reclamar tareas, emergencia, compartir, confirmar, cambios y pagos.
  */
-export default function ContractDetail({ embebido = false, contratoId }: { embebido?: boolean; contratoId?: string } = {}) {
+export default function ContractDetail({ embebido = false, contratoId, alConfirmar }: { embebido?: boolean; contratoId?: string; /** Dentro de la vista del trabajo: ella dice QUÉ se confirmó y pide la puntuación. */ alConfirmar?: (info: { completado: boolean }) => void } = {}) {
   const { id: idDeLaRuta } = useParams<{ id: string }>();
   const id = contratoId ?? idDeLaRuta;
   const { t } = useTranslation();
@@ -358,10 +358,14 @@ export default function ContractDetail({ embebido = false, contratoId }: { embeb
       });
       if (response.success) {
         setShowHoursForm(false);
-        setShowConfirmationSuccessModal(true);
-        if (response.contract?.status === 'completed') {
-          // La puntuación post-trabajo es obligatoria: la pide el portero
-          requestPostWorkRatingCheck();
+        if (alConfirmar) {
+          alConfirmar({ completado: response.contract?.status === 'completed' });
+        } else {
+          setShowConfirmationSuccessModal(true);
+          if (response.contract?.status === 'completed') {
+            // La puntuación post-trabajo es obligatoria: la pide el portero
+            requestPostWorkRatingCheck();
+          }
         }
         loadContract();
       }
@@ -389,10 +393,14 @@ export default function ContractDetail({ embebido = false, contratoId }: { embeb
     try {
       const response = await api.post(`/contracts/${id}/confirm`);
       if (response.success) {
-        setShowConfirmationSuccessModal(true);
-        if (response.contract?.status === 'completed') {
-          // La puntuación post-trabajo es obligatoria: la pide el portero
-          requestPostWorkRatingCheck();
+        if (alConfirmar) {
+          alConfirmar({ completado: response.contract?.status === 'completed' });
+        } else {
+          setShowConfirmationSuccessModal(true);
+          if (response.contract?.status === 'completed') {
+            // La puntuación post-trabajo es obligatoria: la pide el portero
+            requestPostWorkRatingCheck();
+          }
         }
         loadContract();
         if (contract?.job?.id || contract?.jobId) {

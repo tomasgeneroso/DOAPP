@@ -389,7 +389,7 @@ export default function UserSettings() {
   const [licenseRejectedReason, setLicenseRejectedReason] = useState("");
 
   // Notifications
-  const [notifPrefs, setNotifPrefs] = useState({
+  const [notifPrefs, setNotifPrefs] = useState<{ email: boolean; push: boolean; sms: boolean; newMessage: boolean; jobUpdate: boolean; contractUpdate: boolean; paymentUpdate: boolean; marketing: boolean; canBeTagged?: boolean }>({
     email: true,
     push: true,
     sms: false,
@@ -398,6 +398,7 @@ export default function UserSettings() {
     contractUpdate: true,
     paymentUpdate: true,
     marketing: false,
+    canBeTagged: true,
   });
 
   useEffect(() => {
@@ -1395,6 +1396,21 @@ export default function UserSettings() {
                         checked={notifPrefs.marketing}
                         onChange={(e) => setNotifPrefs({ ...notifPrefs, marketing: e.target.checked })}
                         className="h-5 w-5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg" data-testid="permitir-etiquetas">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.canBeTagged', 'Que me etiqueten en publicaciones de trabajos')}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-400">
+                          {t('settings.notifications.canBeTaggedDesc', 'Cuando alguien comparte un trabajo terminado en el que participaste, puede etiquetarte. Te llega un aviso y apareces en la publicación. Si lo apagás, nadie puede etiquetarte.')}
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifPrefs.canBeTagged !== false}
+                        onChange={(e) => setNotifPrefs({ ...notifPrefs, canBeTagged: e.target.checked })}
+                        className="h-5 w-5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                        data-testid="permitir-etiquetas-casilla"
                       />
                     </div>
                   </div>

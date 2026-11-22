@@ -1,9 +1,9 @@
 import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
+import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import CarruselDeFotos from "../components/jobDetail/CarruselDeFotos";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link, useLocation, useSearchParams } from "react-router-dom";
 import ContractDetail from "./ContractDetail";
-import Pestanas from "../components/ui/Pestanas";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -761,6 +761,21 @@ export default function JobDetail() {
 
   // Trabajo de varios trabajadores: quien contrató confirma el trabajo de CADA uno desde «Trabajadores del proyecto» (cada trabajador tiene su contrato).
   const [confirmandoContratoId, setConfirmandoContratoId] = useState<string | null>(null);
+  // Qué dice el aviso de «confirmado»: de QUIÉN es el trabajo que se confirmó (pedido del dueño, 2026-11-22: «debe indicarse que se confirmó el trabajo realizado por el trabajador en cuestión»).
+  const [textoDeConfirmacion, setTextoDeConfirmacion] = useState<{ titulo?: string; detalle?: string }>({});
+  const textoDeConfirmar = (nombre: string, completado: boolean, comoCliente: boolean) => {
+    if (!comoCliente) {
+      return {
+        titulo: "Avisaste que terminaste el trabajo",
+        detalle: completado ? "El cliente ya lo había aceptado: el contrato quedó terminado y tu cobro sigue su camino." : "Cuando el cliente lo acepte, el contrato se termina y tu cobro sigue su camino.",
+      };
+    }
+    const quien = nombre || "este trabajador";
+    return {
+      titulo: `Confirmaste el trabajo de ${quien}`,
+      detalle: completado ? `Con tu confirmación el contrato de ${quien} quedó terminado y su pago sigue su camino.` : `Ya figura como aceptado el trabajo de ${quien}. Cuando ${quien} avise que terminó, el contrato se termina.`,
+    };
+  };
   // «Confirmar que todo el trabajo terminó» (pedido del dueño, 2026-11-21): confirma, uno por uno, los contratos en marcha que quien contrató todavía no confirmó.
   // Qué contrato se ve en el «Seguimiento del contrato» (con varios trabajadores); `?contrato=` lo deja elegido al venir de un enlace al contrato. Los hooks van acá, antes de los `return` tempranos.
   const [parametrosDeLaDireccion] = useSearchParams();
@@ -787,10 +802,17 @@ export default function JobDetail() {
       fetchAllContracts();
       setPollKey((k) => k + 1);
     }
-    if (fallo) { setErrorMessage(fallo); setShowErrorModal(true); } else setShowConfirmationSuccessModal(true);
+    if (fallo) { setErrorMessage(fallo); setShowErrorModal(true); } else {
+      const nombres = pendientes.map((c) => c.doerName).filter(Boolean);
+      setTextoDeConfirmacion({
+        titulo: pendientes.length > 1 ? `Confirmaste el trabajo de ${pendientes.length} trabajadores` : `Confirmaste el trabajo de ${nombres[0] || "este trabajador"}`,
+        detalle: nombres.length > 1 ? `Trabajo confirmado: ${nombres.join(", ")}.` : "Su pago sigue su camino.",
+      });
+      setShowConfirmationSuccessModal(true);
+    }
   };
 
-  const handleConfirmarContratoDe = async (contratoId: string) => {
+  const handleConfirmarContratoDe = async (contratoId: string, nombre?: string) => {
     if (!token || confirmandoContratoId) return;
     setConfirmandoContratoId(contratoId);
     try {
@@ -803,6 +825,7 @@ export default function JobDetail() {
         fetchAllContracts();
         setPollKey((k) => k + 1);
         if (data.contract?.status === "completed") setPostWorkPending(true);
+        setTextoDeConfirmacion(textoDeConfirmar(nombre || "", data.contract?.status === "completed", true));
         setShowConfirmationSuccessModal(true);
       } else {
         setErrorMessage(data.message || t("jobs.errorConfirming", "Error confirming the job"));
@@ -819,13 +842,14 @@ export default function JobDetail() {
   };
 
   // Handle opening chat with worker/client from contract
-  const handleOpenChat = async () => {
-    if (!contractData?.id || !token || loadingChat) return;
+  const handleOpenChat = async (contratoDelChat?: unknown) => {
+    const idDelContrato = typeof contratoDelChat === "string" ? contratoDelChat : contractData?.id;
+    if (!idDelContrato || !token || loadingChat) return;
 
     setLoadingChat(true);
     try {
       const response = await fetch(
-        `/api/chat/contract/${contractData.id}`,
+        `/api/chat/contract/${idDelContrato}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1555,6 +1579,13 @@ export default function JobDetail() {
       (job.selectedWorkers && job.selectedWorkers.includes(userId)) ||
       contractData?.doerId === userId);
 
+  // Una sola sección para todo lo del contrato: quién terminó, quién aceptó, reclamos, confirmar el trabajo de cada uno y el contrato mismo (pedido del dueño, 2026-11-22: «Confirmaciones de finalización,
+  // Trabajadores del proyecto y Seguimiento del contrato hacen lo mismo, dejar uno solo»). Si no se puede armar (equipo de DOAPP, contratos sin cargar) quedan las tarjetas de antes.
+  const seguimientoUnico = Boolean((isOwnJob || isWorkerOnJob) && contratoDelSeguimiento && !user?.adminRole);
+  const hayVariosTrabajadores = Boolean(allContractsData && allContractsData.totalContracts > 1);
+  const etiquetaDelContrato = (estado: string) =>
+    ({ completed: "Contrato terminado", in_progress: "En marcha", awaiting_confirmation: "Esperando confirmación", cancelled: "Cancelado", accepted: "Aceptado", pending: "Pendiente", ready: "Listo" } as Record<string, string>)[estado] || estado;
+
   return (
     <>
       <Helmet>
@@ -2232,8 +2263,8 @@ export default function JobDetail() {
                       return null;
                     })()}
 
-                    {/* Confirmaciones - Solo mostrar si hay contrato */}
-                    {contractData ? (
+                    {/* Confirmaciones - Solo mostrar si hay contrato. Quien ve «Seguimiento del contrato» (abajo) no ve esto también: era lo mismo dos veces. */}
+                    {seguimientoUnico ? null : contractData ? (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
                           {t(
@@ -2526,7 +2557,7 @@ export default function JobDetail() {
                     )}
 
                     {/* Trabajadores del Proyecto - Solo si hay múltiples contratos */}
-                    {allContractsData &&
+                    {!seguimientoUnico && allContractsData &&
                       allContractsData.totalContracts > 1 && (
                         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mt-4">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -2728,40 +2759,113 @@ export default function JobDetail() {
             </div>
 
             {/* Seguimiento del contrato: lo que antes estaba en la vista del contrato (control diario, fotos de entrega, reclamar tareas, emergencia, compartir, confirmar, cambios y pagos). */}
-            {(isOwnJob || isWorkerOnJob) && contratoDelSeguimiento && !user?.adminRole && (
+            {seguimientoUnico && contratoDelSeguimiento && (
               <section id="seguimiento-del-contrato" className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6" data-testid="seguimiento-del-contrato">
-                <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                  <ClipboardList className="h-5 w-5 text-sky-500" aria-hidden="true" />
-                  Seguimiento del contrato
-                </h2>
-                {contratosParaElSeguimiento.length > 1 && (
-                  <Pestanas
-                    ariaLabel="Contrato de cada trabajador"
-                    testid="selector-de-contrato"
-                    className="mb-4"
-                    valor={contratoDelSeguimiento.id}
-                    onCambiar={setContratoElegido}
-                    opciones={contratosParaElSeguimiento.map((c) => ({
-                      id: c.id,
-                      texto: c.nombre || "Trabajador",
-                      titulo: `${c.doerConfirmed ? "Terminó el trabajo" : "Todavía no terminó"}${c.clientConfirmed ? " · aceptado" : ""}`,
-                      insignia: c.clientConfirmed ? "aceptado" : c.doerConfirmed ? "terminó" : undefined,
-                    }))}
-                  />
-                )}
-                {isOwnJob && contratosParaElSeguimiento.length > 1 && contratoDelSeguimiento.doerConfirmed && !contratoDelSeguimiento.clientConfirmed && ["in_progress", "awaiting_confirmation"].includes(contratoDelSeguimiento.status) && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                    <ClipboardList className="h-5 w-5 text-sky-500" aria-hidden="true" />
+                    {hayVariosTrabajadores && allContractsData ? `Trabajadores y seguimiento del contrato (${allContractsData.totalContracts})` : "Seguimiento del contrato"}
+                  </h2>
                   <button
                     type="button"
-                    onClick={() => handleConfirmarContratoDe(contratoDelSeguimiento.id)}
-                    disabled={confirmandoContratoId === contratoDelSeguimiento.id}
-                    className="mb-4 inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
-                    data-testid="confirmar-trabajo-de-este-trabajador-seguimiento"
+                    onClick={() => handleOpenChat(contratoDelSeguimiento.id)}
+                    disabled={loadingChat}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-sky-400 hover:to-blue-500 disabled:opacity-50"
+                    data-testid="chat-del-contrato"
                   >
-                    {confirmandoContratoId === contratoDelSeguimiento.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    Confirmar el trabajo de {contratoDelSeguimiento.nombre || "este trabajador"}
+                    <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                    {loadingChat ? t("common.loading", "Loading...") : (() => { const otra = isOwnJob ? contratoDelSeguimiento.nombre : clientInfo?.name; return otra ? `Chat con ${otra}` : t("common.chat", "Chat"); })()}
                   </button>
+                </div>
+
+                {hayVariosTrabajadores && allContractsData ? (
+                  <div className="mb-5" data-testid="equipo-del-trabajo">
+                    <ul className="space-y-2">
+                      {allContractsData.contracts.map((c) => {
+                        const elegido = contratoDelSeguimiento.id === c.id;
+                        const puede = puedeAbrirElContrato(c.doerId);
+                        const enMarcha = ["in_progress", "awaiting_confirmation"].includes(String(c.status));
+                        return (
+                          <li
+                            key={c.id}
+                            aria-current={elegido ? "true" : undefined}
+                            className={`rounded-xl border p-3 transition-colors ${elegido ? "border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-900/20" : c.status === "cancelled" ? "border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-900/10" : "border-slate-200 dark:border-slate-700"}`}
+                            data-testid="trabajador-del-equipo"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <AvatarConInicial src={c.doerAvatar ? getImageUrl(c.doerAvatar) : null} nombre={c.doerName} className="h-10 w-10 shrink-0 rounded-full" />
+                                <div className="min-w-0">
+                                  <Link to={`/profile/${c.doerId}`} className="block truncate font-medium text-slate-900 hover:underline dark:text-white">
+                                    {c.doerName || t("common.worker", "Worker")}
+                                  </Link>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">{etiquetaDelContrato(String(c.status))}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <EstadoDeConfirmaciones terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId ?? null} />
+                                {puede && !elegido && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setContratoElegido(c.id)}
+                                    className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:text-sky-300 dark:hover:bg-sky-900/30"
+                                    data-testid="elegir-contrato"
+                                  >
+                                    Ver su contrato
+                                  </button>
+                                )}
+                                {elegido && <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">Su contrato está abajo</span>}
+                              </div>
+                            </div>
+                            {isOwnJob && enMarcha && (
+                              <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="acciones-del-cliente-por-trabajador">
+                                {!c.clientConfirmed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmarContratoDe(String(c.id), c.doerName)}
+                                    disabled={confirmandoContratoId === String(c.id)}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                                    data-testid="confirmar-trabajo-de-este-trabajador"
+                                  >
+                                    {confirmandoContratoId === String(c.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                    Confirmar el trabajo de {c.doerName || "este trabajador"}
+                                  </button>
+                                )}
+                                {c.doerConfirmed && !c.clientConfirmed && <span className="text-xs text-green-700 dark:text-green-300">El trabajador ya avisó que terminó.</span>}
+                                <HuboProblemas contractId={String(c.id)} problema={c.problemaAbierto === true} className="!px-3 !py-2" />
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-slate-600 dark:text-slate-300" data-testid="resumen-del-equipo">
+                      <span>Terminaron el trabajo: <strong>{allContractsData.contracts.filter((c) => c.doerConfirmed).length} / {allContractsData.totalContracts}</strong></span>
+                      <span>{isOwnJob ? "Aceptaste el trabajo de" : "El cliente aceptó el trabajo de"}: <strong>{allContractsData.contracts.filter((c) => c.clientConfirmed).length} / {allContractsData.totalContracts}</strong></span>
+                    </div>
+                    {isOwnJob && renderConfirmarTodo()}
+                    {allContractsData.allCompleted && (
+                      <div className="mt-3 rounded-lg bg-green-100 p-3 text-center text-sm font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                        {t("jobs.allContractsCompleted", "All contracts have been completed")}
+                      </div>
+                    )}
+                    <h3 className="mb-1 mt-5 text-sm font-semibold text-slate-700 dark:text-slate-300">{isOwnJob ? `Contrato de ${contratoDelSeguimiento.nombre || "este trabajador"}` : "Tu contrato"}</h3>
+                  </div>
+                ) : (
+                  contractData && <EstadoDeConfirmaciones className="mb-4" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} disputeId={contractData.disputeId ?? null} />
                 )}
-                <ContractDetail key={contratoDelSeguimiento.id} embebido contratoId={contratoDelSeguimiento.id} />
+                <ContractDetail
+                  key={contratoDelSeguimiento.id}
+                  embebido
+                  contratoId={contratoDelSeguimiento.id}
+                  alConfirmar={({ completado }) => {
+                    setTextoDeConfirmacion(textoDeConfirmar(contratoDelSeguimiento.nombre, completado, Boolean(isOwnJob)));
+                    setShowConfirmationSuccessModal(true);
+                    if (completado) setPostWorkPending(true);
+                    fetchAllContracts();
+                    setPollKey((k) => k + 1);
+                  }}
+                />
               </section>
             )}
 
@@ -2854,16 +2958,7 @@ export default function JobDetail() {
                   onClick={() => setShowClientMenu(!showClientMenu)}
                   className="flex items-center gap-3 w-full text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
                 >
-                  <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
-                    <img
-                      src={
-                        clientInfo?.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${clientInfo?.name || "user"}`
-                      }
-                      alt={clientInfo?.name || t("common.user", "User")}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
+                  <AvatarConInicial src={clientInfo?.avatar ? getImageUrl(clientInfo?.avatar) : null} nombre={clientInfo?.name} className="h-12 w-12 rounded-full" />
                   <div className="flex-1">
                     <p className="font-semibold text-slate-900 dark:text-white">
                       {clientInfo?.name || t("common.user", "User")}
@@ -2956,16 +3051,7 @@ export default function JobDetail() {
                       to={`/profile/${job.doer.id}`}
                       className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
                     >
-                      <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
-                        <img
-                          src={
-                            job.doer.avatar ||
-                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.doer.name || "worker"}`
-                          }
-                          alt={job.doer.name || t("common.worker", "Worker")}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
+                      <AvatarConInicial src={job.doer.avatar ? getImageUrl(job.doer.avatar) : null} nombre={job.doer.name} className="h-12 w-12 rounded-full" />
                       <div className="flex-1">
                         <p className="font-semibold text-slate-900 dark:text-white">
                           {job.doer.name || t("common.worker", "Worker")}
@@ -2998,16 +3084,7 @@ export default function JobDetail() {
                           to={`/profile/${worker.id}`}
                           className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
                         >
-                          <div className="h-10 w-10 overflow-hidden rounded-full bg-sky-100">
-                            <img
-                              src={
-                                worker.avatar ||
-                                `https://api.dicebear.com/7.x/avataaars/svg?seed=${worker.name || "worker"}`
-                              }
-                              alt={worker.name || t("common.worker", "Worker")}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
+                          <AvatarConInicial src={worker.avatar ? getImageUrl(worker.avatar) : null} nombre={worker.name} className="h-10 w-10 rounded-full" />
                           <div className="flex-1">
                             <p className="font-medium text-slate-900 dark:text-white text-sm">
                               {worker.name || t("common.worker", "Worker")}
@@ -4109,16 +4186,7 @@ export default function JobDetail() {
                                 to={`/profile/${proposal.freelancer?.id || proposal.freelancerId}`}
                                 className="shrink-0"
                               >
-                                <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100 ring-2 ring-slate-300 dark:ring-slate-600 hover:ring-sky-500 transition-colors">
-                                  <img
-                                    src={
-                                      proposal.freelancer?.avatar ||
-                                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${proposal.freelancer?.name || "user"}`
-                                    }
-                                    alt={proposal.freelancer?.name}
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
+                                <AvatarConInicial src={proposal.freelancer?.avatar ? getImageUrl(proposal.freelancer?.avatar) : null} nombre={proposal.freelancer?.name} className="h-12 w-12 rounded-full ring-2 ring-slate-300 dark:ring-slate-600 hover:ring-sky-500 transition-colors" />
                               </Link>
 
                               {/* Info */}
@@ -4947,16 +5015,7 @@ export default function JobDetail() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 overflow-hidden rounded-full bg-sky-100">
-                              <img
-                                src={
-                                  contract.doerAvatar ||
-                                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${contract.doerName}`
-                                }
-                                alt={contract.doerName}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
+                            <AvatarConInicial src={contract.doerAvatar ? getImageUrl(contract.doerAvatar) : null} nombre={contract.doerName} className="h-10 w-10 rounded-full" />
                             <div>
                               <p className="font-medium text-white">
                                 {contract.doerName}
@@ -5358,8 +5417,11 @@ export default function JobDetail() {
         {/* Confirmation Success Modal */}
         <ConfirmationSuccessModal
           open={showConfirmationSuccessModal}
+          titulo={textoDeConfirmacion.titulo}
+          detalle={textoDeConfirmacion.detalle}
           onClose={() => {
             setShowConfirmationSuccessModal(false);
+            setTextoDeConfirmacion({});
             // La puntuación post-trabajo es obligatoria: la pide el portero
             if (postWorkPending) {
               setPostWorkPending(false);

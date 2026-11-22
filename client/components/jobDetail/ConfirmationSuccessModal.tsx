@@ -4,10 +4,13 @@ import { CheckCircle } from "lucide-react";
 interface ConfirmationSuccessModalProps {
   open: boolean;
   onClose: () => void;
+  /** Para decir QUÉ se confirmó (por ejemplo «Confirmaste el trabajo de Ana»); sin esto se usa el texto general. */
+  titulo?: string;
+  detalle?: string;
 }
 
 /** Success modal shown after a job is confirmed. Extracted from JobDetail. */
-export default function ConfirmationSuccessModal({ open, onClose }: ConfirmationSuccessModalProps) {
+export default function ConfirmationSuccessModal({ open, onClose, titulo, detalle }: ConfirmationSuccessModalProps) {
   const { t } = useTranslation();
   if (!open) return null;
 
@@ -18,14 +21,15 @@ export default function ConfirmationSuccessModal({ open, onClose }: Confirmation
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
             <CheckCircle className="h-10 w-10 text-green-500" />
           </div>
-          <h3 className="text-2xl font-bold text-white mb-2">
-            {t("jobs.thanksForConfirming", "Thank you for confirming the job!")}
+          <h3 className="text-2xl font-bold text-white mb-2" data-testid="titulo-de-confirmacion">
+            {titulo || t("jobs.thanksForConfirming", "Thank you for confirming the job!")}
           </h3>
           <p className="text-slate-300">
-            {t(
-              "jobs.weHandlePayment",
-              "Thank you for trusting DoApp, we make sure the payment reaches its destination.",
-            )}
+            {detalle ||
+              t(
+                "jobs.weHandlePayment",
+                "Thank you for trusting DoApp, we make sure the payment reaches its destination.",
+              )}
           </p>
         </div>
 

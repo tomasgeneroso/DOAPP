@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { getImageUrl } from "../../utils/imageUrl";
+import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import { CheckCircle, Star, Loader2 } from "lucide-react";
 import type { Job } from "@/types";
 
@@ -39,16 +41,7 @@ export default function SelectWorkerConfirmModal({
         <div className="mb-6 space-y-4">
           {/* Selected Worker Preview */}
           <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
-            <div className="h-14 w-14 overflow-hidden rounded-full bg-sky-100 ring-2 ring-green-500">
-              <img
-                src={
-                  proposal.freelancer?.avatar ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${proposal.freelancer?.name || "user"}`
-                }
-                alt={proposal.freelancer?.name}
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <AvatarConInicial src={proposal.freelancer?.avatar ? getImageUrl(proposal.freelancer?.avatar) : null} nombre={proposal.freelancer?.name} className="h-14 w-14 rounded-full ring-2 ring-green-500" />
             <div>
               <p className="font-semibold text-white text-lg">{proposal.freelancer?.name || "Usuario"}</p>
               <div className="flex items-center gap-3 text-sm text-slate-400">

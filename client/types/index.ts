@@ -215,6 +215,8 @@ export interface User {
     jobUpdate: boolean;
     contractUpdate: boolean;
     paymentUpdate: boolean;
+    /** Que otras personas lo etiqueten en publicaciones de trabajos terminados (sin valor = sí). */
+    canBeTagged?: boolean;
     marketing: boolean;
   };
   referralCode?: string;

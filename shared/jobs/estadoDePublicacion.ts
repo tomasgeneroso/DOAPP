@@ -51,7 +51,8 @@ export function estadoDePublicacion(job: { id: string; status: string }): Estado
     case 'in_progress':
       return { etiqueta: 'En curso', explicacion: 'Ya tiene un trabajador contratado y está en marcha.', enElMuro: false, tono: 'info' };
     case 'completed':
-      return { etiqueta: 'Completado', explicacion: 'El trabajo terminó.', enElMuro: false, tono: 'cierre' };
+      // «Completado» y «Pago aprobado» juntos hacían pensar que ya se había pagado al trabajador: acá solo se dice que el TRABAJO terminó; el pago se cuenta en su propia etiqueta.
+      return { etiqueta: 'Trabajo terminado', explicacion: 'Las partes confirmaron que terminó. Cómo sigue el pago al trabajador lo dice la etiqueta de abajo.', enElMuro: false, tono: 'cierre' };
     case 'cancelled':
       return { etiqueta: 'Cancelado', explicacion: 'Se canceló y ya no está en el muro.', enElMuro: false, tono: 'cierre' };
     case 'disputed':

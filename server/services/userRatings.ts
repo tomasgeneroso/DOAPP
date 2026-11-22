@@ -43,6 +43,15 @@ const LEGACY_DIMENSION_COLUMN: Record<string, string> = {
   professionalism: "profesionalidadRating",
 };
 
+/**
+ * Columnas de `users` con la puntuación detallada (promedios por dimensión y el desglose por rol). Quien muestra la «Puntuación total» de otra persona en una pantalla
+ * (trabajo, propuesta) las pide con esta lista: con solo `rating` y `reviewsCount` el total subía pero cada puntaje (puntualidad, calidad, etc.) quedaba en «Sin datos».
+ */
+export const ATRIBUTOS_DE_PUNTUACION: string[] = [
+  "ratingBreakdown",
+  ...Object.values(LEGACY_DIMENSION_COLUMN),
+];
+
 export interface DimensionStat {
   avg: number;
   count: number;

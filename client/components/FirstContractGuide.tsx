@@ -103,8 +103,9 @@ export default function FirstContractGuide() {
       {/* Caminos */}
       {expanded && (
         <div className="px-4 py-3 space-y-3">
-          {ORDEN_DE_GUIAS.map((id, i) => {
-            const done = hechas[i];
+          {/* Lo que ya se hizo no se muestra más (pedido del dueño, 2026-11-22): quedan solo los caminos por recorrer, y con todos hechos la guía entera se va. */}
+          {ORDEN_DE_GUIAS.filter((_, i) => !hechas[i]).map((id) => {
+            const done = false;
             return (
               <div key={id} className="flex items-start gap-3" data-testid={`guia-${id}`}>
                 <div className="mt-0.5 shrink-0">

@@ -1,5 +1,6 @@
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { pagosDeLasPublicaciones } from "../services/pagoDeLaPublicacion.js";
+import { ATRIBUTOS_DE_PUNTUACION } from "../services/userRatings.js";
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
@@ -856,12 +857,12 @@ router.get("/:id",
           model: User,
           // Sin phone ni email: ruta publica. Para hablar esta el chat.
           as: 'client',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', ...ATRIBUTOS_DE_PUNTUACION]
         },
         {
           model: User,
           as: 'doer',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', ...ATRIBUTOS_DE_PUNTUACION,
             'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseDocumentBackUrl', 'licenseVerified',
             'cancellationMarkUntil'],
           required: false
@@ -890,7 +891,7 @@ router.get("/:id",
     if (jobData.selectedWorkers && jobData.selectedWorkers.length > 0) {
       const selectedWorkersData = await User.findAll({
         where: { id: { [Op.in]: jobData.selectedWorkers } },
-        attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
+        attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', ...ATRIBUTOS_DE_PUNTUACION,
           'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseDocumentBackUrl', 'licenseVerified']
       });
       jobData.selectedWorkersData = selectedWorkersData.map((w: any) => ({

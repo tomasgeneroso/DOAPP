@@ -623,6 +623,8 @@ export default function MyJobsScreen() {
     return null;
   };
 
+  /** El trabajo ya empezó, terminó o se canceló: el estado que importa es el de punta a punta, no el de la publicación. */
+  const estadoAvanzado = (status: string) => ['in_progress', 'completed', 'cancelled'].includes(status);
   /** Un trabajo creado pero sin pagar (estado «draft» sin publicación pagada) está PENDIENTE DE PAGO: «Borrador» confundía. */
   const estaPendienteDePago = (job: Job) =>
     job.status === "pending_payment" ||
@@ -1041,12 +1043,16 @@ export default function MyJobsScreen() {
                           );
                         })()}
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status === "draft" && estaPendienteDePago(job) ? "pending_payment" : job.status)}`}>
-                            {job.status === "draft" && estaPendienteDePago(job) ? t('jobs.status.pending_payment', 'Pendiente de Pago') : getStatusLabel(job.status)}
-                          </span>
+                          {/* Cada etiqueta en su momento (pedido del dueño, 2026-11-22): con el trabajo en curso o terminado, el estado de punta a punta (la etiqueta de abajo) reemplaza a «Completado»
+                              y a «Pago aprobado», que juntos hacían pensar que el trabajador ya cobró. «Pago aprobado» (el de la publicación) solo se ve antes de que el trabajo empiece. */}
+                          {!(estadoAvanzado(job.status) && (job as any).situacion) && (
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status === "draft" && estaPendienteDePago(job) ? "pending_payment" : job.status)}`}>
+                              {job.status === "draft" && estaPendienteDePago(job) ? t('jobs.status.pending_payment', 'Pendiente de Pago') : getStatusLabel(job.status)}
+                            </span>
+                          )}
                           {/* En qué está de punta a punta (el mismo estado que ve el equipo): solo cuando ya hay algo más que contar que «publicado / en revisión». */}
-                          {['in_progress', 'completed', 'cancelled'].includes(job.status) && <SituacionDeLaOperacion situacion={(job as any).situacion} />}
-                          {getPaymentStatusBadge(job)}
+                          {estadoAvanzado(job.status) && <SituacionDeLaOperacion situacion={(job as any).situacion} />}
+                          {!estadoAvanzado(job.status) && getPaymentStatusBadge(job)}
                           {/* Tipo de entrega */}
                           {job.singleDelivery === false ? (
                             <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">

@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import Transicion from "../components/ui/Transicion";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
+import AvatarConInicial from "../components/ui/AvatarConInicial";
+import { getImageUrl } from "../utils/imageUrl";
 
 interface JobData {
   id: string;
@@ -35,7 +37,7 @@ export default function CreatePortfolioPost() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const jobId = searchParams.get('fromJob');
@@ -45,6 +47,7 @@ export default function CreatePortfolioPost() {
   const [jobData, setJobData] = useState<JobData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [avisoDeEtiquetas, setAvisoDeEtiquetas] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -58,6 +61,9 @@ export default function CreatePortfolioPost() {
   const [review, setReview] = useState('');
   const [hoveredStar, setHoveredStar] = useState(0);
   const [publishAsPost, setPublishAsPost] = useState(true);
+  // A quién se puede etiquetar: quienes trabajaron en este trabajo (sin uno mismo). El servidor deja afuera a quien apagó las etiquetas en su configuración.
+  const [equipo, setEquipo] = useState<Array<{ id: string; name: string; avatar?: string | null }>>([]);
+  const [etiquetados, setEtiquetados] = useState<string[]>([]);
 
   useEffect(() => {
     if (jobId) {
@@ -67,6 +73,24 @@ export default function CreatePortfolioPost() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  const cargarEquipo = async () => {
+    try {
+      const respuesta = await fetch(`/api/contracts/all-by-job/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const datos = await respuesta.json();
+      const vistos = new Set<string>();
+      const lista: Array<{ id: string; name: string; avatar?: string | null }> = [];
+      for (const c of datos?.contracts || []) {
+        const id = String(c.doerId || '');
+        if (!id || id === String(user?.id) || vistos.has(id) || ['cancelled', 'rejected'].includes(String(c.status))) continue;
+        vistos.add(id);
+        lista.push({ id, name: c.doerName || 'Trabajador', avatar: c.doerAvatar });
+      }
+      setEquipo(lista);
+    } catch {
+      setEquipo([]);
+    }
+  };
 
   const fetchJobData = async () => {
     try {
@@ -87,6 +111,7 @@ export default function CreatePortfolioPost() {
         setDescription(job.description || '');
         setCategory(job.category || '');
         setTags(job.tags?.join(', ') || '');
+        void cargarEquipo();
       } else {
         setError(t('portfolio.loadJobError', 'Could not load job information'));
       }
@@ -202,52 +227,32 @@ export default function CreatePortfolioPost() {
       // Also create a post if the option is enabled
       if (publishAsPost) {
         try {
-          // First upload images to get URLs for the post
-          let galleryItems: Array<{ url: string; type: 'image' }> = [];
+          // La publicación lleva las fotos que adjuntaste (campo «gallery»), el trabajo y a quién etiquetás. Antes las fotos iban a una ruta que no existía y la
+          // publicación salía sin ellas: solo se veía la del contrato.
+          const postFormData = new FormData();
+          postFormData.append('title', title);
+          postFormData.append('description', description);
+          postFormData.append('type', 'post');
+          postFormData.append('currency', 'ARS');
+          if (jobData?.price) postFormData.append('price', String(jobData.price));
+          postFormData.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(Boolean)));
+          if (jobId) postFormData.append('linkedJob', jobId);
+          if (etiquetados.length > 0) postFormData.append('taggedUsers', JSON.stringify(etiquetados));
+          images.forEach(img => postFormData.append('gallery', img));
 
-          if (images.length > 0) {
-            const postFormData = new FormData();
-            images.forEach(img => {
-              postFormData.append('images', img);
-            });
-
-            const uploadResponse = await fetch('/api/posts/upload-images', {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              body: postFormData,
-            });
-
-            const uploadData = await uploadResponse.json();
-            if (uploadData.success && uploadData.urls) {
-              galleryItems = uploadData.urls.map((url: string) => ({
-                url,
-                type: 'image' as const,
-              }));
-            }
-          }
-
-          // Create the post
-          const postData = {
-            title,
-            description,
-            type: 'post',
-            gallery: galleryItems,
-            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-            linkedJob: jobId,
-            price: jobData?.price,
-            currency: 'ARS',
-          };
-
-          await fetch('/api/posts', {
+          const postResponse = await fetch('/api/posts', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify(postData),
+            body: postFormData,
           });
+          const postRespuesta = await postResponse.json().catch(() => ({}));
+          if (!postResponse.ok) {
+            setError(postRespuesta?.message || t('portfolio.postError', 'Se guardó en tu portafolio, pero no se pudo crear la publicación en tu perfil.'));
+          } else if (postRespuesta?.noEtiquetados > 0) {
+            setAvisoDeEtiquetas(t('portfolio.noTagged', '{{count}} persona(s) no quedaron etiquetadas porque no permiten que las etiqueten.', { count: postRespuesta.noEtiquetados }));
+          }
         } catch (postErr) {
           console.error('Error creating post:', postErr);
           // Don't fail the whole operation if post creation fails
@@ -304,6 +309,7 @@ export default function CreatePortfolioPost() {
           <p className="text-slate-600 dark:text-slate-400 mb-4">
             {t('portfolio.sharedInPortfolio', 'Your work has been shared in your portfolio')}
           </p>
+          {avisoDeEtiquetas && <p className="mb-3 text-sm text-amber-700 dark:text-amber-300" data-testid="aviso-de-etiquetas">{avisoDeEtiquetas}</p>}
           <p className="text-sm text-slate-500">{t('common.redirecting', 'Redirecting...')}</p>
         </div>
       </div>
@@ -543,6 +549,37 @@ export default function CreatePortfolioPost() {
               />
               <p className="text-xs text-slate-400 mt-1 text-right">{review.length}/500</p>
             </div>
+
+            {/* Etiquetar a los trabajadores: solo a quienes trabajaron en este trabajo y permiten que los etiqueten (Configuración). */}
+            {equipo.length > 0 && (
+              <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700" data-testid="etiquetar-trabajadores">
+                <p className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('portfolio.tagWorkers', 'Etiquetar a los trabajadores en la publicación')}</p>
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                  {t('portfolio.tagWorkersHint', 'Les llega un aviso y aparecen en la publicación. Solo quedan etiquetados quienes lo permiten en su configuración.')}
+                </p>
+                <div className="space-y-2">
+                  {equipo.map((p) => {
+                    const marcado = etiquetados.includes(p.id);
+                    return (
+                      <label key={p.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-2 transition-colors ${marcado ? 'border-sky-400 bg-sky-50 dark:border-sky-500 dark:bg-sky-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => setEtiquetados((prev) => (marcado ? prev.filter((id) => id !== p.id) : [...prev, p.id]))}
+                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                          data-testid="etiquetar-a"
+                        />
+                        <AvatarConInicial src={p.avatar ? getImageUrl(p.avatar) : null} nombre={p.name} className="h-8 w-8 shrink-0 rounded-full" />
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {!publishAsPost && etiquetados.length > 0 && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('portfolio.tagNeedsPost', 'Las etiquetas van en la publicación de tu perfil: activá «Publicar también en mi perfil».')}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Auto-publish as Post Toggle */}

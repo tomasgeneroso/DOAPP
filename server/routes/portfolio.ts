@@ -6,6 +6,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from "sequelize";
+import { uploadPortfolio, verifyMagicBytes } from "../middleware/upload.js";
 
 const router = Router();
 
@@ -184,6 +185,45 @@ router.post(
         success: false,
         message: error.message || "Error del servidor",
       });
+    }
+  }
+);
+
+/**
+ * Fotos del trabajo compartido: se suman a las del item (hasta 10). Antes la pantalla las mandaba acá y la ruta no existía: la foto adjuntada nunca se guardaba.
+ * POST /api/portfolio/:id/images  (archivos en el campo «images»)
+ */
+router.post(
+  "/:id/images",
+  protect,
+  uploadPortfolio,
+  verifyMagicBytes,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const item = await PortfolioItem.findByPk(req.params.id);
+      if (!item) {
+        res.status(404).json({ success: false, message: "Item no encontrado" });
+        return;
+      }
+      if (String(item.userId) !== String(req.user.id)) {
+        res.status(403).json({ success: false, message: "No autorizado" });
+        return;
+      }
+      const archivos = (req.files as Express.Multer.File[]) || [];
+      if (archivos.length === 0) {
+        res.status(400).json({ success: false, message: "No se recibió ninguna imagen" });
+        return;
+      }
+      const actuales = Array.isArray(item.images) ? item.images : [];
+      if (actuales.length + archivos.length > 10) {
+        res.status(400).json({ success: false, message: "Un item puede tener hasta 10 imágenes" });
+        return;
+      }
+      item.images = [...actuales, ...archivos.map((a) => `/uploads/portfolio/${a.filename}`)];
+      await item.save();
+      res.json({ success: true, data: item });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
     }
   }
 );

@@ -78,6 +78,29 @@ export default function Header() {
     }
   }, [token]);
 
+  // Reclamos míos que siguen abiertos: el menú lo avisa con un globo rojo en «Ayuda y Soporte», que lleva a «Mis disputas» (pedido del dueño, 2026-11-22).
+  const [disputasAbiertas, setDisputasAbiertas] = useState(0);
+  const contarDisputas = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await fetch("/api/disputes/my-disputes", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data)) {
+        setDisputasAbiertas(data.data.filter((d: { status?: string }) => d.status && !d.status.startsWith("resolved") && d.status !== "cancelled").length);
+      }
+    } catch {
+      /* sin red: el globo queda como estaba */
+    }
+  }, [token]);
+  useEffect(() => {
+    if (user) contarDisputas(); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch, not direct setState
+    else setDisputasAbiertas(0);
+  }, [user, contarDisputas]);
+  const recontarDisputas = useRecargaJuntada(() => {
+    if (user) contarDisputas();
+  });
+  useEventoEnVivo(["dispute:updated", "contract:updated", "socket:reconectado"], recontarDisputas);
+
   // Fetch initial unread count
   useEffect(() => {
     if (user) {
@@ -365,6 +388,11 @@ export default function Header() {
                 />
               </button>
 
+              {/* Un reclamo abierto: globo rojo también en el avatar (si ya hay otro aviso pendiente, ese ocupa el lugar). */}
+              {!hasPending && disputasAbiertas > 0 && (
+                <span aria-hidden="true" data-testid="globo-de-disputas-avatar" className="pointer-events-none absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+              )}
+
               {/* Start of the attention trail: avatar → Configuración → pestaña → sección */}
               {hasPending && (
                 <AttentionDot
@@ -424,13 +452,22 @@ export default function Header() {
                       {hasPending && <AttentionDot priority={highestPriority} count={pending.length} />}
                     </Link>
                     <Link
-                      to="/help"
+                      to={disputasAbiertas > 0 ? "/help?tab=disputes" : "/help"}
                       onClick={() => handleNavClick('/help')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
                       <HelpCircle className="h-4 w-4" aria-hidden="true" />
-                      {t('nav.helpAndSupport', 'Help & Support')}
+                      <span className="flex-1">{t('nav.helpAndSupport', 'Help & Support')}</span>
+                      {disputasAbiertas > 0 && (
+                        <span
+                          data-testid="globo-de-disputas"
+                          title={disputasAbiertas === 1 ? "Tenés 1 reclamo abierto" : `Tenés ${disputasAbiertas} reclamos abiertos`}
+                          className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white"
+                        >
+                          {disputasAbiertas}
+                        </span>
+                      )}
                     </Link>
                     <Link
                       to="/sitemap"

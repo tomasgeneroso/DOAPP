@@ -1,6 +1,7 @@
 import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useState, useEffect } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
+import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import { useTranslation } from "react-i18next";
 import { Shield, UserCog, Search, Check, X, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -470,14 +471,7 @@ export default function RoleManagement() {
                   <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={getImageUrl(user.avatar)}
-                          alt={user.name}
-                          className="h-8 w-8 rounded-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`;
-                          }}
-                        />
+                        <AvatarConInicial src={user.avatar ? getImageUrl(user.avatar) : null} nombre={user.name} className="h-8 w-8 rounded-full" />
                         <span className="text-sm font-medium text-slate-900 dark:text-white">
                           {user.name}
                         </span>
