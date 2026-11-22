@@ -8,6 +8,7 @@ import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import emailService from './email.js';
 import { siguienteNumeroDeTicket } from './numeroDeTicket.js';
+import { avisarContratoAlChatDelEquipo } from './chatDelEquipo.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import {
   ETIQUETA_DE_PROBLEMA_DEL_TRABAJO,
@@ -193,6 +194,7 @@ export async function reportarProblema(args: { contractId: string; userId: strin
     await contract.reload();
   }
 
+  void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `🚩 Quien contrató avisó que hubo problemas en el trabajo de ${n} (${ticketNumber}). La confirmación automática está detenida.`, 'problema_avisado');
   await avisar(String(contract.doerId), 'El cliente avisó que hubo problemas', `Quien te contrató avisó que hubo problemas en "${titulo}" (${ticketNumber}). El equipo de DOAPP lo revisa; mientras tanto el pago no se libera solo. Podés contar tu versión en el ticket.`, contract.id, 'warning');
   await avisar(String(args.userId), 'Recibimos tu aviso', `Abrimos el ticket ${ticketNumber}. Mientras esté abierto la confirmación automática está detenida y el pago no se libera. Si se arregla, podés seguir con el mismo trabajo; si no, llevarlo a un reclamo.`, contract.id, 'info', `/tickets/${ticket.id}`);
 
@@ -246,6 +248,7 @@ export async function seguirConElMismoTrabajo(args: { ticketId: string; quien: {
   const plazoNuevo = await empezarPlazoNuevo(contract.id);
   const job = await Job.findByPk(contract.jobId, { attributes: ['id', 'title'] });
   const titulo = job?.title || 'el trabajo';
+  void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `✅ El problema del trabajo de ${n} se resolvió: el trabajo sigue.`, 'problema_resuelto');
   await avisar(String(contract.clientId), 'Seguimos con el mismo trabajo', `El problema de "${titulo}" se resolvió. Ya podés aceptar el fin del trabajo${plazoNuevo ? `; si no hacés nada, se confirma solo en ${HORAS} horas` : ''}.`, contract.id, 'success');
   await avisar(String(contract.doerId), 'El problema se resolvió', `El problema que se había avisado en "${titulo}" se resolvió y el trabajo sigue. Cuando termines, tocá «Completé el trabajo».`, contract.id, 'success');
   return { ticket, plazoNuevo };

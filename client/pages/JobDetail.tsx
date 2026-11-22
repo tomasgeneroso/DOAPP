@@ -1,7 +1,9 @@
 import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
 import CarruselDeFotos from "../components/jobDetail/CarruselDeFotos";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation, useSearchParams } from "react-router-dom";
+import ContractDetail from "./ContractDetail";
+import Pestanas from "../components/ui/Pestanas";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -81,6 +83,7 @@ import Transicion from "../components/ui/Transicion";
 import DetallesDelPago from "../components/jobs/DetallesDelPago";
 import ComprobantesDelPagoEquipo from "../components/jobs/ComprobantesDelPagoEquipo";
 import EstadoDeConfirmaciones from "../components/contracts/EstadoDeConfirmaciones";
+import CodigoDeEmparejamiento from "../components/contracts/CodigoDeEmparejamiento";
 import HuboProblemas, { AvisoDeProblemaAbierto, type ProblemaAbierto } from "../components/contracts/HuboProblemas";
 import RecordatorioDeConfirmacion from "../components/contracts/RecordatorioDeConfirmacion";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
@@ -189,6 +192,9 @@ export default function JobDetail() {
       problemaAbierto?: boolean;
       /** El reclamo de este contrato (cada trabajador tiene el suyo). */
       disputeId?: string | null;
+      /** Código de emparejamiento de este contrato (solo para las partes). */
+      pairingCode?: string | null;
+      pairingExpiry?: string | null;
     }>;
     totalContracts: number;
     allClientConfirmed: boolean;
@@ -756,6 +762,9 @@ export default function JobDetail() {
   // Trabajo de varios trabajadores: quien contrató confirma el trabajo de CADA uno desde «Trabajadores del proyecto» (cada trabajador tiene su contrato).
   const [confirmandoContratoId, setConfirmandoContratoId] = useState<string | null>(null);
   // «Confirmar que todo el trabajo terminó» (pedido del dueño, 2026-11-21): confirma, uno por uno, los contratos en marcha que quien contrató todavía no confirmó.
+  // Qué contrato se ve en el «Seguimiento del contrato» (con varios trabajadores); `?contrato=` lo deja elegido al venir de un enlace al contrato. Los hooks van acá, antes de los `return` tempranos.
+  const [parametrosDeLaDireccion] = useSearchParams();
+  const [contratoElegido, setContratoElegido] = useState<string | null>(parametrosDeLaDireccion.get("contrato"));
   const [confirmarTodosAbierto, setConfirmarTodosAbierto] = useState(false);
   const [confirmandoTodos, setConfirmandoTodos] = useState(false);
   const handleConfirmarTodos = async () => {
@@ -1488,6 +1497,20 @@ export default function JobDetail() {
     return null;
   };
   const veLasConfirmaciones = () => Boolean(isOwnJob || isWorkerOnJob);
+
+  /**
+   * «Seguimiento del contrato»: el contrato vive dentro de la vista del trabajo (pedido del dueño, 2026-11-22). Con varios trabajadores, quien contrató elige de quién ve el seguimiento
+   * (y puede confirmar el trabajo de cada uno); cada trabajador ve el suyo.
+   */
+  const contratosParaElSeguimiento: Array<{ id: string; nombre: string; doerConfirmed: boolean; clientConfirmed: boolean; status: string }> =
+    allContractsData && allContractsData.totalContracts > 1
+      ? allContractsData.contracts
+          .filter((c) => isOwnJob || String(c.doerId) === String(userId))
+          .map((c) => ({ id: c.id, nombre: c.doerName, doerConfirmed: !!c.doerConfirmed, clientConfirmed: !!c.clientConfirmed, status: c.status }))
+      : contractData
+        ? [{ id: contractData.id, nombre: "", doerConfirmed: !!contractData.doerConfirmed, clientConfirmed: !!contractData.clientConfirmed, status: String(contractData.status) }]
+        : [];
+  const contratoDelSeguimiento = contratosParaElSeguimiento.find((c) => c.id === contratoElegido) ?? contratosParaElSeguimiento[0] ?? null;
   /** «Confirmar que todo el trabajo terminó»: se ofrece donde se ve el equipo, mientras haya trabajadores en marcha que quien contrató todavía no confirmó. */
   const renderConfirmarTodo = () => {
     if (!allContractsData || !allContractsData.contracts.some((c) => ["in_progress", "awaiting_confirmation"].includes(String(c.status)) && !c.clientConfirmed)) return null;
@@ -2187,6 +2210,28 @@ export default function JobDetail() {
                       </div>
                     </div>
 
+                    {/* Código de emparejamiento: lo ven todas las partes (pedido del dueño, 2026-11-22). El trabajador de un solo contrato ya lo ve abajo, en su tarjeta. */}
+                    {(isOwnJob || isWorkerOnJob) && (() => {
+                      const vigente = (estado?: string) => ["pending", "ready", "accepted", "in_progress", "awaiting_confirmation"].includes(String(estado));
+                      const rol = isOwnJob ? "cliente" : "trabajador";
+                      const delEquipo = allContractsData && allContractsData.totalContracts > 1
+                        ? allContractsData.contracts.filter((c) => c.pairingCode && vigente(c.status))
+                        : [];
+                      if (delEquipo.length > 0) {
+                        return (
+                          <div className="mb-4 space-y-3" data-testid="codigos-del-equipo">
+                            {delEquipo.map((c) => (
+                              <CodigoDeEmparejamiento key={c.id} codigo={c.pairingCode} vence={c.pairingExpiry} rol={rol} nombreDelTrabajador={c.doerName} />
+                            ))}
+                          </div>
+                        );
+                      }
+                      if (isOwnJob && contractData?.pairingCode && vigente(contractData.status)) {
+                        return <CodigoDeEmparejamiento className="mb-4" codigo={contractData.pairingCode} vence={contractData.pairingExpiry} rol="cliente" />;
+                      }
+                      return null;
+                    })()}
+
                     {/* Confirmaciones - Solo mostrar si hay contrato */}
                     {contractData ? (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
@@ -2681,6 +2726,44 @@ export default function JobDetail() {
                 </div>
               )}
             </div>
+
+            {/* Seguimiento del contrato: lo que antes estaba en la vista del contrato (control diario, fotos de entrega, reclamar tareas, emergencia, compartir, confirmar, cambios y pagos). */}
+            {(isOwnJob || isWorkerOnJob) && contratoDelSeguimiento && !user?.adminRole && (
+              <section id="seguimiento-del-contrato" className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6" data-testid="seguimiento-del-contrato">
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                  <ClipboardList className="h-5 w-5 text-sky-500" aria-hidden="true" />
+                  Seguimiento del contrato
+                </h2>
+                {contratosParaElSeguimiento.length > 1 && (
+                  <Pestanas
+                    ariaLabel="Contrato de cada trabajador"
+                    testid="selector-de-contrato"
+                    className="mb-4"
+                    valor={contratoDelSeguimiento.id}
+                    onCambiar={setContratoElegido}
+                    opciones={contratosParaElSeguimiento.map((c) => ({
+                      id: c.id,
+                      texto: c.nombre || "Trabajador",
+                      titulo: `${c.doerConfirmed ? "Terminó el trabajo" : "Todavía no terminó"}${c.clientConfirmed ? " · aceptado" : ""}`,
+                      insignia: c.clientConfirmed ? "aceptado" : c.doerConfirmed ? "terminó" : undefined,
+                    }))}
+                  />
+                )}
+                {isOwnJob && contratosParaElSeguimiento.length > 1 && contratoDelSeguimiento.doerConfirmed && !contratoDelSeguimiento.clientConfirmed && ["in_progress", "awaiting_confirmation"].includes(contratoDelSeguimiento.status) && (
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmarContratoDe(contratoDelSeguimiento.id)}
+                    disabled={confirmandoContratoId === contratoDelSeguimiento.id}
+                    className="mb-4 inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                    data-testid="confirmar-trabajo-de-este-trabajador-seguimiento"
+                  >
+                    {confirmandoContratoId === contratoDelSeguimiento.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    Confirmar el trabajo de {contratoDelSeguimiento.nombre || "este trabajador"}
+                  </button>
+                )}
+                <ContractDetail key={contratoDelSeguimiento.id} embebido contratoId={contratoDelSeguimiento.id} />
+              </section>
+            )}
 
             {/* Detalles del pago: plegable. Lo ve el equipo (con el comprobante y los enlaces) y quien publicó el trabajo. */}
             {(isAdmin ? adminPayment?.detalle : detallePago) && (

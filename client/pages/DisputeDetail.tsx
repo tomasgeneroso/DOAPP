@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../hooks/useAuth';
@@ -461,7 +461,7 @@ const DisputeDetail: React.FC = () => {
                         </div>
                         <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
                           <div className="flex items-baseline gap-2 mb-1">
-                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{displayName}</p>
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{!isAdmin && senderId ? <Link to={`/profile/${senderId}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-del-autor-del-mensaje">{displayName}</Link> : displayName}</p>
                             <span className={`text-xs px-1.5 py-0.5 rounded ${badgeClass}`}>
                               {badgeLabel}
                             </span>
@@ -648,12 +648,12 @@ const DisputeDetail: React.FC = () => {
 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.initiatedBy', 'Initiated by')}</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiator?.name || t('disputes.notAvailable', 'Not available')}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiatedBy ? <Link to={`/profile/${dispute.initiatedBy}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-de-quien-reclama">{dispute.initiator?.name || t('disputes.notAvailable', 'Not available')}</Link> : (dispute.initiator?.name || t('disputes.notAvailable', 'Not available'))}</p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.against', 'Against')}</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.defendant?.name || t('disputes.notAvailable', 'Not available')}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{dispute.against ? <Link to={`/profile/${dispute.against}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-de-quien-es-reclamado">{dispute.defendant?.name || t('disputes.notAvailable', 'Not available')}</Link> : (dispute.defendant?.name || t('disputes.notAvailable', 'Not available'))}</p>
                 </div>
 
                 <div>

@@ -117,6 +117,8 @@ export default function ReclamoDirectoPanel({
     const porque =
       dispute.escalationReason === "plazo_vencido"
         ? `Pasaron las ${POLITICAS.RECLAMO_DIRECTO_HORAS} horas sin acuerdo.`
+        : dispute.escalationReason === "propuesta_rechazada"
+          ? "Una de las partes no aceptó la propuesta de acuerdo: decide un administrador."
         : dispute.escalationReason === "intervencion_admin"
           ? "Un administrador decidió intervenir antes del plazo."
           : dispute.escalationReason === "silencio_vencido"
@@ -195,8 +197,10 @@ export default function ReclamoDirectoPanel({
               </button>
               <button
                 onClick={() => {
-                  const n = window.prompt("¿Por qué no? (opcional, lo ve la otra parte)") ?? undefined;
-                  llamar("/acuerdo/rechazar", { nota: n }, "rechazar");
+                  // Al no aceptar, el reclamo pasa a un administrador (pedido del dueño, 2026-11-22): si se cierra el cuadro sin responder, no se rechaza nada.
+                  const n = window.prompt("Si no aceptás, el reclamo pasa a un administrador que va a decidir. ¿Por qué no? (opcional, lo ve la otra parte)");
+                  if (n === null) return;
+                  llamar("/acuerdo/rechazar", { nota: n || undefined }, "rechazar");
                 }}
                 disabled={!!enviando}
                 className="inline-flex items-center gap-1 rounded-lg border border-current/30 px-3 py-2 font-semibold hover:bg-white/50 disabled:opacity-60 dark:hover:bg-black/20"

@@ -25,6 +25,7 @@ import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.j
 import { calculateCommission } from "../services/commissionService.js";
 import { esContraoferta, lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
+import { avisarContratoAlChatDelEquipo, sincronizarChatDelEquipo } from "../services/chatDelEquipo.js";
 
 
 const router = express.Router();
@@ -1164,6 +1165,12 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
         { model: User, as: 'doer', attributes: ['id', 'name', 'avatar', 'rating'], required: false }
       ]
     });
+
+    // Chat del equipo: se anota quién fue elegido y los integrantes siguen a los elegidos (pedido del dueño, 2026-11-22).
+    if ((updatedJob?.maxWorkers || 1) > 1) {
+      await avisarContratoAlChatDelEquipo(String(contract.id), (n) => `👤 ${n} fue elegido (${(updatedJob?.selectedWorkers || []).length} de ${updatedJob?.maxWorkers}).`, 'trabajador_elegido');
+      await sincronizarChatDelEquipo(String(job.id));
+    }
 
     // Notify job update to refresh the job detail page
     socketService.notifyJobUpdate(job.id, req.user.id, {

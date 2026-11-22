@@ -1,7 +1,7 @@
 import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import React, { useState, useEffect } from 'react';
 import { getImageUrl } from '@/utils/imageUrl';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
@@ -459,6 +459,8 @@ const AdminDisputeDetail: React.FC = () => {
                 <span className="font-semibold">Cómo llegó acá:</span>{' '}
                 {(dispute as any).escalationReason === 'plazo_vencido'
                   ? `vencieron las ${POLITICAS.RECLAMO_DIRECTO_HORAS} h del reclamo directo sin acuerdo`
+                  : (dispute as any).escalationReason === 'propuesta_rechazada'
+                    ? 'una de las partes rechazó la propuesta de acuerdo (no hay acuerdo entre las partes)'
                   : (dispute as any).escalationReason === 'intervencion_admin'
                     ? 'un administrador intervino antes del plazo (ver justificación en el registro)'
                     : 'una de las partes pidió que intervenga un administrador'}
@@ -589,7 +591,7 @@ const AdminDisputeDetail: React.FC = () => {
                         <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
                           <div className="flex items-baseline gap-2 mb-1">
                             <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                              {displayName}
+                              {!isAdmin && (msg as any).from ? <Link to={`/profile/${(msg as any).from}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-del-autor-del-mensaje">{displayName}</Link> : displayName}
                             </p>
                             <span className={`text-xs px-1.5 py-0.5 rounded ${badgeClass}`}>
                               {badgeLabel}
@@ -783,7 +785,7 @@ const AdminDisputeDetail: React.FC = () => {
 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.initiatedBy', 'Initiated by')}</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiator?.name}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiatedBy ? <Link to={`/profile/${dispute.initiatedBy}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-de-quien-reclama">{dispute.initiator?.name || "Ver perfil"}</Link> : dispute.initiator?.name}</p>
                   {dispute.initiator?.email && (
                     <p className="text-xs text-gray-500">{dispute.initiator.email}</p>
                   )}
@@ -791,7 +793,7 @@ const AdminDisputeDetail: React.FC = () => {
 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.against', 'Against')}</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.defendant?.name}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{(dispute as any).against ? <Link to={`/profile/${(dispute as any).against}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-de-quien-es-reclamado">{dispute.defendant?.name || "Ver perfil"}</Link> : dispute.defendant?.name}</p>
                   {dispute.defendant?.email && (
                     <p className="text-xs text-gray-500">{dispute.defendant.email}</p>
                   )}

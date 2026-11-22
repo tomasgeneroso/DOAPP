@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { chatDelEquipoCerrado } from "../services/chatDelEquipo.js";
 import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Conversation } from "../models/sql/Conversation.model.js";
@@ -666,6 +667,12 @@ router.post(
           success: false,
           message: "No tienes permiso para enviar mensajes en esta conversación",
         });
+        return;
+      }
+
+      // El chat del equipo se cierra cuando el trabajo termina o se cancela: se puede leer hasta que se borra, pero no escribir.
+      if (chatDelEquipoCerrado(conversation as any)) {
+        res.status(403).json({ success: false, code: 'CHAT_CERRADO', message: "Este chat se cerró porque el trabajo terminó. Se borra pasado el plazo para reclamar." });
         return;
       }
 

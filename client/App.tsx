@@ -30,7 +30,7 @@ const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const CreateContractScreen = lazy(() => import("./pages/CreateContractScreen"));
 const JobDetail = lazy(() => import("./pages/JobDetail"));
 const JobApplicationSummary = lazy(() => import("./pages/JobApplicationSummary"));
-const ContractDetail = lazy(() => import("./pages/ContractDetail"));
+const ContractDetail = lazy(() => import("./pages/ContratoEnElTrabajo"));
 const ContractSummary = lazy(() => import("./pages/ContractSummary"));
 const ContractChangeRequestDetail = lazy(() => import("./pages/ContractChangeRequestDetail"));
 const ContractRequestChange = lazy(() => import("./pages/ContractRequestChange"));

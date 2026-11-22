@@ -33,6 +33,7 @@ import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
 import { completarTrabajoSiTerminaron } from "../services/trabajoTerminado.js";
+import { avisarContratoAlChatDelEquipo, sincronizarChatDelEquipo } from "../services/chatDelEquipo.js";
 import { reportarProblema, ErrorDeProblema, resumenDelProblemaDelContrato, contratosConProblemaAbierto, alConfirmarQuienContrato } from "../services/problemasDelTrabajo.js";
 
 const router = express.Router();
@@ -866,7 +867,7 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
           attributes: ['id', 'name', 'avatar']
         }
       ],
-      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price', 'disputeId']
+      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price', 'disputeId', 'pairingCode', 'pairingExpiry']
     });
 
     const conProblema = await contratosConProblemaAbierto(contracts.map((c) => String(c.id)));
@@ -879,6 +880,9 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
         problemaAbierto: conProblema.has(String(c.id)),
         // El reclamo de ESTE contrato (cada trabajador tiene el suyo): la lista del equipo lleva a verlo.
         disputeId: (c as any).disputeId ?? null,
+        // El código de emparejamiento lo ven las partes del contrato: quien contrató (y el equipo) el de todos, cada trabajador solo el suyo (no el de sus compañeros).
+        pairingCode: (isClient || isAdmin || String(c.doerId) === userId) ? ((c as any).pairingCode ?? null) : null,
+        pairingExpiry: (isClient || isAdmin || String(c.doerId) === userId) ? ((c as any).pairingExpiry ?? null) : null,
         id: c.id,
         doerId: c.doerId,
         doerName: (c.doer as any)?.name || 'Trabajador',
@@ -1545,6 +1549,7 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
 
       // Si había un aviso de «hubo problemas» abierto y quien contrató confirma, el problema queda resuelto.
       if (isClient) await alConfirmarQuienContrato(String(contract.id)).catch(() => {});
+      void avisarContratoAlChatDelEquipo(String(contract.id), (n) => (isClient ? `🤝 Quien contrató aceptó el fin del trabajo de ${n}; falta que ${n} confirme.` : `✅ ${n} avisó que terminó el trabajo; falta que quien contrató lo acepte.`), isClient ? 'cliente_acepto' : 'trabajador_termino');
 
       // Notificar a la otra parte
       const emailService = (await import('../services/email.js')).default;
@@ -1726,6 +1731,7 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     await contract.save();
 
     if (isClient) await alConfirmarQuienContrato(String(contract.id)).catch(() => {});
+    void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `🎉 El trabajo de ${n} quedó completado: las dos partes confirmaron.`, 'contrato_completado');
 
     // El trabajo termina cuando terminaron todos sus contratos vigentes (ya no cuentan los cancelados ni rechazados).
     if (job) await completarTrabajoSiTerminaron(String(job.id));

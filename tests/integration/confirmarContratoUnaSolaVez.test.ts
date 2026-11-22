@@ -94,7 +94,9 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
 
       const [a, b] = await Promise.all([confirmar(c.id, trabajador), confirmar(c.id, trabajador)]);
       expect([a.status, b.status].sort()).toEqual([200, 409]);
-      expect([a.body.code, b.body.code]).toContain('CONTRACT_ALREADY_CONFIRMED');
+      // El segundo pedido recibe uno de los dos 409 según llegue: «ya se confirmó» (llegó mientras el primero cerraba) o «no se puede confirmar» (llegó cuando el contrato ya estaba terminado).
+      const rechazado = a.status === 409 ? a.body.code : b.body.code;
+      expect(['CONTRACT_ALREADY_CONFIRMED', 'CONTRACT_NOT_CONFIRMABLE']).toContain(rechazado);
       expect(await BalanceTransaction.count({ where: { userId: trabajador.id, type: 'payment', status: 'completed', metadata: { contractId: c.id } } as any })).toBe(1);
       expect((await contratoDe(c.id)).status).toBe('completed');
     });

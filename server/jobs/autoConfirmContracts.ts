@@ -10,6 +10,7 @@ import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { pagableDesde } from '../services/liberacionDeSaldo.js';
 import { completarTrabajoSiTerminaron } from '../services/trabajoTerminado.js';
 import { confirmacionDetenidaPorProblema } from '../services/problemasDelTrabajo.js';
+import { avisarContratoAlChatDelEquipo } from '../services/chatDelEquipo.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -141,6 +142,7 @@ export function startAutoConfirmContractsJob() {
 
             // El trabajo también termina: antes solo se cerraba el contrato y el trabajo quedaba «en curso» para siempre.
             await completarTrabajoSiTerminaron(String(contract.jobId));
+            void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `✅ Se confirmó solo el trabajo de ${n} (pasaron ${AUTO_CONFIRM_HOURS} h sin respuesta).`, 'contrato_autoconfirmado');
 
             // Notificación al cliente
             await Notification.create({

@@ -243,6 +243,7 @@ router.post(
 
       // Si había un aviso de «hubo problemas durante el trabajo» abierto, se llevó a este reclamo: el ticket queda resuelto y manda el reclamo.
       await (await import('../services/problemasDelTrabajo.js')).alAbrirseUnReclamo(String(contractId), String(dispute.id)).catch(() => {});
+      void (await import('../services/chatDelEquipo.js')).avisarContratoAlChatDelEquipo(String(contractId), (n) => `⚠️ Se abrió un reclamo en el trabajo de ${n}. Las partes tienen ${POLITICAS.RECLAMO_DIRECTO_HORAS} h para arreglarlo; después interviene un administrador.`, 'reclamo_abierto');
 
       const Job = (await import('../models/sql/Job.model.js')).Job;
       const job = await Job.findByPk(contract.jobId);

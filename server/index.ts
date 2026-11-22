@@ -54,6 +54,7 @@ import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startCicloDelContratoJob } from "./jobs/cicloDelContrato.js";
 import { startVencerOrdenesDePagoJob } from "./jobs/vencerOrdenesDePago.js";
 import { startDevolucionDePresupuestoJob } from "./jobs/devolucionDePresupuesto.js";
+import { startChatsDelEquipoJob } from "./jobs/chatsDelEquipo.js";
 import { startAprobarAumentosDePrecioJob } from "./jobs/aprobarAumentosDePrecio.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
 import { startLicenseExpiryReminderJob } from "./jobs/licenseExpiryReminders.js";
@@ -582,6 +583,7 @@ startAutoConfirmContractsJob();
 startCicloDelContratoJob();
 startVencerOrdenesDePagoJob();
 startDevolucionDePresupuestoJob();
+startChatsDelEquipoJob();
 startAprobarAumentosDePrecioJob();
 
 // Initialize confirmation reminders (when job ends, remind both parties to confirm)

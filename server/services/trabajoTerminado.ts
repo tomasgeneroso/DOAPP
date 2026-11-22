@@ -2,6 +2,7 @@ import { Op, literal } from 'sequelize';
 import { Job } from '../models/sql/Job.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { conSistema } from '../db/contextoRls.js';
+import { cerrarChatDelEquipo } from './chatDelEquipo.js';
 
 /**
  * Cuándo un trabajo se da por terminado.
@@ -18,7 +19,10 @@ export const ESTADOS_DE_CONTRATO_QUE_NO_CUENTAN = ['cancelled', 'rejected'];
 export async function completarTrabajoSiTerminaron(jobId: string): Promise<boolean> {
   // Es una decisión del sistema sobre TODOS los contratos del trabajo: con la seguridad por filas, quien confirma (el trabajador) solo vería el suyo y el trabajo
   // se daría por terminado mientras otro trabajador sigue en curso.
-  return conSistema(() => completar(jobId));
+  const terminado = await conSistema(() => completar(jobId));
+  // El trabajo terminó: el chat del equipo se cierra y avisa cuándo se borra (pedido del dueño, 2026-11-22).
+  if (terminado) await cerrarChatDelEquipo(jobId, 'completado');
+  return terminado;
 }
 
 /**

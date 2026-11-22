@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { avisarContratoAlChatDelEquipo } from './chatDelEquipo.js';
 import { DONDE_ES_ADMIN_O_SOPORTE } from '../utils/admins.js';
 import { Dispute, IPropuestaAcuerdo, TipoAcuerdo } from '../models/sql/Dispute.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
@@ -126,7 +127,9 @@ export async function rechazarAcuerdo(d: Dispute, userId: string, nota?: string)
   d.changed('agreementProposal', true);
   log(d, 'Propuesta rechazada', userId, `${TIPOS_DE_ACUERDO[p.tipo].titulo}${nota ? ` · ${String(nota).slice(0, 500)}` : ''}`);
   await d.save();
-  await avisar(String(p.propuestoPor), 'Rechazaron tu propuesta', `La otra parte no acepto: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}.${nota ? ` Dijo: "${String(nota).slice(0, 300)}"` : ''} Podes proponer otra cosa o pedir que intervenga un administrador.`, d.id);
+  await avisar(String(p.propuestoPor), 'Rechazaron tu propuesta', `La otra parte no acepto: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}.${nota ? ` Dijo: "${String(nota).slice(0, 300)}"` : ''} El reclamo pasa a un administrador de DOAPP, que va a revisarlo y decidir.`, d.id);
+  // «No acepto» = no hay acuerdo entre las partes: el reclamo pasa a resolución de un administrador (pedido del dueño, 2026-11-22). La propuesta rechazada queda en el registro.
+  await escalarReclamo(d, { sistema: 'propuesta_rechazada' });
   return { ok: true };
 }
 
@@ -160,12 +163,14 @@ export async function aceptarAcuerdo(d: Dispute, userId: string): Promise<{ ok: 
     d.resolution = `${quien} ${TIPOS_DE_ACUERDO.rehacer.titulo}. ${p.nota || ''}`.trim();
     d.resolutionType = 'no_action';
     d.resolvedAt = new Date();
-    d.resolvedBy = null as any;
+    // La base exige quién cerró el reclamo (chk_resolution_fields): quien aceptó el acuerdo. Con null daba «violates check constraint» al aceptar y cerrar.
+    d.resolvedBy = String(userId);
     d.agreementAcceptedAt = new Date();
     d.agreementAcceptedBy = String(userId);
     log(d, 'Acuerdo aceptado', userId, TIPOS_DE_ACUERDO.rehacer.titulo);
     await d.save();
 
+    void avisarContratoAlChatDelEquipo(String(d.contractId), (n) => `🤝 Las partes acordaron rehacer el trabajo de ${n}: el reclamo se cerró y el trabajo sigue.`, 'reclamo_cerrado_por_acuerdo');
     for (const parte of [d.initiatedBy, d.against]) {
       await avisar(String(parte), 'Reclamo cerrado por acuerdo', `${TIPOS_DE_ACUERDO.rehacer.titulo}. El contrato sigue en curso.`, d.id, 'success');
     }
@@ -248,11 +253,13 @@ export async function retirarReclamo(d: Dispute, userId: string, nota?: string):
   d.resolution = `Reclamo retirado por quien lo abrio.${nota ? ` ${String(nota).slice(0, 500)}` : ''}`;
   d.resolutionType = 'no_action';
   d.resolvedAt = new Date();
+  d.resolvedBy = String(userId);
   d.agreementProposal = null;
   d.changed('agreementProposal', true);
   log(d, 'Reclamo retirado', userId, nota ? String(nota).slice(0, 500) : undefined);
   await d.save();
 
+  void avisarContratoAlChatDelEquipo(String(d.contractId), (n) => `↩️ Se retiró el reclamo del trabajo de ${n}: el trabajo sigue como estaba.`, 'reclamo_retirado');
   await avisar(String(d.against), 'Retiraron el reclamo', 'La otra parte retiro el reclamo. El contrato sigue como estaba y el pago deja de estar congelado.', d.id, 'success');
   return { ok: true };
 }
@@ -264,7 +271,7 @@ export async function retirarReclamo(d: Dispute, userId: string, nota?: string):
  */
 export async function escalarReclamo(
   d: Dispute,
-  quien: { userId: string } | { sistema: 'plazo_vencido' } | { adminId: string; justificacion: string },
+  quien: { userId: string } | { sistema: 'plazo_vencido' | 'propuesta_rechazada' } | { adminId: string; justificacion: string },
 ): Promise<{ ok: boolean; motivo?: string }> {
   if (!d.isNegotiating()) return { ok: false, motivo: 'El reclamo ya esta en manos de un administrador o cerrado.' };
 
@@ -300,14 +307,19 @@ export async function escalarReclamo(
     performedBy,
     motivo === 'plazo_vencido'
       ? `Vencieron las ${HORAS} h sin acuerdo`
+      : motivo === 'propuesta_rechazada'
+        ? 'Una parte rechazó la propuesta de acuerdo: no hay acuerdo entre las partes'
       : motivo === 'intervencion_admin'
         ? `Intervencion anticipada: ${(quien as any).justificacion}`
         : 'Lo pidio una de las partes',
   );
   await d.save();
 
+  void avisarContratoAlChatDelEquipo(String(d.contractId), (n) => `⚖️ El reclamo del trabajo de ${n} pasa a un administrador de DOAPP${motivo === 'propuesta_rechazada' ? ' (no hubo acuerdo entre las partes)' : motivo === 'plazo_vencido' ? ' (venció el plazo de las partes)' : ''}.`, 'reclamo_escalado');
   const texto = motivo === 'plazo_vencido'
     ? `Pasaron ${HORAS} horas sin acuerdo entre las partes. Un administrador va a revisar el reclamo y decidir. Vas a poder seguir escribiendo y adjuntando pruebas.`
+    : motivo === 'propuesta_rechazada'
+      ? 'Una de las partes no aceptó la propuesta de acuerdo. Un administrador va a revisar el reclamo y decidir. Podés seguir escribiendo y adjuntando pruebas.'
     : motivo === 'intervencion_admin'
       ? 'Un administrador decidio intervenir en el reclamo antes del plazo. Va a revisarlo y decidir. Podes seguir escribiendo y adjuntando pruebas.'
       : 'Una de las partes pidio que intervenga un administrador. Va a revisar el reclamo y decidir. Podes seguir escribiendo y adjuntando pruebas.';
@@ -317,7 +329,7 @@ export async function escalarReclamo(
   if (motivo !== 'intervencion_admin') {
     await avisarAdmins(
       'Reclamo escalado a disputa',
-      `El reclamo ${String(d.id).slice(0, 8)} paso a disputa (${motivo === 'plazo_vencido' ? `vencieron las ${HORAS} h` : 'lo pidio una parte'}). Objetivo del equipo: resolver en ${POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} dias.`,
+      `El reclamo ${String(d.id).slice(0, 8)} paso a disputa (${motivo === 'plazo_vencido' ? `vencieron las ${HORAS} h` : motivo === 'propuesta_rechazada' ? 'rechazaron la propuesta de acuerdo' : 'lo pidio una parte'}). Objetivo del equipo: resolver en ${POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} dias.`,
       d.id,
     );
   }

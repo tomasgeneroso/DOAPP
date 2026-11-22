@@ -3,7 +3,7 @@ import Pestanas from "../../components/ui/Pestanas";
 import PanelDelProblema from "../../components/contracts/PanelDelProblema";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from 'react-i18next';
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import type { Ticket } from "@/types/admin";
 import {
@@ -560,7 +560,9 @@ export default function TicketDetail() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  {ticket.creator?.name || ticket.user?.name || "N/A"}
+                  {(ticket.creator as any)?.id ? (
+                    <Link to={`/profile/${(ticket.creator as any).id}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="perfil-de-quien-abrio-el-ticket">{ticket.creator?.name || ticket.user?.name || "N/A"}</Link>
+                  ) : (ticket.creator?.name || ticket.user?.name || "N/A")}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {ticket.creator?.email || ticket.user?.email || ""}

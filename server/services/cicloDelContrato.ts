@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { avisarContratoAlChatDelEquipo } from './chatDelEquipo.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
@@ -91,6 +92,7 @@ export async function iniciarContratosQueLlegaronASuHora(ahora: Date = new Date(
       );
       if (filas === 0) continue;
       empezaron += 1;
+      void avisarContratoAlChatDelEquipo(String(contrato.id), (n) => `▶️ Empezó el trabajo de ${n}.`, 'contrato_empezo');
 
       const titulo = trabajo.title || 'el trabajo';
       await avisar(String(contrato.clientId), String(contrato.id), 'Empezó el trabajo', `Llegó la hora de inicio de "${titulo}": el contrato está en progreso. Si hay algún problema durante el trabajo, tocá «Hubo problemas durante el trabajo» en el contrato.`);
@@ -132,6 +134,7 @@ export async function cerrarContratosQueTerminaron(ahora: Date = new Date()): Pr
       );
       if (filas === 0) continue;
       terminaron += 1;
+      void avisarContratoAlChatDelEquipo(String(contrato.id), (n) => `⏳ Pasó la hora de fin del trabajo de ${n}: falta confirmar.`, 'contrato_fin_de_plazo');
 
       const titulo = contrato.job?.title || 'el trabajo';
       const aviso = `Pasó la hora de fin de "${titulo}". Confirmá que el trabajo se completó; si nadie responde en ${POLITICAS.AUTO_CONFIRMACION_HORAS} horas, se confirma solo y se libera el pago.`;

@@ -1,4 +1,5 @@
 import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
+import { chatDelEquipoCerrado } from "./chatDelEquipo.js";
 import { Server, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import jwt from "jsonwebtoken";
@@ -221,6 +222,12 @@ export class SocketService {
       if (!isParticipant) {
         console.log(`❌ Message rejected: userId=${senderId}, participants=${JSON.stringify(participantIds)}`);
         socket.emit("socket_error", { message: "You are not a participant in this conversation" });
+        return;
+      }
+
+      // Chat del equipo cerrado (el trabajo terminó o se canceló): no se escribe más.
+      if (chatDelEquipoCerrado(conversation as any)) {
+        socket.emit("socket_error", { message: "Este chat se cerró porque el trabajo terminó.", code: "CHAT_CERRADO" });
         return;
       }
 

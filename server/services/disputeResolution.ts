@@ -1,4 +1,5 @@
 import { Dispute } from '../models/sql/Dispute.model.js';
+import { avisarContratoAlChatDelEquipo } from './chatDelEquipo.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
@@ -202,6 +203,8 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
     platformFeeRefunded: false,
     logs,
   } as any);
+
+  void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `✅ Se resolvió el reclamo del trabajo de ${n}.`, 'reclamo_resuelto');
 
   await logMoneyEvent({
     action: 'DISPUTE_RESOLVED',

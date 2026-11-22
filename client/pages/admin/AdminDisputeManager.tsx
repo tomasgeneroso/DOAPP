@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useSocket, useCambiosDeAdministracion } from '@/hooks/useSocket';
@@ -85,6 +85,21 @@ const PlazoEntreLasPartes: React.FC<{ limite?: string | Date | null }> = ({ limi
   return <span className={`text-xs font-semibold ${poco ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>Quedan {horas} h {minutos} min</span>;
 };
 
+/**
+ * El servidor manda las partes como `initiator` y `defendant` (con nombre y correo) y deja en `initiatedBy` / `against` solo el id. La lista leía `initiatedBy.name` y por eso la
+ * columna «Partes» salía vacía («vs» solo); la búsqueda y el orden por nombre tampoco funcionaban (pedido del dueño, 2026-11-22).
+ */
+const parteDelReclamo = (objeto: any, id: unknown) => ({
+  id: typeof id === 'string' ? id : (id as any)?.id ?? objeto?.id,
+  name: String(objeto?.name || (id as any)?.name || 'Sin nombre'),
+  email: objeto?.email ?? (id as any)?.email,
+});
+const normalizarReclamo = (d: any): Dispute => ({
+  ...d,
+  initiatedBy: parteDelReclamo(d?.initiator, d?.initiatedBy),
+  against: parteDelReclamo(d?.defendant, d?.against),
+});
+
 const AdminDisputeManager: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -118,7 +133,7 @@ const AdminDisputeManager: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setDisputes(response.data.data);
+      setDisputes((response.data.data || []).map(normalizarReclamo));
       setTotalPages(response.data.pagination.pages);
     } catch (error) {
       console.error('Error fetching disputes:', error);
@@ -167,7 +182,7 @@ const AdminDisputeManager: React.FC = () => {
   // Real-time handlers
   const handleNewDispute = useCallback((data: any) => {
     setRealtimeAlert(`${t('admin.disputes.newDispute', 'New dispute')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
-    setDisputes(prev => [data.dispute, ...prev]);
+    setDisputes(prev => [normalizarReclamo(data.dispute), ...prev]);
     // Refresh stats
     fetchStats();
     // Auto-hide alert after 5 seconds
@@ -178,7 +193,7 @@ const AdminDisputeManager: React.FC = () => {
   const handleDisputeUpdated = useCallback((data: any) => {
     setRealtimeAlert(`${t('admin.disputes.disputeUpdated', 'Dispute updated')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev =>
-      prev.map(d => (d.id === data.dispute?.id || d.id === data.dispute?.id) ? { ...d, ...data.dispute } : d)
+      prev.map(d => (d.id === data.dispute?.id || d.id === data.dispute?.id) ? { ...d, ...data.dispute, initiatedBy: d.initiatedBy, against: d.against } : d)
     );
     // Refresh stats
     fetchStats();
@@ -778,12 +793,19 @@ const AdminDisputeManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900 dark:text-white">
-                          {dispute.initiatedBy.name}
+                          {dispute.initiatedBy.id ? (
+                            <Link to={`/profile/${dispute.initiatedBy.id}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="parte-que-reclama">{dispute.initiatedBy.name}</Link>
+                          ) : dispute.initiatedBy.name}
                           {(dispute as any).premium && (
                             <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title="Membresía PRO: prioridad de soporte">PRO</span>
                           )}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">vs {dispute.against.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          vs{' '}
+                          {dispute.against.id ? (
+                            <Link to={`/profile/${dispute.against.id}`} className="text-sky-600 hover:underline dark:text-sky-400" data-testid="parte-reclamada">{dispute.against.name}</Link>
+                          ) : dispute.against.name}
+                        </p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(dispute.status)}

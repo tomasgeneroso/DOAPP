@@ -51,10 +51,16 @@ import AvisoDeRetornoDePago from "@/components/pagos/AvisoDeRetornoDePago";
 import LiquidacionDelPago from "@/components/LiquidacionDelPago";
 import HuboProblemas, { AvisoDeProblemaAbierto } from "@/components/contracts/HuboProblemas";
 import EstadoDeConfirmaciones from "@/components/contracts/EstadoDeConfirmaciones";
+import CodigoDeEmparejamiento from "@/components/contracts/CodigoDeEmparejamiento";
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 
-export default function ContractDetail() {
-  const { id } = useParams<{ id: string }>();
+/**
+ * El contrato. Con `embebido` vive DENTRO de la vista del trabajo (pedido del dueño, 2026-11-22): no repite lo que el trabajo ya muestra (título, partes, detalles del pago, fechas)
+ * y deja lo que se hace en el contrato: control diario, fotos de entrega, reclamar tareas, emergencia, compartir, confirmar, cambios y pagos.
+ */
+export default function ContractDetail({ embebido = false, contratoId }: { embebido?: boolean; contratoId?: string } = {}) {
+  const { id: idDeLaRuta } = useParams<{ id: string }>();
+  const id = contratoId ?? idDeLaRuta;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -529,13 +535,14 @@ export default function ContractDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className={embebido ? 'flex items-center justify-center py-10' : 'flex items-center justify-center min-h-screen'}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
       </div>
     );
   }
 
   if (!contract) {
+    if (embebido) return <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="contrato-embebido-no-cargo">No pudimos cargar el contrato. Actualizá la pantalla para volver a intentarlo.</p>;
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -577,16 +584,18 @@ export default function ContractDetail() {
 
   return (
     <>
-      <Helmet>
-        <title>{t('contracts.titlePage', 'Contract')} - {contract.title || t('contracts.detail', 'Detail')} - Do</title>
-      </Helmet>
+      {!embebido && (
+        <Helmet>
+          <title>{t('contracts.titlePage', 'Contract')} - {contract.title || t('contracts.detail', 'Detail')} - Do</title>
+        </Helmet>
+      )}
 
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={embebido ? '' : 'min-h-screen bg-gray-50 dark:bg-slate-900 py-8'} data-testid={embebido ? 'contrato-embebido' : undefined}>
+        <div className={embebido ? '' : 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8'}>
           {/* Back Button - Only visible on mobile */}
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 md:hidden"
+            className={`flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 md:hidden ${embebido ? 'hidden' : ''}`}
           >
             <ArrowLeft className="h-5 w-5" />
             {t('common.back', 'Back')}
@@ -604,9 +613,9 @@ export default function ContractDetail() {
           />
 
           {/* Header */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
+          <div className={embebido ? 'mb-6' : 'bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6'}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
+              <div className={embebido ? 'hidden' : 'min-w-0'}>
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2 break-words">
                   {contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
                 </h1>
@@ -642,7 +651,7 @@ export default function ContractDetail() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   to={`/jobs/${contract.job?.id || contract.jobId?.id || contract.jobId}`}
-                  className="flex items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm"
+                  className={`${embebido ? 'hidden' : 'flex'} items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm`}
                   title={t('contracts.viewAssociatedJob', 'View the job associated with this contract')}
                 >
                   <Briefcase className="h-5 w-5" />
@@ -726,7 +735,7 @@ export default function ContractDetail() {
           </div>
 
           {/* Contract Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 ${embebido ? 'hidden' : ''}`}>
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <User className="h-5 w-5 text-sky-600 dark:text-sky-400" />
@@ -920,6 +929,13 @@ export default function ContractDetail() {
                     </div>
                   );
                 })()}
+
+                {/* El código de emparejamiento lo ven las dos partes (pedido del dueño, 2026-11-22) */}
+                {(isClient || isDoer) && contract.pairingCode && ['pending', 'ready', 'accepted', 'in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && (
+                  <div className="border-t pt-3">
+                    <CodigoDeEmparejamiento codigo={contract.pairingCode} vence={(contract as any).pairingExpiry} rol={isDoer ? 'trabajador' : 'cliente'} />
+                  </div>
+                )}
 
                 {/* Verificación de Código de Emparejamiento */}
                 {contract.pairingCode && (
@@ -1124,7 +1140,7 @@ export default function ContractDetail() {
           </div>
 
           {/* Multi-worker Participants Section */}
-          {allContracts.length > 1 && isClient && (
+          {!embebido && allContracts.length > 1 && isClient && (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Users className="h-5 w-5 text-sky-600" />
