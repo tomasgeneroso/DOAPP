@@ -49,13 +49,11 @@ export function startAutoConfirmContractsJob() {
       const contractsToAutoConfirm = await Contract.findAll({
         where: {
           status: 'awaiting_confirmation',
-          awaitingConfirmationAt: {
-            [Op.lte]: limite,
-          },
-          // Al menos uno no ha confirmado
+          // Pasó el plazo sin respuesta (con alguna parte sin confirmar), o las DOS partes ya confirmaron y el contrato quedó esperando: ese estado no debería existir
+          // (se vio en un contrato donde un reclamo se cerró y el trabajo figuraba aceptado y a la vez «esperando confirmación») y se cierra ya, sin esperar el plazo.
           [Op.or]: [
-            { clientConfirmed: false },
-            { doerConfirmed: false },
+            { awaitingConfirmationAt: { [Op.lte]: limite }, [Op.or]: [{ clientConfirmed: false }, { doerConfirmed: false }] },
+            { clientConfirmed: true, doerConfirmed: true },
           ],
         },
         include: [

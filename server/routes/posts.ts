@@ -5,7 +5,9 @@ import { protect } from "../middleware/auth.js";
 import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
-import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas } from "../services/etiquetasDePublicaciones.js";
+import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar } from "../services/etiquetasDePublicaciones.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { conSistema } from "../db/contextoRls.js";
 
 const router = express.Router();
 
@@ -43,6 +45,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       return {
         ...postData,
         author: postData.authorUser ? {
+          id: postData.authorUser.id,
           name: postData.authorUser.name,
           avatar: postData.authorUser.avatar,
           membershipTier: postData.authorUser.membershipTier,
@@ -105,6 +108,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
     const transformedPost = {
       ...postData,
       author: postData.authorUser ? {
+        id: postData.authorUser.id,
         name: postData.authorUser.name,
         avatar: postData.authorUser.avatar,
         bio: postData.authorUser.bio,
@@ -227,6 +231,68 @@ router.post(
     }
   }
 );
+
+/**
+ * Etiquetar DESPUÉS de publicar (pedido del dueño, 2026-11-23: «poder etiquetar a participantes a pesar de ya haberse publicado sin etiquetas»).
+ * GET /api/posts/:id/etiquetables[?jobId=]  → a quién se puede etiquetar (y si cada uno lo permite); una publicación sin trabajo vinculado ofrece elegir el trabajo.
+ * PUT /api/posts/:id/etiquetas  { taggedUsers, linkedJob? }  → deja la lista de etiquetados (solo quien publicó).
+ */
+router.get("/:id/etiquetables", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) { res.status(404).json({ success: false, message: "Publicación no encontrada" }); return; }
+    if (String(post.author) !== String(req.user.id)) { res.status(403).json({ success: false, message: "Solo quien publicó puede etiquetar." }); return; }
+
+    let trabajoId = typeof req.query.jobId === "string" ? req.query.jobId : "";
+    if (!trabajoId && post.linkedContract) {
+      const c = await conSistema(() => Contract.findByPk(post.linkedContract as string, { attributes: ["id", "jobId"] }));
+      trabajoId = c ? String(c.jobId) : "";
+    }
+    if (!trabajoId) {
+      res.json({ success: true, vinculado: false, trabajos: await trabajosParaEtiquetar(String(req.user.id)), personas: [], etiquetados: post.taggedUsers || [] });
+      return;
+    }
+    const r = await candidatosDeEtiqueta(String(req.user.id), trabajoId);
+    if (!r.ok) { const falla = r as { estado: number; mensaje: string }; res.status(falla.estado).json({ success: false, message: falla.mensaje }); return; }
+    res.json({ success: true, vinculado: true, trabajoId, personas: r.personas, etiquetados: post.taggedUsers || [] });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error al buscar a quién etiquetar" });
+  }
+});
+
+router.put("/:id/etiquetas", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) { res.status(404).json({ success: false, message: "Publicación no encontrada" }); return; }
+    if (String(post.author) !== String(req.user.id)) { res.status(403).json({ success: false, message: "Solo quien publicó puede etiquetar." }); return; }
+
+    let trabajoId = req.body?.linkedJob ? String(req.body.linkedJob) : "";
+    if (post.linkedContract) {
+      const c = await conSistema(() => Contract.findByPk(post.linkedContract as string, { attributes: ["id", "jobId"] }));
+      trabajoId = c ? String(c.jobId) : trabajoId;
+    }
+    if (!trabajoId) { res.status(400).json({ success: false, message: "Elegí de qué trabajo es la publicación." }); return; }
+
+    const pedidos = leerIds(req.body?.taggedUsers);
+    const r = await resolverEtiquetas(String(req.user.id), trabajoId, pedidos);
+    if (!r.ok) { const falla = r as { estado: number; mensaje: string }; res.status(falla.estado).json({ success: false, message: falla.mensaje }); return; }
+
+    const antes = new Set((post.taggedUsers || []).map(String));
+    // Quien ya estaba etiquetado y sigue elegido se queda; lo nuevo solo entra si la persona lo permite.
+    const quedan = Array.from(new Set([...pedidos.filter((id) => antes.has(id) && !r.ajenos.includes(id)), ...r.etiquetados]));
+    post.taggedUsers = quedan;
+    post.changed("taggedUsers", true);
+    if (!post.linkedContract && r.contratoId) post.linkedContract = r.contratoId;
+    await post.save();
+
+    const nuevos = quedan.filter((id) => !antes.has(id));
+    if (nuevos.length > 0) await avisarEtiquetas(post.id, post.title, (req.user as any).name || "Alguien", nuevos);
+
+    res.json({ success: true, etiquetados: quedan, noEtiquetados: r.noPermiten.filter((id) => !antes.has(id)).length });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error al etiquetar" });
+  }
+});
 
 // @route   PUT /api/posts/:id
 // @desc    Update a post

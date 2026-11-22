@@ -114,6 +114,35 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
     });
   });
 
+  describe('etiquetar después de publicar', () => {
+    it('una publicación que salió sin trabajo ni etiquetas: se elige el trabajo y se etiqueta; quien no lo permite no entra; se puede sacar', async () => {
+      const p: any = await Post.create({ author: cliente.id, title: 'Sin etiquetas', description: 'x', gallery: [], type: 'post', tags: [] } as any);
+      // solo quien publicó
+      expect((await request(app).get(`/api/posts/${p.id}/etiquetables`).set(como(ana))).status).toBe(403);
+      // sin trabajo vinculado ofrece elegir entre sus trabajos terminados
+      const a = await request(app).get(`/api/posts/${p.id}/etiquetables`).set(como(cliente));
+      expect(a.body.vinculado).toBe(false);
+      expect(a.body.trabajos.map((t: any) => t.id)).toContain(String(jobId));
+      // con el trabajo: Ana permite, Beto no
+      const b = await request(app).get(`/api/posts/${p.id}/etiquetables?jobId=${jobId}`).set(como(cliente));
+      expect(b.body.personas.map((x: any) => [x.name === ana.name, x.permite]).length).toBe(2);
+      expect(b.body.personas.find((x: any) => x.id === String(beto.id)).permite).toBe(false);
+      // guardar
+      const g = await request(app).put(`/api/posts/${p.id}/etiquetas`).set(como(cliente)).send({ linkedJob: jobId, taggedUsers: [ana.id, beto.id] });
+      expect(g.status).toBe(200);
+      expect(g.body.etiquetados).toEqual([String(ana.id)]);
+      const guardado: any = await Post.findByPk(p.id);
+      expect(guardado.taggedUsers).toEqual([String(ana.id)]);
+      expect(contratos).toContain(String(guardado.linkedContract));
+      // sacarla
+      const s = await request(app).put(`/api/posts/${p.id}/etiquetas`).set(como(cliente)).send({ taggedUsers: [] });
+      expect(s.status).toBe(200);
+      expect(((await Post.findByPk(p.id)) as any).taggedUsers).toEqual([]);
+      // otra persona no puede cambiar las etiquetas
+      expect((await request(app).put(`/api/posts/${p.id}/etiquetas`).set(como(ana)).send({ taggedUsers: [ana.id] })).status).toBe(403);
+    });
+  });
+
   describe('pruebas del reclamo', () => {
     let disputaId: string;
     const prueba = (por: any) => ({ fileName: 'foto.jpg', fileUrl: '/uploads/disputes/foto.jpg', fileType: 'image', fileSize: 10, uploadedAt: new Date(), uploadedBy: String(por.id) });

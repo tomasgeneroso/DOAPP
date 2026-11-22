@@ -98,6 +98,40 @@ describe('puntuación en tres pasos y subpuntajes', () => {
   });
 });
 
+describe('pedidos del 2026-11-23', () => {
+  it('la sección única la ve toda parte del contrato (también administración que es quien contrató) y trae fechas y chat personal', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('const seguimientoUnico = Boolean((isOwnJob || isWorkerOnJob) && contratoDelSeguimiento);');
+    expect(j).toContain('terminoEl={c.doerConfirmedAt}');
+    expect(j).toContain('data-testid="chatear-con-el-trabajador"');
+    expect(leer('server/routes/contracts.ts')).toContain('clientConfirmedAt: (c as any).clientConfirmedAt ?? null');
+    expect(leer('client/components/contracts/EstadoDeConfirmaciones.tsx')).toContain('terminoEl');
+  });
+
+  it('«Enviar mensaje» a quien publicó no pasa por la negociación (solo existe con el trabajo abierto): es un chat personal', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('if (job.status !== "open") {');
+    expect(j).toContain('abrirChatDirecto(destino)');
+  });
+
+  it('un contrato con las dos confirmaciones no queda «esperando confirmación»: se cierra solo y la lista no lo dice', () => {
+    expect(leer('server/jobs/autoConfirmContracts.ts')).toContain('{ clientConfirmed: true, doerConfirmed: true }');
+    expect(leer('client/pages/JobDetail.tsx')).toContain('Contrato terminado');
+  });
+
+  it('las fotos de entrega aceptan notas con autor y hora', () => {
+    expect(leer('server/routes/contracts.ts')).toContain('"/:id/delivery-photos/:index/notes"');
+    expect(leer('client/components/contracts/FotosDeEntrega.tsx')).toContain('data-testid="agregar-nota-de-foto"');
+  });
+
+  it('se puede etiquetar después de publicar (solo quien publicó)', () => {
+    const p = leer('server/routes/posts.ts');
+    expect(p).toContain('"/:id/etiquetables"');
+    expect(p).toContain('"/:id/etiquetas"');
+    expect(leer('client/pages/PostDetail.tsx')).toContain('<EtiquetasDeLaPublicacion');
+  });
+});
+
 describe('avisos y tarjetas', () => {
   it('«Confirmaste el trabajo de X» dice de quién es el trabajo confirmado', () => {
     expect(leer('client/pages/JobDetail.tsx')).toContain('Confirmaste el trabajo de ${quien}');

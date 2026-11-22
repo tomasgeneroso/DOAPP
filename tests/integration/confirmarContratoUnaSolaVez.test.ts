@@ -158,6 +158,14 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
       expect((await trabajoDe(t.id)).status).toBe('completed');
     });
 
+    it('un contrato con las DOS confirmaciones que quedó «esperando confirmación» se cierra ya, sin esperar el plazo (estado que no debería existir)', async () => {
+      const t = await trabajo();
+      const c = await contrato(t.id, trabajador, { status: 'awaiting_confirmation', awaitingConfirmationAt: new Date(), clientConfirmed: true, doerConfirmed: true, price: 5000 });
+      await correrElCron();
+      expect((await contratoDe(c.id)).status).toBe('completed');
+      expect((await trabajoDe(t.id)).status).toBe('completed');
+    });
+
     it('correrla dos veces no repite el cierre: un solo asiento de pago pendiente', async () => {
       const t = await trabajo();
       const c = await contrato(t.id, trabajador, { status: 'awaiting_confirmation', awaitingConfirmationAt: hace(2), clientConfirmed: true, doerConfirmed: false, price: 5000 });

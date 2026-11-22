@@ -185,6 +185,9 @@ export default function JobDetail() {
       doerAvatar?: string;
       clientConfirmed: boolean;
       doerConfirmed: boolean;
+      /** Cuándo confirmó cada parte. */
+      clientConfirmedAt?: string | null;
+      doerConfirmedAt?: string | null;
       status: string;
       /** Lo que cobra este trabajador (su parte del presupuesto). */
       price?: number;
@@ -762,6 +765,30 @@ export default function JobDetail() {
   // Trabajo de varios trabajadores: quien contrató confirma el trabajo de CADA uno desde «Trabajadores del proyecto» (cada trabajador tiene su contrato).
   const [confirmandoContratoId, setConfirmandoContratoId] = useState<string | null>(null);
   // Qué dice el aviso de «confirmado»: de QUIÉN es el trabajo que se confirmó (pedido del dueño, 2026-11-22: «debe indicarse que se confirmó el trabajo realizado por el trabajador en cuestión»).
+  // Chat personal con una persona (sin relación con el trabajo): «Chatear con Ana» y «Enviar mensaje» al cliente cuando el trabajo ya no está abierto.
+  const [chateandoCon, setChateandoCon] = useState<string | null>(null);
+  const abrirChatDirecto = async (personaId: string) => {
+    if (!token || !personaId || chateandoCon) return;
+    setChateandoCon(personaId);
+    try {
+      const respuesta = await fetch("/api/chat/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ participantId: personaId }),
+      });
+      const datos = await respuesta.json().catch(() => ({}));
+      if (datos?.success && datos.data?.id) navigate(`/chat/${datos.data.id}`);
+      else {
+        setErrorMessage(datos?.message || t("chat.couldNotStart", "No se pudo abrir el chat"));
+        setShowErrorModal(true);
+      }
+    } catch {
+      setErrorMessage(t("chat.errorStarting", "No se pudo abrir el chat"));
+      setShowErrorModal(true);
+    } finally {
+      setChateandoCon(null);
+    }
+  };
   const [textoDeConfirmacion, setTextoDeConfirmacion] = useState<{ titulo?: string; detalle?: string }>({});
   const textoDeConfirmar = (nombre: string, completado: boolean, comoCliente: boolean) => {
     if (!comoCliente) {
@@ -915,6 +942,20 @@ export default function JobDetail() {
     if (!user || !job) {
       navigate("/login", { state: { from: `/jobs/${id}` } });
       return;
+    }
+
+    // Con el trabajo ya en marcha, terminado o cancelado no hay nada que negociar (y el servidor decía «ya no está disponible para aplicar»): es un chat personal con quien publicó.
+    if (job.status !== "open") {
+      const destino = String((job as any).clientId ?? clientInfo?.id ?? "");
+      if (destino) {
+        setSendingMessage(true);
+        try {
+          await abrirChatDirecto(destino);
+        } finally {
+          setSendingMessage(false);
+        }
+        return;
+      }
     }
 
     setSendingMessage(true);
@@ -1581,10 +1622,13 @@ export default function JobDetail() {
 
   // Una sola sección para todo lo del contrato: quién terminó, quién aceptó, reclamos, confirmar el trabajo de cada uno y el contrato mismo (pedido del dueño, 2026-11-22: «Confirmaciones de finalización,
   // Trabajadores del proyecto y Seguimiento del contrato hacen lo mismo, dejar uno solo»). Si no se puede armar (equipo de DOAPP, contratos sin cargar) quedan las tarjetas de antes.
-  const seguimientoUnico = Boolean((isOwnJob || isWorkerOnJob) && contratoDelSeguimiento && !user?.adminRole);
+  const seguimientoUnico = Boolean((isOwnJob || isWorkerOnJob) && contratoDelSeguimiento);
   const hayVariosTrabajadores = Boolean(allContractsData && allContractsData.totalContracts > 1);
-  const etiquetaDelContrato = (estado: string) =>
-    ({ completed: "Contrato terminado", in_progress: "En marcha", awaiting_confirmation: "Esperando confirmación", cancelled: "Cancelado", accepted: "Aceptado", pending: "Pendiente", ready: "Listo" } as Record<string, string>)[estado] || estado;
+  const etiquetaDelContrato = (estado: string, confirmaciones?: { clientConfirmed?: boolean; doerConfirmed?: boolean }) =>
+    // Con las dos confirmaciones el contrato está terminado: no se dice «esperando confirmación» de lo que ya se confirmó.
+    confirmaciones?.clientConfirmed && confirmaciones?.doerConfirmed && ["in_progress", "awaiting_confirmation"].includes(estado)
+      ? "Contrato terminado"
+      : ({ completed: "Contrato terminado", in_progress: "En marcha", awaiting_confirmation: "Esperando confirmación", cancelled: "Cancelado", accepted: "Aceptado", pending: "Pendiente", ready: "Listo" } as Record<string, string>)[estado] || estado;
 
   return (
     <>
@@ -2799,11 +2843,23 @@ export default function JobDetail() {
                                   <Link to={`/profile/${c.doerId}`} className="block truncate font-medium text-slate-900 hover:underline dark:text-white">
                                     {c.doerName || t("common.worker", "Worker")}
                                   </Link>
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">{etiquetaDelContrato(String(c.status))}</span>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">{etiquetaDelContrato(String(c.status), c)}</span>
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <EstadoDeConfirmaciones terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId ?? null} />
+                                <EstadoDeConfirmaciones terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} terminoEl={c.doerConfirmedAt} aceptoEl={c.clientConfirmedAt} disputeId={c.disputeId ?? null} />
+                                {isOwnJob && (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirChatDirecto(String(c.doerId))}
+                                    disabled={chateandoCon === String(c.doerId)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    data-testid="chatear-con-el-trabajador"
+                                  >
+                                    {chateandoCon === String(c.doerId) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />}
+                                    Chatear con {c.doerName || "el trabajador"}
+                                  </button>
+                                )}
                                 {puede && !elegido && (
                                   <button
                                     type="button"
@@ -2852,7 +2908,7 @@ export default function JobDetail() {
                     <h3 className="mb-1 mt-5 text-sm font-semibold text-slate-700 dark:text-slate-300">{isOwnJob ? `Contrato de ${contratoDelSeguimiento.nombre || "este trabajador"}` : "Tu contrato"}</h3>
                   </div>
                 ) : (
-                  contractData && <EstadoDeConfirmaciones className="mb-4" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} disputeId={contractData.disputeId ?? null} />
+                  contractData && <EstadoDeConfirmaciones className="mb-4" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} terminoEl={(contractData as any).doerConfirmedAt} aceptoEl={(contractData as any).clientConfirmedAt} disputeId={contractData.disputeId ?? null} />
                 )}
                 <ContractDetail
                   key={contratoDelSeguimiento.id}

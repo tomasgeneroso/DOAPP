@@ -15,6 +15,8 @@ export interface FotoDeEntrega {
   bytes: number;
   subidoPor: "client" | "worker";
   subidoEl: string;
+  /** Notas sobre la foto (qué se ve): se suman, cada una con quién la escribió y cuándo. */
+  notas?: Array<{ por: "client" | "worker"; texto: string; el: string }>;
 }
 
 /** Cuántas fotos se suben por vez y cuántas admite el contrato en total (el servidor tiene los mismos topes). */
@@ -102,8 +104,38 @@ export function SelectorDeFotos({ archivos, onChange, disabled, yaHay = 0 }: { a
 }
 
 /** El panel del contrato: las fotos que dejaron las partes y, mientras se puede, el botón para agregar más. */
-export default function FotosDeEntrega({ contractId, fotos, puedeAgregar, onCambio }: { contractId: string; fotos: FotoDeEntrega[]; puedeAgregar: boolean; onCambio: () => void }) {
+export default function FotosDeEntrega({ contractId, fotos, puedeAgregar, puedeAgregarNota = true, onCambio }: { contractId: string; fotos: FotoDeEntrega[]; puedeAgregar: boolean; /** Las partes del contrato pueden agregar notas; el equipo solo las lee. */ puedeAgregarNota?: boolean; onCambio: () => void }) {
   const { t } = useTranslation();
+  const [notaAbierta, setNotaAbierta] = useState<number | null>(null);
+  const [textoNota, setTextoNota] = useState("");
+  const [guardandoNota, setGuardandoNota] = useState(false);
+  const [errorDeNota, setErrorDeNota] = useState<string | null>(null);
+
+  const guardarNota = async (indice: number) => {
+    const texto = textoNota.trim();
+    if (!texto) return;
+    setGuardandoNota(true);
+    setErrorDeNota(null);
+    try {
+      const token = localStorage.getItem("token");
+      const base = (import.meta.env.VITE_API_URL as string | undefined) || "/api";
+      const res = await fetch(`${base}/contracts/${contractId}/delivery-photos/${indice}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: "include",
+        body: JSON.stringify({ text: texto }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.message || "No se pudo guardar la nota.");
+      setTextoNota("");
+      setNotaAbierta(null);
+      onCambio();
+    } catch (e: any) {
+      setErrorDeNota(e?.message || "No se pudo guardar la nota.");
+    } finally {
+      setGuardandoNota(false);
+    }
+  };
   const [elegidas, setElegidas] = useState<File[]>([]);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,23 +168,58 @@ export default function FotosDeEntrega({ contractId, fotos, puedeAgregar, onCamb
       {fotos.length === 0 ? (
         <p className="mt-1 text-sm text-gray-500">{t("contracts.fotosDeEntrega.vacio", "Quien termina el trabajo puede dejar fotos de cómo quedó.")}</p>
       ) : (
-        <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-2">
+        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
           {fotos.map((f, i) => {
             const src = getImageUrl(f.url);
             const quien = f.subidoPor === "client" ? t("contracts.client", "Cliente") : t("contracts.worker", "Trabajador");
             const cuando = new Date(f.subidoEl).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
             return (
-              <a
-                key={`${f.url}-${i}`}
-                href={src}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`${f.nombre} · ${quien} · ${cuando}`}
-                className="relative aspect-square rounded-md overflow-hidden border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700"
-              >
-                <img src={src} alt={f.nombre} className="h-full w-full object-cover" loading="lazy" />
-                <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate">{quien} · {cuando}</span>
-              </a>
+              <figure key={`${f.url}-${i}`} className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-600" data-testid="foto-de-entrega">
+                <a href={src} target="_blank" rel="noopener noreferrer" title={f.nombre} className="relative block aspect-video bg-gray-50 dark:bg-slate-700">
+                  <img src={src} alt={f.nombre} className="h-full w-full object-cover" loading="lazy" />
+                </a>
+                <figcaption className="space-y-1.5 p-2 text-xs">
+                  <p className="text-gray-700 dark:text-gray-200">
+                    Subida por <strong>{quien}</strong> · {cuando}
+                  </p>
+                  {(f.notas || []).map((n, j) => (
+                    <p key={j} className="rounded-md bg-sky-50 px-2 py-1.5 text-gray-800 dark:bg-sky-900/20 dark:text-gray-100" data-testid="nota-de-foto">
+                      {n.texto}
+                      <span className="block text-[10px] text-gray-500 dark:text-gray-400">
+                        {n.por === "client" ? t("contracts.client", "Cliente") : t("contracts.worker", "Trabajador")} · {new Date(n.el).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </p>
+                  ))}
+                  {puedeAgregarNota &&
+                    (notaAbierta === i ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          value={textoNota}
+                          onChange={(e) => setTextoNota(e.target.value)}
+                          rows={2}
+                          maxLength={500}
+                          aria-label="Nota sobre esta foto"
+                          placeholder="Qué se ve en esta foto"
+                          className="w-full resize-none rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-900 focus:ring-2 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                          data-testid="texto-de-nota-de-foto"
+                        />
+                        {errorDeNota && <p className="text-[11px] text-red-600">{errorDeNota}</p>}
+                        <div className="flex gap-1.5">
+                          <button type="button" onClick={() => guardarNota(i)} disabled={guardandoNota || !textoNota.trim()} className="rounded-md bg-sky-600 px-2.5 py-1 font-semibold text-white hover:bg-sky-700 disabled:opacity-50" data-testid="guardar-nota-de-foto">
+                            {guardandoNota ? "Guardando…" : "Guardar nota"}
+                          </button>
+                          <button type="button" onClick={() => { setNotaAbierta(null); setTextoNota(""); setErrorDeNota(null); }} className="rounded-md border border-gray-300 px-2.5 py-1 font-semibold text-gray-700 dark:border-slate-600 dark:text-gray-200">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => { setNotaAbierta(i); setTextoNota(""); setErrorDeNota(null); }} className="font-semibold text-sky-700 hover:underline dark:text-sky-300" data-testid="agregar-nota-de-foto">
+                        Agregar nota
+                      </button>
+                    ))}
+                </figcaption>
+              </figure>
             );
           })}
         </div>

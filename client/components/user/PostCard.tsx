@@ -35,6 +35,7 @@ interface Post {
   commentsCount: number;
   viewsCount: number;
   tags?: string[];
+  etiquetados?: Array<{ id: string; name: string }>;
   createdAt: string;
   // Portfolio-related fields
   linkedJob?: string | { id?: string; title?: string };
@@ -211,6 +212,11 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
           {post.title}
         </h3>
+        {post.etiquetados && post.etiquetados.length > 0 && (
+          <p className="mb-2 text-sm text-slate-500 dark:text-slate-400" data-testid="etiquetados-de-la-tarjeta">
+            Con {post.etiquetados.map((p) => p.name).join(", ")}
+          </p>
+        )}
         <div
           className="text-slate-700 dark:text-slate-300 line-clamp-3 [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-500 [&_a]:underline"
           dangerouslySetInnerHTML={{ __html: post.description }}

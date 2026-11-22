@@ -4,6 +4,7 @@ import useImageViewer from '@/hooks/useImageViewer';
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import EtiquetasDeLaPublicacion from "../components/user/EtiquetasDeLaPublicacion";
 import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
@@ -41,6 +42,8 @@ interface Post {
   commentsCount: number;
   viewsCount: number;
   tags?: string[];
+  /** A quién se etiquetó (solo quien trabajó en el trabajo y lo permite). */
+  etiquetados?: Array<{ id: string; name: string; avatar?: string | null }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -316,6 +319,9 @@ export default function PostDetail() {
                   ))}
                 </div>
               )}
+
+              {/* A quién se etiquetó; quien publicó puede etiquetar o cambiar las etiquetas después */}
+              <EtiquetasDeLaPublicacion postId={String(post.id ?? id)} etiquetados={post.etiquetados} esAutor={!!user && !!authorId && String(user.id) === String(authorId)} token={token} alCambiar={fetchPost} />
 
               {/* Description/Content */}
               <div

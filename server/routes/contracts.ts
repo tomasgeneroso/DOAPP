@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { sanitizePlainText } from "../utils/sanitizer.js";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
 import { getEffectiveTier } from '../services/platformPhase.js';
@@ -629,6 +630,56 @@ router.post(
 );
 
 /**
+ * @route   POST /api/contracts/:id/delivery-photos/:index/notes
+ * @desc    Una nota sobre una foto de entrega (qué se ve). Las notas se suman, cada una con quién la escribió y cuándo.
+ * @access  Las partes del contrato (no con el contrato cancelado)
+ */
+router.post("/:id/delivery-photos/:index/notes", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+    const indice = Number.parseInt(req.params.index, 10);
+    const texto = sanitizePlainText(String(req.body?.text ?? "")).trim();
+    if (!texto) {
+      res.status(400).json({ success: false, message: "Escribí la nota." });
+      return;
+    }
+    if (texto.length > 500) {
+      res.status(400).json({ success: false, message: "La nota puede tener hasta 500 caracteres." });
+      return;
+    }
+    const contrato = await Contract.findByPk(req.params.id);
+    if (!contrato) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+    const esCliente = String((contrato as any).clientId) === userId;
+    const esTrabajador = String((contrato as any).doerId) === userId;
+    if (!esCliente && !esTrabajador) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+    if (String(contrato.status) === 'cancelled') {
+      res.status(409).json({ success: false, message: "El contrato está cancelado: no se agregan notas." });
+      return;
+    }
+    const fotos: any[] = Array.isArray((contrato as any).deliveryPhotos) ? (contrato as any).deliveryPhotos : [];
+    if (!Number.isInteger(indice) || indice < 0 || indice >= fotos.length) {
+      res.status(404).json({ success: false, message: "Esa foto no existe." });
+      return;
+    }
+    const nota = { por: (esCliente ? 'client' : 'worker') as 'client' | 'worker', porId: userId, texto, el: new Date().toISOString() };
+    (contrato as any).deliveryPhotos = fotos.map((f, i) => (i === indice ? { ...f, notas: [...(Array.isArray(f.notas) ? f.notas : []), nota] } : f));
+    contrato.changed('deliveryPhotos' as any, true);
+    await contrato.save();
+    const otraParte = esCliente ? (contrato as any).doerId : (contrato as any).clientId;
+    socketService.notifyUser(String(otraParte), 'contract:delivery-photos', { contractId: contrato.id, nota: true, por: nota.por });
+    res.json({ success: true, fotos: (contrato as any).deliveryPhotos });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/contracts/:id/evidence
  * @desc    El expediente completo del contrato, para disputas y contracargos
  * @access  Las partes del contrato, o administración
@@ -867,7 +918,7 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
           attributes: ['id', 'name', 'avatar']
         }
       ],
-      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status', 'price', 'disputeId', 'pairingCode', 'pairingExpiry']
+      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'clientConfirmedAt', 'doerConfirmedAt', 'status', 'price', 'disputeId', 'pairingCode', 'pairingExpiry']
     });
 
     const conProblema = await contratosConProblemaAbierto(contracts.map((c) => String(c.id)));
@@ -889,6 +940,9 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
         doerAvatar: (c.doer as any)?.avatar,
         clientConfirmed: c.clientConfirmed,
         doerConfirmed: c.doerConfirmed,
+        // Cuándo confirmó cada parte (la lista del equipo lo muestra con fecha y hora).
+        clientConfirmedAt: (c as any).clientConfirmedAt ?? null,
+        doerConfirmedAt: (c as any).doerConfirmedAt ?? null,
         status: c.status,
       })),
       totalContracts: contracts.length,

@@ -1,4 +1,6 @@
+import { Op } from 'sequelize';
 import { Contract } from '../models/sql/Contract.model.js';
+import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { conSistema } from '../db/contextoRls.js';
@@ -57,6 +59,35 @@ export async function resolverEtiquetas(autorId: string, trabajoId: string, pedi
     noPermiten: candidatos.filter((id) => !permiten.has(id)),
     ajenos,
   };
+}
+
+export type CandidatosDeEtiqueta =
+  | { ok: true; contratoId?: string; personas: Array<{ id: string; name: string; avatar?: string | null; permite: boolean }> }
+  | { ok: false; estado: number; mensaje: string };
+
+/** Quiénes se pueden etiquetar en un trabajo (para mostrar la lista al editar una publicación ya hecha) y si cada uno permite las etiquetas. */
+export async function candidatosDeEtiqueta(autorId: string, trabajoId: string): Promise<CandidatosDeEtiqueta> {
+  const contratos = await conSistema(() => Contract.findAll({ where: { jobId: trabajoId }, attributes: ['id', 'clientId', 'doerId', 'status'] }));
+  const mios = contratos.filter((c) => String(c.clientId) === String(autorId) || String(c.doerId) === String(autorId));
+  if (mios.length === 0) return { ok: false, estado: 403, mensaje: 'Solo se puede etiquetar en la publicación de un trabajo en el que participaste.' };
+  const contratoId = (mios.find((c) => c.status === 'completed') ?? mios[0]).id;
+  const ids = Array.from(new Set(contratos.filter((c) => c.status !== 'cancelled' && c.status !== 'rejected').map((c) => String(c.doerId)).filter((id) => id !== String(autorId))));
+  const usuarios = ids.length ? await conSistema(() => User.findAll({ where: { id: ids }, attributes: ['id', 'name', 'avatar', 'notificationPreferences'] })) : [];
+  return { ok: true, contratoId, personas: usuarios.map((u) => ({ id: String(u.id), name: u.name, avatar: u.avatar, permite: puedeSerEtiquetado(u.notificationPreferences) })) };
+}
+
+/** Los trabajos terminados en que participó una persona (para elegir de cuál es una publicación que quedó sin trabajo vinculado). */
+export async function trabajosParaEtiquetar(autorId: string): Promise<Array<{ id: string; title: string }>> {
+  const contratos = await conSistema(() =>
+    Contract.findAll({ where: { status: 'completed', [Op.or]: [{ clientId: autorId }, { doerId: autorId }] } as any, attributes: ['jobId'], order: [['updatedAt', 'DESC']], limit: 30 }),
+  );
+  const ids = Array.from(new Set(contratos.map((c) => String(c.jobId))));
+  if (!ids.length) return [];
+  const trabajos = await conSistema(() => Job.findAll({ where: { id: ids }, attributes: ['id', 'title'] }));
+  return ids.flatMap((id) => {
+    const t = trabajos.find((j) => String(j.id) === id);
+    return t ? [{ id, title: t.title }] : [];
+  });
 }
 
 /** A cada publicación le agrega `etiquetados` (id, nombre y foto), sin quienes ya no permiten que los etiqueten. Una sola consulta para todas. */
