@@ -26,6 +26,8 @@ interface PortfolioItem {
   tags?: string[];
   clientName?: string;
   projectDuration?: string;
+  /** La puntuación que se dejó a cada persona al terminar el trabajo (la arma el servidor desde las reseñas reales). */
+  contractRatings?: Array<{ contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string }>;
   linkedJob?: string | { id?: string; title?: string };
   linkedContract?: string | { id?: string };
   createdAt: string;
@@ -273,6 +275,26 @@ export default function PortfolioItemDetail() {
                 </p>
               </div>
             </div>
+
+            {/* La puntuación que se dejó a cada persona al terminar el trabajo */}
+            {item.contractRatings && item.contractRatings.length > 0 && (
+              <div className="mb-6" data-testid="puntuaciones-del-trabajo">
+                <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Puntuación al terminar el trabajo</h2>
+                <ul className="space-y-2">
+                  {item.contractRatings.map((r) => (
+                    <li key={r.contractId} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-700/50">
+                      <div className="flex items-center justify-between gap-2">
+                        <Link to={`/profile/${r.workerId}`} className="text-sm font-medium text-slate-900 hover:underline dark:text-white">
+                          {r.name} <span className="font-normal text-slate-500 dark:text-slate-400">({r.role === 'doer' ? 'trabajador' : 'cliente'})</span>
+                        </Link>
+                        <span className="text-lg text-yellow-400" aria-label={`${r.rating} de 5`}>{'★'.repeat(r.rating)}<span className="text-slate-300 dark:text-slate-600">{'★'.repeat(5 - r.rating)}</span></span>
+                      </div>
+                      {r.comment && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">«{r.comment}»</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Tags */}
             {item.tags && item.tags.length > 0 && (

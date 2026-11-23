@@ -183,6 +183,14 @@ export class Portfolio extends Model {
   })
   contractRating?: number;
 
+  /** La puntuación que se dejó a cada persona al terminar el trabajo: [{ contractId, workerId, name, role, rating, comment? }]. La arma el servidor desde las reseñas reales. */
+  @Column({
+    type: DataType.JSONB,
+    allowNull: false,
+    defaultValue: [],
+  })
+  contractRatings!: Array<{ contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string }>;
+
   @Column({
     type: DataType.TEXT,
     validate: {

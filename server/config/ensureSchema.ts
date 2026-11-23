@@ -227,6 +227,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // Escalera de cancelaciones del trabajador.
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },
+  // Portafolio: la puntuación que se dejó a cada trabajador al terminar el trabajo.
+  { label: 'portfolio_items.contract_ratings', sql: `ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS contract_ratings JSONB NOT NULL DEFAULT '[]'::jsonb` },
   // Trabajos eliminados: se guardan, no se borran (papelera de 30 días para quien publicó; el equipo los ve siempre).
   { label: 'jobs.deleted_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ` },
   { label: 'jobs.deleted_by', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS deleted_by UUID` },

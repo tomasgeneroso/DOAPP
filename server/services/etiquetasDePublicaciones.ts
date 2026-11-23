@@ -77,6 +77,44 @@ export async function candidatosDeEtiqueta(autorId: string, trabajoId: string): 
   return { ok: true, contratoId, personas: usuarios.map((u) => ({ id: String(u.id), name: u.name, avatar: u.avatar, permite: puedeSerEtiquetado(u.notificationPreferences) })) };
 }
 
+export interface OpinionDeTrabajo {
+  contractId: string;
+  workerId: string;
+  name: string;
+  role: 'doer' | 'client';
+  rating: number;
+  comment: string;
+}
+
+/**
+ * Las puntuaciones que una persona dejó al terminar un trabajo (una por contrato: con dos trabajadores son dos). Salen de las reseñas reales, no de lo que mande la pantalla:
+ * el portafolio no puede mostrar un puntaje que nadie dio.
+ */
+export async function opinionesDeMiTrabajo(autorId: string, trabajoId: string): Promise<OpinionDeTrabajo[]> {
+  const contratos = await conSistema(() => Contract.findAll({ where: { jobId: trabajoId }, attributes: ['id', 'clientId', 'doerId'] }));
+  const mios = contratos.filter((c) => String(c.clientId) === String(autorId) || String(c.doerId) === String(autorId));
+  if (mios.length === 0) return [];
+  const { Review } = await import('../models/sql/Review.model.js');
+  const { POST_WORK_DRAFT } = await import('./postWorkRating.js');
+  const reseñas = await conSistema(() =>
+    Review.findAll({ where: { contractId: mios.map((c) => c.id), reviewerId: autorId, source: { [Op.ne]: POST_WORK_DRAFT } } as any }),
+  );
+  const personas = await conSistema(() => User.findAll({ where: { id: reseñas.map((r) => r.reviewedId) }, attributes: ['id', 'name'] }));
+  return reseñas
+    .filter((r) => Number(r.rating) > 0)
+    .map((r) => {
+      const c = mios.find((x) => String(x.id) === String(r.contractId))!;
+      return {
+        contractId: String(r.contractId),
+        workerId: String(r.reviewedId),
+        name: personas.find((p) => String(p.id) === String(r.reviewedId))?.name || 'Sin nombre',
+        role: (String(c.doerId) === String(r.reviewedId) ? 'doer' : 'client') as 'doer' | 'client',
+        rating: Number(r.rating),
+        comment: String(r.comment || ''),
+      };
+    });
+}
+
 /** Los trabajos terminados en que participó una persona (para elegir de cuál es una publicación que quedó sin trabajo vinculado). */
 export async function trabajosParaEtiquetar(autorId: string): Promise<Array<{ id: string; title: string }>> {
   const contratos = await conSistema(() =>

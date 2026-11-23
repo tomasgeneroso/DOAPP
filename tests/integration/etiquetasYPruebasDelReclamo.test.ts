@@ -18,6 +18,8 @@ import { Contract } from '../../server/models/sql/Contract.model.js';
 import { Dispute } from '../../server/models/sql/Dispute.model.js';
 import { Post } from '../../server/models/sql/Post.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
+import { Review } from '../../server/models/sql/Review.model.js';
+import { Portfolio } from '../../server/models/sql/Portfolio.model.js';
 import { crearUsuario, crearTrabajo, crearContrato, crearDisputa } from '../helpers/fixtures.js';
 
 describe('etiquetas en la publicación y notas en las pruebas del reclamo', () => {
@@ -33,6 +35,7 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
     app.use(express.json());
     app.use('/api/posts', (await import('../../server/routes/posts.js')).default);
     app.use('/api/disputes', (await import('../../server/routes/disputes.js')).default);
+    app.use('/api/portfolio', (await import('../../server/routes/portfolio.js')).default);
     cliente = await crearUsuario({ role: 'client' });
     ana = await crearUsuario({ role: 'doer' });
     beto = await crearUsuario({ role: 'doer' });
@@ -50,6 +53,8 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
   afterAll(async () => {
     const ids = [cliente.id, ana.id, beto.id, ajeno.id];
     try {
+      await Portfolio.destroy({ where: { userId: ids } as any, force: true } as any);
+      await Review.destroy({ where: { contractId: contratos } as any, force: true } as any);
       await Dispute.destroy({ where: { id: disputas }, force: true } as any);
       await Post.destroy({ where: { author: ids } });
       await Notification.destroy({ where: { recipientId: ids } });
@@ -140,6 +145,37 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
       expect(((await Post.findByPk(p.id)) as any).taggedUsers).toEqual([]);
       // otra persona no puede cambiar las etiquetas
       expect((await request(app).put(`/api/posts/${p.id}/etiquetas`).set(como(ana)).send({ taggedUsers: [ana.id] })).status).toBe(403);
+    });
+  });
+
+  describe('portafolio: la puntuación a los trabajadores', () => {
+    it('se copia desde las reseñas reales: una por trabajador, con el comentario solo si se pidió; no se inventa ninguna', async () => {
+      const dejar = (c: string, quien: any, rating: number, comment: string) =>
+        Review.create({ contractId: c, reviewerId: cliente.id, reviewedId: quien.id, reviewedRole: 'doer', rating, comment, source: 'post_work' } as any);
+      await dejar(contratos[0], ana, 5, 'Excelente trabajo, muy prolija.');
+      await dejar(contratos[1], beto, 3, 'Cumplió, pero tardó.');
+
+      const mias = await request(app).get(`/api/posts/job/${jobId}/mis-opiniones`).set(como(cliente));
+      expect(mias.body.opiniones.map((o: any) => [o.workerId, o.rating]).sort()).toEqual([[String(ana.id), 5], [String(beto.id), 3]].sort());
+      // quien no participó no ve nada
+      expect((await request(app).get(`/api/posts/job/${jobId}/mis-opiniones`).set(como(ajeno))).body.opiniones).toEqual([]);
+
+      const r = await request(app).post('/api/portfolio').set(como(cliente)).send({
+        title: 'Trabajo compartido', description: 'Quedó bien', category: 'construccion', linkedJob: jobId,
+        incluirPuntuaciones: [
+          { contractId: contratos[0], puntaje: true, comentario: true },
+          { contractId: contratos[1], puntaje: true, comentario: false },
+          { contractId: '00000000-0000-4000-8000-000000000000', puntaje: true, comentario: true }, // no existe: se ignora
+        ],
+      });
+      expect(r.status).toBe(201);
+      const guardado: any = await Portfolio.findByPk(r.body.data.id);
+      expect(guardado.contractRatings).toHaveLength(2);
+      const deAna = guardado.contractRatings.find((x: any) => x.workerId === String(ana.id));
+      const deBeto = guardado.contractRatings.find((x: any) => x.workerId === String(beto.id));
+      expect([deAna.rating, deAna.comment]).toEqual([5, 'Excelente trabajo, muy prolija.']);
+      expect([deBeto.rating, deBeto.comment]).toEqual([3, undefined]);
+      expect(Number(guardado.contractRating)).toBe(4); // el promedio de lo que se muestra
     });
   });
 

@@ -58,9 +58,9 @@ export default function CreatePortfolioPost() {
   const { editar, editor } = useEditorDeFotos();
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   // La opinión que dejé al terminar el trabajo (puntaje y comentario): se copia sola y se puede sacar o dejar (pedido del dueño, 2026-11-23).
-  const [opinionDelTrabajo, setOpinionDelTrabajo] = useState<{ rating: number; comment: string } | null>(null);
-  const [incluirPuntaje, setIncluirPuntaje] = useState(true);
-  const [incluirComentario, setIncluirComentario] = useState(true);
+  // Una por contrato: con dos trabajadores se dejaron dos puntuaciones y cada una se muestra o se saca por separado.
+  const [opiniones, setOpiniones] = useState<Array<{ contractId: string; name: string; role: 'doer' | 'client'; rating: number; comment: string }>>([]);
+  const [eleccion, setEleccion] = useState<Record<string, { puntaje: boolean; comentario: boolean }>>({});
   // El trabajo ya tiene su categoría: es la que se usa; se puede sumar UNA más.
   const [categoriaExtra, setCategoriaExtra] = useState('');
   const [publishAsPost, setPublishAsPost] = useState(true);
@@ -83,12 +83,11 @@ export default function CreatePortfolioPost() {
       const respuesta = await fetch(`/api/posts/job/${jobId}/participantes`, { headers: { Authorization: `Bearer ${token}` } });
       const datos = await respuesta.json();
       setEquipo(Array.isArray(datos?.personas) ? datos.personas.filter((p: { permite?: boolean }) => p.permite !== false) : []);
-      if (datos?.contratoId) {
-        const r = await fetch(`/api/reviews/contract/${datos.contratoId}`, { headers: { Authorization: `Bearer ${token}` } });
-        const j = await r.json().catch(() => ({}));
-        const mia = (Array.isArray(j?.data) ? j.data : []).find((x: any) => String(x.reviewerId) === String(user?.id) && Number(x.rating) > 0);
-        if (mia) setOpinionDelTrabajo({ rating: Number(mia.rating), comment: String(mia.comment || '') });
-      }
+      const r = await fetch(`/api/posts/job/${jobId}/mis-opiniones`, { headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json().catch(() => ({}));
+      const lista = Array.isArray(j?.opiniones) ? j.opiniones : [];
+      setOpiniones(lista);
+      setEleccion(Object.fromEntries(lista.map((o: { contractId: string }) => [o.contractId, { puntaje: true, comentario: true }])));
     } catch {
       setEquipo([]);
     }
@@ -189,8 +188,8 @@ export default function CreatePortfolioPost() {
         price: jobData?.price,
         clientName: jobData?.client?.name || 'Cliente DoApp',
         projectDuration: calculateDuration(),
-        ...(opinionDelTrabajo && incluirPuntaje && { contractRating: opinionDelTrabajo.rating }),
-        ...(opinionDelTrabajo && incluirComentario && opinionDelTrabajo.comment.trim() && { contractReview: opinionDelTrabajo.comment.trim() }),
+        // El servidor arma las puntuaciones desde las reseñas reales: acá solo se dice cuáles mostrar y si lleva el comentario.
+        ...(opiniones.length > 0 && { incluirPuntuaciones: opiniones.map((o) => ({ contractId: o.contractId, puntaje: eleccion[o.contractId]?.puntaje !== false, comentario: eleccion[o.contractId]?.comentario !== false })) }),
       };
 
       const response = await fetch('/api/portfolio', {
@@ -529,24 +528,31 @@ export default function CreatePortfolioPost() {
 
           {/* Opinión del final del trabajo: se copia sola (puntaje y comentario que dejé al terminar) y se puede sacar o dejar. Ya no se escribe de nuevo. */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            {opinionDelTrabajo && (
+            {opiniones.length > 0 && (
               <div className="mb-5" data-testid="opinion-del-trabajo">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Tu opinión al terminar el trabajo</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">La copiamos de lo que dejaste al terminar. Elegí qué mostrar en la publicación.</p>
-                <label className="mb-2 flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                  <input type="checkbox" checked={incluirPuntaje} onChange={(e) => setIncluirPuntaje(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-puntaje" />
-                  <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Mostrar el puntaje</span>
-                  <span className="ml-auto text-lg text-yellow-400" aria-label={`${opinionDelTrabajo.rating} de 5`}>{'★'.repeat(opinionDelTrabajo.rating)}<span className="text-slate-300 dark:text-slate-600">{'★'.repeat(5 - opinionDelTrabajo.rating)}</span></span>
-                </label>
-                {opinionDelTrabajo.comment.trim() && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                    <input type="checkbox" checked={incluirComentario} onChange={(e) => setIncluirComentario(e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-comentario" />
-                    <span className="text-sm text-slate-800 dark:text-slate-200">
-                      <span className="font-medium">Mostrar mi comentario</span>
-                      <span className="mt-1 block text-slate-600 dark:text-slate-400">«{opinionDelTrabajo.comment}»</span>
-                    </span>
-                  </label>
-                )}
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{opiniones.length > 1 ? 'Tu puntuación a cada persona al terminar el trabajo' : 'Tu puntuación al terminar el trabajo'}</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">La copiamos de lo que dejaste al terminar. Elegí qué mostrar en el portafolio.</p>
+                <div className="space-y-3">
+                  {opiniones.map((o) => {
+                    const e = eleccion[o.contractId] ?? { puntaje: true, comentario: true };
+                    const cambiar = (parte: Partial<{ puntaje: boolean; comentario: boolean }>) => setEleccion((prev) => ({ ...prev, [o.contractId]: { ...e, ...parte } }));
+                    return (
+                      <div key={o.contractId} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700" data-testid="puntuacion-a-una-persona">
+                        <label className="flex cursor-pointer items-center gap-3">
+                          <input type="checkbox" checked={e.puntaje} onChange={(ev) => cambiar({ puntaje: ev.target.checked })} className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-puntaje" />
+                          <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{o.name} <span className="font-normal text-slate-500">({o.role === 'doer' ? 'trabajador' : 'cliente'})</span></span>
+                          <span className="ml-auto text-lg text-yellow-400" aria-label={`${o.rating} de 5`}>{'★'.repeat(o.rating)}<span className="text-slate-300 dark:text-slate-600">{'★'.repeat(5 - o.rating)}</span></span>
+                        </label>
+                        {o.comment.trim() && (
+                          <label className={`mt-2 flex cursor-pointer items-start gap-3 ${e.puntaje ? '' : 'opacity-50'}`}>
+                            <input type="checkbox" checked={e.puntaje && e.comentario} disabled={!e.puntaje} onChange={(ev) => cambiar({ comentario: ev.target.checked })} className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-comentario" />
+                            <span className="text-sm text-slate-600 dark:text-slate-400">Mostrar mi comentario: «{o.comment}»</span>
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

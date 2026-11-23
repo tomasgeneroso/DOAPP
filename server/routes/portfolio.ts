@@ -7,6 +7,7 @@ import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from "sequelize";
 import { uploadPortfolio, verifyMagicBytes } from "../middleware/upload.js";
+import { opinionesDeMiTrabajo } from "../services/etiquetasDePublicaciones.js";
 
 const router = Router();
 
@@ -140,8 +141,27 @@ router.post(
         projectDuration,
         featured,
         linkedContract,
-        linkedJob
+        linkedJob,
+        incluirPuntuaciones
       } = req.body;
+
+      // La puntuación que se dejó al terminar el trabajo: la arma el servidor desde las reseñas reales (quien publica solo elige cuáles mostrar y si lleva el comentario).
+      let contractRatings: Array<{ contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string }> = [];
+      if (linkedJob && Array.isArray(incluirPuntuaciones) && incluirPuntuaciones.length > 0) {
+        const mias = await opinionesDeMiTrabajo(String(userId), String(linkedJob));
+        for (const pedido of incluirPuntuaciones.slice(0, 10)) {
+          const opinion = mias.find((o) => o.contractId === String(pedido?.contractId));
+          if (!opinion || pedido?.puntaje === false) continue;
+          contractRatings.push({
+            contractId: opinion.contractId,
+            workerId: opinion.workerId,
+            name: opinion.name,
+            role: opinion.role,
+            rating: opinion.rating,
+            ...(pedido?.comentario === true && opinion.comment.trim() ? { comment: opinion.comment.trim().slice(0, 500) } : {}),
+          });
+        }
+      }
 
       // Verificar que el trabajo no esté ya en otro portfolio
       if (linkedJob) {
@@ -174,7 +194,10 @@ router.post(
         featured: featured || false,
         linkedContract,
         linkedJob,
-      });
+        contractRatings,
+        // El puntaje general del trabajo: el promedio de lo que se dejó (los números sueltos van en `contractRatings`).
+        contractRating: contractRatings.length > 0 ? Math.round((contractRatings.reduce((s, r) => s + r.rating, 0) / contractRatings.length) * 100) / 100 : undefined,
+      } as any);
 
       res.status(201).json({
         success: true,

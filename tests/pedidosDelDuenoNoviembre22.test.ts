@@ -170,6 +170,14 @@ describe('pedidos del 2026-11-23 (segunda parte)', () => {
     expect(leer('client/pages/admin/PendingPayments.tsx')).toContain('data-testid="pago-n-de-n"');
   });
 
+  it('el portafolio muestra la puntuación que se dejó a cada trabajador (la arma el servidor desde las reseñas reales) y la pantalla de compartir deja elegir cuáles', () => {
+    expect(leer('server/routes/portfolio.ts')).toContain('opinionesDeMiTrabajo');
+    expect(leer('server/routes/posts.ts')).toContain('"/job/:jobId/mis-opiniones"');
+    expect(leer('server/config/ensureSchema.ts')).toContain('portfolio_items.contract_ratings');
+    expect(leer('client/pages/CreatePortfolioPost.tsx')).toContain('data-testid="puntuacion-a-una-persona"');
+    expect(leer('client/pages/PortfolioItemDetail.tsx')).toContain('data-testid="puntuaciones-del-trabajo"');
+  });
+
   it('el saldo a favor pendiente se puede abrir para ver de dónde sale', () => {
     expect(leer('client/pages/Dashboard.tsx')).toContain('data-testid="ver-de-donde-sale"');
   });

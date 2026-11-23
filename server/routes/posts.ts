@@ -5,7 +5,7 @@ import { protect } from "../middleware/auth.js";
 import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
-import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar } from "../services/etiquetasDePublicaciones.js";
+import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar, opinionesDeMiTrabajo } from "../services/etiquetasDePublicaciones.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { conSistema } from "../db/contextoRls.js";
 
@@ -245,6 +245,15 @@ router.get("/job/:jobId/participantes", protect, async (req: AuthRequest, res: R
     res.json({ success: true, contratoId: r.contratoId, personas: r.personas });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || "Error al buscar a los participantes" });
+  }
+});
+
+/** GET /api/posts/job/:jobId/mis-opiniones — la puntuación que dejé a cada persona al terminar el trabajo (para copiarla al portafolio). */
+router.get("/job/:jobId/mis-opiniones", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    res.json({ success: true, opiniones: await opinionesDeMiTrabajo(String(req.user.id), String(req.params.jobId)) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error al buscar las opiniones" });
   }
 });
 
