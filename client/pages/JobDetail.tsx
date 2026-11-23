@@ -1624,6 +1624,21 @@ export default function JobDetail() {
   // Trabajadores del proyecto y Seguimiento del contrato hacen lo mismo, dejar uno solo»). Si no se puede armar (equipo de DOAPP, contratos sin cargar) quedan las tarjetas de antes.
   const seguimientoUnico = Boolean((isOwnJob || isWorkerOnJob) && contratoDelSeguimiento);
   const hayVariosTrabajadores = Boolean(allContractsData && allContractsData.totalContracts > 1);
+  const renderContratoEmbebido = () =>
+    contratoDelSeguimiento ? (
+      <ContractDetail
+        key={contratoDelSeguimiento.id}
+        embebido
+        contratoId={contratoDelSeguimiento.id}
+        alConfirmar={({ completado }) => {
+          setTextoDeConfirmacion(textoDeConfirmar(contratoDelSeguimiento.nombre, completado, Boolean(isOwnJob)));
+          setShowConfirmationSuccessModal(true);
+          if (completado) setPostWorkPending(true);
+          fetchAllContracts();
+          setPollKey((k) => k + 1);
+        }}
+      />
+    ) : null;
   const etiquetaDelContrato = (estado: string, confirmaciones?: { clientConfirmed?: boolean; doerConfirmed?: boolean }) =>
     // Con las dos confirmaciones el contrato está terminado: no se dice «esperando confirmación» de lo que ya se confirmó.
     confirmaciones?.clientConfirmed && confirmaciones?.doerConfirmed && ["in_progress", "awaiting_confirmation"].includes(estado)
@@ -2872,7 +2887,7 @@ export default function JobDetail() {
                                     Ver su contrato
                                   </button>
                                 )}
-                                {elegido && <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">Su contrato está abajo</span>}
+                                {elegido && <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">Contrato abierto</span>}
                               </div>
                             </div>
                             {/* Con el contrato ya terminado, «Hubo problemas» lleva al reclamo (se puede abrir hasta 7 días después de terminar). */}
@@ -2906,6 +2921,13 @@ export default function JobDetail() {
                                 <HuboProblemas contractId={String(c.id)} problema={c.problemaAbierto === true} className="!px-3 !py-2" />
                               </div>
                             )}
+                            {/* Información del contrato: se abre en la tarjeta del trabajador que se tocó (pedido del dueño, 2026-11-23). */}
+                            {elegido && (
+                              <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700" data-testid="informacion-del-contrato">
+                                <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{isOwnJob ? `Información del contrato de ${c.doerName || "este trabajador"}` : "Información de tu contrato"}</h3>
+                                {renderContratoEmbebido()}
+                              </div>
+                            )}
                           </li>
                         );
                       })}
@@ -2920,23 +2942,11 @@ export default function JobDetail() {
                         {t("jobs.allContractsCompleted", "All contracts have been completed")}
                       </div>
                     )}
-                    <h3 className="mb-1 mt-5 text-sm font-semibold text-slate-700 dark:text-slate-300">{isOwnJob ? `Contrato de ${contratoDelSeguimiento.nombre || "este trabajador"}` : "Tu contrato"}</h3>
                   </div>
                 ) : (
                   contractData && <EstadoDeConfirmaciones className="mb-4" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} terminoEl={(contractData as any).doerConfirmedAt} aceptoEl={(contractData as any).clientConfirmedAt} disputeId={contractData.disputeId ?? null} />
                 )}
-                <ContractDetail
-                  key={contratoDelSeguimiento.id}
-                  embebido
-                  contratoId={contratoDelSeguimiento.id}
-                  alConfirmar={({ completado }) => {
-                    setTextoDeConfirmacion(textoDeConfirmar(contratoDelSeguimiento.nombre, completado, Boolean(isOwnJob)));
-                    setShowConfirmationSuccessModal(true);
-                    if (completado) setPostWorkPending(true);
-                    fetchAllContracts();
-                    setPollKey((k) => k + 1);
-                  }}
-                />
+                {!hayVariosTrabajadores && renderContratoEmbebido()}
               </section>
             )}
 

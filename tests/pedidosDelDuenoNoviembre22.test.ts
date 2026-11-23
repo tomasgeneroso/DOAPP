@@ -185,6 +185,12 @@ describe('pedidos del 2026-11-23 (segunda parte)', () => {
     expect(leer('client/pages/MyJobsScreen.tsx')).toContain("proposal.job.status !== 'completed' && (");
   });
 
+  it('la información del contrato se abre dentro de la tarjeta del trabajador que se toca (con varios trabajadores)', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('data-testid="informacion-del-contrato"');
+    expect(j).toContain('{!hayVariosTrabajadores && renderContratoEmbebido()}');
+  });
+
   it('quien publicó una publicación compartida la puede editar o eliminar', () => {
     const p = leer('client/pages/PostDetail.tsx');
     expect(p).toContain('data-testid="editar-publicacion"');
