@@ -807,6 +807,8 @@ export default function JobDetail() {
   // Qué contrato se ve en el «Seguimiento del contrato» (con varios trabajadores); `?contrato=` lo deja elegido al venir de un enlace al contrato. Los hooks van acá, antes de los `return` tempranos.
   const [parametrosDeLaDireccion] = useSearchParams();
   const [contratoElegido, setContratoElegido] = useState<string | null>(parametrosDeLaDireccion.get("contrato"));
+  // Con la tarjeta del trabajador ya abierta, tocarla otra vez la cierra (y viceversa): el contrato se pliega sin perder a quién se eligió.
+  const [contratoPlegado, setContratoPlegado] = useState(false);
   const [confirmarTodosAbierto, setConfirmarTodosAbierto] = useState(false);
   const [confirmandoTodos, setConfirmandoTodos] = useState(false);
   const handleConfirmarTodos = async () => {
@@ -2053,7 +2055,7 @@ export default function JobDetail() {
                             )}
                             {/* Un trabajador: si terminó y si hay reclamo */}
                             {veLasConfirmaciones() && contractData && !(allContractsData && allContractsData.totalContracts > 1) && (
-                              <EstadoDeConfirmaciones className="mt-1.5" mostrar="trabajador" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} disputeId={contractData.disputeId} contractId={puedeAbrirElContrato(contractData.doerId) ? contractData.id : null} />
+                              <EstadoDeConfirmaciones className="mt-1.5" mostrar="trabajador" terminoElTrabajador={!!contractData.doerConfirmed} acepto={!!contractData.clientConfirmed} disputeId={contractData.disputeId} />
                             )}
                             {/* Varios: cada trabajador con lo suyo */}
                             {veLasConfirmaciones() && allContractsData && allContractsData.totalContracts > 1 && (
@@ -2061,7 +2063,7 @@ export default function JobDetail() {
                                 {allContractsData.contracts.map((c) => (
                                   <li key={c.id} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-700/40">
                                     <p className="text-sm font-medium text-gray-900 dark:text-white">{c.doerName}</p>
-                                    <EstadoDeConfirmaciones className="mt-1" mostrar="trabajador" terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId} contractId={puedeAbrirElContrato(c.doerId) ? c.id : null} />
+                                    <EstadoDeConfirmaciones className="mt-1" mostrar="trabajador" terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId} />
                                   </li>
                                 ))}
                               </ul>
@@ -2848,9 +2850,21 @@ export default function JobDetail() {
                           <li
                             key={c.id}
                             aria-current={elegido ? "true" : undefined}
-                            // Un click en cualquier parte de la tarjeta abre el contrato de esa persona (pedido del dueño, 2026-11-23); los botones y enlaces de adentro hacen lo suyo.
-                            onClick={puede && !elegido ? () => setContratoElegido(c.id) : undefined}
-                            className={`rounded-xl border p-3 transition-colors ${puede && !elegido ? "cursor-pointer hover:border-sky-300 dark:hover:border-sky-600" : ""} ${elegido ? "border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-900/20" : c.status === "cancelled" ? "border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-900/10" : "border-slate-200 dark:border-slate-700"}`}
+                            // Un click en cualquier parte de la tarjeta abre el contrato de esa persona; con el contrato abierto, otro click lo cierra (pedido del dueño, 2026-11-23).
+                            // Los botones, enlaces y campos de adentro (y el contrato mismo) hacen lo suyo y no abren ni cierran.
+                            onClick={
+                              puede
+                                ? (ev) => {
+                                    if ((ev.target as HTMLElement).closest('a,button,input,textarea,select,label,[data-testid="informacion-del-contrato"]')) return;
+                                    if (elegido) setContratoPlegado((p) => !p);
+                                    else {
+                                      setContratoElegido(c.id);
+                                      setContratoPlegado(false);
+                                    }
+                                  }
+                                : undefined
+                            }
+                            className={`rounded-xl border p-3 transition-colors ${puede ? "cursor-pointer hover:border-sky-300 dark:hover:border-sky-600" : ""} ${elegido ? "border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-900/20" : c.status === "cancelled" ? "border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-900/10" : "border-slate-200 dark:border-slate-700"}`}
                             data-testid="trabajador-del-equipo"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2877,17 +2891,23 @@ export default function JobDetail() {
                                     Chatear con {c.doerName || "el trabajador"}
                                   </button>
                                 )}
-                                {puede && !elegido && (
+                                {puede && (
                                   <button
                                     type="button"
-                                    onClick={() => setContratoElegido(c.id)}
+                                    onClick={() => {
+                                      if (elegido) setContratoPlegado((p) => !p);
+                                      else {
+                                        setContratoElegido(c.id);
+                                        setContratoPlegado(false);
+                                      }
+                                    }}
+                                    aria-expanded={elegido && !contratoPlegado}
                                     className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:text-sky-300 dark:hover:bg-sky-900/30"
                                     data-testid="elegir-contrato"
                                   >
-                                    Ver su contrato
+                                    {elegido && !contratoPlegado ? "Cerrar contrato" : "Ver su contrato"}
                                   </button>
                                 )}
-                                {elegido && <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">Contrato abierto</span>}
                               </div>
                             </div>
                             {/* Con el contrato ya terminado, «Hubo problemas» lleva al reclamo (se puede abrir hasta 7 días después de terminar). */}
@@ -2922,7 +2942,7 @@ export default function JobDetail() {
                               </div>
                             )}
                             {/* Información del contrato: se abre en la tarjeta del trabajador que se tocó (pedido del dueño, 2026-11-23). */}
-                            {elegido && (
+                            {elegido && !contratoPlegado && (
                               <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700" data-testid="informacion-del-contrato">
                                 <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{isOwnJob ? `Información del contrato de ${c.doerName || "este trabajador"}` : "Información de tu contrato"}</h3>
                                 {renderContratoEmbebido()}

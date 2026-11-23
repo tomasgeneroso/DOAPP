@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import useDialog from '@/hooks/useDialog';
 import useImageViewer from '@/hooks/useImageViewer';
 import { useTranslation } from "react-i18next";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import EtiquetasDeLaPublicacion from "../components/user/EtiquetasDeLaPublicacion";
 import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, ChevronLeft, ChevronRight, Share2, Pencil, Trash2, Loader2 } from "lucide-react";
@@ -64,6 +64,7 @@ export default function PostDetail() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showComments, setShowComments] = useState(false);
   // Quien publicó la puede editar o eliminar (pedido del dueño, 2026-11-23).
+  const [parametros] = useSearchParams();
   const [editando, setEditando] = useState(false);
   const [tituloEditado, setTituloEditado] = useState("");
   const [descripcionEditada, setDescripcionEditada] = useState("");
@@ -153,6 +154,18 @@ export default function PostDetail() {
       setBorrando(false);
     }
   };
+
+  // Llega con ?editar=1 desde el botón de la tarjeta: abre la edición solo, una vez, cuando la publicación ya cargó y es de quien mira.
+  const [abrioLaEdicion, setAbrioLaEdicion] = useState(false);
+  useEffect(() => {
+    if (abrioLaEdicion || !post || !user || parametros.get("editar") !== "1") return;
+    if (String(post.author?.id) !== String(user.id)) return;
+    setAbrioLaEdicion(true);
+    setTituloEditado(post.title);
+    setDescripcionEditada(new DOMParser().parseFromString(post.description || "", "text/html").body.textContent || "");
+    setErrorDeEdicion(null);
+    setEditando(true);
+  }, [post, user, parametros, abrioLaEdicion]);
 
   const handleLike = async () => {
     if (!user || !post) return;

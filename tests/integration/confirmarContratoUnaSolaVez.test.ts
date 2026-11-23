@@ -164,6 +164,13 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
       await correrElCron();
       expect((await contratoDe(c.id)).status).toBe('completed');
       expect((await trabajoDe(t.id)).status).toBe('completed');
+      // y los avisos dicen la verdad: no «se confirmó automáticamente» (las dos partes ya habían confirmado)
+      const avisos: any[] = await Notification.findAll({ where: { relatedId: c.id } as any });
+      expect(avisos.length).toBeGreaterThanOrEqual(2);
+      for (const aviso of avisos) {
+        expect(String(aviso.message)).toContain('ya habían confirmado');
+        expect(String(aviso.message)).not.toContain('automáticamente');
+      }
     });
 
     it('lo mismo si el contrato quedó «en progreso» con las dos confirmaciones (y no se puede puntuar a quien trabajó hasta que cierra)', async () => {

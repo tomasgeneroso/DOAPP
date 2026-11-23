@@ -1,8 +1,9 @@
 import { getImageUrl } from '../../utils/imageUrl';
 import { useState, useRef } from "react";
 import { useTranslation } from 'react-i18next';
-import { Link } from "react-router-dom";
-import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play, Briefcase, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import ConfirmModal from "../ui/ConfirmModal";
+import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play, Briefcase, Users, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 interface Author {
@@ -49,8 +50,29 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, onLike, onComment }: PostCardProps) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  // Quien publicó: editar o eliminar desde la tarjeta (pedido del dueño, 2026-11-23: «no veo los dos botones»).
+  const [pidiendoBorrar, setPidiendoBorrar] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [errorAlBorrar, setErrorAlBorrar] = useState<string | null>(null);
+  const [eliminada, setEliminada] = useState(false);
+  const borrar = async () => {
+    setBorrando(true);
+    setErrorAlBorrar(null);
+    try {
+      const r = await fetch(`/api/posts/${post.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.message || "No se pudo eliminar.");
+      setPidiendoBorrar(false);
+      setEliminada(true);
+    } catch (e: any) {
+      setErrorAlBorrar(e?.message || "No se pudo eliminar.");
+    } finally {
+      setBorrando(false);
+    }
+  };
   
   const postId = post.id || '';
   const authorId = post.author.id || '';
@@ -153,7 +175,10 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
     }
   };
 
+  if (eliminada) return null;
+
   return (
+    <>
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
       {/* Author Header */}
       <div className="p-4 flex items-center gap-3">
@@ -187,11 +212,16 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
             {formatDate(post.createdAt)}
           </p>
         </div>
-        {/* Quien publicó: editar o eliminar (se hace en la publicación). */}
+        {/* Quien publicó: dos botones, editar y eliminar. */}
         {!!user && !!authorId && String(user.id) === String(authorId) && postId && (
-          <Link to={`/posts/${postId}`} className="text-xs font-semibold text-sky-700 hover:underline dark:text-sky-300" data-testid="editar-o-eliminar">
-            Editar o eliminar
-          </Link>
+          <div className="flex items-center gap-1" data-testid="editar-o-eliminar">
+            <button type="button" onClick={() => navigate(`/posts/${postId}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => { setErrorAlBorrar(null); setPidiendoBorrar(true); }} className="rounded-full p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-desde-la-tarjeta">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         )}
         {post.type === "article" && (
           <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
@@ -404,5 +434,21 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         )}
       </div>
     </div>
+    <ConfirmModal
+      open={pidiendoBorrar}
+      tone="danger"
+      loading={borrando}
+      title="Eliminar la publicación"
+      confirmLabel="Eliminar"
+      message={
+        <>
+          <p>¿Querés eliminar <strong>{post.title}</strong>? Se borra de tu perfil y no se puede deshacer. Tu portafolio y el trabajo no se tocan.</p>
+          {errorAlBorrar && <p role="alert" className="mt-2 text-red-400">{errorAlBorrar}</p>}
+        </>
+      }
+      onConfirm={borrar}
+      onClose={() => setPidiendoBorrar(false)}
+    />
+    </>
   );
 }

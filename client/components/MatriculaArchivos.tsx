@@ -133,7 +133,11 @@ export default function MatriculaArchivos({ token, frente, dorso, setFrente, set
       {editor}
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Tus archivos se guardan <strong>encriptados</strong>. DOAPP <strong>no verifica</strong> la matrícula: se basa en tu buena fe,
-        y quien te contrata puede verla para comprobarla por su cuenta una vez que hay un contrato entre los dos.
+        y quien te contrata puede verla para comprobarla por su cuenta una vez que hay un contrato entre los dos. Leé los{" "}
+        <a href="/legal/terminos-y-condiciones" target="_blank" rel="noopener noreferrer" className="font-medium text-sky-600 underline hover:text-sky-700 dark:text-sky-400" data-testid="leer-terminos-matricula">
+          términos y condiciones
+        </a>
+        .
       </p>
     </div>
   );

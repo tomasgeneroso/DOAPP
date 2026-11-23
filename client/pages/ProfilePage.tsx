@@ -61,6 +61,8 @@ import {
   Quote,
   ExternalLink,
   Heart,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -76,6 +78,26 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  // Quien publicó puede editar o eliminar sus publicaciones desde su perfil (pedido del dueño, 2026-11-23).
+  const [postABorrar, setPostABorrar] = useState<{ id: string; title?: string } | null>(null);
+  const [borrandoPost, setBorrandoPost] = useState(false);
+  const [errorAlBorrarPost, setErrorAlBorrarPost] = useState<string | null>(null);
+  const borrarPost = async () => {
+    if (!postABorrar) return;
+    setBorrandoPost(true);
+    setErrorAlBorrarPost(null);
+    try {
+      const r = await fetch(`/api/posts/${postABorrar.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.message || 'No se pudo eliminar.');
+      setPosts((prev) => prev.filter((p) => String(p.id) !== String(postABorrar.id)));
+      setPostABorrar(null);
+    } catch (e: any) {
+      setErrorAlBorrarPost(e?.message || 'No se pudo eliminar.');
+    } finally {
+      setBorrandoPost(false);
+    }
+  };
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [createPostType, setCreatePostType] = useState<'post' | 'article'>('post');
   const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
@@ -1427,8 +1449,18 @@ export default function ProfilePage() {
                   ) : (
                     <div className="space-y-4">
                       {posts.map((post) => (
+                        <div key={post.id} className="relative" data-testid="publicacion-del-perfil">
+                        {isOwnProfile() && (
+                          <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-white/90 p-0.5 shadow-sm dark:bg-slate-800/90" data-testid="editar-o-eliminar">
+                            <button type="button" onClick={() => navigate(`/posts/${post.id}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button type="button" onClick={() => { setErrorAlBorrarPost(null); setPostABorrar({ id: String(post.id), title: post.title }); }} className="rounded-full p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-desde-la-tarjeta">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                         <Link
-                          key={post.id}
                           to={`/posts/${post.id}`}
                           className="block p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
                         >
@@ -1475,11 +1507,27 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         </Link>
+                        </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
+              <ConfirmModal
+                open={!!postABorrar}
+                tone="danger"
+                loading={borrandoPost}
+                title="Eliminar la publicación"
+                confirmLabel="Eliminar"
+                message={
+                  <>
+                    <p>¿Querés eliminar <strong>{postABorrar?.title}</strong>? Se borra de tu perfil y no se puede deshacer. Tu portafolio y el trabajo no se tocan.</p>
+                    {errorAlBorrarPost && <p role="alert" className="mt-2 text-red-400">{errorAlBorrarPost}</p>}
+                  </>
+                }
+                onConfirm={borrarPost}
+                onClose={() => setPostABorrar(null)}
+              />
               </>
               )}
 

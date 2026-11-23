@@ -141,21 +141,26 @@ export function startAutoConfirmContractsJob() {
 
             // El trabajo también termina: antes solo se cerraba el contrato y el trabajo quedaba «en curso» para siempre.
             await completarTrabajoSiTerminaron(String(contract.jobId));
-            void avisarContratoAlChatDelEquipo(String(contract.id), (n) => `✅ Se confirmó solo el trabajo de ${n} (pasaron ${AUTO_CONFIRM_HOURS} h sin respuesta).`, 'contrato_autoconfirmado');
+            // Si las dos partes ya habían confirmado, el contrato no se «confirmó solo»: quedó sin cerrar y se cerró (pedido del dueño, 2026-11-23: «se confirmó automáticamente siendo que ya habían confirmado»).
+            void avisarContratoAlChatDelEquipo(
+              String(contract.id),
+              (n) => (lasDosPartesConfirmaron ? `✅ El trabajo de ${n} quedó terminado: las dos partes ya habían confirmado.` : `✅ Se confirmó solo el trabajo de ${n} (pasaron ${AUTO_CONFIRM_HOURS} h sin respuesta).`),
+              lasDosPartesConfirmaron ? 'contrato_cerrado_con_las_dos_confirmaciones' : 'contrato_autoconfirmado',
+            );
 
             // Notificación al cliente
             await Notification.create({
               recipientId: contract.clientId,
               type: 'info',
               category: 'contracts',
-              title: 'Contrato confirmado automáticamente',
-              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta. Si algo no salió bien, podés abrir un reclamo hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de terminado el trabajo; el pago al trabajador se retiene hasta entonces.`,
+              title: lasDosPartesConfirmaron ? 'Contrato terminado' : 'Contrato confirmado automáticamente',
+              message: `El contrato para "${job?.title || 'trabajo'}" ${lasDosPartesConfirmaron ? 'quedó terminado: las dos partes ya habían confirmado.' : `se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta.`} Si algo no salió bien, podés abrir un reclamo hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de terminado el trabajo; el pago al trabajador se retiene hasta entonces.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
               data: {
                 contractId: contract.id,
-                autoConfirmed: true,
+                autoConfirmed: !lasDosPartesConfirmaron,
               },
               read: false,
             });
@@ -169,14 +174,14 @@ export function startAutoConfirmContractsJob() {
               // Decirle "se acredita pronto" y transferirle a los 7 días es la
               // forma más rápida de que escriba a soporte enojado. Se le dice
               // la fecha.
-              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} se transfiere a partir del ${pagableDesde({ completedAt: now }, (pagoDelCliente as any)?.approvedAt || (pagoDelCliente as any)?.createdAt, (pagoDelCliente as any)?.moneyReleaseDate).toLocaleDateString('es-AR')}, cuando vence el plazo del cliente para reclamar y Mercado Pago libera el pago.`,
+              message: `El contrato para "${job?.title || 'trabajo'}" ${lasDosPartesConfirmaron ? 'quedó terminado: las dos partes ya habían confirmado.' : 'se confirmó automáticamente.'} Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} se transfiere a partir del ${pagableDesde({ completedAt: now }, (pagoDelCliente as any)?.approvedAt || (pagoDelCliente as any)?.createdAt, (pagoDelCliente as any)?.moneyReleaseDate).toLocaleDateString('es-AR')}, cuando vence el plazo del cliente para reclamar y Mercado Pago libera el pago.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
               data: {
                 contractId: contract.id,
                 amount: workerPaymentAmount,
-                autoConfirmed: true,
+                autoConfirmed: !lasDosPartesConfirmaron,
               },
               read: false,
             });
@@ -185,10 +190,10 @@ export function startAutoConfirmContractsJob() {
             if (client?.email) {
               await emailService.sendEmail({
                 to: client.email,
-                subject: `✅ Contrato confirmado automáticamente: ${job?.title || 'Trabajo'}`,
+                subject: lasDosPartesConfirmaron ? `✅ Contrato terminado: ${job?.title || 'Trabajo'}` : `✅ Contrato confirmado automáticamente: ${job?.title || 'Trabajo'}`,
                 html: `
-                  <h2>Contrato confirmado automáticamente</h2>
-                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta.</p>
+                  <h2>${lasDosPartesConfirmaron ? 'Contrato terminado' : 'Contrato confirmado automáticamente'}</h2>
+                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ${lasDosPartesConfirmaron ? 'quedó terminado: las dos partes ya habían confirmado.' : `se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta.`}</p>
                   <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> queda retenido y se transfiere al trabajador cuando vence el plazo para reclamar.</p>
                   <p style="color: #666; font-size: 12px;">
                     Si algo no salió bien con el trabajo, podés abrir un reclamo hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de terminado. Mientras el reclamo esté abierto, el pago no se transfiere.

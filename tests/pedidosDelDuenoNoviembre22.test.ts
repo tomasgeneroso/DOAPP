@@ -180,7 +180,9 @@ describe('pedidos del 2026-11-23 (segunda parte)', () => {
 
   it('cada tarjeta de trabajador abre su contrato con un click, «Hubo problemas» sigue disponible al terminar, y «Propuesta aprobada» no se ve con el trabajo completado', () => {
     const j = leer('client/pages/JobDetail.tsx');
-    expect(j).toContain('onClick={puede && !elegido ? () => setContratoElegido(c.id) : undefined}');
+    // un click abre el contrato de esa persona y, con el contrato abierto, otro click lo cierra
+    expect(j).toContain('if (elegido) setContratoPlegado((p) => !p);');
+    expect(j).toContain('elegido && !contratoPlegado && (');
     expect(j).toContain('data-testid="hubo-problemas-despues-de-terminar"');
     expect(leer('client/pages/MyJobsScreen.tsx')).toContain("proposal.job.status !== 'completed' && (");
   });
@@ -191,11 +193,40 @@ describe('pedidos del 2026-11-23 (segunda parte)', () => {
     expect(j).toContain('{!hayVariosTrabajadores && renderContratoEmbebido()}');
   });
 
+  it('Configuración: título «Notificaciones y Posts», Membresía y Promocionar perfil al final antes de Ayuda, y el aviso de archivos manda a los términos', () => {
+    expect(leer('client/i18n/locales/es.json')).toContain('"title": "Preferencias de Notificaciones y Posts"');
+    const u = leer('client/pages/UserSettings.tsx');
+    const orden = ['id: "notifications"', 'id: "membership"', 'id: "promotion"', 'id: "help"'].map((x) => u.indexOf(x));
+    expect(orden.every((n) => n > 0)).toBe(true);
+    expect([...orden].sort((a, b) => a - b)).toEqual(orden);
+    const m = leer('client/components/MatriculaArchivos.tsx');
+    expect(m).toContain('/legal/terminos-y-condiciones');
+    expect(m).toContain('data-testid="leer-terminos-matricula"');
+  });
+
+  it('«Partes del Contrato» no repite «Ver contrato» (el contrato se abre en la tarjeta de cada trabajador)', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('mostrar="trabajador" terminoElTrabajador={!!c.doerConfirmed} acepto={!!c.clientConfirmed} disputeId={c.disputeId} />');
+    expect(j).not.toContain('disputeId={c.disputeId} contractId={puedeAbrirElContrato(c.doerId)');
+  });
+
+  it('un contrato que se cierra porque las dos partes ya habían confirmado no se anuncia como «confirmado automáticamente»', () => {
+    const c = leer('server/jobs/autoConfirmContracts.ts');
+    expect(c).toContain('quedó terminado: las dos partes ya habían confirmado.');
+    expect(c).toContain('autoConfirmed: !lasDosPartesConfirmaron');
+  });
+
   it('quien publicó una publicación compartida la puede editar o eliminar', () => {
+    // también desde su perfil, en la lista de publicaciones
+    expect(leer('client/pages/ProfilePage.tsx')).toContain('data-testid="eliminar-desde-la-tarjeta"');
     const p = leer('client/pages/PostDetail.tsx');
     expect(p).toContain('data-testid="editar-publicacion"');
     expect(p).toContain('data-testid="eliminar-publicacion"');
-    expect(leer('client/components/user/PostCard.tsx')).toContain('data-testid="editar-o-eliminar"');
+    // los dos botones también están en la tarjeta de la publicación (perfil y muro)
+    const t = leer('client/components/user/PostCard.tsx');
+    expect(t).toContain('data-testid="editar-desde-la-tarjeta"');
+    expect(t).toContain('data-testid="eliminar-desde-la-tarjeta"');
+    expect(p).toContain('parametros.get("editar") !== "1"');
   });
 
   it('el cierre automático cierra un contrato con las dos confirmaciones aunque haya habido un aviso de problemas', () => {

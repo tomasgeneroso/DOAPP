@@ -625,14 +625,15 @@ export default function UserSettings() {
 
   const tabs = [
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
-    { id: "membership", label: "Membresía", icon: Crown },
-    { id: "promotion", label: "Promocionar perfil", icon: Megaphone },
     { id: "verification", label: "Verificación", icon: ShieldCheck },
     { id: "security", label: "Seguridad", icon: Lock },
     { id: "profession", label: "Profesión", icon: Briefcase },
     { id: "address", label: "Domicilio y zona", icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
     { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
+    // Membresía y Promocionar perfil van al final, antes de la ayuda (pedido del dueño, 2026-11-23).
+    { id: "membership", label: "Membresía", icon: Crown },
+    { id: "promotion", label: "Promocionar perfil", icon: Megaphone },
     { id: "help", label: t('settings.tabs.help'), icon: HelpCircle },
   ];
 

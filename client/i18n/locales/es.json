@@ -1988,7 +1988,7 @@
       "description": "Selecciona las categorías que te interesan"
     },
     "notifications": {
-      "title": "Preferencias de Notificaciones",
+      "title": "Preferencias de Notificaciones y Posts",
       "email": "Notificaciones por email",
       "emailDesc": "Recibí novedades importantes en tu correo",
       "push": "Notificaciones push",
