@@ -2833,7 +2833,9 @@ export default function JobDetail() {
                           <li
                             key={c.id}
                             aria-current={elegido ? "true" : undefined}
-                            className={`rounded-xl border p-3 transition-colors ${elegido ? "border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-900/20" : c.status === "cancelled" ? "border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-900/10" : "border-slate-200 dark:border-slate-700"}`}
+                            // Un click en cualquier parte de la tarjeta abre el contrato de esa persona (pedido del dueño, 2026-11-23); los botones y enlaces de adentro hacen lo suyo.
+                            onClick={puede && !elegido ? () => setContratoElegido(c.id) : undefined}
+                            className={`rounded-xl border p-3 transition-colors ${puede && !elegido ? "cursor-pointer hover:border-sky-300 dark:hover:border-sky-600" : ""} ${elegido ? "border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-900/20" : c.status === "cancelled" ? "border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-900/10" : "border-slate-200 dark:border-slate-700"}`}
                             data-testid="trabajador-del-equipo"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2873,6 +2875,19 @@ export default function JobDetail() {
                                 {elegido && <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">Su contrato está abajo</span>}
                               </div>
                             </div>
+                            {/* Con el contrato ya terminado, «Hubo problemas» lleva al reclamo (se puede abrir hasta 7 días después de terminar). */}
+                            {isOwnJob && String(c.status) === "completed" && !c.disputeId && (
+                              <div className="mt-3" data-testid="hubo-problemas-despues-de-terminar">
+                                <Link
+                                  to={`/disputes/new?contractId=${c.id}`}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+                                  title="El contrato ya terminó: si algo no salió bien, se abre un reclamo (hasta 7 días después de terminado)."
+                                >
+                                  <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                                  Hubo problemas durante el trabajo
+                                </Link>
+                              </div>
+                            )}
                             {isOwnJob && enMarcha && (
                               <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="acciones-del-cliente-por-trabajador">
                                 {!c.clientConfirmed && (

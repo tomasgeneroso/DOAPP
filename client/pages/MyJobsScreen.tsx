@@ -1330,9 +1330,12 @@ export default function MyJobsScreen() {
                           {proposal.job.description}
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getProposalStatusColor(proposal.status)}`}>
-                            {t('jobs.proposal', 'Propuesta')} {getStatusLabel(proposal.status)}
-                          </span>
+                          {/* Con el trabajo ya terminado, «Propuesta aprobada» no aporta: lo que importa es que el trabajo se completó (pedido del dueño, 2026-11-23). */}
+                          {proposal.job.status !== 'completed' && (
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getProposalStatusColor(proposal.status)}`} data-testid="estado-de-la-propuesta">
+                              {t('jobs.proposal', 'Propuesta')} {getStatusLabel(proposal.status)}
+                            </span>
+                          )}
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(proposal.job.status)}`}>
                             {t('jobs.job', 'Trabajo')} {getStatusLabel(proposal.job.status)}
                           </span>

@@ -179,6 +179,18 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
     });
   });
 
+  describe('portafolio: cada participante publica el suyo', () => {
+    it('que otra persona haya compartido el trabajo no impide compartirlo (solo la misma persona no lo publica dos veces)', async () => {
+      const datos = (titulo: string) => ({ title: titulo, description: 'Quedó bien', category: 'construccion', linkedJob: jobId });
+      // el cliente ya lo compartió en la prueba anterior; Ana, a quien solo etiquetaron, sí puede
+      const deAna = await request(app).post('/api/portfolio').set(como(ana)).send(datos('El trabajo de Ana'));
+      expect(deAna.status).toBe(201);
+      // pero no dos veces el mismo trabajo
+      const otraVez = await request(app).post('/api/portfolio').set(como(ana)).send(datos('El trabajo de Ana otra vez'));
+      expect(otraVez.status).toBe(400);
+    });
+  });
+
   describe('pruebas del reclamo', () => {
     let disputaId: string;
     const prueba = (por: any) => ({ fileName: 'foto.jpg', fileUrl: '/uploads/disputes/foto.jpg', fileType: 'image', fileSize: 10, uploadedAt: new Date(), uploadedBy: String(por.id) });

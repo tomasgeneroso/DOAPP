@@ -115,7 +115,7 @@ describe('pedidos del 2026-11-23', () => {
   });
 
   it('un contrato con las dos confirmaciones no queda «esperando confirmación»: se cierra solo y la lista no lo dice', () => {
-    expect(leer('server/jobs/autoConfirmContracts.ts')).toContain('{ clientConfirmed: true, doerConfirmed: true }');
+    expect(leer('server/jobs/autoConfirmContracts.ts')).toContain('clientConfirmed: true, doerConfirmed: true }');
     expect(leer('client/pages/JobDetail.tsx')).toContain('Contrato terminado');
   });
 
@@ -176,6 +176,25 @@ describe('pedidos del 2026-11-23 (segunda parte)', () => {
     expect(leer('server/config/ensureSchema.ts')).toContain('portfolio_items.contract_ratings');
     expect(leer('client/pages/CreatePortfolioPost.tsx')).toContain('data-testid="puntuacion-a-una-persona"');
     expect(leer('client/pages/PortfolioItemDetail.tsx')).toContain('data-testid="puntuaciones-del-trabajo"');
+  });
+
+  it('cada tarjeta de trabajador abre su contrato con un click, «Hubo problemas» sigue disponible al terminar, y «Propuesta aprobada» no se ve con el trabajo completado', () => {
+    const j = leer('client/pages/JobDetail.tsx');
+    expect(j).toContain('onClick={puede && !elegido ? () => setContratoElegido(c.id) : undefined}');
+    expect(j).toContain('data-testid="hubo-problemas-despues-de-terminar"');
+    expect(leer('client/pages/MyJobsScreen.tsx')).toContain("proposal.job.status !== 'completed' && (");
+  });
+
+  it('quien publicó una publicación compartida la puede editar o eliminar', () => {
+    const p = leer('client/pages/PostDetail.tsx');
+    expect(p).toContain('data-testid="editar-publicacion"');
+    expect(p).toContain('data-testid="eliminar-publicacion"');
+    expect(leer('client/components/user/PostCard.tsx')).toContain('data-testid="editar-o-eliminar"');
+  });
+
+  it('el cierre automático cierra un contrato con las dos confirmaciones aunque haya habido un aviso de problemas', () => {
+    expect(leer('server/jobs/autoConfirmContracts.ts')).toContain('lasDosPartesConfirmaron');
+    expect(leer('server/routes/portfolio.ts')).toContain('where: { linkedJob, userId }');
   });
 
   it('el saldo a favor pendiente se puede abrir para ver de dónde sale', () => {

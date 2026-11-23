@@ -166,6 +166,13 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
       expect((await trabajoDe(t.id)).status).toBe('completed');
     });
 
+    it('lo mismo si el contrato quedó «en progreso» con las dos confirmaciones (y no se puede puntuar a quien trabajó hasta que cierra)', async () => {
+      const t = await trabajo();
+      const c = await contrato(t.id, trabajador, { status: 'in_progress', clientConfirmed: true, doerConfirmed: true, price: 5000 });
+      await correrElCron();
+      expect((await contratoDe(c.id)).status).toBe('completed');
+    });
+
     it('correrla dos veces no repite el cierre: un solo asiento de pago pendiente', async () => {
       const t = await trabajo();
       const c = await contrato(t.id, trabajador, { status: 'awaiting_confirmation', awaitingConfirmationAt: hace(2), clientConfirmed: true, doerConfirmed: false, price: 5000 });

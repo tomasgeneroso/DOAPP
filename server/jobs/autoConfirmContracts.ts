@@ -48,12 +48,12 @@ export function startAutoConfirmContractsJob() {
       // Buscar contratos en awaiting_confirmation que llevan más del plazo
       const contractsToAutoConfirm = await Contract.findAll({
         where: {
-          status: 'awaiting_confirmation',
-          // Pasó el plazo sin respuesta (con alguna parte sin confirmar), o las DOS partes ya confirmaron y el contrato quedó esperando: ese estado no debería existir
-          // (se vio en un contrato donde un reclamo se cerró y el trabajo figuraba aceptado y a la vez «esperando confirmación») y se cierra ya, sin esperar el plazo.
+          // Pasó el plazo sin respuesta (con alguna parte sin confirmar), o las DOS partes ya confirmaron y el contrato quedó sin cerrar: ese estado no debería existir
+          // (se vio en un contrato donde un reclamo se cerró y el trabajo figuraba aceptado y a la vez «esperando confirmación», y por eso no se podía puntuar) y se cierra ya,
+          // sin esperar el plazo y aunque haya habido un aviso de problemas: las dos partes ya dijeron que terminó.
           [Op.or]: [
-            { awaitingConfirmationAt: { [Op.lte]: limite }, [Op.or]: [{ clientConfirmed: false }, { doerConfirmed: false }] },
-            { clientConfirmed: true, doerConfirmed: true },
+            { status: 'awaiting_confirmation', awaitingConfirmationAt: { [Op.lte]: limite }, [Op.or]: [{ clientConfirmed: false }, { doerConfirmed: false }] },
+            { status: { [Op.in]: ['awaiting_confirmation', 'in_progress'] }, clientConfirmed: true, doerConfirmed: true },
           ],
         },
         include: [
@@ -81,7 +81,8 @@ export function startAutoConfirmContractsJob() {
         for (const contract of contractsToAutoConfirm) {
           try {
             // «Hubo problemas durante el trabajo» (pedido del dueño, 2026-11-21): con un aviso abierto no se confirma solo ni se libera el pago; al resolverlo, el plazo empieza de nuevo.
-            if (await confirmacionDetenidaPorProblema(String(contract.id))) {
+            const lasDosPartesConfirmaron = !!contract.clientConfirmed && !!contract.doerConfirmed;
+            if (!lasDosPartesConfirmaron && (await confirmacionDetenidaPorProblema(String(contract.id)))) {
               console.log(`⏸️ [CRON] Contrato "${contract.id}" con un problema avisado: no se confirma solo`);
               continue;
             }
@@ -91,7 +92,7 @@ export function startAutoConfirmContractsJob() {
             const doer = contract.doer as any;
 
             // Se reclama el cierre de una sola vez: si mientras tanto alguien confirmó a mano (o una corrida anterior ya lo cerró) no se paga dos veces.
-            const [reclamado] = await Contract.update({ status: 'completed' } as any, { where: { id: contract.id, status: 'awaiting_confirmation' } as any });
+            const [reclamado] = await Contract.update({ status: 'completed' } as any, { where: { id: contract.id, status: { [Op.in]: ['awaiting_confirmation', 'in_progress'] } } as any });
             if (reclamado === 0) continue;
 
             // Lo que cobra el trabajador: su parte menos la pasarela real. Antes

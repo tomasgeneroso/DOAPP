@@ -187,6 +187,12 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
             {formatDate(post.createdAt)}
           </p>
         </div>
+        {/* Quien publicó: editar o eliminar (se hace en la publicación). */}
+        {!!user && !!authorId && String(user.id) === String(authorId) && postId && (
+          <Link to={`/posts/${postId}`} className="text-xs font-semibold text-sky-700 hover:underline dark:text-sky-300" data-testid="editar-o-eliminar">
+            Editar o eliminar
+          </Link>
+        )}
         {post.type === "article" && (
           <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
             Artículo

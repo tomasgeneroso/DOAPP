@@ -165,8 +165,9 @@ router.post(
 
       // Verificar que el trabajo no esté ya en otro portfolio
       if (linkedJob) {
+        // Solo cuenta lo que PUBLICÓ esta misma persona: que otro participante haya compartido el trabajo no le impide compartirlo a ella (la etiquetaron, no lo publicó).
         const existingPortfolio = await PortfolioItem.findOne({
-          where: { linkedJob }
+          where: { linkedJob, userId }
         });
 
         if (existingPortfolio) {
@@ -301,6 +302,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       const existingPortfolio = await PortfolioItem.findOne({
         where: {
           linkedJob,
+          userId,
           id: { [Op.ne]: id }
         }
       });

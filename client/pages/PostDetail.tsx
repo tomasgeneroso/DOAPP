@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import EtiquetasDeLaPublicacion from "../components/user/EtiquetasDeLaPublicacion";
-import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, ChevronLeft, ChevronRight, Share2, Pencil, Trash2, Loader2 } from "lucide-react";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
 import PostComments from "../components/user/PostComments";
@@ -62,6 +63,15 @@ export default function PostDetail() {
   const [likesCount, setLikesCount] = useState(0);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showComments, setShowComments] = useState(false);
+  // Quien publicó la puede editar o eliminar (pedido del dueño, 2026-11-23).
+  const [editando, setEditando] = useState(false);
+  const [tituloEditado, setTituloEditado] = useState("");
+  const [descripcionEditada, setDescripcionEditada] = useState("");
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorDeEdicion, setErrorDeEdicion] = useState<string | null>(null);
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [errorAlBorrar, setErrorAlBorrar] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -94,6 +104,53 @@ export default function PostDetail() {
       setError(err.message || "Error al cargar la publicación");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const empezarAEditar = () => {
+    if (!post) return;
+    setTituloEditado(post.title);
+    // La descripción puede traer marcas de formato: se edita como texto simple.
+    setDescripcionEditada(new DOMParser().parseFromString(post.description || "", "text/html").body.textContent || "");
+    setErrorDeEdicion(null);
+    setEditando(true);
+  };
+
+  const guardarEdicion = async () => {
+    if (!tituloEditado.trim() || !descripcionEditada.trim()) {
+      setErrorDeEdicion("El título y la descripción no pueden quedar vacíos.");
+      return;
+    }
+    setGuardandoEdicion(true);
+    setErrorDeEdicion(null);
+    try {
+      const r = await fetch(`/api/posts/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: tituloEditado.trim(), description: descripcionEditada.trim() }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.message || "No se pudo guardar.");
+      setEditando(false);
+      await fetchPost();
+    } catch (e: any) {
+      setErrorDeEdicion(e?.message || "No se pudo guardar.");
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  };
+
+  const borrarPublicacion = async () => {
+    setBorrando(true);
+    setErrorAlBorrar(null);
+    try {
+      const r = await fetch(`/api/posts/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.message || "No se pudo eliminar.");
+      navigate(user?.id ? `/profile/${user.id}` : "/");
+    } catch (e: any) {
+      setErrorAlBorrar(e?.message || "No se pudo eliminar.");
+      setBorrando(false);
     }
   };
 
@@ -280,6 +337,18 @@ export default function PostDetail() {
                   </div>
                 </div>
 
+                {/* Quien publicó: editar o eliminar */}
+                {!!user && !!authorId && String(user.id) === String(authorId) && (
+                  <div className="flex items-center gap-1" data-testid="acciones-del-autor">
+                    <button onClick={empezarAEditar} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-publicacion">
+                      <Pencil className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    </button>
+                    <button onClick={() => { setErrorAlBorrar(null); setConfirmarBorrado(true); }} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-publicacion">
+                      <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Share Button */}
                 <button
                   onClick={handleShare}
@@ -289,6 +358,28 @@ export default function PostDetail() {
                   <Share2 className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
+
+              {/* Edición: título y descripción */}
+              {editando && (
+                <div className="mb-6 space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-testid="edicion-de-la-publicacion">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Título
+                    <input value={tituloEditado} onChange={(e) => setTituloEditado(e.target.value)} maxLength={200} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white" data-testid="titulo-editado" />
+                  </label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Descripción
+                    <textarea value={descripcionEditada} onChange={(e) => setDescripcionEditada(e.target.value)} rows={5} className="mt-1 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white" data-testid="descripcion-editada" />
+                  </label>
+                  {errorDeEdicion && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{errorDeEdicion}</p>}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={guardarEdicion} disabled={guardandoEdicion} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50" data-testid="guardar-edicion">
+                      {guardandoEdicion && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Guardar cambios
+                    </button>
+                    <button type="button" onClick={() => setEditando(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
+                  </div>
+                </div>
+              )}
 
               {/* Title */}
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-4">
@@ -363,6 +454,21 @@ export default function PostDetail() {
           </div>
         </div>
       </div>
+      <ConfirmModal
+        open={confirmarBorrado}
+        tone="danger"
+        loading={borrando}
+        title="Eliminar la publicación"
+        confirmLabel="Eliminar"
+        message={
+          <>
+            <p>¿Querés eliminar <strong>{post?.title}</strong>? Se borra de tu perfil y no se puede deshacer. Tu portafolio y el trabajo no se tocan.</p>
+            {errorAlBorrar && <p role="alert" className="mt-2 text-red-400">{errorAlBorrar}</p>}
+          </>
+        }
+        onConfirm={borrarPublicacion}
+        onClose={() => setConfirmarBorrado(false)}
+      />
       {dialog}
       {viewer}
     </>
