@@ -184,8 +184,9 @@ describe('rechazar y aprobar un pago: DOAPP y Mercado Pago tienen que coincidir'
         metadata: { pagoId: pago.id, origen: 'cancelacion' },
       } as any);
       const r = await devolver(pago.id);
-      expect(r.status).toBe(400);
-      expect(r.body.message).toMatch(/ya fue devuelto por completo/);
+      // Devuelto por una CANCELACIÓN: no se devuelve más a mano (pedido del dueño, 2026-11-21); lo que falte se corrige con un ajuste de saldo.
+      expect(r.status).toBe(409);
+      expect(r.body.code).toBe('YA_DEVUELTO_POR_CANCELACION');
       expect(Number((await pagoDe(pago.id)).refundedAmount) || 0).toBe(0);
     });
 
@@ -222,7 +223,8 @@ describe('rechazar y aprobar un pago: DOAPP y Mercado Pago tienen que coincidir'
       const { pago } = await publicacion({ status: 'completed', enMp: true });
       await BalanceTransaction.create({
         userId: cliente.id, type: 'refund', amount: 3000, balanceBefore: 0, balanceAfter: 3000, description: 'devolución de prueba', status: 'completed',
-        metadata: { pagoId: pago.id, origen: 'cancelacion' },
+        // Una baja de precio (no una cancelación): lo que falta SÍ se puede devolver, pero solo el resto.
+        metadata: { pagoId: pago.id, origen: 'baja_de_precio' },
       } as any);
       const r = await devolver(pago.id, { monto: 4000 });
       expect(r.status).toBe(400);

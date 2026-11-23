@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
+import EliminarTrabajoDefinitivamente from "../../components/admin/EliminarTrabajoDefinitivamente";
 import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX, ExternalLink } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -34,6 +35,8 @@ interface PaymentProof {
 interface Job {
   id: string;
   title: string;
+  /** Cuándo lo eliminó su dueño: un trabajo eliminado no se borra, el equipo lo ve siempre. */
+  deletedAt?: string | null;
   description?: string;
   summary?: string;
   category: string;
@@ -630,6 +633,7 @@ export default function AdminJobManager() {
               <option value="in_progress">En Progreso</option>
               <option value="completed">Completado</option>
               <option value="draft">Borrador</option>
+              <option value="deleted">Eliminados por su dueño</option>
             </select>
           </div>
         </div>
@@ -794,7 +798,16 @@ export default function AdminJobManager() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {(['draft', 'pending', 'pending_payment', 'pending_approval'].includes(job.status) && !job.publicationPaid && !job.paymentProof) ? (
+                      {job.deletedAt ? (
+                        <div data-testid="trabajo-eliminado">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 cursor-help" title="El dueño lo eliminó: queda guardado y se ve acá siempre. Solo se borra de verdad desde este panel, con su nombre y un motivo.">
+                            Eliminado · {safeDate(job.deletedAt, { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          </span>
+                          <div>
+                            <EliminarTrabajoDefinitivamente trabajoId={job.id} titulo={job.title} token={localStorage.getItem("token")} alBorrar={() => { fetchJobs(); fetchStats(); }} />
+                          </div>
+                        </div>
+                      ) : (['draft', 'pending', 'pending_payment', 'pending_approval'].includes(job.status) && !job.publicationPaid && !job.paymentProof) ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 cursor-help" title="Esperando pago: la publicación no fue abonada ni tiene comprobante subido todavía.">
                           Esperando pago
                         </span>

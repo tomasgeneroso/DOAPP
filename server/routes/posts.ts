@@ -237,6 +237,17 @@ router.post(
  * GET /api/posts/:id/etiquetables[?jobId=]  → a quién se puede etiquetar (y si cada uno lo permite); una publicación sin trabajo vinculado ofrece elegir el trabajo.
  * PUT /api/posts/:id/etiquetas  { taggedUsers, linkedJob? }  → deja la lista de etiquetados (solo quien publicó).
  */
+/** GET /api/posts/job/:jobId/participantes — a quién se puede etiquetar al compartir ese trabajo (y el contrato de quien comparte, para traer su opinión del final del trabajo). */
+router.get("/job/:jobId/participantes", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const r = await candidatosDeEtiqueta(String(req.user.id), String(req.params.jobId));
+    if (!r.ok) { const falla = r as { estado: number; mensaje: string }; res.status(falla.estado).json({ success: false, message: falla.mensaje }); return; }
+    res.json({ success: true, contratoId: r.contratoId, personas: r.personas });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error al buscar a los participantes" });
+  }
+});
+
 router.get("/:id/etiquetables", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const post = await Post.findByPk(req.params.id);

@@ -468,7 +468,8 @@ export async function getUnitEconomics(plan: any): Promise<UnitEconomics> {
     contribucion = sinDatos('Falta el ticket o la frecuencia de contratación.');
   }
 
-  const margenPorContrato = unidadPostBeta ? Math.round(unidadPostBeta.porContrato.margen) : null;
+  // El margen sale de las dos cifras YA redondeadas que se muestran: redondear el margen aparte podía dar 1 peso de diferencia (-7211 contra -7210) y la cuenta que ve la persona no cerraba.
+  const margenPorContrato = unidadPostBeta ? Math.round(unidadPostBeta.porContrato.ingreso) - Math.round(unidadPostBeta.porContrato.costo) : null;
 
   const desglosePorContrato = unidadPostBeta
     ? {

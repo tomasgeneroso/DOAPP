@@ -15,6 +15,7 @@ import {
   AfterDestroy,
   AfterBulkUpdate,
   AfterBulkDestroy,
+  DeletedAt,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { cacheService } from '../../services/cacheService.js';
@@ -39,6 +40,9 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'expert';
 @Table({
   tableName: 'jobs',
   timestamps: true,
+  // Un trabajo eliminado NO se borra: queda con `deleted_at` (pedido del dueño, 2026-11-23). Todas las consultas lo dejan afuera solas; quien publicó lo ve 30 días en su
+  // papelera y el equipo lo pide con `paranoid: false`. Borrarlo de verdad es `destroy({ force: true })` y solo lo hace el equipo (nombre del trabajo + motivo, con asiento).
+  paranoid: true,
   underscored: true,
   indexes: [
     { fields: ['status', 'created_at'] },
@@ -776,6 +780,14 @@ export class Job extends Model {
       instance.category = instance.category.trim();
     }
   }
+
+  /** Cuándo se eliminó (papelera). Vacío = el trabajo existe. */
+  @DeletedAt
+  declare deletedAt?: Date | null;
+
+  /** Quién lo eliminó (su dueño o una persona del equipo). */
+  @Column({ type: DataType.UUID, field: 'deleted_by' })
+  deletedBy?: string | null;
 
   /**
    * El muro (`GET /jobs`) se guarda 60 s en caché y solo `routes/jobs.ts` la vaciaba. Cualquier otro camino que cambia el estado de

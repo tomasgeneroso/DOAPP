@@ -164,6 +164,25 @@ export default function MyJobsScreen() {
 
   // Eliminar un trabajo desde su tarjeta (solo los que no tienen plata de por medio: sin pagar o ya cancelados).
   const [trabajoAEliminar, setTrabajoAEliminar] = useState<Job | null>(null);
+  // «Ver papelera de trabajos»: lo que eliminé en los últimos 30 días (no se borra: queda guardado; después deja de verse para mí).
+  const [verPapelera, setVerPapelera] = useState(false);
+  const [papelera, setPapelera] = useState<Array<{ id: string; title: string; price: number; eliminadoEl: string; dejaDeVerseEl: string }> | null>(null);
+  const [cargandoPapelera, setCargandoPapelera] = useState(false);
+  const alternarPapelera = async () => {
+    const abrir = !verPapelera;
+    setVerPapelera(abrir);
+    if (!abrir || papelera) return;
+    setCargandoPapelera(true);
+    try {
+      const r = await fetch("/api/jobs/my-jobs/papelera", { credentials: "include", headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json().catch(() => ({}));
+      setPapelera(Array.isArray(d.jobs) ? d.jobs : []);
+    } catch {
+      setPapelera([]);
+    } finally {
+      setCargandoPapelera(false);
+    }
+  };
   const [eliminando, setEliminando] = useState(false);
   const [errorAlEliminar, setErrorAlEliminar] = useState<string | null>(null);
   const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected" | "completed" | "disputed">("all");
@@ -644,6 +663,7 @@ export default function MyJobsScreen() {
         setErrorAlEliminar(data.message || "No se pudo eliminar el trabajo.");
       } else {
         setJobs((prev) => prev.filter((j) => j.id !== trabajoAEliminar.id));
+        setPapelera(null); // la próxima vez que se abra la papelera se vuelve a pedir: ahora está ahí
         setTrabajoAEliminar(null);
       }
     } catch (e: any) {
@@ -993,6 +1013,40 @@ export default function MyJobsScreen() {
                 </button>
               ))}
             </div>
+
+            {/* La papelera es un enlace, no otra tarjeta: lo eliminado queda guardado y se ve 30 días. */}
+            <div className="-mt-2 mb-4 flex justify-end">
+              <button type="button" onClick={alternarPapelera} aria-expanded={verPapelera} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200" data-testid="ver-papelera">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                {verPapelera ? "Ocultar la papelera de trabajos" : "Ver papelera de trabajos"}
+              </button>
+            </div>
+            {verPapelera && (
+              <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800" data-testid="papelera-de-trabajos">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">Papelera de trabajos</h2>
+                <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Los trabajos que eliminaste quedan guardados y se ven acá 30 días; después dejan de verse para vos.</p>
+                {cargandoPapelera ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-500" aria-label="Cargando" />
+                ) : !papelera || papelera.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="papelera-vacia">No hay trabajos eliminados.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {papelera.map((p) => {
+                      const quedan = Math.max(0, Math.ceil((new Date(p.dejaDeVerseEl).getTime() - Date.now()) / 86_400_000));
+                      return (
+                        <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid="trabajo-en-la-papelera">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-slate-900 dark:text-white">{p.title}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Eliminado el {new Date(p.eliminadoEl).toLocaleDateString("es-AR")} · deja de verse en {quedan} {quedan === 1 ? "día" : "días"}</p>
+                          </div>
+                          <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">${Number(p.price).toLocaleString("es-AR")}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Jobs List */}
             {filteredJobs.length === 0 ? (
@@ -1505,7 +1559,7 @@ export default function MyJobsScreen() {
         message={
           <>
             <p>
-              ¿Querés eliminar <strong>{trabajoAEliminar?.title}</strong>? Se borra para siempre y no se puede deshacer.
+              ¿Querés eliminar <strong>{trabajoAEliminar?.title}</strong>? Queda guardado 30 días en «Ver papelera de trabajos» y después deja de verse para vos.
             </p>
             {errorAlEliminar && <p role="alert" className="mt-2 text-red-400">{errorAlEliminar}</p>}
           </>

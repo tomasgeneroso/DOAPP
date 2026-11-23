@@ -119,6 +119,9 @@ interface ContractPaymentRow {
   workerPaymentProofUrl?: string | null;
   /** Cuándo el trabajador pidió su cobro (solo se puede pedir con el pago ya liberado), o null. El equipo lo paga como siempre. */
   cobroPedidoEl?: string | null;
+  /** Un trabajo con N trabajadores tiene N pagos (uno por contrato): cuál es éste y cuántos son. Un trabajo de un solo lugar: 1 de 1. */
+  pagoNumero?: number;
+  pagosDelTrabajo?: number;
   /** Situación de punta a punta del trabajo (la misma cuenta que Publicaciones, Pagos y Contratos). */
   situacion?: {
     estadoFinal: { clave: string; rotulo: string };
@@ -259,23 +262,29 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       order: [[actualSortBy, sortOrder as string]]
     });
 
-    // Group contracts by job for multi-worker jobs
+    // UN PAGO POR TRABAJADOR (pedido del dueño, 2026-11-23: «si el trabajo tiene dos trabajadores, separar los pagos en N pagos a N trabajadores»). Antes un trabajo con dos
+    // trabajadores era UNA fila con los dos y «marcar pagado» miraba solo el primer contrato: ahora cada contrato es su fila, con su monto, su comprobante y su estado.
     const jobContractsMap = new Map<string, Contract[]>();
+    for (const contract of contracts) jobContractsMap.set(String(contract.id), [contract]);
 
-    for (const contract of contracts) {
-      const jobId = contract.jobId;
-      if (!jobContractsMap.has(jobId)) {
-        jobContractsMap.set(jobId, []);
-      }
-      jobContractsMap.get(jobId)!.push(contract);
+    // «Pago 1 de 2»: cuántos contratos vigentes tiene el trabajo y cuál es éste.
+    const idsDeLosTrabajos = [...new Set(contracts.map((c) => String(c.jobId)))];
+    const contratosDeLosTrabajos = idsDeLosTrabajos.length
+      ? await Contract.findAll({ where: { jobId: { [Op.in]: idsDeLosTrabajos }, status: { [Op.notIn]: ['cancelled', 'rejected'] } } as any, attributes: ['id', 'jobId', 'createdAt'], order: [['createdAt', 'ASC']] })
+      : [];
+    const posicionDelPago = new Map<string, { numero: number; de: number }>();
+    for (const idDelTrabajo of idsDeLosTrabajos) {
+      const delTrabajo = contratosDeLosTrabajos.filter((c) => String(c.jobId) === idDelTrabajo);
+      delTrabajo.forEach((c, i) => posicionDelPago.set(String(c.id), { numero: i + 1, de: delTrabajo.length }));
     }
 
     // Build the payment rows
     const paymentRows: ContractPaymentRow[] = [];
     let rowNumber = 1;
 
-    for (const [jobId, jobContracts] of jobContractsMap) {
+    for (const [, jobContracts] of jobContractsMap) {
       const firstContract = jobContracts[0];
+      const jobId = String(firstContract.jobId);
       const job = firstContract.job as any;
       const client = firstContract.client as any;
 
@@ -399,6 +408,8 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         paymentRecordStatus: paymentRecord?.status || 'no_payment_record',
         pagoSinVincular,
         commissionVerified,
+        pagoNumero: posicionDelPago.get(String(firstContract.id))?.numero ?? 1,
+        pagosDelTrabajo: posicionDelPago.get(String(firstContract.id))?.de ?? 1,
         workers,
         paymentId: paymentRecord?.id,
         proofs: paymentProofs,

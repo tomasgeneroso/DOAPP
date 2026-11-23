@@ -132,6 +132,49 @@ describe('pedidos del 2026-11-23', () => {
   });
 });
 
+describe('pedidos del 2026-11-23 (segunda parte)', () => {
+  it('compartir un trabajo: la categoría es la del trabajo (+ una opcional), sin «Reputación y opinión» escrita; copia la opinión del final y se puede sacar', () => {
+    const p = leer('client/pages/CreatePortfolioPost.tsx');
+    expect(p).toContain('data-testid="categoria-del-trabajo"');
+    expect(p).toContain('data-testid="categoria-adicional"');
+    expect(p).toContain('data-testid="incluir-comentario"');
+    expect(p).not.toContain("t('portfolio.reputationTitle'");
+    expect(p).toContain('/api/posts/job/${jobId}/participantes');
+  });
+
+  it('un trabajador también puede etiquetar (a sus compañeros y a quien contrató)', () => {
+    const s = leer('server/services/etiquetasDePublicaciones.ts');
+    expect(s).toContain('[String(c.doerId), String(c.clientId)]');
+    expect(leer('server/routes/posts.ts')).toContain('"/job/:jobId/participantes"');
+  });
+
+  it('un trabajo eliminado se guarda: modelo con deleted_at, papelera de 30 días, el equipo lo ve y solo se borra con nombre y motivo', () => {
+    expect(leer('server/models/sql/Job.model.ts')).toContain('paranoid: true');
+    const r = leer('server/routes/jobs.ts');
+    expect(r).toContain('"/my-jobs/papelera"');
+    expect(r).toContain('DIAS_EN_LA_PAPELERA = 30');
+    expect(r).not.toContain('await job.destroy();\n\n    // Invalidate');
+    const a = leer('server/routes/admin/jobs.ts');
+    expect(a).toContain("'/:id/permanent'");
+    expect(a).toContain('NOMBRE_NO_COINCIDE');
+    expect(a).toContain("action: 'job.permanent_delete'");
+    expect(leer('server/config/ensureSchema.ts')).toContain('jobs.deleted_at');
+    expect(leer('client/pages/MyJobsScreen.tsx')).toContain('data-testid="ver-papelera"');
+    expect(leer('client/pages/admin/JobManager.tsx')).toContain('EliminarTrabajoDefinitivamente');
+  });
+
+  it('«Gestión de Pagos»: un trabajo con N trabajadores tiene N pagos (una fila por contrato, «Pago 1 de 2»)', () => {
+    const s = leer('server/routes/admin/pendingPayments.ts');
+    expect(s).toContain('jobContractsMap.set(String(contract.id), [contract])');
+    expect(s).toContain('pagoNumero');
+    expect(leer('client/pages/admin/PendingPayments.tsx')).toContain('data-testid="pago-n-de-n"');
+  });
+
+  it('el saldo a favor pendiente se puede abrir para ver de dónde sale', () => {
+    expect(leer('client/pages/Dashboard.tsx')).toContain('data-testid="ver-de-donde-sale"');
+  });
+});
+
 describe('avisos y tarjetas', () => {
   it('«Confirmaste el trabajo de X» dice de quién es el trabajo confirmado', () => {
     expect(leer('client/pages/JobDetail.tsx')).toContain('Confirmaste el trabajo de ${quien}');

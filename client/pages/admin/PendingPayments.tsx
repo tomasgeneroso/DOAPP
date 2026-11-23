@@ -98,6 +98,9 @@ interface ContractPaymentRow {
   escrowStatus: string;
   contractStatus: string;
   workers: WorkerPaymentInfo[];
+  /** Un trabajo con N trabajadores tiene N pagos (uno por trabajador): cuál es éste y cuántos son. */
+  pagoNumero?: number;
+  pagosDelTrabajo?: number;
   commissionVerified?: boolean;
   paymentRecordStatus?: string;
   /** El pago existe pero quedó suelto (sin contrato): se vincula desde «Gestión de contratos». */
@@ -2281,6 +2284,12 @@ export default function PendingPayments() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         ID: {payment.jobId.slice(0, 8)}...
                       </div>
+                      {/* Un pago por trabajador: «Pago 1 de 2 · Ana». Cada uno se marca pagado por separado. */}
+                      {(payment.pagosDelTrabajo ?? 1) > 1 && (
+                        <span data-testid="pago-n-de-n" className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" title="Este trabajo tiene varios trabajadores: cada uno tiene su propio pago.">
+                          Pago {payment.pagoNumero} de {payment.pagosDelTrabajo}{payment.workers[0]?.workerName ? ` · ${payment.workers[0].workerName}` : ''}
+                        </span>
+                      )}
                       {/* El trabajador ya pidió su cobro(el pago estaba liberado): el equipo lo ve para pagarlo. */}
                       {payment.cobroPedidoEl && (
                         <span

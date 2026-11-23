@@ -426,7 +426,8 @@ export default function Dashboard() {
               )}
               {retiro && retiro.pendiente > 0 && (
                 <p className="mt-2 text-sm opacity-95">
-                  A favor pendiente de liquidar: <strong>${retiro.pendiente.toLocaleString('es-AR')}</strong> · todavía no es tuyo, pasa a tu saldo{retiro.pendienteDesde ? ` el ${fechaCorta(retiro.pendienteDesde)}` : ''} (cuando Mercado Pago libera el pago).
+                  A favor pendiente de liquidar: <strong>${retiro.pendiente.toLocaleString('es-AR')}</strong> · todavía no es tuyo, pasa a tu saldo{retiro.pendienteDesde ? ` el ${fechaCorta(retiro.pendienteDesde)}` : ''} (cuando Mercado Pago libera el pago).{' '}
+                  <Link to="/withdrawals" className="underline font-semibold" data-testid="ver-de-donde-sale">Ver de dónde sale</Link>
                 </p>
               )}
               {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (

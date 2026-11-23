@@ -42,8 +42,9 @@ export async function resolverEtiquetas(autorId: string, trabajoId: string, pedi
   if (mios.length === 0) return { ok: false, estado: 403, mensaje: 'Solo se puede compartir un trabajo en el que participaste.' };
 
   const contratoId = (mios.find((c) => c.status === 'completed') ?? mios[0]).id;
+  // Los participantes del trabajo: quienes trabajaron y quien contrató (un trabajador que comparte el trabajo puede etiquetar a sus compañeros y a quien lo contrató).
   const quienesTrabajaron = new Set(
-    contratos.filter((c) => c.status !== 'cancelled' && c.status !== 'rejected').map((c) => String(c.doerId)).filter((id) => id !== String(autorId)),
+    contratos.filter((c) => c.status !== 'cancelled' && c.status !== 'rejected').flatMap((c) => [String(c.doerId), String(c.clientId)]).filter((id) => id !== String(autorId)),
   );
 
   const ajenos = pedidos.filter((id) => !quienesTrabajaron.has(id));
@@ -71,7 +72,7 @@ export async function candidatosDeEtiqueta(autorId: string, trabajoId: string): 
   const mios = contratos.filter((c) => String(c.clientId) === String(autorId) || String(c.doerId) === String(autorId));
   if (mios.length === 0) return { ok: false, estado: 403, mensaje: 'Solo se puede etiquetar en la publicación de un trabajo en el que participaste.' };
   const contratoId = (mios.find((c) => c.status === 'completed') ?? mios[0]).id;
-  const ids = Array.from(new Set(contratos.filter((c) => c.status !== 'cancelled' && c.status !== 'rejected').map((c) => String(c.doerId)).filter((id) => id !== String(autorId))));
+  const ids = Array.from(new Set(contratos.filter((c) => c.status !== 'cancelled' && c.status !== 'rejected').flatMap((c) => [String(c.doerId), String(c.clientId)]).filter((id) => id !== String(autorId))));
   const usuarios = ids.length ? await conSistema(() => User.findAll({ where: { id: ids }, attributes: ['id', 'name', 'avatar', 'notificationPreferences'] })) : [];
   return { ok: true, contratoId, personas: usuarios.map((u) => ({ id: String(u.id), name: u.name, avatar: u.avatar, permite: puedeSerEtiquetado(u.notificationPreferences) })) };
 }

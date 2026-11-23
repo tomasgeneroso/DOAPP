@@ -2958,6 +2958,13 @@ export default function JobDetail() {
               </DetallesDelPago>
             )}
 
+            {/* Trabajo eliminado: no se borra, y solo el equipo lo puede abrir (pedido del dueño, 2026-11-23). */}
+            {(job as any).deletedAt && user?.adminRole && (
+              <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200" data-testid="aviso-trabajo-eliminado">
+                <strong>Trabajo eliminado.</strong> Su dueño lo eliminó el {new Date((job as any).deletedAt).toLocaleString("es-AR")}. Queda guardado y solo el equipo lo ve; para borrarlo de verdad usá «Eliminar definitivamente» en la lista de publicaciones.
+              </div>
+            )}
+
             {/* Description */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">

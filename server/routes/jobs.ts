@@ -1,4 +1,6 @@
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
+import { logEvento } from "../utils/auditLog.js";
+const DIAS_EN_LA_PAPELERA = 30;
 import { pagosDeLasPublicaciones } from "../services/pagoDeLaPublicacion.js";
 import { ATRIBUTOS_DE_PUNTUACION } from "../services/userRatings.js";
 import express, { Request, Response } from "express";
@@ -409,6 +411,33 @@ router.post("/check-expired", protect, async (req: AuthRequest, res: Response): 
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// @route   GET /api/jobs/my-jobs/papelera
+// @desc    Los trabajos que eliminé en los últimos 30 días (después dejan de verse para mí; el equipo los guarda siempre)
+// @access  Private
+router.get("/my-jobs/papelera", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const desde = new Date(Date.now() - DIAS_EN_LA_PAPELERA * 86_400_000);
+    const eliminados = await Job.findAll({
+      where: { clientId: req.user.id, deletedAt: { [Op.gte]: desde } } as any,
+      paranoid: false,
+      attributes: ['id', 'title', 'price', 'category', 'status', 'deletedAt'],
+      order: [['deletedAt', 'DESC']],
+      limit: 200,
+    });
+    res.json({
+      success: true,
+      dias: DIAS_EN_LA_PAPELERA,
+      jobs: eliminados.map((j) => {
+        const eliminadoEl = new Date(j.deletedAt as Date);
+        const hastaEl = new Date(eliminadoEl.getTime() + DIAS_EN_LA_PAPELERA * 86_400_000);
+        return { id: j.id, title: j.title, price: Number(j.price) || 0, category: j.category, status: j.status, eliminadoEl, dejaDeVerseEl: hastaEl };
+      }),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 
@@ -852,6 +881,8 @@ router.get("/:id",
     }
 
     const job = await Job.findByPk(req.params.id, {
+      // Un trabajo eliminado no se ve para nadie, salvo el equipo (lo ve marcado como eliminado).
+      paranoid: !req.user?.adminRole,
       include: [
         {
           model: User,
@@ -2096,8 +2127,22 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     // Eliminar todos los contratos relacionados (ya están cancelados los activos)
     await Contract.destroy({ where: { jobId: job.id } });
 
-    // Ahora eliminar el trabajo
+    // El trabajo NO se borra: queda guardado como eliminado (pedido del dueño, 2026-11-23). Su dueño lo ve 30 días en «Ver papelera de trabajos»; el equipo lo ve siempre.
+    job.deletedBy = String(req.user.id);
+    await job.save();
     await job.destroy();
+    await logEvento({
+      action: 'job.deleted_by_owner',
+      actor: `user:${req.user.id}`,
+      performedBy: String(req.user.id),
+      category: 'system',
+      severity: 'medium',
+      description: `El dueño eliminó el trabajo «${jobTitle}» (queda guardado como eliminado).`,
+      targetModel: 'Job',
+      targetId: String(jobId),
+      targetIdentifier: jobTitle,
+      metadata: { estado: job.status, precio: Number(job.price) || 0, publicacionPagada: !!(job as any).publicationPaid, contratosCancelados: activeContracts.length },
+    });
 
     // Invalidate jobs cache
     cacheService.delPattern('jobs:*');
@@ -2114,7 +2159,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
 
     res.json({
       success: true,
-      message: "Trabajo eliminado",
+      message: "Trabajo eliminado: queda 30 días en «Ver papelera de trabajos».",
     });
   } catch (error: any) {
     res.status(500).json({

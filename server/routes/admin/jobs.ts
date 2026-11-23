@@ -11,6 +11,7 @@ import { detalleDelPagoDeLaPublicacion } from '../../services/detalleDelPagoDeLa
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from '../../utils/sanitizer.js';
 import { logAudit } from '../../utils/auditLog.js';
+import { AuditLog } from '../../models/sql/AuditLog.model.js';
 import { conSistema } from '../../db/contextoRls.js';
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
@@ -33,9 +34,12 @@ router.get(
 
       const where: any = {};
 
-      // Filtro por estado
-      if (status && status !== 'all') {
+      // Filtro por estado. Los trabajos ELIMINADOS no se borran: el equipo los ve siempre (marcados «Eliminado») y los filtra con «deleted»; los demás filtros los dejan afuera.
+      if (status === 'deleted') {
+        where.deletedAt = { [Op.ne]: null };
+      } else if (status && status !== 'all') {
         where.status = status;
+        where.deletedAt = null;
       }
 
       // Búsqueda por título, descripción, ID parcial o UUID relacionado
@@ -71,6 +75,7 @@ router.get(
 
       const { count, rows: jobs } = await Job.findAndCountAll({
         where,
+        paranoid: false,
         include: [
           {
             model: User,
@@ -1024,6 +1029,74 @@ router.get(
       res.status(500).json({ success: false, message: error.message });
     }
   }
+);
+
+/**
+ * DELETE /api/admin/jobs/:id/permanent
+ * Borrar de verdad un trabajo que su dueño ya eliminó (pedido del dueño, 2026-11-23: «nunca borrarse a menos que admin elimine ingresando el nombre del contrato y razón de
+ * eliminación»). Pide el nombre exacto del trabajo y un motivo, y deja el asiento en el registro ANTES de borrar con una foto de lo que se borra.
+ */
+router.delete(
+  '/:id/permanent',
+  protect,
+  requireRole('owner', 'super_admin', 'admin'),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      if (!isValidUUID(id)) {
+        res.status(400).json({ success: false, message: 'ID de trabajo inválido' });
+        return;
+      }
+      const job = await Job.findByPk(id, { paranoid: false });
+      if (!job) {
+        res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+        return;
+      }
+      if (!job.deletedAt) {
+        res.status(409).json({ success: false, code: 'NO_ESTA_ELIMINADO', message: 'Solo se borra de verdad un trabajo que su dueño ya eliminó.' });
+        return;
+      }
+      const nombre = String(req.body?.nombre ?? '').trim();
+      const motivo = String(req.body?.motivo ?? '').trim();
+      if (nombre !== String(job.title).trim()) {
+        res.status(400).json({ success: false, code: 'NOMBRE_NO_COINCIDE', message: 'Para confirmar, escribí el nombre del trabajo tal cual está.' });
+        return;
+      }
+      if (motivo.length < 15) {
+        res.status(400).json({ success: false, code: 'MOTIVO_CORTO', message: 'Escribí el motivo de la eliminación definitiva (15 caracteres o más).' });
+        return;
+      }
+
+      // El asiento va primero y se comprueba que quedó escrito: lo que se borra de verdad no se puede reconstruir.
+      await logAudit({
+        req,
+        action: 'job.permanent_delete',
+        category: 'system',
+        severity: 'critical',
+        description: `Se eliminó definitivamente el trabajo «${job.title}» (lo había eliminado su dueño). Motivo: ${motivo}`,
+        targetModel: 'Job',
+        targetId: String(job.id),
+        targetIdentifier: job.title,
+        metadata: { motivo, nombre, foto: job.toJSON(), eliminadoEl: job.deletedAt, eliminadoPor: job.deletedBy ?? null },
+      });
+      const anotado = await AuditLog.count({ where: { action: 'job.permanent_delete', targetId: String(job.id) } as any });
+      if (anotado === 0) {
+        res.status(500).json({ success: false, message: 'No se pudo anotar la eliminación en el registro. No se borró nada: probá de nuevo.' });
+        return;
+      }
+
+      try {
+        await job.destroy({ force: true });
+      } catch (error: any) {
+        res.status(409).json({ success: false, code: 'TIENE_DATOS_VINCULADOS', message: 'El trabajo tiene pagos o movimientos vinculados y no se puede borrar de verdad. Queda guardado como eliminado.', detalle: error?.message });
+        return;
+      }
+      cacheService.delPattern('jobs:*');
+      res.json({ success: true, message: 'Trabajo eliminado definitivamente. Quedó anotado en el registro.' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+    }
+  },
 );
 
 export default router;

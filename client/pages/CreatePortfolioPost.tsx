@@ -57,9 +57,12 @@ export default function CreatePortfolioPost() {
   const [images, setImages] = useState<File[]>([]);
   const { editar, editor } = useEditorDeFotos();
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [rating, setRating] = useState(0);
-  const [review, setReview] = useState('');
-  const [hoveredStar, setHoveredStar] = useState(0);
+  // La opinión que dejé al terminar el trabajo (puntaje y comentario): se copia sola y se puede sacar o dejar (pedido del dueño, 2026-11-23).
+  const [opinionDelTrabajo, setOpinionDelTrabajo] = useState<{ rating: number; comment: string } | null>(null);
+  const [incluirPuntaje, setIncluirPuntaje] = useState(true);
+  const [incluirComentario, setIncluirComentario] = useState(true);
+  // El trabajo ya tiene su categoría: es la que se usa; se puede sumar UNA más.
+  const [categoriaExtra, setCategoriaExtra] = useState('');
   const [publishAsPost, setPublishAsPost] = useState(true);
   // A quién se puede etiquetar: quienes trabajaron en este trabajo (sin uno mismo). El servidor deja afuera a quien apagó las etiquetas en su configuración.
   const [equipo, setEquipo] = useState<Array<{ id: string; name: string; avatar?: string | null }>>([]);
@@ -74,19 +77,18 @@ export default function CreatePortfolioPost() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  // Quiénes participaron en el trabajo (también un trabajador puede etiquetar a sus compañeros y a quien lo contrató) y la opinión que yo dejé al terminar.
   const cargarEquipo = async () => {
     try {
-      const respuesta = await fetch(`/api/contracts/all-by-job/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const respuesta = await fetch(`/api/posts/job/${jobId}/participantes`, { headers: { Authorization: `Bearer ${token}` } });
       const datos = await respuesta.json();
-      const vistos = new Set<string>();
-      const lista: Array<{ id: string; name: string; avatar?: string | null }> = [];
-      for (const c of datos?.contracts || []) {
-        const id = String(c.doerId || '');
-        if (!id || id === String(user?.id) || vistos.has(id) || ['cancelled', 'rejected'].includes(String(c.status))) continue;
-        vistos.add(id);
-        lista.push({ id, name: c.doerName || 'Trabajador', avatar: c.doerAvatar });
+      setEquipo(Array.isArray(datos?.personas) ? datos.personas.filter((p: { permite?: boolean }) => p.permite !== false) : []);
+      if (datos?.contratoId) {
+        const r = await fetch(`/api/reviews/contract/${datos.contratoId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const j = await r.json().catch(() => ({}));
+        const mia = (Array.isArray(j?.data) ? j.data : []).find((x: any) => String(x.reviewerId) === String(user?.id) && Number(x.rating) > 0);
+        if (mia) setOpinionDelTrabajo({ rating: Number(mia.rating), comment: String(mia.comment || '') });
       }
-      setEquipo(lista);
     } catch {
       setEquipo([]);
     }
@@ -168,7 +170,7 @@ export default function CreatePortfolioPost() {
       setError(t('portfolio.descriptionRequired', 'La descripción es requerida'));
       return;
     }
-    if (!category) {
+    if (!category && !(jobId && jobData?.category)) {
       setError(t('portfolio.categoryRequired', 'La categoría es requerida'));
       return;
     }
@@ -180,14 +182,15 @@ export default function CreatePortfolioPost() {
       const portfolioData = {
         title,
         description,
-        category,
-        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+        // La del trabajo (no se escribe de nuevo); la extra, si se agregó, va también como etiqueta.
+        category: jobId && jobData?.category ? jobData.category : category,
+        tags: Array.from(new Set([...tags.split(',').map(t => t.trim()).filter(Boolean), ...(categoriaExtra ? [categoriaExtra] : [])])),
         linkedJob: jobId,
         price: jobData?.price,
         clientName: jobData?.client?.name || 'Cliente DoApp',
         projectDuration: calculateDuration(),
-        ...(rating > 0 && { contractRating: rating }),
-        ...(review.trim() && { contractReview: review.trim() }),
+        ...(opinionDelTrabajo && incluirPuntaje && { contractRating: opinionDelTrabajo.rating }),
+        ...(opinionDelTrabajo && incluirComentario && opinionDelTrabajo.comment.trim() && { contractReview: opinionDelTrabajo.comment.trim() }),
       };
 
       const response = await fetch('/api/portfolio', {
@@ -235,7 +238,7 @@ export default function CreatePortfolioPost() {
           postFormData.append('type', 'post');
           postFormData.append('currency', 'ARS');
           if (jobData?.price) postFormData.append('price', String(jobData.price));
-          postFormData.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(Boolean)));
+          postFormData.append('tags', JSON.stringify(Array.from(new Set([...tags.split(',').map(t => t.trim()).filter(Boolean), ...(categoriaExtra ? [categoriaExtra] : [])]))));
           if (jobId) postFormData.append('linkedJob', jobId);
           if (etiquetados.length > 0) postFormData.append('taggedUsers', JSON.stringify(etiquetados));
           images.forEach(img => postFormData.append('gallery', img));
@@ -397,30 +400,57 @@ export default function CreatePortfolioPost() {
               />
             </div>
 
-            {/* Category */}
+            {/* Category: la del trabajo, más una opcional */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 {t('portfolio.category', 'Category')} *
               </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-              >
-                <option value="">{t('portfolio.selectCategory', 'Select category')}</option>
-                <option value="desarrollo_web">{t('portfolio.categories.webDev', 'Web Development')}</option>
-                <option value="diseno_grafico">{t('portfolio.categories.graphicDesign', 'Graphic Design')}</option>
-                <option value="marketing">{t('portfolio.categories.marketing', 'Marketing')}</option>
-                <option value="redaccion">{t('portfolio.categories.writing', 'Writing')}</option>
-                <option value="video">{t('portfolio.categories.video', 'Video and Animation')}</option>
-                <option value="musica">{t('portfolio.categories.music', 'Music and Audio')}</option>
-                <option value="hogar">{t('portfolio.categories.home', 'Home and Maintenance')}</option>
-                <option value="educacion">{t('portfolio.categories.education', 'Education')}</option>
-                <option value="salud">{t('portfolio.categories.health', 'Health and Wellness')}</option>
-                <option value="transporte">{t('portfolio.categories.transport', 'Transport')}</option>
-                <option value="otro">{t('portfolio.categories.other', 'Other')}</option>
-              </select>
+              {jobId && jobData?.category ? (
+                <div className="flex flex-wrap items-center gap-2" data-testid="categoria-del-trabajo">
+                  <span className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-sm font-medium capitalize text-sky-800 dark:bg-sky-900/30 dark:text-sky-200">{jobData.category}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Es la categoría del trabajo. Podés sumar una más:</span>
+                  <select
+                    value={categoriaExtra}
+                    onChange={(e) => setCategoriaExtra(e.target.value)}
+                    aria-label="Categoría adicional"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                    data-testid="categoria-adicional"
+                  >
+                    <option value="">Sin categoría adicional</option>
+                    <option value="desarrollo_web">{t('portfolio.categories.webDev', 'Web Development')}</option>
+                    <option value="diseno_grafico">{t('portfolio.categories.graphicDesign', 'Graphic Design')}</option>
+                    <option value="marketing">{t('portfolio.categories.marketing', 'Marketing')}</option>
+                    <option value="redaccion">{t('portfolio.categories.writing', 'Writing')}</option>
+                    <option value="video">{t('portfolio.categories.video', 'Video and Animation')}</option>
+                    <option value="musica">{t('portfolio.categories.music', 'Music and Audio')}</option>
+                    <option value="hogar">{t('portfolio.categories.home', 'Home and Maintenance')}</option>
+                    <option value="educacion">{t('portfolio.categories.education', 'Education')}</option>
+                    <option value="salud">{t('portfolio.categories.health', 'Health and Wellness')}</option>
+                    <option value="transporte">{t('portfolio.categories.transport', 'Transport')}</option>
+                    <option value="otro">{t('portfolio.categories.other', 'Other')}</option>
+                  </select>
+                </div>
+              ) : (
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                >
+                  <option value="">{t('portfolio.selectCategory', 'Select category')}</option>
+                  <option value="desarrollo_web">{t('portfolio.categories.webDev', 'Web Development')}</option>
+                  <option value="diseno_grafico">{t('portfolio.categories.graphicDesign', 'Graphic Design')}</option>
+                  <option value="marketing">{t('portfolio.categories.marketing', 'Marketing')}</option>
+                  <option value="redaccion">{t('portfolio.categories.writing', 'Writing')}</option>
+                  <option value="video">{t('portfolio.categories.video', 'Video and Animation')}</option>
+                  <option value="musica">{t('portfolio.categories.music', 'Music and Audio')}</option>
+                  <option value="hogar">{t('portfolio.categories.home', 'Home and Maintenance')}</option>
+                  <option value="educacion">{t('portfolio.categories.education', 'Education')}</option>
+                  <option value="salud">{t('portfolio.categories.health', 'Health and Wellness')}</option>
+                  <option value="transporte">{t('portfolio.categories.transport', 'Transport')}</option>
+                  <option value="otro">{t('portfolio.categories.other', 'Other')}</option>
+                </select>
+              )}
             </div>
 
             {/* Tags */}
@@ -497,63 +527,33 @@ export default function CreatePortfolioPost() {
             </button>
           </div>
 
-          {/* Reputación y opinión */}
+          {/* Opinión del final del trabajo: se copia sola (puntaje y comentario que dejé al terminar) y se puede sacar o dejar. Ya no se escribe de nuevo. */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
-              {t('portfolio.reputationTitle', 'Reputation & Opinion')}
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              {t('portfolio.reputationDesc', 'Optional: rate the work and add a note about the experience')}
-            </p>
-
-            {/* Stars */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                {t('portfolio.ratingLabel', 'Work rating')}
-              </label>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(rating === star ? 0 : star)}
-                    onMouseEnter={() => setHoveredStar(star)}
-                    onMouseLeave={() => setHoveredStar(0)}
-                    className="text-3xl transition-transform hover:scale-110 focus:outline-none"
-                  >
-                    <span className={star <= (hoveredStar || rating) ? 'text-yellow-400' : 'text-slate-300 dark:text-slate-600'}>
-                      ★
+            {opinionDelTrabajo && (
+              <div className="mb-5" data-testid="opinion-del-trabajo">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Tu opinión al terminar el trabajo</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">La copiamos de lo que dejaste al terminar. Elegí qué mostrar en la publicación.</p>
+                <label className="mb-2 flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <input type="checkbox" checked={incluirPuntaje} onChange={(e) => setIncluirPuntaje(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-puntaje" />
+                  <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Mostrar el puntaje</span>
+                  <span className="ml-auto text-lg text-yellow-400" aria-label={`${opinionDelTrabajo.rating} de 5`}>{'★'.repeat(opinionDelTrabajo.rating)}<span className="text-slate-300 dark:text-slate-600">{'★'.repeat(5 - opinionDelTrabajo.rating)}</span></span>
+                </label>
+                {opinionDelTrabajo.comment.trim() && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    <input type="checkbox" checked={incluirComentario} onChange={(e) => setIncluirComentario(e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-testid="incluir-comentario" />
+                    <span className="text-sm text-slate-800 dark:text-slate-200">
+                      <span className="font-medium">Mostrar mi comentario</span>
+                      <span className="mt-1 block text-slate-600 dark:text-slate-400">«{opinionDelTrabajo.comment}»</span>
                     </span>
-                  </button>
-                ))}
-                {rating > 0 && (
-                  <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">
-                    {['', t('portfolio.stars.1','Very bad'), t('portfolio.stars.2','Bad'), t('portfolio.stars.3','Regular'), t('portfolio.stars.4','Good'), t('portfolio.stars.5','Excellent')][rating]}
-                  </span>
+                  </label>
                 )}
               </div>
-            </div>
-
-            {/* Review */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                {t('portfolio.reviewLabel', 'Opinion or notable details (optional)')}
-              </label>
-              <textarea
-                value={review}
-                onChange={(e) => setReview(e.target.value)}
-                rows={3}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none text-sm"
-                placeholder={t('portfolio.reviewPlaceholder', 'Describe the results, client satisfaction, or key details of the project...')}
-              />
-              <p className="text-xs text-slate-400 mt-1 text-right">{review.length}/500</p>
-            </div>
+            )}
 
             {/* Etiquetar a los trabajadores: solo a quienes trabajaron en este trabajo y permiten que los etiqueten (Configuración). */}
             {equipo.length > 0 && (
               <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700" data-testid="etiquetar-trabajadores">
-                <p className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('portfolio.tagWorkers', 'Etiquetar a los trabajadores en la publicación')}</p>
+                <p className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('portfolio.tagWorkers', 'Etiquetar a los participantes en la publicación')}</p>
                 <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                   {t('portfolio.tagWorkersHint', 'Les llega un aviso y aparecen en la publicación. Solo quedan etiquetados quienes lo permiten en su configuración.')}
                 </p>

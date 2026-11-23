@@ -436,11 +436,11 @@ export default function WithdrawalRequestPage() {
                 + ${aFavorPendiente.toLocaleString('es-AR')} a favor pendientes de liquidar: todavía no son tuyos, no los podés usar ni retirar. Pasan a tu saldo
                 {aFavorDetalle.length <= 1 && proximaLiquidacion ? ` el ${fechaDeLiquidacion(proximaLiquidacion)}` : ''}, cuando Mercado Pago libera el pago original.
               </p>
-              {aFavorDetalle.length > 1 && (
-                <ul className="mt-1 space-y-0.5">
+              {aFavorDetalle.length >= 1 && (
+                <ul className="mt-1 space-y-0.5" data-testid="detalle-del-a-favor">
                   {aFavorDetalle.map((a) => (
                     <li key={a.id}>
-                      • {etiquetaDelAFavor(a.motivo)}: ${a.monto.toLocaleString('es-AR')}
+                      • {etiquetaDelAFavor(a.motivo)}: ${a.monto.toLocaleString('es-AR')}{a.descripcion ? ` — ${a.descripcion}` : ''}
                       {a.disponibleDesde ? ` · pasa a tu saldo el ${fechaDeLiquidacion(a.disponibleDesde)}` : ''}
                     </li>
                   ))}
