@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -36,6 +36,10 @@ describe('portfolio_items: migración y modelo coinciden', () => {
     const delModelo = Object.values((Portfolio as any).rawAttributes as Record<string, { field?: string }>)
       .map((a) => String(a.field))
       .sort();
-    expect(columnasDe(sqlDeCrear(migracion))).toEqual(delModelo);
+    // Las columnas que agregaron migraciones POSTERIORES (ALTER TABLE ... ADD COLUMN) también son del modelo.
+    const agregadas = readdirSync(join(raiz, 'migrations'))
+      .filter((n) => n > '20261109140000' && n.endsWith('.cjs'))
+      .flatMap((n) => [...readFileSync(join(raiz, 'migrations', n), 'utf8').matchAll(/ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS ([a-z_]+)/gi)].map((m) => m[1].toLowerCase()));
+    expect([...columnasDe(sqlDeCrear(migracion)), ...agregadas].sort()).toEqual(delModelo);
   });
 });

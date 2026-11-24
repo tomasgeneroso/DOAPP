@@ -43,6 +43,8 @@ interface Post {
   commentsCount: number;
   viewsCount: number;
   tags?: string[];
+  /** Si viene de un trabajo: no se edita (editarla sería modificar el trabajo), solo se quita del muro. */
+  linkedContract?: string | { id?: string } | null;
   /** A quién se etiquetó (solo quien trabajó en el trabajo y lo permite). */
   etiquetados?: Array<{ id: string; name: string; avatar?: string | null }>;
   createdAt: string;
@@ -160,6 +162,7 @@ export default function PostDetail() {
   useEffect(() => {
     if (abrioLaEdicion || !post || !user || parametros.get("editar") !== "1") return;
     if (String(post.author?.id) !== String(user.id)) return;
+    if (post.linkedContract) return;
     setAbrioLaEdicion(true);
     setTituloEditado(post.title);
     setDescripcionEditada(new DOMParser().parseFromString(post.description || "", "text/html").body.textContent || "");
@@ -353,9 +356,11 @@ export default function PostDetail() {
                 {/* Quien publicó: editar o eliminar */}
                 {!!user && !!authorId && String(user.id) === String(authorId) && (
                   <div className="flex items-center gap-1" data-testid="acciones-del-autor">
-                    <button onClick={empezarAEditar} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-publicacion">
-                      <Pencil className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                    </button>
+                    {!post.linkedContract && (
+                      <button onClick={empezarAEditar} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-publicacion">
+                        <Pencil className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                      </button>
+                    )}
                     <button onClick={() => { setErrorAlBorrar(null); setConfirmarBorrado(true); }} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-publicacion">
                       <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
                     </button>

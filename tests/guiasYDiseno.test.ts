@@ -45,6 +45,7 @@ describe('guías paso a paso', () => {
     const fuentes = [
       leer('client/components/app/Header.tsx'),
       leer('client/pages/UserSettings.tsx'),
+      leer('client/components/profile/BiografiaDelPerfil.tsx'),
       leer('client/components/ui/MontoEnPesos.tsx'),
       leer('client/pages/CreateContractScreen.tsx'),
     ].join('\n');

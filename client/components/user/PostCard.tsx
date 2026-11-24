@@ -215,10 +215,13 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         {/* Quien publicó: dos botones, editar y eliminar. */}
         {!!user && !!authorId && String(user.id) === String(authorId) && postId && (
           <div className="flex items-center gap-1" data-testid="editar-o-eliminar">
-            <button type="button" onClick={() => navigate(`/posts/${postId}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={() => { setErrorAlBorrar(null); setPidiendoBorrar(true); }} className="rounded-full p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-desde-la-tarjeta">
+            {/* La publicación de un trabajo no se edita (editarla sería modificar el trabajo): solo se quita del muro. */}
+            {!post.linkedContract && (
+              <button type="button" onClick={() => navigate(`/posts/${postId}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
+            <button type="button" onClick={() => { setErrorAlBorrar(null); setPidiendoBorrar(true); }} className="rounded-full p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title={post.linkedContract ? "Quitar del muro del perfil" : "Eliminar la publicación"} aria-label={post.linkedContract ? "Quitar del muro del perfil" : "Eliminar la publicación"} data-testid="eliminar-desde-la-tarjeta">
               <Trash2 className="h-4 w-4" />
             </button>
           </div>

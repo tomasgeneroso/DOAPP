@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { esErrorDeVersionVieja, recargarPorVersionNueva } from '../utils/versionNuevaDeLaWeb';
 
 interface Props {
   children: ReactNode;
@@ -37,6 +38,9 @@ class ErrorBoundary extends Component<Props, State> {
 
     this.setState({ errorInfo });
 
+    // Una versión vieja de la pantalla (deploy nuevo): se trae la nueva sola, una vez.
+    if (esErrorDeVersionVieja(error)) void recargarPorVersionNueva();
+
     // Llamar callback si existe
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
@@ -56,6 +60,31 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Deploy nuevo: no es un fallo de la pantalla, es una versión vieja. Se muestra un aviso tranquilo, no el error en rojo.
+      if (esErrorDeVersionVieja(this.state.error)) {
+        return (
+          <div className="min-h-[400px] flex items-center justify-center p-6" data-testid="version-nueva-de-la-web">
+            <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+              <div className="w-16 h-16 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                <RefreshCw className="h-8 w-8 text-sky-600 dark:text-sky-400" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Hay una versión nueva de DOAPP</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Estamos actualizando la página para mostrarte lo último. Si no se actualiza sola, tocá el botón.
+              </p>
+              <button
+                onClick={() => void recargarPorVersionNueva(true)}
+                data-testid="actualizar-version-nueva"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Actualizar
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       // Si hay un fallback personalizado, usarlo
       if (this.props.fallback) {
         return this.props.fallback;

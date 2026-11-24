@@ -4,7 +4,7 @@ import { getImageUrl } from '@/utils/imageUrl';
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import InsuranceUpload from "../components/InsuranceUpload";
 import MatriculaArchivos from "../components/MatriculaArchivos";
 import AttentionDot from "../components/AttentionDot";
@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Tag,
   Bell,
+  FileText,
   MessageCircle,
   HelpCircle,
   PlayCircle,
@@ -50,6 +51,7 @@ import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from "../../shared/constants/
 import { POLITICAS } from "../../shared/constants/policies";
 import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 import Transicion from "../components/ui/Transicion";
+import Pestanas from "../components/ui/Pestanas";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 import AvatarConInicial from "../components/ui/AvatarConInicial";
 import SelectorDeBanco from "../components/ui/SelectorDeBanco";
@@ -67,10 +69,10 @@ const NOMBRE_DE_LA_PESTANA: Record<TabType, string> = {
   promotion: "Promocionar perfil",
   verification: "Verificación",
   security: "Seguridad",
-  profession: "Profesión",
+  profession: "Profesión y matrícula",
   address: "Domicilio y zona de trabajo",
   banking: "Banca",
-  notifications: "Notificaciones",
+  notifications: "Notificaciones y Posts",
   help: "Ayuda",
 };
 
@@ -84,7 +86,7 @@ function pestanaDelError(codigo?: string | null, mensaje?: string | null): TabTy
   if (/cbu|alias|bancari|titular/.test(m)) return "banking";
   if (/dirección|direccion|calle|postal|ciudad|provincia/.test(m)) return "address";
   if (/matr[ií]cula|profesi[oó]n/.test(m)) return "profession";
-  if (/tel[eé]fono|nombre|biograf/.test(m)) return "basic";
+  if (/tel[eé]fono|nombre/.test(m)) return "basic";
   return null;
 }
 
@@ -345,7 +347,6 @@ export default function UserSettings() {
   // Basic info
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [bio, setBio] = useState("");
 
   // Address
   const [street, setStreet] = useState("");
@@ -389,6 +390,8 @@ export default function UserSettings() {
   const [licenseRejectedReason, setLicenseRejectedReason] = useState("");
 
   // Notifications
+  // «Notificaciones y Posts» tiene dos pestañas (pedido del dueño, 2026-11-24).
+  const [subpestanaDeAvisos, setSubpestanaDeAvisos] = useState<"notificaciones" | "posts">("notificaciones");
   const [notifPrefs, setNotifPrefs] = useState<{ email: boolean; push: boolean; sms: boolean; newMessage: boolean; jobUpdate: boolean; contractUpdate: boolean; paymentUpdate: boolean; marketing: boolean; canBeTagged?: boolean }>({
     email: true,
     push: true,
@@ -405,7 +408,6 @@ export default function UserSettings() {
     if (user) {
       setName(user.name || "");
       setPhone(user.phone || "");
-      setBio(user.bio || "");
       setStreet(user.address?.street || "");
       setCity(user.address?.city || "");
       setState(user.address?.state || "");
@@ -564,7 +566,6 @@ export default function UserSettings() {
         body: JSON.stringify({
           name,
           phone,
-          bio,
           address: { street, city, state, postalCode, country },
           bankingInfo: {
             accountHolder,
@@ -627,7 +628,7 @@ export default function UserSettings() {
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
     { id: "verification", label: "Verificación", icon: ShieldCheck },
     { id: "security", label: "Seguridad", icon: Lock },
-    { id: "profession", label: "Profesión", icon: Briefcase },
+    { id: "profession", label: "Profesión y matrícula", icon: Briefcase },
     { id: "address", label: "Domicilio y zona", icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
     { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
@@ -838,23 +839,10 @@ export default function UserSettings() {
                       />
                     )}
                   </FormField>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.basic.bio')}
-                    </label>
-                    <textarea
-                      data-guia="perfil-bio"
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      rows={4}
-                      maxLength={500}
-                      placeholder={t('settings.basic.bioPlaceholder')}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      {bio.length}/500 {t('settings.basic.bioChars')}
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-600 dark:text-slate-400" data-testid="la-biografia-esta-en-el-perfil">
+                    Tu biografía se escribe y se muestra desde tu{" "}
+                    <Link to={user?.id ? `/profile/${user.id}` : "/profile"} className="font-medium text-sky-600 underline hover:text-sky-700 dark:text-sky-400">perfil</Link>.
+                  </p>
                 </div>
               )}
 
@@ -1286,7 +1274,18 @@ export default function UserSettings() {
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     {t('settings.notifications.title')}
                   </h2>
-                  <div className="space-y-4">
+                  <Pestanas
+                    ariaLabel="Preferencias de notificaciones y posts"
+                    testid="pestanas-de-notificaciones-y-posts"
+                    valor={subpestanaDeAvisos}
+                    onCambiar={setSubpestanaDeAvisos}
+                    opciones={[
+                      { id: "notificaciones" as const, texto: "Notificaciones", icono: <Bell className="h-4 w-4" /> },
+                      { id: "posts" as const, texto: "Posts", icono: <FileText className="h-4 w-4" /> },
+                    ]}
+                  />
+                  {subpestanaDeAvisos === "notificaciones" && (
+                  <div className="space-y-4" data-testid="preferencias-de-notificaciones">
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.email')}</p>
@@ -1399,6 +1398,10 @@ export default function UserSettings() {
                         className="h-5 w-5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
                       />
                     </div>
+                  </div>
+                  )}
+                  {subpestanaDeAvisos === "posts" && (
+                  <div className="space-y-4" data-testid="preferencias-de-posts">
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg" data-testid="permitir-etiquetas">
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.canBeTagged', 'Que me etiqueten en publicaciones de trabajos')}</p>
@@ -1415,6 +1418,7 @@ export default function UserSettings() {
                       />
                     </div>
                   </div>
+                  )}
                 </div>
               )}
 

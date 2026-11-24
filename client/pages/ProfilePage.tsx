@@ -27,6 +27,7 @@ import { ofreceServicios } from '../../shared/cuenta/capacidades';
 import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import BiografiaDelPerfil from '../components/profile/BiografiaDelPerfil';
 import useImageViewer from '../hooks/useImageViewer';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
@@ -719,11 +720,13 @@ export default function ProfilePage() {
                           <CancellationMark until={(user as any).cancellationMarkUntil} />
                         </div>
                       )}
-                      {user.bio && (
-                        <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
-                          {user.bio}
-                        </p>
-                      )}
+                      {/* La biografía se escribe y se ve desde acá, en una sección que se despliega. */}
+                      <BiografiaDelPerfil
+                        bio={user.bio}
+                        esPropio={isOwnProfile()}
+                        token={token}
+                        alGuardar={(nueva) => setUser({ ...(user as any), bio: nueva })}
+                      />
                       {/* Rubros y zona de trabajo (solo quien ofrece servicios y los cargó) */}
                       {(((user as any).workCategories?.length > 0) || (user as any).workAnyCategory || ((user as any).workZones?.length > 0)) && (
                         <div className="mt-3 flex max-w-2xl flex-wrap items-center gap-1.5" data-testid="rubros-y-zona">
@@ -1452,9 +1455,12 @@ export default function ProfilePage() {
                         <div key={post.id} className="relative" data-testid="publicacion-del-perfil">
                         {isOwnProfile() && (
                           <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-white/90 p-0.5 shadow-sm dark:bg-slate-800/90" data-testid="editar-o-eliminar">
-                            <button type="button" onClick={() => navigate(`/posts/${post.id}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
-                              <Pencil className="h-4 w-4" />
-                            </button>
+                            {/* La publicación de un trabajo no se edita (sería modificar el trabajo): solo se quita del muro. */}
+                            {!(post as any).linkedContract && (
+                              <button type="button" onClick={() => navigate(`/posts/${post.id}?editar=1`)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" title="Editar la publicación" aria-label="Editar la publicación" data-testid="editar-desde-la-tarjeta">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
                             <button type="button" onClick={() => { setErrorAlBorrarPost(null); setPostABorrar({ id: String(post.id), title: post.title }); }} className="rounded-full p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Eliminar la publicación" aria-label="Eliminar la publicación" data-testid="eliminar-desde-la-tarjeta">
                               <Trash2 className="h-4 w-4" />
                             </button>
