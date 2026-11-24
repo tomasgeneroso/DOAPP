@@ -27,7 +27,8 @@ export default function BiografiaDelPerfil({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const escrita = (bio || "").trim();
+  // Ordenada para que se vea prolija: sin renglones vacíos de más (como mucho uno entre párrafos) y sin espacios al final de cada renglón.
+  const escrita = (bio || "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!esPropio && !escrita) return null;
 
   const empezarAEditar = () => {
@@ -58,7 +59,7 @@ export default function BiografiaDelPerfil({
   };
 
   return (
-    <div className="mb-3 max-w-2xl rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60" data-testid="biografia-del-perfil">
+    <div className="mb-3 w-full max-w-2xl rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60" data-testid="biografia-del-perfil">
       <button
         type="button"
         onClick={() => setAbierta((v) => !v)}
@@ -116,7 +117,7 @@ export default function BiografiaDelPerfil({
           ) : (
             <>
               {escrita ? (
-                <p className="whitespace-pre-line text-sm text-slate-600 dark:text-slate-300" data-testid="biografia-contenido">{escrita}</p>
+                <p className="max-h-64 overflow-y-auto whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="biografia-contenido">{escrita}</p>
               ) : (
                 <p className="text-sm text-slate-500 dark:text-slate-400">Todavía no escribiste tu biografía. Con una biografía corta, tu perfil genera más confianza.</p>
               )}

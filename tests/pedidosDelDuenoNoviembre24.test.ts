@@ -53,6 +53,15 @@ describe('pedidos del dueño del 24 de noviembre', () => {
       expect(p).not.toMatch(/\{user\.bio && \(/);
     });
 
+    it('la caja ocupa el ancho disponible (no el del nombre) y ordena el texto: renglones vacíos juntos, largo con scroll', () => {
+      const c = leer('client/components/profile/BiografiaDelPerfil.tsx');
+      expect(c).toContain('mb-3 w-full max-w-2xl');
+      expect(c).toContain('max-h-64 overflow-y-auto');
+      expect(c).toContain('break-words');
+      expect(c).toContain('.replace(/\\n{3,}/g, "\\n\\n")');
+      expect(leer('client/pages/ProfilePage.tsx')).toMatch(/<div className="min-w-0 flex-1">\s*<h1/);
+    });
+
     it('la guía de inicio ya no manda a escribir la biografía en Configuración', () => {
       const g = leer('client/components/guias/guias.ts');
       expect(g).not.toContain("id: 'bio'");
@@ -60,15 +69,14 @@ describe('pedidos del dueño del 24 de noviembre', () => {
     });
   });
 
-  describe('muro del perfil: se agrega y se quita, no se edita', () => {
-    it('Trabajos publicados ofrece «Agregar al muro del perfil» y «Quitar del muro del perfil» (con confirmación), solo en el perfil propio', () => {
+  describe('muro del perfil: la publicación de un trabajo no se edita', () => {
+    it('«Trabajos publicados» NO ofrece agregar, quitar ni eliminar nada (el dueño lo descartó)', () => {
       const f = leer('client/components/profile/TrabajosPublicados.tsx');
-      expect(f).toContain('data-testid="agregar-al-muro"');
-      expect(f).toContain('data-testid="quitar-del-muro"');
-      expect(f).toContain('/api/posts/mis-trabajos-en-el-muro');
-      expect(f).toContain('/portfolio/create?fromJob=');
-      expect(f).toContain('<ConfirmModal');
-      expect(f).toMatch(/esPropio && \(enElMuro\[j\.id\] \|\| j\.status === "completed"\)/);
+      expect(f).not.toContain('agregar-al-muro');
+      expect(f).not.toContain('quitar-del-muro');
+      expect(f).not.toContain('mis-trabajos-en-el-muro');
+      expect(f).not.toContain('ConfirmModal');
+      expect(f).not.toContain('method: "DELETE"');
     });
 
     it('la publicación de un trabajo no muestra «Editar» (tarjeta, detalle y lista del perfil)', () => {
@@ -81,7 +89,7 @@ describe('pedidos del dueño del 24 de noviembre', () => {
     it('el servidor también lo frena', () => {
       const f = leer('server/routes/posts.ts');
       expect(f).toContain('PUBLICACION_DE_TRABAJO_NO_SE_EDITA');
-      expect(f.indexOf('/mis-trabajos-en-el-muro')).toBeLessThan(f.indexOf('router.get("/:id", async')); // antes que «/:id» o lo atrapa
+      expect(f).not.toContain('mis-trabajos-en-el-muro');
     });
   });
 });

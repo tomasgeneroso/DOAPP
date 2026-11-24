@@ -73,28 +73,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// @route   GET /api/posts/mis-trabajos-en-el-muro
-// @desc    Qué trabajos míos están compartidos en mi muro: { [jobId]: postId } (para «Agregar» o «Quitar» desde Trabajos publicados)
-// @access  Private
-router.get("/mis-trabajos-en-el-muro", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const publicaciones = await Post.findAll({ where: { author: req.user.id }, attributes: ["id", "linkedContract", "createdAt"], order: [["createdAt", "DESC"]] });
-    const contratoIds = publicaciones.map((p) => p.linkedContract).filter((c): c is string => !!c);
-    const contratos = contratoIds.length
-      ? await conSistema(() => Contract.findAll({ where: { id: contratoIds }, attributes: ["id", "jobId"] }))
-      : [];
-    const trabajoDelContrato = new Map(contratos.map((c) => [String(c.id), String(c.jobId)]));
-    const enElMuro: Record<string, string> = {};
-    for (const p of publicaciones) {
-      const trabajoId = p.linkedContract ? trabajoDelContrato.get(String(p.linkedContract)) : undefined;
-      if (trabajoId && !enElMuro[trabajoId]) enElMuro[trabajoId] = String(p.id); // la más reciente (vienen de la más nueva a la más vieja)
-    }
-    res.json({ success: true, enElMuro });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message || "Error al buscar tus publicaciones" });
-  }
-});
-
 // @route   GET /api/posts/:id
 // @desc    Get single post by ID
 // @access  Public

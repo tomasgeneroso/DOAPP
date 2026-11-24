@@ -695,7 +695,8 @@ export default function ProfilePage() {
                 {/* User Info */}
                 <div className="flex-1 pt-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                    <div>
+                    {/* flex-1 min-w-0: ocupa el ancho que queda (antes medía lo mismo que el nombre y la biografía salía angosta). */}
+                    <div className="min-w-0 flex-1">
                       <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
                         {user.name}
                         {(user as any).dniVerified && <VerifiedBadge size={22} />}

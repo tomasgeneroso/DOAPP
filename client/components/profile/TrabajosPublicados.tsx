@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Briefcase, ExternalLink, Loader2, MapPin, Share2, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Briefcase, ExternalLink, Loader2, MapPin } from "lucide-react";
 import { estadoDePublicacion } from "../../../shared/jobs/estadoDePublicacion";
 import Transicion from "../ui/Transicion";
-import ConfirmModal from "../ui/ConfirmModal";
 
 interface TrabajoPublicado {
   id: string;
@@ -33,12 +32,6 @@ export default function TrabajosPublicados({ userId, esPropio, token }: { userId
   const clave = `${userId}|${esPropio}`;
   const [respuesta, setRespuesta] = useState<{ clave: string; trabajos: TrabajoPublicado[] | null; fallo: boolean } | null>(null);
   // Mientras la respuesta guardada sea de otra persona (o no haya ninguna), se está cargando.
-  const navigate = useNavigate();
-  // Qué trabajos míos están en el muro del perfil: { trabajo: publicación }. Solo en el perfil propio.
-  const [enElMuro, setEnElMuro] = useState<Record<string, string>>({});
-  const [aQuitar, setAQuitar] = useState<{ trabajoId: string; postId: string; titulo: string } | null>(null);
-  const [quitando, setQuitando] = useState(false);
-  const [errorAlQuitar, setErrorAlQuitar] = useState<string | null>(null);
   const trabajos = respuesta?.clave === clave ? respuesta.trabajos : null;
   const fallo = respuesta?.clave === clave && respuesta.fallo;
 
@@ -63,41 +56,6 @@ export default function TrabajosPublicados({ userId, esPropio, token }: { userId
       vivo = false;
     };
   }, [userId, esPropio, token]);
-
-  useEffect(() => {
-    if (!esPropio || !token) return;
-    let vivo = true;
-    fetch("/api/posts/mis-trabajos-en-el-muro", { credentials: "include", headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (vivo && d?.success && d.enElMuro) setEnElMuro(d.enElMuro as Record<string, string>);
-      })
-      .catch(() => {});
-    return () => {
-      vivo = false;
-    };
-  }, [esPropio, token]);
-
-  /** Quita la publicación del muro. El trabajo NO se toca (editarlo o borrarlo desde acá sería modificar el trabajo). */
-  const quitarDelMuro = async () => {
-    if (!aQuitar) return;
-    setQuitando(true);
-    setErrorAlQuitar(null);
-    try {
-      const r = await fetch(`/api/posts/${aQuitar.postId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) throw new Error(j.message || "No se pudo quitar del muro.");
-      setEnElMuro((prev) => {
-        const { [aQuitar.trabajoId]: _quitado, ...resto } = prev;
-        return resto;
-      });
-      setAQuitar(null);
-    } catch (e: any) {
-      setErrorAlQuitar(e?.message || "No se pudo quitar del muro.");
-    } finally {
-      setQuitando(false);
-    }
-  };
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -164,51 +122,12 @@ export default function TrabajosPublicados({ userId, esPropio, token }: { userId
                       </Transicion>
                     )}
                   </Link>
-                  {/* Muro del perfil: solo agregar o quitar la publicación del trabajo; el trabajo no se modifica. */}
-                  {esPropio && (enElMuro[j.id] || j.status === "completed") && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="acciones-del-muro">
-                      {enElMuro[j.id] ? (
-                        <button
-                          type="button"
-                          onClick={() => { setErrorAlQuitar(null); setAQuitar({ trabajoId: j.id, postId: enElMuro[j.id], titulo: j.title }); }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
-                          data-testid="quitar-del-muro"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" /> Quitar del muro del perfil
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/portfolio/create?fromJob=${j.id}`)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-900/50 dark:text-sky-400 dark:hover:bg-sky-900/20"
-                          data-testid="agregar-al-muro"
-                        >
-                          <Share2 className="h-4 w-4" aria-hidden="true" /> Agregar al muro del perfil
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </li>
               );
             })}
           </ul>
         )}
       </div>
-      <ConfirmModal
-        open={!!aQuitar}
-        tone="danger"
-        loading={quitando}
-        title="Quitar del muro del perfil"
-        confirmLabel="Quitar"
-        message={
-          <>
-            <p>¿Querés quitar <strong>{aQuitar?.titulo}</strong> de tu muro? El trabajo no se modifica y lo podés volver a agregar cuando quieras.</p>
-            {errorAlQuitar && <p role="alert" className="mt-2 text-red-400">{errorAlQuitar}</p>}
-          </>
-        }
-        onConfirm={quitarDelMuro}
-        onClose={() => setAQuitar(null)}
-      />
     </div>
   );
 }

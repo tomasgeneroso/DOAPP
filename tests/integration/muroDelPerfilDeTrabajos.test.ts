@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 
 /**
  * Pedido del dueño (2026-11-24): la publicación de un trabajo en el muro del perfil NO se edita (editarla sería modificar el trabajo);
- * solo se agrega o se quita. Y desde «Trabajos publicados» se ve qué trabajos míos están en el muro.
+ * solo se quita del muro. «Trabajos publicados» no ofrece agregar ni quitar nada (el dueño lo descartó el 2026-11-24).
  */
 jest.mock('../../server/index.js', () => ({ __esModule: true, socketService: new Proxy({}, { get: () => () => undefined }) }));
 jest.mock('../../server/services/email.js', () => ({ __esModule: true, default: new Proxy({}, { get: () => async () => true }) }));
@@ -70,26 +70,12 @@ describe('muro del perfil: la publicación de un trabajo se agrega y se quita, n
     expect(((await Post.findByPk(id)) as any).title).toBe('Mi día, editado');
   });
 
-  it('«mis trabajos en el muro» dice qué trabajos míos están compartidos (y solo esos)', async () => {
-    const r = await request(app).get('/api/posts/mis-trabajos-en-el-muro').set(como(cliente));
-    expect(r.status).toBe(200);
-    expect(Object.keys(r.body.enElMuro)).toContain(jobId);
-    expect(Object.keys(r.body.enElMuro)).not.toContain(otroJobId);
-  });
-
-  it('sin sesión no se ve; y otra persona no ve los trabajos del muro de alguien más', async () => {
-    expect((await request(app).get('/api/posts/mis-trabajos-en-el-muro')).status).toBe(401);
-    const r = await request(app).get('/api/posts/mis-trabajos-en-el-muro').set(como(ana));
-    expect(r.status).toBe(200);
-    expect(r.body.enElMuro).toEqual({});
-  });
-
   it('quitar la publicación del muro sigue funcionando y el trabajo no se toca', async () => {
-    const id = (await request(app).get('/api/posts/mis-trabajos-en-el-muro').set(como(cliente))).body.enElMuro[jobId];
-    expect(id).toBeTruthy();
+    const creada = await publicarTrabajo();
+    const id = creada.body.post?.id ?? creada.body.data?.id;
     const r = await request(app).delete(`/api/posts/${id}`).set(como(cliente));
     expect(r.status).toBe(200);
-    expect(Object.keys((await request(app).get('/api/posts/mis-trabajos-en-el-muro').set(como(cliente))).body.enElMuro)).not.toContain(jobId);
+    expect(await Post.findByPk(id)).toBeNull();
     expect(((await Job.findByPk(jobId)) as any).status).toBe('completed');
   });
 });
