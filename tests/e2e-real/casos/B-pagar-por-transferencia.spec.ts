@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect } from '../ayudas/base';
+import { test, expect, tokenDeSesion } from '../ayudas/base';
 import { administradorEn, clienteQueLlegaAlPago, estadoDelTrabajo, pagosDelTrabajo, publicarYLlegarAlPago } from '../ayudas/flujos';
 import { comprobante, completarYaPague, cuentaDeDoapp, elegirTransferencia, type DatosDeLaOperacion } from '../ayudas/transferencia';
 import { consulta } from '../ayudas/base-de-datos';
@@ -209,7 +209,7 @@ test.describe('B · publicar pagando por transferencia bancaria', () => {
 
     // Y por la API, dos aprobaciones al mismo tiempo sobre el mismo pago: ninguna rompe (nada de 500) y no se duplica nada.
     const [pago] = await pagosDelTrabajo(trabajo.datos.titulo);
-    const token = await admin.evaluate(() => localStorage.getItem('token'));
+    const token = await tokenDeSesion(admin);
     const cuerpo = { bankReference: operacion.numero, transferAmount: String(pago.amount), transferDate: new Date().toISOString().slice(0, 10), notes: 'otra vez', proofUrl: '/uploads/payment-proofs/x.png' };
     const respuestas = await Promise.all([1, 2].map(() => admin.request.post(`/api/admin/payments/${pago.id}/approve`, { headers: { Authorization: `Bearer ${token}` }, data: cuerpo })));
     // Ya está aprobado: el servidor contesta que no se vuelve a aprobar (409), no un error.

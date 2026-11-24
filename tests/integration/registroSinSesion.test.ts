@@ -30,7 +30,7 @@ describe('POST /api/auth/register: sesión según el cliente', () => {
     const sufijo = `${Date.now().toString(36)}${k}`;
     const email = `sinsesion${sufijo}@registro.test`;
     emails.push(email);
-    return { name: 'Persona Nueva', username: `sinsesion${sufijo}`, email, password: 'password123', dni: String(30000000 + Math.floor(Math.random() * 9000000)), termsAccepted: true, ...extra };
+    return { name: 'Persona Nueva', username: `sinsesion${sufijo}`, email, password: 'password123!', dni: String(30000000 + Math.floor(Math.random() * 9000000)), termsAccepted: true, ...extra };
   };
 
   beforeAll(async () => {

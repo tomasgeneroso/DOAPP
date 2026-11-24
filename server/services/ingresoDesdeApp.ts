@@ -20,6 +20,25 @@ const MAXIMO_PENDIENTES = 2000;
 interface Pendiente {
   userId: string;
   vence: number;
+  /** SHA-256 (hex) de un secreto que la app genera y NO sale del teléfono: quien intercepte el código no puede canjearlo sin el secreto. */
+  desafio?: string;
+}
+
+/**
+ * El código viaja por `doapp://auth-callback?codigo=…`. Cualquier otra app instalada en el teléfono puede registrar el mismo esquema `doapp://` y quedarse con ese
+ * enlace (auditoría de seguridad, 2026-11-24). Por eso la app manda, al empezar, el DESAFÍO (hash de un secreto propio) y al canjear el VERIFICADOR (el secreto): el
+ * servidor comprueba que el hash coincide. Es el mismo mecanismo que PKCE de OAuth. Una app vieja que no manda desafío sigue andando como antes.
+ */
+export const esDesafioValido = (d: unknown): d is string => typeof d === 'string' && /^[0-9a-f]{64}$/.test(d);
+
+/** El valor de `state` para el ingreso desde la app: `app` o `app:<desafío>`. */
+export const estadoDeLaApp = (desafio: unknown): string => (esDesafioValido(desafio) ? `app:${desafio}` : 'app');
+
+/** Lo que dice el `state` que vuelve de Google: si viene de la app y con qué desafío. */
+export function leerEstadoDeLaApp(state: unknown): { esApp: boolean; desafio?: string } {
+  if (state === 'app') return { esApp: true };
+  const m = typeof state === 'string' ? state.match(/^app:([0-9a-f]{64})$/) : null;
+  return m ? { esApp: true, desafio: m[1] } : { esApp: false };
 }
 
 const pendientes = new Map<string, Pendiente>();
@@ -35,19 +54,25 @@ function limpiarVencidos(ahora: number): void {
 }
 
 /** Un código nuevo para esta persona. */
-export function emitirCodigoDeApp(userId: string, ahora: number = Date.now()): string {
+export function emitirCodigoDeApp(userId: string, ahora: number = Date.now(), desafio?: string): string {
   limpiarVencidos(ahora);
   const codigo = crypto.randomBytes(32).toString('hex');
-  pendientes.set(codigo, { userId: String(userId), vence: ahora + VIGENCIA_MS });
+  pendientes.set(codigo, { userId: String(userId), vence: ahora + VIGENCIA_MS, ...(esDesafioValido(desafio) ? { desafio } : {}) });
   return codigo;
 }
 
 /** La persona a la que pertenece el código, o null si no existe, venció o ya se usó. Se gasta al leerlo. */
-export function canjearCodigoDeApp(codigo: unknown, ahora: number = Date.now()): string | null {
+export function canjearCodigoDeApp(codigo: unknown, ahora: number = Date.now(), verificador?: unknown): string | null {
   if (typeof codigo !== 'string' || !/^[0-9a-f]{64}$/.test(codigo)) return null;
   const p = pendientes.get(codigo);
   pendientes.delete(codigo);
   if (!p || p.vence <= ahora) return null;
+  // Con desafío, hace falta el verificador que lo genera (y el código ya se gastó: un intento con un verificador equivocado lo quema).
+  if (p.desafio) {
+    if (typeof verificador !== 'string' || verificador.length < 32 || verificador.length > 200) return null;
+    const hash = crypto.createHash('sha256').update(verificador).digest('hex');
+    if (hash.length !== p.desafio.length || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(p.desafio))) return null;
+  }
   limpiarVencidos(ahora);
   return p.userId;
 }

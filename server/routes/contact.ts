@@ -4,6 +4,7 @@ import { ContactMessage } from '../models/sql/ContactMessage.model.js';
 import { protect } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
+import { limitadorDeFormulariosPublicos } from '../middleware/security.js';
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ const contactValidation = [
  */
 router.post(
   '/',
+  limitadorDeFormulariosPublicos,
   contactValidation,
   async (req: Request, res: Response) => {
     try {
@@ -52,10 +54,8 @@ router.post(
         // For now, we'll handle this in a separate middleware if needed
       }
 
-      // Get IP and user agent
-      const ipAddress =
-        (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-        req.socket.remoteAddress;
+      // Get IP and user agent. `req.ip` ya descuenta el proxy de confianza: el encabezado X-Forwarded-For lo escribe cualquiera.
+      const ipAddress = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
       // Create contact message

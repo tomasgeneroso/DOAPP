@@ -35,6 +35,28 @@ export function sanitizeHTML(dirty: string): string {
 }
 
 /**
+ * Artículos del blog escritos desde el panel (auditoría de seguridad, 2026-11-24).
+ *
+ * Se guardaban SIN limpiar: un rol con permiso de blog (marketing) podía dejar un <script> o un onerror= que corre en el navegador de todo el que abre el
+ * artículo, también del owner, y la sesión de la web está al alcance de ese script. Acá se conserva el formato rico de un artículo (títulos, imágenes, tablas,
+ * citas, listas) y se saca lo que ejecuta: scripts, marcos, formularios, eventos y estilos en línea.
+ */
+export function sanitizeBlogHTML(dirty: string): string {
+  if (!dirty || typeof dirty !== "string") return "";
+  return DOMPurify.sanitize(dirty, {
+    ALLOWED_TAGS: [
+      "h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "hr", "div", "span", "section", "article", "figure", "figcaption",
+      "b", "i", "em", "strong", "u", "s", "small", "sub", "sup", "mark", "code", "pre", "blockquote",
+      "ul", "ol", "li", "a", "img",
+      "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption",
+    ],
+    ALLOWED_ATTR: ["href", "target", "rel", "src", "alt", "title", "width", "height", "class", "id", "colspan", "rowspan"],
+    ALLOW_DATA_ATTR: false,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/(?!\/)|#|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+  });
+}
+
+/**
  * Sanitize chat message
  * Allows very limited HTML for chat
  */

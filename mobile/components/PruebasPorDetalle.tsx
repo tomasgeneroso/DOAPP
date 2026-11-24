@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { CheckCircle2, Circle, AlertTriangle, CalendarDays } from 'lucide-react-native';
 import { get } from '../services/api';
+import { abrirArchivo, encabezadoDeSesion } from '../services/archivos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
 interface Detalle {
@@ -37,6 +38,12 @@ export default function PruebasPorDetalle({ disputeId, textColor, mutedColor, ca
 }) {
   const [data, setData] = useState<{ detalles: Detalle[]; porDia: Dia[]; resumenDiario: { confirmados: number; total: number } } | null>(null);
 
+  // Las fotos son privadas: se piden con la sesión (como las fotos de entrega).
+  const [sesion, setSesion] = useState<Record<string, string> | undefined>(undefined);
+  useEffect(() => {
+    void encabezadoDeSesion().then(setSesion);
+  }, []);
+
   useEffect(() => {
     get<any>(`/disputes/${disputeId}/pruebas`).then((r) => { if (r.success) setData((r as any).data); }).catch(() => {});
   }, [disputeId]);
@@ -63,8 +70,8 @@ export default function PruebasPorDetalle({ disputeId, textColor, mutedColor, ca
           {d.fotos.length > 0 ? (
             <View style={styles.grilla}>
               {d.fotos.map((f, i) => (
-                <TouchableOpacity key={i} onPress={() => Linking.openURL(abs(f)).catch(() => {})}>
-                  <Image source={{ uri: abs(f) }} style={styles.foto} accessibilityLabel={`${d.titulo} · foto ${i + 1}`} />
+                <TouchableOpacity key={i} onPress={() => void abrirArchivo(f)}>
+                  <Image source={{ uri: abs(f), headers: sesion }} style={styles.foto} accessibilityLabel={`${d.titulo} · foto ${i + 1}`} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -92,9 +99,9 @@ export default function PruebasPorDetalle({ disputeId, textColor, mutedColor, ca
               {dia.adjuntos.length > 0 && (
                 <View style={styles.grilla}>
                   {dia.adjuntos.map((a, i) => (
-                    <TouchableOpacity key={i} onPress={() => Linking.openURL(abs(a.url)).catch(() => {})}>
+                    <TouchableOpacity key={i} onPress={() => void abrirArchivo(a.url)}>
                       {a.tipo.startsWith('image/') ? (
-                        <Image source={{ uri: abs(a.url) }} style={styles.foto} accessibilityLabel={a.nombre} />
+                        <Image source={{ uri: abs(a.url), headers: sesion }} style={styles.foto} accessibilityLabel={a.nombre} />
                       ) : (
                         <View style={[styles.foto, styles.archivo]}><Text style={styles.archivoTexto} numberOfLines={3}>{a.nombre}</Text></View>
                       )}

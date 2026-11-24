@@ -8,7 +8,6 @@ import { useSocket, useEventoEnVivo } from "@/hooks/useSocket";
 import SituacionDeLaOperacion from "@/components/SituacionDeLaOperacion";
 import { api } from "@/lib/api";
 import { paymentApi, Payment } from "@/lib/paymentApi";
-import { PaymentModal } from "@/components/payments/PaymentModal";
 import ContractExtensionRequest from "@/components/contracts/ContractExtensionRequest";
 import SolicitudesDeCambioCard from "@/components/contracts/SolicitudesDeCambioCard";
 import ContractExtensionApproval from "@/components/contracts/ContractExtensionApproval";
@@ -69,7 +68,6 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
   const [contract, setContract] = useState<any>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [loadingPairing, setLoadingPairing] = useState(false);
@@ -570,10 +568,6 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
   const isClient = (contract.client?.id || contract.clientId) === (user?.id);
   const isDoer = (contract.doer?.id || contract.doerId) === (user?.id);
   const escrowPayment = payments.find((p) => p.status === "held_escrow");
-  const canPayContract =
-    isClient &&
-    contract.status === "accepted" &&
-    contract.paymentStatus === "pending";
 
   // Debug log to help troubleshoot
   console.log('📊 Contract Data:', {
@@ -690,14 +684,6 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
                   />
-                )}
-                {canPayContract && (
-                  <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition font-semibold"
-                  >
-                    {t('contracts.makePayment', 'Make Payment')}
-                  </button>
                 )}
               </div>
             </div>
@@ -1759,23 +1745,6 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
           )}
         </div>
       </div>
-
-      {/* Payment Modal */}
-      {showPaymentModal && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          contractId={contract.id}
-          contractTitle={contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
-          amount={contract.price}
-          recipientName={contract.doer?.name || t('contracts.provider', 'Provider')}
-          escrowEnabled={contract.escrowEnabled}
-          onSuccess={() => {
-            loadPayments();
-            loadContract();
-          }}
-        />
-      )}
 
       {/* Task Claim Modal */}
       <TaskClaimModal

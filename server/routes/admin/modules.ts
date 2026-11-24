@@ -52,13 +52,6 @@ export const DEFAULT_MODULES = [
     isActive: true,
   },
   {
-    moduleId: 'payment:astropay',
-    category: 'payment',
-    name: 'AstroPay',
-    description: 'Pagos via AstroPay (sin credenciales de comercio — desactivado)',
-    isActive: false,
-  },
-  {
     moduleId: 'payment:binance',
     category: 'payment',
     name: 'Binance Pay',

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect } from '../ayudas/base';
+import { test, expect, tokenDeSesion } from '../ayudas/base';
 import { aprobarPublicacion, clienteQueLlegaAlPago, administradorEn, estadoDelTrabajo, filaDelTrabajo, leerResumenDelPago, pagosDelTrabajo, pagosEnMercadoPagoDe, publicarYLlegarAlPago, publicarYPagar } from '../ayudas/flujos';
 import { CODIGO_EQUIVOCADO, SIN_FONDOS, generarCuponDeEfectivo, TARJETA_REAL, VENCIMIENTO_EQUIVOCADO, pagarConTarjeta, totalEnMercadoPago, volverDesdeMercadoPago, type Tarjeta } from '../ayudas/mercado-pago';
 import { consulta } from '../ayudas/base-de-datos';
@@ -189,7 +189,7 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
     await expect(paginaIntruso.locator('body')).not.toContainText(String(trabajo.totalEnDoapp).replace('.', ','));
 
     // Tampoco por la API directa: el servidor no arma un pago de un trabajo ajeno.
-    const token = await paginaIntruso.evaluate(() => localStorage.getItem('token'));
+    const token = await tokenDeSesion(paginaIntruso);
     const r = await paginaIntruso.request.post(`/api/jobs/${trabajo.jobId}/pay`, { headers: { Authorization: `Bearer ${token}` }, data: {} });
     expect(r.status()).toBeGreaterThanOrEqual(400);
     expect(r.status()).toBeLessThan(500);
@@ -208,7 +208,7 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
     await page.goto(`/jobs/${trabajo.jobId}/payment`);
     await expect(page.getByRole('button', { name: 'Completar pago' })).toHaveCount(0);
     // Por la API directa tampoco: no se crea un segundo pedido de cobro.
-    const token = await page.evaluate(() => localStorage.getItem('token'));
+    const token = await tokenDeSesion(page);
     const r = await page.request.post(`/api/jobs/${trabajo.jobId}/pay`, { headers: { Authorization: `Bearer ${token}` }, data: {} });
     expect(r.status()).toBeGreaterThanOrEqual(400);
     expect(await pagosEnMercadoPagoDe(trabajo.datos.titulo)).toHaveLength(1);
@@ -363,7 +363,7 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
     await expect(rechazar).toBeDisabled();
     await paginaAdmin.locator('#reject-reason').fill('corto');
     await expect(rechazar).toBeDisabled();
-    const token = await paginaAdmin.evaluate(() => localStorage.getItem('token'));
+    const token = await tokenDeSesion(paginaAdmin);
     const corto = await paginaAdmin.request.put(`/api/admin/jobs/${trabajo.jobId}/status`, { headers: { Authorization: `Bearer ${token}` }, data: { status: 'rejected', rejectedReason: 'corto' } });
     expect(corto.status()).toBe(400);
     expect(await estadoDelTrabajo(trabajo.jobId)).toBe('pending_approval');

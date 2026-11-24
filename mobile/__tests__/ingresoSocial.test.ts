@@ -1,6 +1,12 @@
 import { urlDeIngresoSocial, esCodigoDeIngreso, NOMBRE_DEL_PROVEEDOR } from '../services/ingresoSocial';
 
 describe('ingreso con Google / X desde la app', () => {
+  it('con desafío (hash del secreto de la app) lo agrega a la dirección; uno mal formado se ignora', () => {
+    const d = 'a'.repeat(64);
+    expect(urlDeIngresoSocial('google', 'https://doapparg.com/api', d)).toBe(`https://doapparg.com/api/auth/google?origen=app&desafio=${d}`);
+    expect(urlDeIngresoSocial('google', 'https://doapparg.com/api', 'no-es-un-hash')).toBe('https://doapparg.com/api/auth/google?origen=app');
+  });
+
   it('la dirección que se abre pide el código con origen=app', () => {
     expect(urlDeIngresoSocial('google', 'https://doapparg.com/api')).toBe('https://doapparg.com/api/auth/google?origen=app');
     expect(urlDeIngresoSocial('twitter', 'https://doapparg.com/api/')).toBe('https://doapparg.com/api/auth/twitter?origen=app');

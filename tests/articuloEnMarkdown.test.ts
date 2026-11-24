@@ -33,10 +33,17 @@ describe('contenidoParaMostrar', () => {
     expect(html).not.toContain('**');
   });
 
-  it('el HTML que ya es HTML se entrega tal cual (el del editor no se vuelve a pasar por el conversor)', () => {
+  it('el HTML que ya es HTML no se vuelve a pasar por el conversor (se limpia, y el navegador agrega el <tbody> de la tabla)', () => {
     const html = '<p>Hola <strong>mundo</strong></p><table><tr><td>a | b</td></tr></table>';
-    expect(contenidoParaMostrar(html)).toBe(html);
+    expect(contenidoParaMostrar(html)).toBe('<p>Hola <strong>mundo</strong></p><table><tbody><tr><td>a | b</td></tr></tbody></table>');
     expect(contenidoParaMostrar('<h2>Título</h2>\n<p>Texto con | barras |</p>')).toBe('<h2>Título</h2>\n<p>Texto con | barras |</p>');
+  });
+
+  it('lo que ejecuta no llega al navegador: sin scripts, sin eventos, sin enlaces javascript: (venga como venga guardado)', () => {
+    expect(contenidoParaMostrar('<p>Hola</p><script>alert(1)</script><img src=x onerror=alert(2)>')).toBe('<p>Hola</p><img src="x">');
+    expect(contenidoParaMostrar('<p><a href="javascript:alert(1)">clic</a></p>')).not.toContain('javascript:');
+    expect(contenidoParaMostrar(['## Título', '', '[clic](javascript:alert(1))'].join('\n'))).not.toContain('javascript:');
+    expect(contenidoParaMostrar('<iframe src="https://malo.com"></iframe><p>ok</p>')).toBe('<p>ok</p>');
   });
 
   it('un texto sin formato se entrega igual, y lo vacío da vacío', () => {

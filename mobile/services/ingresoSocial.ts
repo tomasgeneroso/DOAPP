@@ -8,8 +8,10 @@
 export type ProveedorSocial = 'google' | 'twitter';
 
 /** La dirección que se abre en el navegador para empezar el ingreso. `origen=app` pide el código en vez de la sesión web. */
-export function urlDeIngresoSocial(proveedor: ProveedorSocial, apiUrl: string): string {
-  return `${apiUrl.replace(/\/+$/, '')}/auth/${proveedor}?origen=app`;
+export function urlDeIngresoSocial(proveedor: ProveedorSocial, apiUrl: string, desafio?: string): string {
+  const base = `${apiUrl.replace(/\/+$/, '')}/auth/${proveedor}?origen=app`;
+  // El desafío (hash de un secreto que no sale del teléfono) hace que el código solo lo pueda canjear esta app (services/ingresoSeguro.ts).
+  return desafio && /^[0-9a-f]{64}$/.test(desafio) ? `${base}&desafio=${desafio}` : base;
 }
 
 /** El código de un solo uso: 64 caracteres hexadecimales. Cualquier otra cosa no se manda al servidor. */

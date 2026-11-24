@@ -163,13 +163,15 @@ describe('las rutas del ingreso social entregan un código a la app, no la sesi�
   const auth = readFileSync(join(process.cwd(), 'server/routes/auth.ts'), 'utf8');
 
   it('Google: el origen app viaja en state y el callback redirige a la página puente con un código', () => {
-    expect(auth).toMatch(/req\.query\.origen === "app"\) opciones\.state = "app"/);
-    expect(auth).toMatch(/req\.query\.state === "app"[\s\S]{0,200}emitirCodigoDeApp\(String\(user\.id\)\)/);
+    // El state lleva «app» o «app:<desafío>»: el desafío ata el código a la app que empezó el ingreso (services/ingresoDesdeApp.ts).
+    expect(auth).toMatch(/req\.query\.origen === "app"\) opciones\.state = estadoDeLaApp\(req\.query\.desafio\)/);
+    expect(auth).toMatch(/leerEstadoDeLaApp\(req\.query\.state\)[\s\S]{0,300}emitirCodigoDeApp\(String\(user\.id\), Date\.now\(\), desdeLaApp\.desafio\)/);
   });
 
   it('X: el origen viaja en una cookie propia y el callback entrega el código', () => {
     expect(auth).toMatch(/twitter_oauth_origen/);
-    expect(auth).toMatch(/req\.cookies\?\.twitter_oauth_origen === 'app'[\s\S]{0,250}emitirCodigoDeApp/);
+    expect(auth).toMatch(/req\.cookies\?\.twitter_oauth_origen === 'app'[\s\S]{0,450}emitirCodigoDeApp/);
+    expect(auth).toMatch(/twitter_oauth_desafio/);
   });
 
   it('la sesión (token) nunca viaja en la dirección que se le da a la app', () => {

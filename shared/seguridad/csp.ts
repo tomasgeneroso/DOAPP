@@ -88,6 +88,13 @@ export function politicaDeContenidoDelSitio(hashes: string[]): string {
   return directivas.map(([nombre, valores]) => `${nombre} ${valores.join(' ')}`).join('; ');
 }
 
+/**
+ * El subconjunto de la CSP que ya se hace cumplir aunque `CSP_SOLO_AVISA` sea true: no depende de la lista de servicios externos, así que no puede
+ * romper una pantalla. Sin plugins (`object-src`), sin que un `<base>` inyectado cambie a dónde apuntan los enlaces, sin formularios que envíen a
+ * otro sitio (la web no tiene ninguno: todo va por fetch) y sin que otro sitio meta a DOAPP en un marco.
+ */
+export const POLITICA_QUE_SE_APLICA_YA = "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+
 /** true = la CSP del sitio solo AVISA en la consola (Report-Only). Pasar a false recién cuando la consola de producción no muestre bloqueos. */
 export const CSP_SOLO_AVISA = true;
 
@@ -105,6 +112,8 @@ export function cabecerasDelSitio(hashes: string[], reportOnly: boolean): Array<
     ['X-Content-Type-Options', 'nosniff'],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
     ['Permissions-Policy', PERMISSIONS_POLICY_DEL_SITIO],
+    // Mientras la política completa solo avisa, el subconjunto que no puede romper nada se APLICA ya (auditoría 2026-11-24).
+    ...(reportOnly ? ([['Content-Security-Policy', POLITICA_QUE_SE_APLICA_YA]] as Array<[string, string]>) : []),
     [reportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy', politicaDeContenidoDelSitio(hashes)],
   ];
 }

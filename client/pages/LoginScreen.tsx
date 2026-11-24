@@ -1,4 +1,5 @@
 import { motivoDeDniImposible } from "../../shared/identidad/documentos";
+import { motivoDeClaveDebil, TEXTO_DE_LA_REGLA_DE_CLAVE } from "../../shared/seguridad/clave";
 import React, { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import BetaNotice from '../components/BetaNotice';
 import { useNavigate, Link, useLocation } from "react-router-dom";
@@ -94,6 +95,14 @@ export default function LoginScreen() {
   const [errorField, setErrorField] = useState<
     'email' | 'password' | 'phone' | 'dni' | 'cbu' | 'username' | null
   >(null);
+  // Con un error en un campo, la pantalla va hasta ese campo y lo enfoca: en el celular el botón «Registrarme» queda muy abajo y el mensaje (debajo del campo) no se veía.
+  useEffect(() => {
+    if (!errorField) return;
+    const campo = document.getElementById(String(errorField));
+    if (!campo) return;
+    campo.scrollIntoView({ behavior: "smooth", block: "center" });
+    (campo as HTMLElement).focus?.({ preventScroll: true });
+  }, [errorField]);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
@@ -328,6 +337,15 @@ export default function LoginScreen() {
       } else {
         if (!formData.termsAccepted) {
           setError(t('auth.termsRequired'));
+          setIsLoading(false);
+          return;
+        }
+
+        // Contraseña nueva: al menos 6 caracteres y un símbolo (el servidor lo repite).
+        const motivoDeClave = motivoDeClaveDebil(formData.password);
+        if (motivoDeClave) {
+          setError(motivoDeClave);
+          setErrorField('password');
           setIsLoading(false);
           return;
         }
@@ -791,6 +809,11 @@ export default function LoginScreen() {
               {errorField === 'password' && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                   {error}
+                </p>
+              )}
+              {isRegister && errorField !== 'password' && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid="regla-de-la-clave">
+                  {TEXTO_DE_LA_REGLA_DE_CLAVE}
                 </p>
               )}
             </div>

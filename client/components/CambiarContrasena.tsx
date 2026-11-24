@@ -4,6 +4,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import Transicion from "./ui/Transicion";
+import { motivoDeClaveDebil, TEXTO_DE_LA_REGLA_DE_CLAVE } from "../../shared/seguridad/clave";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -86,7 +87,8 @@ export default function CambiarContrasena() {
   }, [token]);
 
   const validarNueva = (): string | null => {
-    if (newPassword.length < 6) return t("auth.passwordMinLength");
+    const motivoDeClave = motivoDeClaveDebil(newPassword);
+    if (motivoDeClave) return motivoDeClave;
     if (newPassword !== confirmPassword) return t("settings.password.mismatch", "Las contraseñas no coinciden");
     return null;
   };
@@ -236,6 +238,7 @@ export default function CambiarContrasena() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">{t("settings.password.new", "Contraseña nueva")}</label>
               <CampoDeContrasena value={newPassword} onChange={setNewPassword} minLength={6} autoComplete="new-password" />
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{TEXTO_DE_LA_REGLA_DE_CLAVE}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">{t("settings.password.confirm", "Repetí la contraseña nueva")}</label>

@@ -85,3 +85,12 @@ export const test = base.extend<{ externosBloqueados: string[]; otraPersona: () 
 });
 
 export { expect };
+
+/**
+ * El token de sesión de una página. La web ya no lo guarda en localStorage (solo un marcador; auditoría de seguridad, 2026-11-24): vive en la cookie httpOnly, que
+ * una prueba sí puede leer desde el contexto del navegador. Sirve para llamar a la API por afuera de la pantalla.
+ */
+export async function tokenDeSesion(pagina: import('@playwright/test').Page): Promise<string | null> {
+  const cookies = await pagina.context().cookies();
+  return cookies.find((c) => c.name === 'token')?.value ?? null;
+}

@@ -1,4 +1,6 @@
 import { Router, Response } from "express";
+import { conSistema } from "../db/contextoRls.js";
+import { isValidUUID } from "../utils/sanitizer.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Portfolio as PortfolioItem } from "../models/sql/Portfolio.model.js";
 import { User } from "../models/sql/User.model.js";
@@ -10,6 +12,28 @@ import { uploadPortfolio, verifyMagicBytes } from "../middleware/upload.js";
 import { opinionesDeMiTrabajo } from "../services/etiquetasDePublicaciones.js";
 
 const router = Router();
+
+/**
+ * ¿El contrato y el trabajo que se quieren enlazar son de esta persona? Devuelve el motivo si no, o null si está bien (o si no se enlazó nada).
+ * Un contrato es suyo si es el cliente o quien trabajó; un trabajo, si lo publicó o tiene un contrato en él.
+ */
+async function problemaConElEnlace(userId: string, linkedContract: unknown, linkedJob: unknown): Promise<string | null> {
+  if (linkedContract !== undefined && linkedContract !== null && linkedContract !== '') {
+    if (!isValidUUID(linkedContract)) return 'El contrato que querés enlazar no es válido.';
+    const c: any = await conSistema(() => Contract.findByPk(String(linkedContract), { attributes: ['id', 'clientId', 'doerId'], paranoid: false }));
+    if (!c || ![String(c.clientId), String(c.doerId)].includes(userId)) return 'Solo podés enlazar un contrato en el que participaste.';
+  }
+  if (linkedJob !== undefined && linkedJob !== null && linkedJob !== '') {
+    if (!isValidUUID(linkedJob)) return 'El trabajo que querés enlazar no es válido.';
+    const j: any = await conSistema(() => Job.findByPk(String(linkedJob), { attributes: ['id', 'clientId'], paranoid: false }));
+    if (!j) return 'Solo podés enlazar un trabajo en el que participaste.';
+    if (String(j.clientId) !== userId) {
+      const participo = await conSistema(() => Contract.count({ where: { jobId: String(linkedJob), doerId: userId } }));
+      if (!participo) return 'Solo podés enlazar un trabajo en el que participaste.';
+    }
+  }
+  return null;
+}
 
 /**
  * Get user's portfolio items
@@ -66,8 +90,10 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
           attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
         },
         {
+          // Solo lo mínimo: antes se devolvía el contrato ENTERO (precio, firmas, entregas, fotos, bitácora, notas, custodia) a cualquiera, sin sesión.
           model: Contract,
-          as: 'contract'
+          as: 'contract',
+          attributes: ['id', 'status']
         },
         {
           model: Job,
@@ -177,6 +203,13 @@ router.post(
           });
           return;
         }
+      }
+
+      // El contrato y el trabajo que se enlazan tienen que ser de quien publica (antes se aceptaba cualquier id y el detalle público mostraba ese contrato).
+      const noEsSuyo = await problemaConElEnlace(String(userId), linkedContract, linkedJob);
+      if (noEsSuyo) {
+        res.status(403).json({ success: false, message: noEsSuyo });
+        return;
       }
 
       const item = await PortfolioItem.create({
@@ -312,6 +345,15 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
           success: false,
           message: "Este trabajo ya fue agregado a otro item del portafolio.",
         });
+        return;
+      }
+    }
+
+    // Mismo control que al crear: no se puede enlazar el contrato o el trabajo de otra persona.
+    if (linkedContract !== undefined || linkedJob !== undefined) {
+      const noEsSuyo = await problemaConElEnlace(String(userId), linkedContract, linkedJob);
+      if (noEsSuyo) {
+        res.status(403).json({ success: false, message: noEsSuyo });
         return;
       }
     }

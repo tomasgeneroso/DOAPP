@@ -29,7 +29,7 @@ describe('perfiles: rubros, zonas y directorio', () => {
   const registrar = (extra: Record<string, unknown>) => {
     const n = Math.random().toString(36).slice(2, 8);
     return request(app).post('/api/auth/register').send({
-      name: 'Persona Prueba', username: `reg${n}`, email: `reg${n}@perfiles.test`, password: 'password123', dni: String(20000000 + Math.floor(Math.random() * 9999999)), termsAccepted: true, ...extra,
+      name: 'Persona Prueba', username: `reg${n}`, email: `reg${n}@perfiles.test`, password: 'password123!', dni: String(20000000 + Math.floor(Math.random() * 9999999)), termsAccepted: true, ...extra,
     });
   };
 

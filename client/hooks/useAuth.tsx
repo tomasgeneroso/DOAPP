@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { MARCADOR_DE_SESION, guardarMarcadorDeSesion } from "../utils/sesion";
 import type { User, RegisterData } from "@/types";
 import {
   initializeNotifications,
@@ -85,12 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const data = await response.json();
-          // Guardar token en localStorage para Socket.io
-          if (data.token) {
-            localStorage.setItem("token", data.token);
-          }
+          // La sesión está en la cookie httpOnly: en el navegador solo queda un marcador, nunca el token (ver utils/sesion.ts).
+          guardarMarcadorDeSesion();
           setUser(withBetaTier({ ...data.user }));
-          setToken(data.token || "cookie"); // Indicador de que usamos cookies
+          setToken(MARCADOR_DE_SESION); // Indicador de que usamos cookies
 
           // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
           setTimeout(() => {
@@ -152,10 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      // El token ahora está en la cookie httpOnly
-      // Guardamos el token en localStorage para Socket.io
-      localStorage.setItem("token", data.token);
-      setToken(data.token);
+      // La sesión está en la cookie httpOnly: el token del cuerpo NO se guarda en el navegador (solo el marcador; ver utils/sesion.ts).
+      guardarMarcadorDeSesion();
+      setToken(MARCADOR_DE_SESION);
       setUser(withBetaTier({ ...data.user }));
 
       // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
@@ -204,10 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Sin token (correo por verificar) no hay sesión: la pantalla pide revisar el correo y se ingresa recién al verificarlo.
       if (responseData.token) {
-        // El token ahora está en la cookie httpOnly
-        // Guardamos el token en localStorage para Socket.io
-        localStorage.setItem("token", responseData.token);
-        setToken(responseData.token);
+        // La sesión está en la cookie httpOnly: solo el marcador queda en el navegador.
+        guardarMarcadorDeSesion();
+        setToken(MARCADOR_DE_SESION);
         setUser({ ...responseData.user });
       }
 
@@ -246,10 +243,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Guardar token en localStorage para Socket.io
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-        }
         // Create a new object to force re-render
         setUser(withBetaTier({ ...data.user }));
       }

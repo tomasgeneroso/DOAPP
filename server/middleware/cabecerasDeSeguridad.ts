@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import path from 'path';
+import { EXTENSIONES_QUE_SE_MUESTRAN } from '../utils/archivoSeguro.js';
 import type { HelmetOptions } from 'helmet';
 
 /**
@@ -34,7 +36,21 @@ export const PERMISSIONS_POLICY = 'geolocation=(self), camera=(self), microphone
 const ES_ARCHIVO_SUBIDO = /^\/(api\/)?uploads(\/|$)/;
 
 export const CSP_DE_LA_API = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
-export const CSP_DE_LOS_ARCHIVOS = "frame-ancestors 'self'; base-uri 'none'; form-action 'none'";
+/**
+ * Los archivos subidos no ejecutan nada: sin scripts aunque el archivo fuera una página (la política anterior no decía nada de scripts). Auditoría 2026-11-24.
+ * `object-src 'self'` deja que el visor de PDF de la propia página los muestre.
+ */
+export const CSP_DE_LOS_ARCHIVOS = "script-src 'none'; object-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'";
+
+/**
+ * Para `express.static` de las carpetas subidas: lo que el navegador no tiene por qué MOSTRAR (cualquier cosa que no sea imagen, video o PDF) se descarga en lugar de
+ * abrirse en la página. Los archivos que ya estaban en el disco con extensión .html, .svg, etc. quedan así sin efecto.
+ */
+export function cabecerasDeArchivoSubido(res: Response, rutaDelArchivo: string): void {
+  const extension = path.extname(rutaDelArchivo).toLowerCase();
+  if (!EXTENSIONES_QUE_SE_MUESTRAN.has(extension)) res.setHeader('Content-Disposition', 'attachment');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+}
 
 export function cabecerasDeSeguridad(req: Request, res: Response, next: NextFunction): void {
   res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);

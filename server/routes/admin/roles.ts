@@ -2,9 +2,9 @@ import { Router, Response } from "express";
 import { body, validationResult } from "express-validator";
 import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
-import { requirePermission } from "../../middleware/permissions.js";
+import { requirePermission, ROLE_PERMISSIONS as PERMISOS_DEL_MIDDLEWARE } from "../../middleware/permissions.js";
 import type { AuthRequest } from "../../types/index.js";
-import { ROLE_PERMISSIONS, PERMISSIONS } from "../../config/permissions.js";
+import { ROLE_PERMISSIONS, PERMISSIONS, ROLE_LEVELS } from "../../config/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
 import {
   verifyRolePassword,
@@ -218,6 +218,17 @@ router.get("/users", async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Quién puede tocar a quién (auditoría de seguridad, 2026-11-24). Antes un super_admin podía cambiarse el rol y los permisos a sí mismo y a otros super_admin,
+ * y darse el permiso «*» (todo). Solo el owner no tiene tope; los demás solo cambian a alguien de un nivel MÁS BAJO que el propio, y nunca a sí mismos.
+ */
+const nivelDelRol = (rol?: string | null): number => (rol ? ((ROLE_LEVELS as Record<string, number>)[rol] ?? 99) : 99);
+const puedeTocarA = (quien: { id: unknown; adminRole?: string | null }, objetivo: { id: unknown; adminRole?: string | null }): boolean =>
+  quien.adminRole === "owner" || (String(quien.id) !== String(objetivo.id) && nivelDelRol(quien.adminRole) < nivelDelRol(objetivo.adminRole));
+/** Permisos que se pueden dar a mano: solo los que existen, y el de «todo» (*) solo lo da el owner. */
+// Hay dos tablas de permisos con nombres distintos (config/permissions.ts: «user:view»; middleware/permissions.ts: «users:read»): se acepta cualquiera de las dos.
+const PERMISOS_CONOCIDOS = new Set<string>([...Object.values(PERMISSIONS as Record<string, string>), ...Object.values(PERMISOS_DEL_MIDDLEWARE).flat()]);
+
+/**
  * PUT /api/admin/roles/users/:userId/role
  * Assign or update admin role for a user
  */
@@ -249,29 +260,18 @@ router.put(
         return res.status(404).json({ success: false, message: "Admin no encontrado" });
       }
 
-      // owner role: only current owner can assign, requires owner password
-      if (adminRole === "owner") {
-        if (adminUser.adminRole !== "owner") {
-          return res.status(403).json({
-            success: false,
-            message: "Solo el owner puede asignar el rol de owner",
-          });
-        }
-        if (!rolePassword) {
-          return res.status(403).json({
-            success: false,
-            message: "Se requiere la contraseña de owner para asignar este rol",
-            requiresPassword: true,
-            passwordRole: "owner",
-          });
-        }
-        const validPassword = await verifyRolePassword("owner", rolePassword);
-        if (!validPassword) {
-          return res.status(403).json({
-            success: false,
-            message: "Contraseña de owner incorrecta",
-          });
-        }
+      // Cada rol solo da roles de un nivel MÁS BAJO que el propio (pedido del dueño, 2026-11-24): el owner llega hasta super_admin, el super_admin hasta admin,
+      // el admin hasta support o marketing, y así. Nadie crea un igual (si se roba una cuenta, no puede dejar otra puerta abierta) y el rol de owner no se
+      // asigna desde el panel: se traspasa con el script del servidor (assignAdminRoleSQL.ts).
+      if (adminRole && adminRole !== "none" && !(nivelDelRol(adminRole) > nivelDelRol(adminUser.adminRole))) {
+        return res.status(403).json({
+          success: false,
+          code: "ROL_NO_ASIGNABLE",
+          message:
+            adminRole === "owner"
+              ? "El rol de owner no se asigna desde el panel: se traspasa desde el servidor."
+              : `Con tu rol (${adminUser.adminRole}) solo podés dar roles de un nivel más bajo.`,
+        });
       }
 
       // admin role: requires admin password
@@ -293,18 +293,6 @@ router.put(
         }
       }
 
-      // Only owner and super_admin can assign super_admin role
-      if (
-        adminRole === "super_admin" &&
-        adminUser.adminRole !== "owner" &&
-        adminUser.adminRole !== "super_admin"
-      ) {
-        return res.status(403).json({
-          success: false,
-          message: "No tienes permisos para asignar el rol de Super Admin",
-        });
-      }
-
       const user = await User.findByPk(userId);
       if (!user) {
         return res.status(404).json({
@@ -318,6 +306,14 @@ router.put(
         return res.status(403).json({
           success: false,
           message: "No se puede modificar el rol del owner",
+        });
+      }
+
+      // Solo se cambia el rol de alguien de un nivel más bajo, y nunca el propio.
+      if (!puedeTocarA(adminUser, user)) {
+        return res.status(403).json({
+          success: false,
+          message: "No podés cambiar tu propio rol ni el de alguien de tu mismo nivel o superior",
         });
       }
 
@@ -424,8 +420,25 @@ router.put(
         });
       }
 
+      // Solo se tocan los permisos de alguien de un nivel más bajo, y nunca los propios.
+      if (!puedeTocarA(adminUser, user)) {
+        return res.status(403).json({
+          success: false,
+          message: "No podés cambiar tus propios permisos ni los de alguien de tu mismo nivel o superior",
+        });
+      }
+      // Solo permisos que existen (antes valía cualquier texto) y «*» (todo) solo si lo da el owner.
+      const pedidos: unknown[] = Array.isArray(permissions) ? permissions : [];
+      const desconocidos = pedidos.filter((p) => typeof p !== "string" || !PERMISOS_CONOCIDOS.has(p));
+      if (desconocidos.length > 0) {
+        return res.status(400).json({ success: false, message: "Hay permisos que no existen" });
+      }
+      if (pedidos.includes(PERMISSIONS.SUPERUSER) && adminUser.adminRole !== "owner") {
+        return res.status(403).json({ success: false, message: "Solo el owner puede dar el permiso de todo" });
+      }
+
       const previousPermissions = [...user.permissions];
-      user.permissions = permissions;
+      user.permissions = pedidos as string[];
       await user.save();
 
       // Create audit log
@@ -534,6 +547,15 @@ router.put(
           success: false,
           message: "Rol inválido",
         });
+      }
+
+      // Solo permisos que existen, y «*» (todo) solo si lo da el owner (antes un super_admin podía darle «*» a todo un rol). Auditoría 2026-11-24.
+      const pedidosDelRol: unknown[] = Array.isArray(permissions) ? permissions : [];
+      if (pedidosDelRol.some((p) => typeof p !== "string" || !PERMISOS_CONOCIDOS.has(p))) {
+        return res.status(400).json({ success: false, message: "Hay permisos que no existen" });
+      }
+      if (pedidosDelRol.includes(PERMISSIONS.SUPERUSER) && adminUser.adminRole !== "owner") {
+        return res.status(403).json({ success: false, message: "Solo el owner puede dar el permiso de todo" });
       }
 
       // Update ROLE_PERMISSIONS configuration

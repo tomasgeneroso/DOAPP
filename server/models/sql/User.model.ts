@@ -803,6 +803,10 @@ export class User extends Model {
   @Column({ type: DataType.DATE, field: 'marketing_emails_unsubscribed_at' })
   marketingEmailsUnsubscribedAt?: Date | null;
 
+  /** Desde cuándo valen los tokens de sesión: «cerrar todas las sesiones», restablecer o cambiar la contraseña lo ponen en «ahora» (services/vigenciaDeSesion.ts). */
+  @Column({ type: DataType.DATE, field: 'tokens_valid_after' })
+  tokensValidAfter?: Date | null;
+
   /** Cuándo se le dio el beneficio de lanzamiento (contrato libre de comisión y mes de PRO de las primeras cuentas verificadas). Una sola vez. */
   @Column({ type: DataType.DATE, field: 'launch_benefit_granted_at' })
   launchBenefitGrantedAt?: Date | null;

@@ -14,8 +14,9 @@ const router = express.Router();
 const createAdValidation = [
   body('title').trim().notEmpty().isLength({ max: 100 }),
   body('description').trim().notEmpty().isLength({ max: 500 }),
-  body('imageUrl').trim().notEmpty().isURL(),
-  body('targetUrl').trim().notEmpty().isURL(),
+  // Solo https (nunca javascript:, data: ni http sin cifrar) y sin datos de acceso dentro de la dirección.
+  body('imageUrl').trim().notEmpty().isURL({ protocols: ['https'], require_protocol: true, allow_underscores: true, disallow_auth: true }),
+  body('targetUrl').trim().notEmpty().isURL({ protocols: ['https'], require_protocol: true, disallow_auth: true }),
   body('adType').isIn(['model1', 'model2', 'model3']),
   body('startDate').isISO8601().toDate(),
   body('endDate').isISO8601().toDate(),

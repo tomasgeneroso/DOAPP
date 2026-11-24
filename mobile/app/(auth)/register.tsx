@@ -24,6 +24,7 @@ import SelectorDeTipoDeCuenta, { type TipoDeCuenta } from '../../components/Sele
 import MediosDePago from '../../components/ui/MediosDePago';
 import { mensajeDelRegistro, normalizarCodigo } from '../../services/invitaciones';
 import { motivoDeDniImposible } from '../../../shared/identidad/documentos';
+import { motivoDeClaveDebil, TEXTO_DE_LA_REGLA_DE_CLAVE } from '../../../shared/seguridad/clave';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function RegisterScreen() {
@@ -75,8 +76,9 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+    const motivoDeClave = motivoDeClaveDebil(formData.password);
+    if (motivoDeClave) {
+      setError(motivoDeClave);
       return;
     }
 
@@ -275,6 +277,7 @@ export default function RegisterScreen() {
                     )}
                   </TouchableOpacity>
                 </View>
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>{TEXTO_DE_LA_REGLA_DE_CLAVE}</Text>
               </View>
 
               {/* DNI */}

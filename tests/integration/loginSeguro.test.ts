@@ -113,7 +113,7 @@ describe('autenticación: sin enumeración de cuentas, correo normalizado y con 
 
   describe('registro', () => {
     const registrar = (email: string, username: string) =>
-      request(app).post('/api/auth/register').send({ name: 'Persona Nueva', username, email, password: CLAVE, dni: '12345678', termsAccepted: true });
+      request(app).post('/api/auth/register').send({ name: 'Persona Nueva', username, email, password: CLAVE + '!', dni: '12345678', termsAccepted: true });
 
     it('un correo ya registrado con OTRA capitalización es un 400 claro, no un 500 de base de datos', async () => {
       const u: any = await User.create({ email: 'dup@login.test', name: 'Dup', username: 'dupuserx', password: CLAVE, role: 'client' } as any);

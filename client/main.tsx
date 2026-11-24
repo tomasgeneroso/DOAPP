@@ -1,4 +1,5 @@
 import { instalarFotosRotas } from './utils/imagenesRotas';
+import { limpiarTokenViejo } from './utils/sesion';
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./i18n";
@@ -17,5 +18,6 @@ window.addEventListener("vite:preloadError", () => {
   if (puedeRecargarSola()) void recargarPorVersionNueva();
 });
 
+limpiarTokenViejo(); // quedó un token real de antes del cambio: se reemplaza por el marcador (utils/sesion.ts)
 instalarFotosRotas();
 createRoot(document.getElementById("root")!).render(<App />);

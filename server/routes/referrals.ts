@@ -1,5 +1,6 @@
 import express, { Response } from "express";
 import { protect } from "../middleware/auth.js";
+import { limitadorDeCodigos } from "../middleware/security.js";
 import type { AuthRequest } from "../types/index.js";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
@@ -36,7 +37,7 @@ router.get("/stats", protect, async (req: AuthRequest, res: Response): Promise<v
 // @route   POST /api/referrals/validate
 // @desc    Validate a referral code
 // @access  Public
-router.post("/validate", async (req, res): Promise<void> => {
+router.post("/validate", limitadorDeCodigos, async (req, res): Promise<void> => {
   try {
     const { code } = req.body;
 

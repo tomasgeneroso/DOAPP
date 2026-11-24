@@ -113,7 +113,7 @@ describe('cabeceras de seguridad de la API', () => {
     const api = await request(app).get('/api/algo');
     expect(api.headers['content-security-policy']).toBe("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     const archivo = await request(app).get('/uploads/archivo.pdf');
-    expect(archivo.headers['content-security-policy']).toBe("frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
+    expect(archivo.headers['content-security-policy']).toBe("script-src 'none'; object-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"); // sin scripts aunque el archivo fuera una página (2026-11-24)
     expect(archivo.headers['content-security-policy']).not.toMatch(/default-src/);
   });
 

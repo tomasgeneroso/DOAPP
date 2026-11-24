@@ -399,7 +399,7 @@ router.get(
 router.get(
   '/:id/expediente',
   protect,
-  requireAdminRole,
+  requireRole('admin', 'super_admin', 'owner', 'support'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
@@ -957,7 +957,7 @@ router.put(
 router.get(
   '/:id/payment',
   protect,
-  requireAdminRole,
+  requireRole('admin', 'super_admin', 'owner', 'support'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params;

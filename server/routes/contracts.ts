@@ -4332,14 +4332,14 @@ router.get("/:id/task-claim", protect, async (req: AuthRequest, res: Response): 
  * Express Checkout: Crea contrato con aprobación automática si pago es MercadoPago
  * Si hay una sola propuesta, auto-selecciona al worker
  * Si hay varias, requiere seleccionar
- * Si pago es no-MP (AstroPay, Binance, Transfer), requiere aprobación del admin
+ * Si pago es no-MP (Binance, Transfer), requiere aprobación del admin
  */
 router.post(
   "/express-checkout",
   protect,
   [
     body("jobId").notEmpty().withMessage("El ID del trabajo es requerido"),
-    body("paymentMethod").isIn(['mercadopago', 'astropay', 'binance', 'bank_transfer']).withMessage("Método de pago inválido"),
+    body("paymentMethod").isIn(['mercadopago', 'binance', 'bank_transfer']).withMessage("Método de pago inválido"),
     body("price").isNumeric().withMessage("El precio debe ser un número"),
     body("startDate").isISO8601().withMessage("Fecha de inicio inválida"),
     body("endDate").isISO8601().withMessage("Fecha de fin inválida"),

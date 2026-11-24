@@ -7,6 +7,8 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { protegerArchivosPrivados } from "./middleware/archivosPrivados.js";
 import { archivoPorConsulta } from "./middleware/archivoPorConsulta.js";
+import archivoEnlaceRoutes from "./routes/archivoEnlace.js";
+import { acotarPaginacion } from "./middleware/paginacion.js";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import path from "path";
@@ -33,7 +35,7 @@ import {
 } from "./middleware/security.js";
 import { wafMiddleware } from "./middleware/waf.js";
 import { redirigirDominiosAlternativos } from "./middleware/dominioCanonico.js";
-import { cabecerasDeSeguridad, OPCIONES_DE_CORS, opcionesDeHelmet } from "./middleware/cabecerasDeSeguridad.js";
+import { cabecerasDeSeguridad, cabecerasDeArchivoSubido, OPCIONES_DE_CORS, opcionesDeHelmet } from "./middleware/cabecerasDeSeguridad.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
@@ -357,6 +359,8 @@ app.use(passport.session());
 
 // Rate limiting for all API routes
 app.use("/api", apiLimiter);
+// Tope a ?limit= / ?page= / ?offset= de todas las consultas GET (middleware/paginacion.ts).
+app.use("/api", acotarPaginacion);
 
 // Servir archivos estáticos (documentos legales)
 app.use("/.well-known", wellKnownRoutes);
@@ -377,8 +381,9 @@ const uploadsCors = (req: express.Request, res: express.Response, next: express.
 // Los archivos se GUARDAN en `process.cwd()/uploads` (middleware/upload.ts, routes/jobs.ts) pero antes solo se servían desde `<código>/../uploads`: si
 // PM2 arrancaba la app desde otra carpeta no coincidían y TODAS las fotos nuevas daban 404. Se sirven desde las dos (la segunda solo si la primera no
 // tiene el archivo).
-const uploadsStatic = express.static(path.join(__dirname, "../uploads"));
-const uploadsStaticDelProceso = express.static(path.join(process.cwd(), "uploads"));
+// `setHeaders`: lo que no es imagen, video o PDF se descarga y nunca se abre en la página (middleware/cabecerasDeSeguridad.ts).
+const uploadsStatic = express.static(path.join(__dirname, "../uploads"), { setHeaders: cabecerasDeArchivoSubido });
+const uploadsStaticDelProceso = express.static(path.join(process.cwd(), "uploads"), { setHeaders: cabecerasDeArchivoSubido });
 // Las carpetas privadas (DNI, selfie, matrícula, seguro, comprobantes de pago, facturas, recibos) sólo las ve su
 // dueño o un administrador; el resto (avatares, fotos de trabajos, blog, portfolio) sigue siendo público.
 app.use("/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
@@ -392,6 +397,8 @@ app.use("/api/uploads", uploadsCors, protegerArchivosPrivados, uploadsStatic, up
 // En un router aparte: la dirección se reescribe y los pasos siguientes tienen que seguir viéndola (con varios pasos en un mismo app.use la reescritura los salteaba).
 const archivoPorConsultaRouter = express.Router();
 archivoPorConsultaRouter.use(uploadsCors, archivoPorConsulta, protegerArchivosPrivados, uploadsStatic, uploadsStaticDelProceso);
+// El enlace firmado a un archivo privado (routes/archivoEnlace.ts) va ANTES: si no, '/api/archivo/enlace' lo atiende el router de archivos.
+app.use("/api/archivo/enlace", archivoEnlaceRoutes);
 app.use("/api/archivo", archivoPorConsultaRouter);
 
 // Feature Flags

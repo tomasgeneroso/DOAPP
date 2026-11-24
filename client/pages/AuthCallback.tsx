@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { guardarMarcadorDeSesion } from "../utils/sesion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { tomarDestino } from "../utils/destinoDespuesDeGoogle";
@@ -21,8 +22,9 @@ export default function AuthCallback() {
       return;
     }
 
+    // La sesión está en la cookie httpOnly: lo que venga en la dirección no se guarda en el navegador (solo el marcador).
     if (token) {
-      localStorage.setItem("token", token);
+      guardarMarcadorDeSesion();
     }
 
     // Si quedó algo en la dirección, se borra: de lo contrario la recarga completa de más abajo la deja como `document.referrer` de la
@@ -48,7 +50,7 @@ export default function AuthCallback() {
       })
       .then(({ estado, data }) => {
         if (data?.success && data?.user) {
-          if (data.token) localStorage.setItem("token", data.token);
+          guardarMarcadorDeSesion();
           // Save user to localStorage for client-side access
           localStorage.setItem("user", JSON.stringify(data.user));
 

@@ -39,6 +39,26 @@ export const UMBRAL_DE_RESPUESTA_LENTA_MS = 3000;
 export const TIEMPO_MAXIMO_DE_RESPUESTA_MS = 45_000;
 const SIN_LIMITE_DE_TIEMPO = ['/socket.io', '/api/uploads', '/uploads'];
 
+/**
+ * Casi todas las rutas atrapan el error y responden `{ message: error.message }` con 500: el texto de la base de datos o del código (nombres de tablas y columnas,
+ * «invalid input syntax for type uuid», «Cannot read properties of undefined») llegaba tal cual a quien hizo el pedido (auditoría de seguridad, 2026-11-24).
+ * Un 5xx con código del catálogo (el texto ya está pensado para la persona) o con un mensaje corto que no parece técnico se deja como está; el resto se reemplaza por el
+ * texto de siempre para ese estado.
+ */
+const PARECE_TECNICO = /sequelize|sqlstate|postgres|\bpg\b|relation "|column "|constraint|violates|duplicate key|invalid input|syntax error|null value|cannot read|is not a function|is not defined|undefined|\bnull\b|typeerror|referenceerror|econn|enotfound|etimedout|socket hang|\bat [\w$.<>]+ \(|\.(ts|js|cjs|mjs)\b|node_modules|\/var\/|[A-Z]:\\/i;
+export function esMensajeTecnico(mensaje: unknown): boolean {
+  const texto = String(mensaje ?? '');
+  return texto.length > 160 || /[\r\n]/.test(texto) || PARECE_TECNICO.test(texto);
+}
+function ocultarTextoTecnico(cuerpo: unknown): unknown {
+  if (!cuerpo || typeof cuerpo !== 'object' || Array.isArray(cuerpo)) return cuerpo;
+  const c = cuerpo as Record<string, unknown>;
+  if (c.code && Object.prototype.hasOwnProperty.call(CATALOGO_DE_PROBLEMAS, String(c.code))) return cuerpo;
+  if (!esMensajeTecnico(c.message)) return cuerpo;
+  const { stack: _stack, error: _error, ...resto } = c;
+  return { ...resto, message: mensajeDeError(null, 500) };
+}
+
 export function respuestasDeError(req: Request, res: Response, next: NextFunction): void {
   const jsonOriginal = res.json.bind(res);
 
@@ -78,7 +98,9 @@ export function respuestasDeError(req: Request, res: Response, next: NextFunctio
       } else if (cuerpo === undefined || cuerpo === null) {
         salida = { success: false, message: mensajeDeError(null, status) };
       }
+      // El registro y el aviso al dueño conservan el texto original; a quien pidió, un 5xx sin código del catálogo no le muestra el texto técnico.
       registrar(req, res, status, salida as Record<string, unknown> | undefined);
+      if (status >= 500) salida = ocultarTextoTecnico(salida);
       return jsonOriginal(salida);
     }
     return jsonOriginal(cuerpo);

@@ -4,8 +4,11 @@ import { Ticket } from "../../models/sql/Ticket.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
+import { siguienteNumeroDeTicket } from "../../services/numeroDeTicket.js";
+import { sequelize } from "../../config/database.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireAdminRole } from "../../middleware/permissions.js";
+import { relacionesDelTicket, ErrorDeReporte } from "../../services/reportesDeSoporte.js";
 import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
 import { premiumPrimero, esPremium, ATRIBUTOS_DE_MEMBRESIA } from "../../services/prioridadDeSoporte.js";
@@ -208,7 +211,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 // @access  Private (cualquier usuario autenticado)
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { subject, category, priority, message, relatedUser, relatedContract } = req.body;
+    const { subject, category, priority, message } = req.body;
 
     if (!subject || !category || !message) {
       res.status(400).json({
@@ -218,13 +221,27 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
+    // El contrato y el usuario del reporte se validan como en /api/tickets: un contrato ajeno no se puede atar a un ticket propio
+    // (el detalle del ticket devuelve el contrato entero y lo ve quien creó el ticket). Auditoría de seguridad, 2026-11-24.
+    let relaciones: { relatedUser?: string; relatedContract?: string };
+    try {
+      relaciones = await relacionesDelTicket(req.user, req.body);
+    } catch (e) {
+      if (e instanceof ErrorDeReporte) {
+        res.status(e.status).json({ success: false, message: e.message });
+        return;
+      }
+      throw e;
+    }
+
     const ticket = await Ticket.create({
+      ticketNumber: await siguienteNumeroDeTicket(sequelize),
       subject,
       category,
       priority: priority || "medium",
       createdBy: req.user.id,
-      relatedUser,
-      relatedContract,
+      relatedUser: relaciones.relatedUser,
+      relatedContract: relaciones.relatedContract,
       messages: [
         {
           author: req.user.id,
@@ -578,7 +595,7 @@ router.put(
  * POST /api/admin/tickets/create
  * Create a ticket on behalf of a user (admin only)
  */
-router.post("/create", async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/create", requireAdminRole, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { userId, subject, category, priority, message } = req.body;
 
@@ -602,6 +619,7 @@ router.post("/create", async (req: AuthRequest, res: Response): Promise<void> =>
 
     // Create ticket
     const ticket = await Ticket.create({
+      ticketNumber: await siguienteNumeroDeTicket(sequelize),
       createdBy: userId,
       subject,
       category,

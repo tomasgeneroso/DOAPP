@@ -77,35 +77,7 @@ export const config = {
   twitterClientId: process.env.TWITTER_CLIENT_ID || "",
   twitterClientSecret: process.env.TWITTER_CLIENT_SECRET || "",
 
-  // Payment providers toggle (Argentina MVP: MercadoPago; PayPal and AstroPay disabled)
-  paypalEnabled: process.env.PAYPAL_ENABLED === "true", // disabled by default
-  // Opt-in, like every other provider. It used to default to ON, so a deployment
-  // with no ASTROPAY_* credentials still advertised AstroPay in the checkout and
-  // then threw "AstroPay no está configurado" the moment anyone picked it.
-  // Set ASTROPAY_ENABLED=true (with API key + secret) to bring it back.
-  astropayEnabled: process.env.ASTROPAY_ENABLED === "true", // disabled by default
-  astropayMode: process.env.ASTROPAY_MODE || "sandbox",
-  astropayApiKey: process.env.ASTROPAY_API_KEY || "",
-  astropaySecretKey: process.env.ASTROPAY_SECRET_KEY || "",
-  astropayBaseUrl:
-    process.env.ASTROPAY_MODE === "production"
-      ? (process.env.ASTROPAY_BASE_URL || "https://api.astropay.com")
-      : (process.env.ASTROPAY_SANDBOX_BASE_URL || "https://sandbox.astropay.com"),
-  astropayPlatformFeePercentage: parseFloat(process.env.ASTROPAY_PLATFORM_FEE_PERCENTAGE || "0"),
-
-  // PayPal - Usa credenciales de sandbox en desarrollo, producción en producción
-  paypalMode: process.env.PAYPAL_MODE || "sandbox",
-  paypalClientId: process.env.PAYPAL_MODE === "sandbox"
-    ? (process.env.PAYPAL_SANDBOX_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || "")
-    : (process.env.PAYPAL_CLIENT_ID || ""),
-  paypalClientSecret: process.env.PAYPAL_MODE === "sandbox"
-    ? (process.env.PAYPAL_SANDBOX_SECRET || process.env.PAYPAL_CLIENT_SECRET || "")
-    : (process.env.PAYPAL_CLIENT_SECRET || ""),
-  paypalPlatformFeePercentage: parseFloat(process.env.PAYPAL_PLATFORM_FEE_PERCENTAGE || "5"),
-
-  // PayPal Sandbox Accounts
-  sandboxBusinessAccount: process.env.SANDBOX_BUSINESS_ACCOUNT || "",
-  sandboxPersonalAccount: process.env.SANDBOX_PERSONAL_ACCOUNT || "",
+  // Medios de pago: solo Mercado Pago, transferencia bancaria, Binance y saldo. AstroPay y PayPal se sacaron (regla del dueño, 2026-11-24).
 
   // Firebase (for push notifications)
   firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",

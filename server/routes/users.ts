@@ -764,17 +764,12 @@ router.post("/:id/track-share", async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Update share statistics
-    user.profileSharesCount = (user.profileSharesCount || 0) + 1;
-    user.lastProfileShareAt = new Date();
-
-    if (type === 'copy_link') {
-      user.profileSharesViaLink = (user.profileSharesViaLink || 0) + 1;
-    } else if (type === 'private_message') {
-      user.profileSharesViaMessage = (user.profileSharesViaMessage || 0) + 1;
-    }
-
-    await user.save();
+    // Update share statistics: sumas hechas por la base, sin guardar el usuario entero (con dos pedidos a la vez uno pisaba al otro, y también pisaba cambios del perfil).
+    await User.increment(
+      type === 'copy_link' ? { profileSharesCount: 1, profileSharesViaLink: 1 } : { profileSharesCount: 1, profileSharesViaMessage: 1 },
+      { where: { id: user.id } },
+    );
+    await User.update({ lastProfileShareAt: new Date() } as any, { where: { id: user.id } });
 
     res.json({
       success: true,
@@ -791,8 +786,13 @@ router.post("/:id/track-share", async (req: Request, res: Response): Promise<voi
 // @route   GET /api/users/:id/share-stats
 // @desc    Get profile share statistics (for PRO users)
 // @access  Private (owner only)
-router.get("/:id/share-stats", async (req: Request, res: Response): Promise<void> => {
+router.get("/:id/share-stats", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    // Decía «Private (owner only)» pero no pedía sesión: cualquiera veía las estadísticas y el plan de cualquier persona (auditoría 2026-11-24).
+    if (String(req.user.id) !== String(req.params.id) && !(req.user as any).adminRole) {
+      res.status(403).json({ success: false, message: "No tenés permiso para ver estas estadísticas" });
+      return;
+    }
     const user = await User.findByPk(req.params.id, {
       attributes: [
         'profileSharesCount',

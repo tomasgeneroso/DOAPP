@@ -44,7 +44,6 @@
     "server/scripts/debugUser.ts",
     "server/scripts/deleteAds.ts",
     "server/scripts/listAdmins.ts",
-    "server/scripts/testPaypalEscrow.ts",
     "server/scripts/migrateReferralFields.ts",
     "server/scripts/migrateContractPayments.ts",
     "server/scripts/fixMissingContracts.ts",
@@ -58,7 +57,6 @@
     "server/services/membershipService.ts",
     "server/services/mercadopagoOAuth.ts",
     "server/services/anomalyDetection.ts",
-    "server/utils/tokens.ts",
-    "server/services/paypal.ts"
+    "server/utils/tokens.ts"
   ]
 }

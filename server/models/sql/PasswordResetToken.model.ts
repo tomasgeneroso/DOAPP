@@ -178,12 +178,14 @@ export class PasswordResetToken extends Model {
     // Generate secure random token
     const token = crypto.randomBytes(32).toString('hex');
 
-    // Token expires in 24 hours
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // El enlace vale 1 hora (antes 24): quien lo recibe lo usa enseguida y un correo viejo no queda como llave.
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-    const resetToken = await PasswordResetToken.create({
+    // En la base se guarda SOLO el hash del token (SHA-256, 64 caracteres: entra en la misma columna). Quien llevara una copia de la base no podía restablecer
+    // cuentas, y antes el token entero estaba a la vista (auditoría de seguridad, 2026-11-24). El token en claro solo viaja en el correo.
+    await PasswordResetToken.create({
       userId,
-      token,
+      token: PasswordResetToken.hashDelToken(token),
       expiresAt,
       ipAddress,
       userAgent,
@@ -191,18 +193,23 @@ export class PasswordResetToken extends Model {
     });
 
     return {
-      token: resetToken.token,
-      expiresAt: resetToken.expiresAt,
+      token,
+      expiresAt,
     };
   }
 
   /**
    * Static: Verify token and return token object with user
    */
+  /** SHA-256 en hexadecimal: lo que se guarda en lugar del token. */
+  static hashDelToken(token: string): string {
+    return crypto.createHash('sha256').update(String(token)).digest('hex');
+  }
+
   static async verifyToken(token: string): Promise<PasswordResetToken | null> {
     const resetToken = await PasswordResetToken.findOne({
       where: {
-        token,
+        token: PasswordResetToken.hashDelToken(token),
         used: false,
       },
       include: [User],

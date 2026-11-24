@@ -8,8 +8,10 @@ import { protect, AuthRequest } from "../middleware/auth";
 import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import emailService from "../services/email.js";
-import { uploadTicketAttachments, getFileUrl } from "../middleware/upload.js";
+import { uploadTicketAttachments, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { esCategoriaDeTicket } from "../../shared/tickets/reportes.js";
+import { limitadorDeFormulariosPublicos } from "../middleware/security.js";
+import { escaparHtml } from "../utils/escaparHtml.js";
 import { relacionesDelTicket, ErrorDeReporte } from "../services/reportesDeSoporte.js";
 import { siguienteNumeroDeTicket } from "../services/numeroDeTicket.js";
 import { sequelize } from "../config/database.js";
@@ -20,12 +22,6 @@ import { alCerrarseElTicket, resumenDelProblemaDelTicket, seguirConElMismoTrabaj
 const router = Router();
 console.log("🎫 Tickets router created successfully");
 
-// Simple test route
-router.get("/test", (req, res) => {
-  console.log("🎫 Test route hit!");
-  res.json({ success: true, message: "Tickets route is working!" });
-});
-
 /**
  * Create a ticket as a guest (no auth required)
  * The email must match an existing user account.
@@ -33,7 +29,9 @@ router.get("/test", (req, res) => {
  */
 router.post(
   "/guest",
+  limitadorDeFormulariosPublicos,
   uploadTicketAttachments,
+  verifyMagicBytes,
   [
     body("email").isEmail().withMessage("Email inválido").normalizeEmail(),
     body("subject").trim().notEmpty().withMessage("El asunto es requerido").isLength({ max: 200 }),
@@ -100,13 +98,14 @@ router.post(
         await emailService.sendEmail({
           to: supportEmail,
           subject: `[Ticket Invitado] ${ticketNumber} - ${subject}`,
-          html: `<p>Ticket creado sin sesión (email del usuario: ${user.email}).</p>
+          // Todo lo que escribió la persona se escapa (antes el asunto y el mensaje llegaban como HTML a la casilla de soporte).
+          html: `<p>Ticket creado sin sesión (email del usuario: ${escaparHtml(user.email)}).</p>
             <ul>
-              <li><strong>Número:</strong> ${ticketNumber}</li>
-              <li><strong>Usuario:</strong> ${user.name} (${user.email})</li>
-              <li><strong>Categoría:</strong> ${category}</li>
-              <li><strong>Asunto:</strong> ${subject}</li>
-              <li><strong>Mensaje:</strong> ${message}</li>
+              <li><strong>Número:</strong> ${escaparHtml(ticketNumber)}</li>
+              <li><strong>Usuario:</strong> ${escaparHtml(user.name)} (${escaparHtml(user.email)})</li>
+              <li><strong>Categoría:</strong> ${escaparHtml(category)}</li>
+              <li><strong>Asunto:</strong> ${escaparHtml(subject)}</li>
+              <li><strong>Mensaje:</strong> ${escaparHtml(message)}</li>
             </ul>
             <a href="${adminUrl}">Ver ticket en panel admin</a>`,
         }).catch(() => {});
@@ -139,6 +138,7 @@ router.post(
   protect,
   checkPermission(PERMISSIONS.TICKET_CREATE),
   uploadTicketAttachments,
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       // Validate required fields manually after upload
@@ -405,6 +405,7 @@ router.post(
   "/:id/messages",
   protect,
   uploadTicketAttachments,
+  verifyMagicBytes,
   [body("message").notEmpty().withMessage("El mensaje es requerido").trim()],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {

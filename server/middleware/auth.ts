@@ -4,6 +4,7 @@ import { config } from "../config/env.js";
 import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
 import { entrarComoUsuario } from "../db/contextoRls.js";
+import { sesionVigente } from "../services/vigenciaDeSesion.js";
 import { bloqueoParaOperar, correoConfirmado, MENSAJE_CORREO_SIN_CONFIRMAR } from "../services/identidadDeclarada.js";
 
 export type { AuthRequest };
@@ -90,21 +91,27 @@ export const protect = async (
 
     try {
       // Verificar token: vale el primero que verifica (ver tokensDelPedido)
+      // Además de la firma, el token tiene que ser de SESIÓN (no uno de vincular cuenta) y no estar cerrado (`tokens_valid_after`): ver services/vigenciaDeSesion.ts.
       let decoded: DecodedToken | null = null;
+      let usuarioDelToken: any = null;
+      let firmaValidaSinUsuario = false;
       for (const candidato of candidatos) {
         try {
-          decoded = jwt.verify(candidato, config.jwtSecret) as DecodedToken;
+          const d = jwt.verify(candidato, config.jwtSecret) as DecodedToken;
+          const u = await User.findByPk(d.id, { attributes: { exclude: ['password'] } });
+          if (!u) { firmaValidaSinUsuario = true; continue; }
+          if (!sesionVigente(d, u as any)) continue;
+          decoded = d;
+          usuarioDelToken = u;
           break;
         } catch {
           /* se prueba el siguiente */
         }
       }
-      if (!decoded) throw new Error("token inválido");
+      if (!decoded && !firmaValidaSinUsuario) throw new Error("token inválido");
 
       // Agregar usuario al request (PostgreSQL/Sequelize)
-      req.user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
+      req.user = usuarioDelToken;
 
       if (!req.user) {
         res.status(401).json({
@@ -180,6 +187,8 @@ export const optionalAuth = async (
 
     const decoded = jwt.verify(token, config.jwtSecret) as DecodedToken;
     req.user = await User.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
+    // Un token cerrado o de otro propósito se trata como visitante.
+    if (req.user && !sesionVigente(decoded, req.user as any)) req.user = undefined as any;
     if (req.user) entrarComoUsuario(String((req.user as any).id), (req.user as any).adminRole || (req.user as any).role);
   } catch {
     // Token vencido o inválido: se trata como visitante. No es un error.

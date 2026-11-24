@@ -5,6 +5,10 @@ import { protect } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
 import { Op } from "sequelize";
+import { sanitizeBlogHTML } from "../../utils/sanitizer.js";
+
+/** Un artículo en Markdown puro se guarda tal cual (limpiarlo como HTML le cambiaría los «>» y los «&»); uno con etiquetas HTML se limpia. Al mostrarlo se limpia siempre (utils/markdownToHtml.ts). */
+const limpiarContenido = (c: unknown): string => (/<[a-z!/][\s\S]*>/i.test(String(c ?? "")) ? sanitizeBlogHTML(String(c)) : String(c ?? ""));
 import type { AuthRequest } from "../../types/index.js";
 
 const router = express.Router();
@@ -156,7 +160,7 @@ router.post(
         title,
         subtitle,
         slug, // when empty, the model's @BeforeCreate hook generates it from the title
-        content,
+        content: limpiarContenido(content),
         excerpt,
         author,
         coverImage,
@@ -253,7 +257,7 @@ router.put(
 
       if (title !== undefined) post.title = title;
       if (subtitle !== undefined) post.subtitle = subtitle;
-      if (content !== undefined) post.content = content;
+      if (content !== undefined) post.content = limpiarContenido(content);
       if (excerpt !== undefined) post.excerpt = excerpt;
       if (author !== undefined) post.author = author;
       if (coverImage !== undefined) post.coverImage = coverImage;

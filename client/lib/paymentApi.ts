@@ -107,14 +107,6 @@ export const paymentApi = {
   },
 
   /**
-   * Refund a payment
-   */
-  async refundPayment(paymentId: string, reason: string): Promise<any> {
-    const response = await apiClient.post(`/payments/${paymentId}/refund`, { reason });
-    return response.data;
-  },
-
-  /**
    * Get payment details
    */
   async getPayment(paymentId: string): Promise<Payment> {

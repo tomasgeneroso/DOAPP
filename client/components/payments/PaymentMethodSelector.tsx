@@ -5,7 +5,7 @@ import { useEnabledPaymentMethods } from '@/hooks/useEnabledPaymentMethods';
 import { useDatosBancarios } from '@/hooks/useDatosBancarios';
 import BinanceQr from './BinanceQr';
 
-export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
+export type PaymentMethod = 'mercadopago' | 'binance' | 'bank_transfer';
 
 export interface BinancePaymentData {
   transactionId: string;
@@ -42,14 +42,6 @@ function BinanceLogo() {
 
 function BankIcon() {
   return <Building2 className="h-5 w-5 text-slate-600 dark:text-slate-300" />;
-}
-
-function AstroPayLogo() {
-  return (
-    <span className="font-black text-[#16d39a] text-base tracking-tight leading-none">
-      AP
-    </span>
-  );
 }
 
 /* ── Copy button ─────────────────────────────── */
@@ -126,12 +118,6 @@ export default function PaymentMethodSelector({
           MP
         </span>
       ),
-    },
-    {
-      id: 'astropay',
-      label: 'AstroPay',
-      sub: t('payments.astropayBadge', 'Tarjeta / local'),
-      logo: <AstroPayLogo />,
     },
     {
       id: 'binance',
@@ -217,8 +203,6 @@ export default function PaymentMethodSelector({
         <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
           {selectedMethod === 'mercadopago'
             ? t('payments.dividerMercadopago', 'Pago seguro con MercadoPago')
-            : selectedMethod === 'astropay'
-            ? t('payments.dividerAstropay', 'Tarjeta, débito o métodos locales')
             : selectedMethod === 'binance'
             ? t('payments.dividerBinance', 'Transferencia de criptomonedas')
             : t('payments.dividerBank', 'Transferencia bancaria')}

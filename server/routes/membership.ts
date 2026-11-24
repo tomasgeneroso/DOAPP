@@ -466,53 +466,6 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       preferenceId: mpPayment.paymentId,
       paymentId: payment.id,
     });
-
-    // ========================================
-    // LEGACY: Código PayPal (comentado para referencia)
-    // ========================================
-    /*
-    const proPriceUSD = 5.99;
-    const superProPriceUSD = 8.99;
-    let finalPrice = proPriceUSD;
-
-    // ... código de cálculo de precios PayPal ...
-
-    const paypalService = (await import('../services/paypal.js')).default;
-    const orderData = {
-      amount: finalPrice.toString(),
-      currency: 'USD',
-      description: description,
-      contractId: `membership_${userId}_${plan}_${Date.now()}`,
-      returnUrl: `${process.env.CLIENT_URL}/payment/success?type=membership&plan=${plan}`,
-      cancelUrl: `${process.env.CLIENT_URL}/payment/cancel`,
-    };
-
-    const order = await paypalService.createOrder(orderData);
-    const approvalLink = order.links.find((link: any) => link.rel === 'approve')?.href;
-
-    const payment = await Payment.create({
-      payerId: userId,
-      recipientId: null,
-      contractId: null,
-      amount: finalPrice,
-      currency: 'USD',
-      status: 'pending',
-      paymentType: 'membership',
-      paypalOrderId: order.orderId,
-      description: description,
-      platformFee: 0,
-      platformFeePercentage: 0,
-      isEscrow: false,
-    });
-
-    res.json({
-      success: true,
-      message: "Orden de pago creada",
-      initPoint: approvalLink,
-      orderId: order.orderId,
-      paymentId: payment.id,
-    });
-    */
   } catch (error: any) {
     console.error('Error creating payment preference:', error);
     res.status(500).json({

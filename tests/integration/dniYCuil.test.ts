@@ -69,7 +69,7 @@ describe('DNI y CUIL', () => {
   describe('registro', () => {
     const registrar = (dni: string, extra: Record<string, unknown> = {}) => {
       const k = `${Date.now().toString(36)}${n++}`;
-      return request(app).post('/api/auth/register').send({ name: 'Persona Nueva', username: `nuevo${k}`, email: `nuevo${k}@dni.test`, password: 'password123', dni, termsAccepted: true, ...extra });
+      return request(app).post('/api/auth/register').send({ name: 'Persona Nueva', username: `nuevo${k}`, email: `nuevo${k}@dni.test`, password: 'password123!', dni, termsAccepted: true, ...extra });
     };
 
     it('un DNI que ya usa otra cuenta se rechaza, y el primero entra', async () => {

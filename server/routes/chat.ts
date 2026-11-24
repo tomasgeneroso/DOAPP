@@ -711,7 +711,8 @@ router.post(
           }],
         });
 
-        if (job) {
+        // Solo se adjunta un trabajo propio o uno abierto (público): antes cualquier id mostraba título, precio y lugar de un borrador ajeno (auditoría 2026-11-24).
+        if (job && (String(job.clientId) === String(userId) || job.status === 'open')) {
           const senderName = req.user.name || 'Usuario';
           const isJobOwner = job.clientId === userId;
           const systemHeader = isJobOwner

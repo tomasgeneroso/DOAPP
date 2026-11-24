@@ -9,6 +9,9 @@ import { Conversation } from "../models/sql/Conversation.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { estaBaneadoAhora } from "../middleware/auth.js";
+import { sesionVigente } from "./vigenciaDeSesion.js";
+import { esDireccionDeArchivoPropia } from "../utils/direccionDeArchivo.js";
+import { valorDeCookie } from "../utils/cookieDeSesion.js";
 import fcmService from "./fcm";
 import emailService from "./email";
 import { Op } from 'sequelize';
@@ -32,6 +35,9 @@ interface TypingData {
   isTyping: boolean;
 }
 
+/** Los únicos tipos que puede mandar una persona: «system» lo crea solo el servidor. */
+const TIPOS_DE_MENSAJE_DEL_CLIENTE = ["text", "image", "file"] as const;
+const LARGO_MAXIMO_DE_MENSAJE = 5000;
 interface MessageData {
   conversationId: string;
   message: string;
@@ -65,19 +71,39 @@ export class SocketService {
     // Authentication middleware
     this.io.use(async (socket: AuthenticatedSocket, next) => {
       try {
-        const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(" ")[1];
+        // La web ya no guarda el token en el navegador: la sesión viaja en la cookie httpOnly (que el navegador manda solo en la conexión). La app móvil sigue
+        // mandando su token en `auth.token` o en la cabecera. Vale el primero que verifica.
+        const candidatos = [
+          socket.handshake.auth?.token,
+          socket.handshake.headers.authorization?.split(" ")[1],
+          valorDeCookie(socket.handshake.headers.cookie, "token"),
+        ].filter((t): t is string => typeof t === "string" && t.length > 0);
 
-        if (!token) {
+        if (candidatos.length === 0) {
           return next(new Error("Authentication error: No token provided"));
         }
 
-        const decoded = jwt.verify(token, config.jwtSecret) as any;
+        let decoded: any = null;
+        for (const candidato of candidatos) {
+          try {
+            decoded = jwt.verify(candidato, config.jwtSecret);
+            break;
+          } catch {
+            /* se prueba el siguiente */
+          }
+        }
+        if (!decoded) throw new Error("token inválido");
         const user = await User.findByPk(decoded.id, {
           attributes: { exclude: ['password'] }
         });
 
         if (!user) {
           return next(new Error("Authentication error: User not found"));
+        }
+
+        // Sesión cerrada (cerrar todas / cambio de contraseña) o token de otro propósito: no se conecta.
+        if (!sesionVigente(decoded, user as any)) {
+          return next(new Error("Authentication error: Invalid token"));
         }
 
         // Una cuenta baneada no se conecta al tiempo real (antes sólo la pantalla la mandaba a /banned).
@@ -204,7 +230,25 @@ export class SocketService {
 
   private async handleSendMessage(socket: AuthenticatedSocket, data: MessageData) {
     try {
-      const { conversationId, message, type = "text", fileUrl, fileName, fileSize } = data;
+      // Lo que llega por el socket lo escribe el cliente: se valida igual que en la API (auditoría 2026-11-24). Antes `type` era libre: con «system» se podía
+      // falsificar un aviso de la plataforma y con cualquier tipo que no fuera «text» se salteaba el filtro de teléfonos y correos.
+      const { conversationId, fileName, fileSize } = data || ({} as MessageData);
+      const type = TIPOS_DE_MENSAJE_DEL_CLIENTE.includes(String(data?.type ?? "text") as any) ? (String(data?.type ?? "text") as "text" | "image" | "file") : null;
+      if (!type) {
+        socket.emit("socket_error", { message: "Tipo de mensaje no permitido", code: "TIPO_DE_MENSAJE_INVALIDO" });
+        return;
+      }
+      const message = typeof data?.message === "string" ? data.message : "";
+      if (message.length > LARGO_MAXIMO_DE_MENSAJE) {
+        socket.emit("socket_error", { message: `El mensaje es demasiado largo (máximo ${LARGO_MAXIMO_DE_MENSAJE} caracteres).`, code: "MENSAJE_MUY_LARGO" });
+        return;
+      }
+      // Un archivo solo puede apuntar a un archivo de esta misma plataforma (nunca una dirección de afuera ni «javascript:»).
+      const fileUrl = typeof data?.fileUrl === "string" ? data.fileUrl : undefined;
+      if (type === "text" ? !message.trim() : !fileUrl || !esDireccionDeArchivoPropia(fileUrl)) {
+        socket.emit("socket_error", { message: type === "text" ? "Escribí un mensaje" : "El archivo no es válido", code: "MENSAJE_INVALIDO" });
+        return;
+      }
 
       // Verify conversation exists and user is participant
       const conversation = await Conversation.findByPk(conversationId);
@@ -232,7 +276,8 @@ export class SocketService {
       }
 
       // Mismo filtro que la API: por el socket no se pueden pasar teléfonos ni correos (antes este camino lo salteaba).
-      if (type === "text" && message) {
+      // Se filtra el texto de TODOS los tipos (un archivo también puede traer un teléfono en su descripción), igual que en la API.
+      if (message) {
         const analisis = analyzeMessage(String(message));
         if (analisis.bloquear.length > 0) {
           socket.emit("socket_error", { message: contactBlockedMessage(analisis.bloquear), code: "CONTACT_INFO_BLOCKED" });
@@ -244,11 +289,12 @@ export class SocketService {
       const chatMessage = await ChatMessage.create({
         conversationId,
         senderId: socket.userId,
-        message,
+        // Un archivo sin texto lleva igual un texto (la columna no admite vacío y la lista de conversaciones lo muestra).
+        message: message || (type === "image" ? "📷 Imagen" : `📎 ${typeof fileName === "string" && fileName ? fileName.slice(0, 200) : "Archivo"}`),
         type,
         fileUrl,
-        fileName,
-        fileSize,
+        fileName: typeof fileName === "string" ? fileName.slice(0, 255) : undefined,
+        fileSize: typeof fileSize === "number" && Number.isFinite(fileSize) && fileSize >= 0 ? fileSize : undefined,
       });
 
       // Reload with sender data (include id for message alignment in frontend)
@@ -261,7 +307,7 @@ export class SocketService {
       });
 
       // Update conversation
-      conversation.lastMessage = message.substring(0, 200);
+      conversation.lastMessage = (message || (type === "image" ? "📷 Imagen" : "📎 Archivo")).substring(0, 200);
       conversation.lastMessageAt = new Date();
 
       // Increment unread count for other participants
@@ -336,7 +382,7 @@ export class SocketService {
             type: "info",
             category: "chat",
             title: "Nuevo mensaje",
-            message: `${socket.user.name}: ${message.substring(0, 100)}`,
+            message: `${socket.user.name}: ${(message || (type === "image" ? "📷 Imagen" : "📎 Archivo")).substring(0, 100)}`,
             data: {
               conversationId,
               senderId: socket.userId,

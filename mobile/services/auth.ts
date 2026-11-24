@@ -30,8 +30,8 @@ export async function login(credentials: LoginCredentials): Promise<ApiResponse<
 /**
  * Iniciar sesión con el código de un solo uso que dejó el ingreso con Google/X (ver services/ingresoSocial.ts)
  */
-export async function loginConCodigo(codigo: string): Promise<ApiResponse<AuthResponse & { needsDni?: boolean }>> {
-  const response = await post<any>('/auth/app-login-code', { codigo }, false);
+export async function loginConCodigo(codigo: string, verificador?: string): Promise<ApiResponse<AuthResponse & { needsDni?: boolean }>> {
+  const response = await post<any>('/auth/app-login-code', { codigo, ...(verificador ? { verificador } : {}) }, false);
   const raw = response.data || (response as any);
   if (!response.success || !raw?.token) return response as any;
 

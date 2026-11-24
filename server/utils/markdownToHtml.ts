@@ -1,4 +1,5 @@
 import { marked } from 'marked';
+import { sanitizeBlogHTML } from './sanitizer.js';
 
 /**
  * Markdown to HTML, applied when a post is saved.
@@ -36,8 +37,10 @@ export function markdownToHtml(markdown: string): string {
 export function contenidoParaMostrar(content: string | null | undefined): string {
   const texto = String(content ?? '');
   if (!texto) return '';
-  if (/<(p|div|h[1-6]|ul|ol|table|section|article|blockquote|figure)\b/i.test(texto)) return texto;
-  return looksLikeMarkdown(texto) ? markdownToHtml(texto) : texto;
+  // Lo que sale hacia el navegador se limpia SIEMPRE, venga como venga guardado (HTML, Markdown convertido o cargado por un script): un enlace «javascript:» o un
+  // onerror= no llegan a la página (auditoría de seguridad, 2026-11-24).
+  if (/<(p|div|h[1-6]|ul|ol|table|section|article|blockquote|figure)\b/i.test(texto)) return sanitizeBlogHTML(texto);
+  return sanitizeBlogHTML(looksLikeMarkdown(texto) ? markdownToHtml(texto) : texto);
 }
 
 /** True when the text looks like Markdown that still needs converting. */

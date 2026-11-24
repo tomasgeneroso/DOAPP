@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { nombreSeguro } from "../../utils/archivoSeguro.js";
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
 import { Payment, RESOLVED_PAYMENT_STATUSES, needsVerification } from "../../models/sql/Payment.model.js";
@@ -81,8 +82,7 @@ const clientProofStorage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `admin-proof-${uniqueSuffix}${path.extname(file.originalname)}`);
+    cb(null, nombreSeguro(file, 'admin-proof-'));
   }
 });
 

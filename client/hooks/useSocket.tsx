@@ -412,6 +412,7 @@ export function useSocket() {
       auth: {
         token,
       },
+      withCredentials: true, // la sesión viaja en la cookie httpOnly (el token de arriba es solo el marcador)
       path: "/socket.io",
       transports: ["websocket", "polling"], // Try websocket first
       reconnection: true,

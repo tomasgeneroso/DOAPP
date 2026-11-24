@@ -1,6 +1,5 @@
 import { Router, Response, Request } from 'express';
 import { ModuleConfig } from '../models/sql/ModuleConfig.model.js';
-import astropayService from '../services/astropay.js';
 import { getPhaseInfo } from '../services/platformPhase.js';
 
 const router = Router();
@@ -10,17 +9,13 @@ const router = Router();
  * credentials rather than on the admin toggle.
  *
  * The `module_configs` row says what an admin *wants* enabled; this says what
- * the deployment can actually deliver. AstroPay was flagged active in the DB
- * with no merchant credentials, so checkout advertised it and then failed with
- * "AstroPay no está configurado" the moment anyone chose it. A module must
- * clear both gates to be published.
+ * the deployment can actually deliver (un medio de pago activo en la base sin credenciales en el servidor se anunciaba en el checkout y fallaba
+ * al elegirlo: por eso existe esta puerta; AstroPay y PayPal se sacaron el 2026-11-24). A module must clear both gates to be published.
  *
  * Default is permissive: a module with no entry here is governed by its DB flag
  * alone, so adding a provider never silently hides it.
  */
-const PROVIDER_AVAILABLE: Record<string, () => boolean> = {
-  'payment:astropay': () => astropayService.isAvailable(),
-};
+const PROVIDER_AVAILABLE: Record<string, () => boolean> = {};
 
 function isDeliverable(moduleId: string): boolean {
   const check = PROVIDER_AVAILABLE[moduleId];
@@ -93,9 +88,6 @@ router.get('/modules', async (_req: Request, res: Response) => {
       success: true,
       modules: [
         { moduleId: 'payment:mercadopago', category: 'payment', name: 'MercadoPago' },
-        // AstroPay intentionally absent: this fallback runs when the DB lookup
-        // fails, and advertising a provider without credentials is what caused
-        // the "AstroPay no está configurado" crash at checkout.
         { moduleId: 'payment:binance', category: 'payment', name: 'Binance Pay' },
         { moduleId: 'dashboard:analytics', category: 'dashboard', name: 'Analytics' },
         { moduleId: 'dashboard:performance', category: 'dashboard', name: 'Performance' },

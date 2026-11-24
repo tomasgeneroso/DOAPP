@@ -56,6 +56,29 @@ export const limitadorDeCorreosPorDestinatario = rateLimit({
 export const limitadoresDeCorreos = [limitadorDeCorreosPorIp, limitadorDeCorreosPorDestinatario];
 
 /**
+ * Formularios que cualquiera puede mandar sin cuenta (contacto, consulta de invitado): cuentan TODOS los pedidos y no solo los fallidos, con un tope por IP.
+ * El de invitado además responde distinto si el correo tiene o no cuenta: sin este tope se podían probar correos sin límite (auditoría de seguridad, 2026-11-24).
+ */
+/** Códigos que se prueban sin cuenta (referidos): un tope por IP para que no se puedan adivinar probando uno por uno. */
+export const limitadorDeCodigos = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  message: { success: false, message: "Probaste muchos códigos seguidos. Esperá un rato y volvé a intentar." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});
+
+export const limitadorDeFormulariosPublicos = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  message: { success: false, message: "Mandaste muchas consultas seguidas. Probá de nuevo en un rato." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});
+
+/**
  * Rate limiter for general API endpoints
  * Increased limits for SPA apps that make many requests
  */
@@ -152,11 +175,19 @@ export const xssProtection = (req: Request, res: Response, next: NextFunction) =
   // Basic XSS sanitization for common patterns
   const sanitize = (obj: any): any => {
     if (typeof obj === "string") {
-      return obj
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-        .replace(/javascript:/gi, "")
-        .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-        .replace(/on\w+\s*=\s*[^\s>]*/gi, "");
+      // Se repite hasta que no cambie nada: quitar una pasada deja armarse «javascript:» con «jajavascript:vascript:» (auditoría 2026-11-24).
+      // Sigue siendo una red de contención: la defensa real es escapar al mostrar.
+      let actual = obj;
+      for (let i = 0; i < 10; i++) {
+        const siguiente = actual
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+          .replace(/javascript:/gi, "")
+          .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
+          .replace(/on\w+\s*=\s*[^\s>]*/gi, "");
+        if (siguiente === actual) break;
+        actual = siguiente;
+      }
+      return actual;
     }
     if (Array.isArray(obj)) {
       return obj.map(sanitize);

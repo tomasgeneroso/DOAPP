@@ -15,6 +15,8 @@ export function archivoPorConsulta(req: Request, res: Response, next: NextFuncti
     res.status(400).json({ success: false, message: 'Falta la ruta del archivo' });
     return;
   }
+  // La firma de un enlace de archivo privado viaja en la consulta, que se pierde al reescribir la dirección: se guarda antes.
+  if (typeof req.query.firma === 'string') res.locals.firmaDeArchivo = { firma: req.query.firma, vence: req.query.vence };
   req.url = '/' + ruta.replace(/^\/+/, '');
   res.setHeader('Cache-Control', 'private, max-age=86400');
   next();

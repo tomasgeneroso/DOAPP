@@ -38,15 +38,23 @@ import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
 import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { aplicarIdentidadDeDidit, controlarCoincidencia } from "../services/identidadDeDidit.js";
 import { completarRegistro, datosDelRegistro, usuarioProvisorio } from "../services/registroEnPasos.js";
-import { canjearCodigoDeApp, emitirCodigoDeApp } from "../services/ingresoDesdeApp.js";
+import { canjearCodigoDeApp, emitirCodigoDeApp, esDesafioValido, estadoDeLaApp, leerEstadoDeLaApp } from "../services/ingresoDesdeApp.js";
 import { emitirCodigoDeClave, verificarCodigoDeClave } from "../services/codigoDeCambioDeClave.js";
 import { COOKIE_DE_VINCULO, canjearVinculoPendiente, emitirVinculo, emitirVinculoDeApp, esProveedorVinculable, guardarVinculoPendiente, leerVinculo, leerVinculoDeApp, vincularCuenta } from "../services/vincularCuentaSocial.js";
+import { motivoDeClaveDebil } from "../../shared/seguridad/clave.js";
 import { cuilCoincideConDni, cuilValido, dniValido, explicarCuilInvalido, formatearCuil, motivoDeDniImposible, normalizarDni } from "../../shared/identidad/documentos.js";
 import { MENSAJE_TELEFONO_EN_BETA, telefonoCuentaParaLaCredibilidad, telefonoSePuedeVerificar } from "../services/verificacionDeTelefono.js";
 import { isDiditConfigured, diditEnUso, verificacionConDiditActiva, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import { identidadSuficiente, correoConfirmado } from "../services/identidadDeclarada.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 import { sanearRubros, sanearZonas, sanearRadio, sanearPunto, rolDeLaCuenta, esTrabajador } from "../../shared/perfiles/zonaDeTrabajo.js";
+
+/** Contraseña nueva: al menos 6 caracteres y un símbolo (shared/seguridad/clave.ts; las claves que ya existen no se tocan). */
+const claveNueva = (valor: unknown): true => {
+  const motivo = motivoDeClaveDebil(valor);
+  if (motivo) throw new Error(motivo);
+  return true;
+};
 
 const router = express.Router();
 
@@ -160,9 +168,7 @@ router.post(
       .matches(/[._]{2,}/)
       .withMessage("El nombre de usuario no puede tener puntos o guiones bajos consecutivos"),
     body("email").isEmail().withMessage("Email inválido"),
-    body("password")
-      .isLength({ min: 6 })
-      .withMessage("La contraseña debe tener al menos 6 caracteres"),
+    body("password").custom(claveNueva),
     body("dni")
       .if((_v: any, { req }: any) => req.body?.pasos !== true)
       .trim()
@@ -654,16 +660,10 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
   try {
     const user = await User.findByPk(req.user.id as string);
 
-    // Generar nuevo token JWT para Socket.io (válido por 7 días)
-    const token = jwt.sign(
-      { id: user?.id },
-      config.jwtSecret,
-      { expiresIn: "7d" }
-    );
-
+    // Antes cada llamada fabricaba un token nuevo de 7 días y lo devolvía en el cuerpo (para el tiempo real): quedaba al alcance de cualquier script de la página.
+    // Ahora no se devuelve ninguno: la web usa solo la cookie httpOnly, también en el socket (auditoría de seguridad, 2026-11-24).
     res.json({
       success: true,
-      token, // Token para Socket.io
       user: {
         id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
@@ -1014,6 +1014,12 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       workLongitude,
     } = req.body;
 
+    // La biografía: texto de hasta 500 caracteres (el límite estaba solo en la pantalla; el cuerpo admite 10 MB y la ven otras personas). Auditoría 2026-11-24.
+    if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
+      res.status(400).json({ success: false, code: 'BIO_MUY_LARGA', message: 'La biografía puede tener hasta 500 caracteres.' });
+      return;
+    }
+
     // Obtener usuario actual para comparar cambios
     const oldUser = await User.findByPk(req.user.id as string, {
       attributes: { include: ['bankingInfo'] }
@@ -1317,7 +1323,7 @@ router.put('/mode', protect, async (req: AuthRequest, res: Response): Promise<vo
 // uso para canjear por la sesión (ver services/ingresoDesdeApp.ts). Sin eso, todo sigue igual que para la web.
 router.get("/google", (req: Request, res: Response, next: NextFunction) => {
   const opciones: Record<string, unknown> = { scope: ["profile", "email"] };
-  if (req.query.origen === "app") opciones.state = "app";
+  if (req.query.origen === "app") opciones.state = estadoDeLaApp(req.query.desafio);
   // Enlazar Google a la cuenta actual (desde Configuración → Seguridad): el token firmado viaja en `state` (ver services/vincularCuentaSocial.ts).
   else if (typeof req.query.vincular === "string" && req.query.vincular) opciones.state = `link:${req.query.vincular}`;
   passport.authenticate("google", opciones)(req, res, next);
@@ -1334,7 +1340,7 @@ router.get(
   (err: any, req: Request, res: Response, _next: NextFunction) => {
     console.error('❌ Google callback:', err?.name, err?.message);
     const base = `${config.clientUrl}/login?error=social_failed&motivo=servidor`;
-    res.redirect(req.query.state === "app" ? `${base}&origen=app` : base);
+    res.redirect(leerEstadoDeLaApp(req.query.state).esApp ? `${base}&origen=app` : base);
   },
   async (req: Request, res: Response) => {
     const user = req.user as any;
@@ -1361,8 +1367,9 @@ router.get(
     }
 
     // Desde la app: no se pone la sesión en ningún enlace, se entrega un código de un solo uso a una página puente.
-    if (req.query.state === "app") {
-      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id))}`);
+    const desdeLaApp = leerEstadoDeLaApp(req.query.state);
+    if (desdeLaApp.esApp) {
+      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id), Date.now(), desdeLaApp.desafio)}`);
       return;
     }
 
@@ -1377,7 +1384,7 @@ router.get(
 // @access  Public (el código es la credencial: 2 minutos, un solo uso)
 router.post("/app-login-code", authLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = canjearCodigoDeApp(req.body?.codigo);
+    const userId = canjearCodigoDeApp(req.body?.codigo, Date.now(), req.body?.verificador);
     if (!userId) {
       res.status(400).json({ success: false, message: "El ingreso venció o ya se usó. Volvé a intentarlo." });
       return;
@@ -1471,6 +1478,8 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       req.headers["user-agent"]
     );
 
+    // La web usa la cookie httpOnly; la app, el token del cuerpo.
+    guardarSesionEnCookie(res, token);
     res.json({
       success: true,
       token,
@@ -1530,8 +1539,12 @@ router.get("/twitter", (req: Request, res: Response): void => {
     }
     if (req.query.origen === 'app') {
       res.cookie('twitter_oauth_origen', 'app', { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
+      // El desafío de la app (hash de su secreto) viaja en una cookie de este mismo recorrido: ver services/ingresoDesdeApp.ts.
+      if (esDesafioValido(req.query.desafio)) res.cookie('twitter_oauth_desafio', req.query.desafio, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
+      else res.clearCookie('twitter_oauth_desafio', { path: '/' });
     } else {
       res.clearCookie('twitter_oauth_origen', { path: '/' });
+      res.clearCookie('twitter_oauth_desafio', { path: '/' });
     }
 
     res.redirect(url);
@@ -1640,7 +1653,9 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
 
     if (req.cookies?.twitter_oauth_origen === 'app') {
       res.clearCookie('twitter_oauth_origen', { path: '/' });
-      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id))}`);
+      const desafioDeLaApp = req.cookies?.twitter_oauth_desafio;
+      res.clearCookie('twitter_oauth_desafio', { path: '/' });
+      res.redirect(`${config.clientUrl}/auth/app-return?codigo=${emitirCodigoDeApp(String(user.id), Date.now(), esDesafioValido(desafioDeLaApp) ? desafioDeLaApp : undefined)}`);
       return;
     }
 
@@ -1784,7 +1799,7 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
 // @route   POST /api/auth/refresh
 // @desc    Renovar access token con refresh token
 // @access  Public
-router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
+router.post("/refresh", authLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const { refreshToken: token } = req.body;
 
@@ -1994,9 +2009,7 @@ router.post(
   authLimiter,
   [
     body("token").notEmpty().withMessage("Token es requerido"),
-    body("newPassword")
-      .isLength({ min: 6 })
-      .withMessage("La contraseña debe tener al menos 6 caracteres"),
+    body("newPassword").custom(claveNueva),
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -2012,26 +2025,12 @@ router.post(
 
       const { token, newPassword } = req.body;
 
-      console.log('Reset password attempt with token:', token?.substring(0, 10) + '...');
+      // Sin registrar el token ni datos de otros tokens (regla 6: los tokens no se escriben en registros).
 
       // Verificar token
       const resetToken = await (PasswordResetToken as any).verifyToken(token);
 
       if (!resetToken) {
-        console.log('Token verification failed - token not found or expired');
-        // Log for debugging - check if token exists at all
-        const anyToken = await PasswordResetToken.findOne({ where: { token } });
-        if (anyToken) {
-          console.log('Token found but:', {
-            used: anyToken.used,
-            expiresAt: anyToken.expiresAt,
-            now: new Date(),
-            isExpired: anyToken.expiresAt < new Date()
-          });
-        } else {
-          console.log('Token not found in database');
-        }
-
         res.status(400).json({
           success: false,
           message: "Token inválido o expirado",
@@ -2049,14 +2048,16 @@ router.post(
         return;
       }
 
+      // El token se gasta ANTES de cambiar la clave y en un solo paso: con dos pedidos a la vez con el mismo enlace, el segundo ya no lo encuentra sin usar.
+      const [gastados] = await PasswordResetToken.update({ used: true, usedAt: new Date() } as any, { where: { id: resetToken.id, used: false } as any });
+      if (!gastados) {
+        res.status(400).json({ success: false, message: "Token inválido o expirado" });
+        return;
+      }
+
       // Actualizar contraseña
       user.password = newPassword;
       await user.save();
-
-      // Marcar token como usado
-      resetToken.used = true;
-      resetToken.usedAt = new Date();
-      await resetToken.save();
 
       // Revocar todas las sesiones activas por seguridad
       await revokeAllUserTokens(user.id as any, "Password reset");
@@ -2086,9 +2087,7 @@ router.post(
   protect,
   authLimiter,
   [
-    body("newPassword")
-      .isLength({ min: 6 })
-      .withMessage("La contraseña debe tener al menos 6 caracteres"),
+    body("newPassword").custom(claveNueva),
     // Sin contraseña actual que pedir, lo que prueba que es la dueña es el código que llega al correo de la cuenta.
     body("code").matches(/^\d{6}$/).withMessage("El código tiene 6 números: está en el correo que te enviamos."),
   ],
@@ -2158,9 +2157,7 @@ router.post(
   protect,
   [
     body("currentPassword").notEmpty().withMessage("Contraseña actual requerida"),
-    body("newPassword")
-      .isLength({ min: 6 })
-      .withMessage("La nueva contraseña debe tener al menos 6 caracteres"),
+    body("newPassword").custom(claveNueva),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -2296,7 +2293,7 @@ router.post(
   authLimiter,
   [
     body("code").matches(/^\d{6}$/).withMessage("El código tiene 6 números"),
-    body("newPassword").isLength({ min: 6 }).withMessage("La nueva contraseña debe tener al menos 6 caracteres"),
+    body("newPassword").custom(claveNueva),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {

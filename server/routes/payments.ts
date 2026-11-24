@@ -1,4 +1,5 @@
 import express, { Router, Response } from "express";
+import { nombreSeguro } from "../utils/archivoSeguro.js";
 import { DONDE_ES_ADMIN } from '../utils/admins.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
@@ -18,7 +19,6 @@ import { TRANSFERENCIA_NO_DISPONIBLE } from "../services/datosBancarios.js";
 import { datosBancariosVigentes as datosBancarios, binanceVigente } from "../services/datosDeCobro.js";
 import { validarDatosDeTransferencia, documentoNormalizado } from "../../shared/pagos/transferencia.js";
 import { contratoCubiertoPorLaPublicacion } from "../../shared/pagos/contratoCubierto.js";
-import astropayService from "../services/astropay.js";
 import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env.js";
 import { Op } from 'sequelize';
@@ -64,8 +64,7 @@ const storage = multer.diskStorage({
     cb(null, PAYMENT_PROOFS_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'proof-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, nombreSeguro(file, 'proof-'));
   }
 });
 
@@ -99,6 +98,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
     const { contractId, jobId, paymentType, amount, description, paymentMethod } = req.body;
     const userId = req.user.id;
     const selectedPaymentMethod = paymentMethod || 'mercadopago'; // Default to MercadoPago
+    // Solo estos medios existen (AstroPay y PayPal se sacaron, regla del dueño 2026-11-24). Antes un medio desconocido caía en Mercado Pago sin avisar.
+    if (!['mercadopago', 'bank_transfer', 'binance', 'balance'].includes(String(selectedPaymentMethod))) {
+      res.status(400).json({ success: false, code: 'PAYMENT_METHOD_UNAVAILABLE', message: 'Ese medio de pago no está disponible. Elegí Mercado Pago, transferencia bancaria o tu saldo.' });
+      return;
+    }
 
     // Handle job publication payment
     if (paymentType === "job_publication" && jobId) {
@@ -271,53 +275,6 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
-      // AstroPay redirect checkout
-      if (selectedPaymentMethod === 'astropay') {
-        // Guard: a stale client or a hand-crafted request must not reach the
-        // service and surface as a 500. Fail with a clear 400 instead.
-        if (!astropayService.isAvailable()) {
-          res.status(400).json({
-            success: false,
-            message: "AstroPay no está disponible por el momento. Elegí otro medio de pago.",
-            code: 'PAYMENT_METHOD_UNAVAILABLE',
-          });
-          return;
-        }
-        const apPayment = await astropayService.createPayment({
-          amount: totalAmountARS,
-          currency: 'ARS',
-          description: `Publicación: ${job.title}`,
-          metadata: { jobId, userId, paymentType: 'job_publication' },
-          customerEmail: req.user.email,
-          ...urlsDeRetorno(
-            req.body.origen,
-            { exito: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
-            { tipo: 'publicacion', ids: { jobId: String(jobId) } },
-          ),
-        });
-        const payment = await Payment.create({
-          contractId: null,
-          payerId: userId,
-          recipientId: null,
-          amount: totalAmountARS,
-          currency: "ARS",
-          status: "pending",
-          paymentType: "job_publication",
-          paymentMethod: "astropay",
-          astropayDepositId: apPayment.providerPaymentId,
-          description: `Publicación: ${job.title}`,
-          platformFee: publicationCost,
-          platformFeePercentage: commissionResult.rate,
-          processingCharge: split.processingCharge,
-          isEscrow: false,
-        });
-        job.publicationAmount = totalAmountARS;
-        job.publicationPaymentId = payment.id;
-        await job.save();
-        res.json({ success: true, approvalUrl: apPayment.checkoutUrl, paymentId: payment.id, amount: totalAmountARS });
-        return;
-      }
-
       // Default: MercadoPago direct integration
       const mpPayment = await mercadopagoService.createPayment({
         amount: totalAmountARS,
@@ -473,52 +430,6 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
-      // AstroPay redirect checkout
-      if (selectedPaymentMethod === 'astropay') {
-        // Guard: a stale client or a hand-crafted request must not reach the
-        // service and surface as a 500. Fail with a clear 400 instead.
-        if (!astropayService.isAvailable()) {
-          res.status(400).json({
-            success: false,
-            message: "AstroPay no está disponible por el momento. Elegí otro medio de pago.",
-            code: 'PAYMENT_METHOD_UNAVAILABLE',
-          });
-          return;
-        }
-        const apPayment = await astropayService.createPayment({
-          amount: totalAmountARS,
-          currency: 'ARS',
-          description: `Aumento de presupuesto: ${job.title}`,
-          metadata: { jobId, userId, paymentType: 'budget_increase' },
-          customerEmail: req.user.email,
-          ...urlsDeRetorno(
-            req.body.origen,
-            { exito: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`, cancelado: `${process.env.CLIENT_URL}/jobs/${jobId}/payment` },
-            { tipo: 'aumento', ids: { jobId: String(jobId) } },
-          ),
-        });
-        const payment = await Payment.create({
-          contractId: null,
-          payerId: userId,
-          recipientId: null,
-          amount: totalAmountARS,
-          currency: "ARS",
-          status: "pending",
-          paymentType: "budget_increase",
-          paymentMethod: "astropay",
-          astropayDepositId: apPayment.providerPaymentId,
-          description: `Aumento de presupuesto: ${job.title}`,
-          platformFee: aumentoComision.commission,
-          platformFeePercentage: aumentoComision.rate,
-          processingCharge: aumento.procesamiento,
-          isEscrow: false,
-        });
-        job.publicationPaymentId = payment.id;
-        await job.save();
-        res.json({ success: true, approvalUrl: apPayment.checkoutUrl, paymentId: payment.id, amount: totalAmountARS });
-        return;
-      }
-
       // Default: MercadoPago direct integration
       const mpPayment = await mercadopagoService.createPayment({
         amount: totalAmountARS,
@@ -603,62 +514,6 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
     const contractAmount = parseFloat(amount);
     const contractDescription = description || `Pago de contrato ${(contract as any).job?.title || contract.id}`;
-
-    // AstroPay redirect checkout (ARS)
-    if (selectedPaymentMethod === 'astropay') {
-      const apPayment = await astropayService.createPayment({
-        amount: contractAmount,
-        currency: 'ARS',
-        description: contractDescription,
-        metadata: { contractId, userId, paymentType: 'contract_payment' },
-        customerEmail: req.user.email,
-        successUrl: `${process.env.CLIENT_URL}/payment/success?type=contract&contractId=${contractId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/contracts/${contractId}`,
-      });
-      const payment = await Payment.create({
-        contractId, payerId, recipientId,
-        amount: contractAmount, currency: "ARS", status: "pending",
-        paymentType: "contract_payment", paymentMethod: "astropay",
-        astropayDepositId: apPayment.providerPaymentId,
-        description: contractDescription, platformFee: 0, platformFeePercentage: 0,
-        isEscrow: contract.escrowEnabled || false,
-      });
-      res.json({ success: true, data: { paymentId: payment.id, approvalUrl: apPayment.checkoutUrl, amount: contractAmount } });
-      return;
-    }
-
-    // PayPal (legacy, disabled by default — only if explicitly re-enabled via PAYPAL_ENABLED=true)
-    if (selectedPaymentMethod === 'paypal') {
-      if (!config.paypalEnabled) {
-        res.status(400).json({ success: false, message: "PayPal no está disponible. Usá MercadoPago o AstroPay." });
-        return;
-      }
-      const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
-      if (!paypalService) { res.status(503).json({ success: false, message: 'PayPal no disponible' }); return; }
-      const platformFee = (paypalService as any).calculatePlatformFee(contractAmount);
-      const totalAmount = contractAmount + platformFee;
-      const paypalOrder = await (paypalService as any).createOrder({
-        amount: totalAmount.toFixed(2), currency: "USD",
-        description: contractDescription, contractId,
-      });
-      const payment = await Payment.create({
-        contractId, payerId, recipientId,
-        amount: contractAmount, currency: "USD", status: "pending",
-        paymentType: "contract_payment", paymentMethod: "paypal",
-        paypalOrderId: paypalOrder.orderId, description,
-        platformFee, platformFeePercentage: config.paypalPlatformFeePercentage,
-        isEscrow: contract.escrowEnabled || false,
-      });
-      res.json({
-        success: true,
-        data: {
-          paymentId: payment.id, orderId: paypalOrder.orderId,
-          approvalUrl: paypalOrder.links?.find((link: any) => link.rel === "approve")?.href,
-          amount: totalAmount, platformFee,
-        },
-      });
-      return;
-    }
 
     // Default: MercadoPago direct integration (ARS)
     const mpPayment = await mercadopagoService.createPayment({
@@ -833,7 +688,6 @@ async function manejarCapturaNoAprobada(
  * POST /api/payments/capture-order
  *
  * For MercadoPago: payment_id from URL params or webhook
- * For PayPal (commented): orderId
  *
  * Regla de toda la ruta: el pago se confirma CONTRA MERCADOPAGO y recién entonces se ejecuta lo que
  * compra (publicar, activar la membresía, dejar la plata en escrow). Lo que falte, venga raro o no
@@ -1029,32 +883,6 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       status: payment.status,
       provider: 'mercadopago'
     });
-
-    /* ===== PAYPAL CODE (COMMENTED) =====
-    // Find payment by order ID
-    const payment = await Payment.findOne({ where: { paypalOrderId: orderId } });
-
-    if (!payment) {
-      console.error("❌ [CAPTURE] Payment not found for orderId:", orderId);
-      res.status(404).json({ success: false, message: "Payment not found" });
-      return;
-    }
-
-    // Capture the PayPal order
-    const captureResult = await (paypalService as any)?.captureOrder(orderId);
-
-    // Update payment record
-    payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
-    payment.paypalCaptureId = captureResult.captureId;
-    payment.paypalPayerId = captureResult.payerId;
-    payment.paypalPayerEmail = captureResult.payerEmail;
-
-    if (payment.isEscrow) {
-      payment.status = "held_escrow";
-    }
-
-    await payment.save();
-    ===== END PAYPAL CODE ===== */
 
     // Handle membership payment
     // Sólo por el TIPO del pago, que lo fija el servidor al crearlo. La descripción la escribe quien
@@ -1537,80 +1365,6 @@ router.post("/:paymentId/release-escrow", protect, async (req: AuthRequest, res:
 });
 
 /**
- * Refund a payment
- * POST /api/payments/:paymentId/refund
- */
-router.post("/:paymentId/refund", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { paymentId } = req.params;
-    const { reason } = req.body;
-    const userId = req.user.id;
-
-    const payment = await Payment.findByPk(paymentId);
-    if (!payment) {
-      res.status(404).json({ success: false, message: "Payment not found" });
-      return;
-    }
-
-    // Only allow refund if user is recipient or admin
-    const user = await User.findByPk(userId);
-    if (payment.recipientId !== userId && !user?.adminRole) {
-      res.status(403).json({ success: false, message: "Unauthorized" });
-      return;
-    }
-
-    if (payment.status === "refunded") {
-      res.status(400).json({ success: false, message: "Payment already refunded" });
-      return;
-    }
-
-    if (!payment.paypalCaptureId) {
-      res.status(400).json({ success: false, message: "Payment cannot be refunded" });
-      return;
-    }
-
-    // Process refund through PayPal
-    const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
-    const refundResult = await (paypalService as any)?.refundPayment(
-      payment.paypalCaptureId,
-      payment.amount.toString(),
-      payment.currency
-    );
-
-    // Update payment
-    payment.status = "refunded";
-    payment.refundReason = reason;
-    payment.refundedAt = new Date();
-    payment.refundedBy = userId;
-    await payment.save();
-
-    // Update contract
-    const contract = await Contract.findByPk(payment.contractId);
-    if (contract) {
-      contract.paymentStatus = "refunded";
-      await contract.save();
-    }
-
-    // Notify payer
-    await Notification.create({
-      recipientId: payment.payerId,
-      type: "info",
-      category: "payment",
-      title: "Pago reembolsado",
-      message: `Tu pago de $${payment.amount} ha sido reembolsado. Razón: ${reason}`,
-      relatedModel: "Payment",
-      relatedId: payment.id,
-      sentVia: ["in_app"],
-    });
-
-    res.json({ success: true, data: { payment, refundId: refundResult.refundId } });
-  } catch (error: any) {
-    console.error("Refund payment error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
  * Get user payments (sent and received)
  * GET /api/payments/my/list
  */
@@ -1742,205 +1496,6 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
     res.json({ success: true, data: payments });
   } catch (error: any) {
     console.error("Get contract payments error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * PayPal webhook handler
- * POST /api/payments/webhook
- */
-router.post("/webhook", async (req, res): Promise<void> => {
-  try {
-    const webhookEvent = req.body;
-
-    // TODO: Verify webhook signature for security
-    // const isValid = await paypalService.verifyWebhookSignature(req.headers, req.body, WEBHOOK_ID);
-    // if (!isValid) {
-    //   res.status(400).json({ success: false, message: "Invalid webhook signature" });
-    //   return;
-    // }
-
-    // Handle different event types
-    switch (webhookEvent.event_type) {
-      case "PAYMENT.CAPTURE.COMPLETED":
-        // Payment captured successfully
-        console.log("Payment captured:", webhookEvent.resource.id);
-        break;
-
-      case "PAYMENT.CAPTURE.DENIED":
-        // Payment denied
-        console.log("Payment denied:", webhookEvent.resource.id);
-        break;
-
-      case "PAYMENT.CAPTURE.REFUNDED":
-        // Payment refunded
-        console.log("Payment refunded:", webhookEvent.resource.id);
-        break;
-
-      default:
-        console.log("Unhandled webhook event:", webhookEvent.event_type);
-    }
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("Webhook error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * AstroPay webhook — payment status notifications.
- * Uses raw body so the HMAC signature can be verified byte-for-byte.
- * POST /api/payments/webhook/astropay
- */
-router.post("/webhook/astropay", express.raw({ type: "*/*" }), async (req, res): Promise<void> => {
-  try {
-    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : JSON.stringify(req.body);
-    const signature = (req.headers["merchant-gateway-signature"] || req.headers["x-astropay-signature"]) as string | undefined;
-
-    if (!astropayService.verifyWebhookSignature(rawBody, signature)) {
-      console.warn("[AstroPay webhook] invalid signature");
-      res.status(401).json({ success: false, message: "Invalid signature" });
-      return;
-    }
-
-    const event = JSON.parse(rawBody);
-    const depositId: string | undefined = event.deposit_id || event.id;
-    const apStatus: string = (event.status || "").toString().toUpperCase();
-
-    if (!depositId) {
-      res.status(400).json({ success: false, message: "Missing deposit id" });
-      return;
-    }
-
-    const payment = await Payment.findOne({ where: { astropayDepositId: depositId } });
-    if (!payment) {
-      // Acknowledge so AstroPay stops retrying; nothing to update.
-      res.json({ success: true, message: "Payment not found" });
-      return;
-    }
-
-    payment.astropayStatus = apStatus;
-
-    const approved = ["APPROVED", "COMPLETED", "PAID", "SUCCESS"].includes(apStatus);
-    const failed = ["REJECTED", "CANCELLED", "FAILED", "EXPIRED"].includes(apStatus);
-
-    if (approved && payment.status === "pending") {
-      if (payment.paymentType === "contract_payment" && payment.isEscrow) {
-        // Escrow SYNC: keep payment + contract escrow status aligned (see CLAUDE.md)
-        payment.status = "held_escrow";
-        if (payment.contractId) {
-          const contract = await Contract.findByPk(payment.contractId);
-          if (contract) {
-            contract.escrowStatus = "held_escrow";
-            (contract as any).paymentStatus = "held";
-            await contract.save();
-          }
-        }
-      } else if (payment.paymentType === "job_publication") {
-        payment.status = "completed";
-        // Move the related job to admin approval, mirroring the MercadoPago success path
-        const relatedJob = await Job.findOne({ where: { publicationPaymentId: payment.id } });
-        if (relatedJob && relatedJob.status === "pending_payment") {
-          relatedJob.status = "pending_approval";
-          (relatedJob as any).publicationPaid = true;
-          await relatedJob.save();
-        }
-      } else {
-        payment.status = "completed";
-      }
-    } else if (failed) {
-      payment.status = "failed";
-    }
-
-    await payment.save();
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("[AstroPay webhook] error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * Create payment for job publication
- * POST /api/payments/job-publication/:jobId
- */
-router.post("/job-publication/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { jobId } = req.params;
-    const userId = req.user.id;
-
-    // Find the job
-    const job = await Job.findByPk(jobId);
-    if (!job) {
-      res.status(404).json({ success: false, message: "Job not found" });
-      return;
-    }
-
-    // Verify user is the owner
-    if (job.client !== userId) {
-      res.status(403).json({ success: false, message: "Unauthorized" });
-      return;
-    }
-
-    // Verify job status
-    if (job.status !== "draft" && job.status !== "pending_payment") {
-      res.status(400).json({ success: false, message: "Job already published or invalid status" });
-      return;
-    }
-
-    // Check if already paid
-    if (job.publicationPaid) {
-      res.status(400).json({ success: false, message: "Job publication already paid" });
-      return;
-    }
-
-    const amount = job.publicationAmount || 10; // Default $10 USD
-
-    // Create PayPal order
-    const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
-    const paypalOrder = await (paypalService as any)?.createOrder({
-      amount: amount.toFixed(2),
-      currency: "USD",
-      description: `Publicación de trabajo: ${job.title}`,
-      contractId: jobId,
-      returnUrl: `${config.clientUrl}/payment/success?type=job-publication&jobId=${jobId}`,
-      cancelUrl: `${config.clientUrl}/payment/cancel?type=job-publication&jobId=${jobId}`,
-    });
-
-    // Create payment record
-    const payment = await Payment.create({
-      contractId: null,
-      payerId: userId,
-      recipientId: null,
-      amount,
-      currency: "USD",
-      status: "pending",
-      paymentType: "job_publication",
-      paypalOrderId: paypalOrder.orderId,
-      description: `Publicación: ${job.title}`,
-      platformFee: 0,
-      platformFeePercentage: 0,
-      isEscrow: false,
-    });
-
-    // Update job with payment reference
-    job.publicationPaymentId = payment.id;
-    job.status = "pending_payment";
-    await job.save();
-
-    res.json({
-      success: true,
-      data: {
-        paymentId: payment.id,
-        orderId: paypalOrder.orderId,
-        approvalUrl: paypalOrder.links?.find((link: any) => link.rel === "approve")?.href,
-        amount,
-      },
-    });
-  } catch (error: any) {
-    console.error("Create job publication payment error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

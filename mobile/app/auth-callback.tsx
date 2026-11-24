@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import { esCodigoDeIngreso } from '../services/ingresoSocial';
+import { tomarVerificador } from '../services/ingresoSeguro';
 
 /**
  * A donde llega la app cuando la web la abre con `doapp://auth-callback?codigo=…` después de entrar con Google o X.
@@ -29,7 +30,9 @@ export default function AuthCallback() {
     }
     (async () => {
       try {
-        const r = await loginWithCode(codigo);
+        // El secreto que la app guardó al empezar el ingreso: sin él, un código interceptado por otra app no sirve (services/ingresoSeguro.ts).
+        const verificador = await tomarVerificador();
+        const r = await loginWithCode(codigo, verificador);
         if (!r.success) {
           setError(r.message || 'El ingreso venció o ya se usó. Volvé a intentarlo.');
           return;

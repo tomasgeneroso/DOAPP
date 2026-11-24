@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { celdaCsv } from '../../utils/csvSeguro.js';
 import { Op } from 'sequelize';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { User } from '../../models/sql/User.model.js';
@@ -88,14 +89,9 @@ function respondPaged(req: AuthRequest, res: Response, all: any[]): void {
 }
 
 function csvCell(v: any): string {
-  if (v === null || v === undefined) return '';
-  let s: string;
-  if (typeof v === 'boolean') s = v ? 'Sí' : 'No';
-  else if (v instanceof Date) s = v.toISOString().split('T')[0];
-  else s = String(v);
-  if (/[",\n]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
-  return s;
+  return celdaCsv(v);
 }
+// (celdaCsv neutraliza las fórmulas de Excel y entrecomilla lo que mueve columnas: utils/csvSeguro.ts)
 
 async function nameMap(ids: (string | undefined | null)[]): Promise<Record<string, string>> {
   const unique = [...new Set(ids.filter(Boolean) as string[])];

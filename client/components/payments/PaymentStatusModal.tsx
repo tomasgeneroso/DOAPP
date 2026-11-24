@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 interface PaymentStatusModalProps {
   isOpen: boolean;
-  paymentMethod: 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
+  paymentMethod: 'mercadopago' | 'binance' | 'bank_transfer';
   needsAdminApproval: boolean;
   autoSelectedWorker: boolean;
   workerName?: string;
@@ -23,7 +23,6 @@ export default function PaymentStatusModal({
 
   const paymentMethodLabels = {
     mercadopago: 'MercadoPago',
-    astropay: 'AstroPay',
     binance: 'Binance Pay',
     bank_transfer: 'Transferencia Bancaria'
   };

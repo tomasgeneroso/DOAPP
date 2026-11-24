@@ -79,7 +79,7 @@ describe('el código hace lo que dicen los textos', () => {
   it('los archivos se encriptan antes de escribirse y la carpeta es privada', () => {
     const servicio = leer('server/services/matricula.ts');
     expect(servicio).toMatch(/encryptBuffer\(datos\)/);
-    expect(leer('server/middleware/archivosPrivados.ts')).toMatch(/'license-docs'\] as const/);
+    expect(leer('server/middleware/archivosPrivados.ts')).toMatch(/CARPETAS_PRIVADAS = \[[^\]]*'license-docs'[^\]]*\] as const/);
   });
 
   it('el archivo sólo lo ve el dueño, administración o el cliente con un contrato vigente', () => {

@@ -247,7 +247,7 @@ describe('la sesión del ingreso social no viaja en la dirección', () => {
     // Una dirección queda en los registros de nginx y Cloudflare y en el historial: la sesión no puede estar ahí.
     expect(auth).not.toMatch(/auth\/callback\?token=/);
     expect(auth).toMatch(/function guardarSesionEnCookie[\s\S]{0,200}httpOnly:\s*true/);
-    expect([...auth.matchAll(/guardarSesionEnCookie\(res,/g)]).toHaveLength(3);
+    expect([...auth.matchAll(/guardarSesionEnCookie\(res,/g)]).toHaveLength(4); // Google, Facebook, X y el ingreso de Facebook por token (la web ya no guarda el token en el navegador)
     expect([...auth.matchAll(/direccionDeRetornoSocial\(/g)].length).toBeGreaterThanOrEqual(4); // la definición + los tres retornos
   });
 

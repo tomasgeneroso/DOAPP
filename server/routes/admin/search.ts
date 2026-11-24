@@ -12,7 +12,8 @@ import { isValidUUID } from "../../utils/sanitizer.js";
 const router = express.Router();
 
 // Escape special LIKE characters to avoid SQL injection via ILIKE
-const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+// También se duplican las comillas simples: sin eso, un texto con «'» salía de la cadena SQL (inyección, auditoría 2026-11-24).
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&').replace(/'/g, "''");
 
 // Build a condition that matches UUID column partially (case-insensitive)
 const uuidLike = (colName: string, search: string) =>
@@ -36,6 +37,11 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
 
     if (searchStr.length < 4) {
       res.status(400).json({ success: false, message: "El ID debe tener al menos 4 caracteres" });
+      return;
+    }
+    // Un id (o un pedazo de id) son solo letras de la a a la f, números y guiones: cualquier otra cosa no es un id y no llega a la consulta.
+    if (!/^[0-9a-f-]{4,36}$/i.test(searchStr)) {
+      res.status(400).json({ success: false, message: "Escribí un id: solo números, letras de la A a la F y guiones" });
       return;
     }
 

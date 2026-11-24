@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { guardarMarcadorDeSesion } from "../utils/sesion";
 import { useTranslation } from "react-i18next";
 import { FB_SDK_READY_EVENT } from "../components/FacebookSDK";
 
@@ -24,8 +25,9 @@ export function useFacebookLogin() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.token && data.user) {
-          localStorage.setItem("token", data.token);
+        if (data.success && data.user) {
+          // La sesión quedó en la cookie httpOnly (el servidor la deja): el token del cuerpo no se guarda en el navegador.
+          guardarMarcadorDeSesion();
           localStorage.setItem("user", JSON.stringify(data.user));
           window.location.href = "/";
         } else {

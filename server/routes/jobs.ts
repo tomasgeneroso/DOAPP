@@ -20,6 +20,9 @@ import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { optionalAuth } from "../middleware/auth.js";
+import { isValidUUID } from "../utils/sanitizer.js";
+import { nombreSeguro } from "../utils/archivoSeguro.js";
+import { esDireccionDeArchivoPropia } from "../utils/direccionDeArchivo.js";
 import { paraQuienMira, ocultarDireccion, ocultarContacto } from "../services/privacidadTrabajo.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -36,7 +39,7 @@ import { calculateCommission } from "../services/commissionService.js";
 import { publicacionDevuelta } from "../services/creditoDePublicacion.js";
 import { intentarDevolverPresupuesto } from "../services/presupuestoDelTrabajo.js";
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
-import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
+import { escapeIcsText, formatIcsDate, generateCalendarToken, idDelDuenoDelCalendario } from "../utils/calendarIcs.js";
 import { conSistema } from "../db/contextoRls.js";
 import { situacionesDeTrabajosParaPersona } from "../services/panelDePublicaciones.js";
 import { detalleDelPagoDeLaPublicacion } from "../services/detalleDelPagoDeLaPublicacion.js";
@@ -59,8 +62,7 @@ const storage = multer.diskStorage({
     cb(null, JOB_IMAGES_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `job-${uniqueSuffix}${path.extname(file.originalname)}`);
+    cb(null, nombreSeguro(file, 'job-'));
   }
 });
 
@@ -750,8 +752,8 @@ router.get("/calendar/feed/:token.ics", async (req: Request, res: Response): Pro
   try {
     const { token } = req.params;
 
-    const users = await User.findAll({ attributes: ['id', 'name', 'availabilitySchedule'] });
-    const user = users.find(u => generateCalendarToken(u.id) === token);
+    const idDelDueno = await idDelDuenoDelCalendario(String(token));
+    const user = idDelDueno ? await User.findByPk(idDelDueno, { attributes: ['id', 'name', 'availabilitySchedule'] }) : null;
 
     if (!user) {
       res.status(404).send('Calendar not found');
@@ -1526,6 +1528,19 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
         existingImages = [];
       }
     }
+
+    // Solo se conservan fotos de la propia plataforma: una dirección de afuera en una publicación sirve para rastrear a quien la mira
+    // (auditoría 2026-11-24). Acepta la ruta o la dirección completa de nuestras carpetas.
+    existingImages = (Array.isArray(existingImages) ? existingImages : []).filter((d) => {
+      if (typeof d !== 'string') return false;
+      if (esDireccionDeArchivoPropia(d)) return true;
+      try {
+        const u = new URL(d);
+        return /^https?:$/.test(u.protocol) && esDireccionDeArchivoPropia(u.pathname + u.search);
+      } catch {
+        return false;
+      }
+    });
 
     // Combine existing and new images
     if (newImageUrls.length > 0 || req.body.existingImages !== undefined) {
@@ -4063,10 +4078,13 @@ router.delete("/:id/cancel-price-decrease", protect, async (req: AuthRequest, re
 router.use("/:jobId/tasks", tasksRoutes);
 
 // Single job .ics download
-router.get("/:id/calendar.ics", async (req: Request, res: Response): Promise<void> => {
+router.get("/:id/calendar.ics", optionalAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findByPk(req.params.id);
-    if (!job) {
+    const job = isValidUUID(req.params.id) ? await Job.findByPk(req.params.id) : null;
+    // Un trabajo que todavía no es público (borrador, sin pagar, en revisión, cancelado) solo lo exporta quien lo publicó o el equipo (antes lo bajaba cualquiera con el id).
+    const esPublico = !!job && ['open', 'in_progress', 'completed'].includes(String(job.status));
+    const esDeQuienMira = !!job && !!req.user && (String(job.clientId) === String(req.user.id) || !!(req.user as any).adminRole);
+    if (!job || (!esPublico && !esDeQuienMira)) {
       res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
       return;
     }

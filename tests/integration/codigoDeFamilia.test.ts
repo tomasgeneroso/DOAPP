@@ -38,7 +38,7 @@ describe('código de familia', () => {
     const email = `fam${Date.now().toString(36)}${n++}@registro.test`;
     emails.push(email);
     return request(app).post('/api/auth/register').send({
-      name: 'Ana Prueba', username: `fam${Date.now().toString(36)}${n++}`, email, password: 'password123', dni: dniNuevo(), termsAccepted: true, sinSesion: true, referralCode,
+      name: 'Ana Prueba', username: `fam${Date.now().toString(36)}${n++}`, email, password: 'password123!', dni: dniNuevo(), termsAccepted: true, sinSesion: true, referralCode,
     }).then((r) => ({ r, email }));
   };
 

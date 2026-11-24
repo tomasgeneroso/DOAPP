@@ -1,7 +1,8 @@
 import express, { Request, Response } from "express";
 import { Post } from "../models/sql/Post.model.js";
 import { PostComment } from "../models/sql/PostComment.model.js";
-import { protect } from "../middleware/auth.js";
+import { protect, optionalAuth } from "../middleware/auth.js";
+import { isValidUUID } from "../utils/sanitizer.js";
 import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
@@ -16,11 +17,22 @@ const router = express.Router();
 // @access  Public
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    // Límites (auditoría 2026-11-24): antes `?limit=1000000` bajaba todo y `?page=0` daba un OFFSET negativo (500).
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
     const skip = (page - 1) * limit;
-    const type = req.query.type as string; // 'post' or 'article'
-    const userId = req.query.userId as string;
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined; // 'post' or 'article'
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+
+    // Un id que no es un id válido no encuentra nada (antes llegaba a la base y volvía como un 500 con el texto del error).
+    if (userId && !isValidUUID(userId)) {
+      res.json({ success: true, posts: [], pagination: { page, limit, total: 0, pages: 0 } });
+      return;
+    }
+    if (type && !['post', 'article'].includes(type)) {
+      res.json({ success: true, posts: [], pagination: { page, limit, total: 0, pages: 0 } });
+      return;
+    }
 
     const filter: any = { isPublished: true };
     if (type) filter.type = type;
@@ -76,22 +88,24 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 // @route   GET /api/posts/:id
 // @desc    Get single post by ID
 // @access  Public
-router.get("/:id", async (req: Request, res: Response): Promise<void> => {
+router.get("/:id", optionalAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!isValidUUID(req.params.id)) {
+      res.status(404).json({ success: false, message: "Publicación no encontrada" });
+      return;
+    }
+    // Sin incluir el contrato: la ruta es pública y mostraba el estado y el precio de cualquier contrato al que apuntara la publicación (auditoría 2026-11-24).
     const post = await Post.findByPk(req.params.id, {
       include: [
         {
           association: 'authorUser',
           attributes: ['id', 'name', 'avatar', 'bio', 'membershipTier', 'hasMembership', 'isPremiumVerified', 'rating', 'completedJobs'],
         },
-        {
-          association: 'contract',
-          attributes: ['id', 'status', 'price'],
-        },
       ],
     });
 
-    if (!post) {
+    // Una publicación sin publicar solo la ve quien la escribió (el listado ya filtraba por isPublished; el detalle no).
+    if (!post || (!post.isPublished && String(post.author) !== String(req.user?.id ?? ''))) {
       res.status(404).json({
         success: false,
         message: "Publicación no encontrada",
@@ -99,9 +113,9 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Increment view count
+    // Contador de vistas: una suma en la base (antes se leía, se sumaba y se guardaba la publicación entera: con visitas simultáneas se perdían vistas).
+    await Post.increment('viewsCount', { by: 1, where: { id: post.id } });
     post.viewsCount += 1;
-    await post.save();
 
     // Transform to match frontend expectations
     const postData = post.toJSON() as any;
@@ -142,7 +156,7 @@ router.post(
   verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { title, description, price, currency, type, tags, linkedContract, captions, linkedJob, taggedUsers } = req.body;
+      const { title, description, price, currency, type, tags, captions, linkedJob, taggedUsers } = req.body;
 
       // Un trabajo terminado que se comparte: se comprueba que quien publica haya participado y se arma a quién se etiqueta (solo a quien trabajó y lo permite).
       let contratoDelTrabajo: string | undefined;
@@ -171,9 +185,9 @@ router.post(
       const gallery = (req.files as Express.Multer.File[])?.map((file, index) => {
         const isVideo = file.mimetype.startsWith("video/");
         return {
-          url: `/uploads/disputes/${file.filename}`,
+          url: `/uploads/post-media/${file.filename}`,
           type: isVideo ? "video" : "image",
-          thumbnail: isVideo ? `/uploads/disputes/${file.filename}` : undefined,
+          thumbnail: isVideo ? `/uploads/post-media/${file.filename}` : undefined,
           caption: captionsArray[index] || undefined,
         };
       }) || [];
@@ -202,7 +216,8 @@ router.post(
         currency: currency || "ARS",
         type: type || "post",
         tags: parsedTags,
-        linkedContract: linkedContract || contratoDelTrabajo || undefined,
+        // Solo el contrato que el servidor comprueba (el de quien participó en ese trabajo): antes se aceptaba cualquiera que mandara el cuerpo.
+        linkedContract: contratoDelTrabajo || undefined,
         taggedUsers: etiquetados,
       });
       if (etiquetados.length > 0) {
@@ -354,7 +369,7 @@ router.put(
         return;
       }
 
-      const { title, description, price, currency, type, tags, linkedContract, isPublished } = req.body;
+      const { title, description, price, currency, type, tags, isPublished } = req.body;
 
       // Update fields (sanitized: title -> plain text, description -> safe HTML)
       if (title) post.title = sanitizePlainText(title);
@@ -373,7 +388,6 @@ router.put(
           }
         }
       }
-      if (linkedContract !== undefined) post.linkedContract = linkedContract || undefined;
       if (isPublished !== undefined) post.isPublished = isPublished;
 
       // Add new gallery items if uploaded
@@ -381,9 +395,9 @@ router.put(
         const newGallery = (req.files as Express.Multer.File[]).map((file) => {
           const isVideo = file.mimetype.startsWith("video/");
           return {
-            url: `/uploads/disputes/${file.filename}`,
+            url: `/uploads/post-media/${file.filename}`,
             type: (isVideo ? "video" : "image") as "video" | "image",
-            thumbnail: isVideo ? `/uploads/disputes/${file.filename}` : undefined,
+            thumbnail: isVideo ? `/uploads/post-media/${file.filename}` : undefined,
           };
         });
         post.gallery = [...post.gallery, ...newGallery];
@@ -436,10 +450,11 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Delete all comments associated with this post
-    await PostComment.destroy({ where: { post: post.id } });
-
-    await post.destroy();
+    // Los comentarios y la publicación se borran juntos: si falla uno, no se borra nada.
+    await Post.sequelize!.transaction(async (transaction) => {
+      await PostComment.destroy({ where: { post: post.id }, transaction });
+      await post.destroy({ transaction });
+    });
 
     res.json({
       success: true,

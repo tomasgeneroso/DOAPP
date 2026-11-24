@@ -1,4 +1,6 @@
 import express, { Response } from "express";
+import { celdaDeTextoCsv } from '../../utils/csvSeguro.js';
+import { nombreSeguro } from "../../utils/archivoSeguro.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -37,8 +39,7 @@ const workerPaymentProofStorage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `worker-payment-${uniqueSuffix}${path.extname(file.originalname)}`);
+    cb(null, nombreSeguro(file, 'worker-payment-'));
   }
 });
 
@@ -560,17 +561,18 @@ router.get("/export/csv", protect, requireRole('admin', 'super_admin', 'owner'),
 
       return [
         index + 1,
-        `"${job?.title || ''}"`,
-        `"${client?.name || ''}"`,
-        client?.email || '',
-        `"${doer?.name || ''}"`,
-        doer?.email || '',
-        doer?.dni || '',
-        doer?.phone || '',
-        `"${address}"`,
-        doer?.bankingInfo?.bankName || '',
-        doer?.bankingInfo?.cbu || '',
-        doer?.bankingInfo?.alias || '',
+        // Todo texto que escribió una persona va entre comillas y sin fórmulas (utils/csvSeguro.ts): un alias con comas movía las columnas del monto.
+        celdaDeTextoCsv(job?.title),
+        celdaDeTextoCsv(client?.name),
+        celdaDeTextoCsv(client?.email),
+        celdaDeTextoCsv(doer?.name),
+        celdaDeTextoCsv(doer?.email),
+        celdaDeTextoCsv(doer?.dni),
+        celdaDeTextoCsv(doer?.phone),
+        celdaDeTextoCsv(address),
+        celdaDeTextoCsv(doer?.bankingInfo?.bankName),
+        celdaDeTextoCsv(doer?.bankingInfo?.cbu),
+        celdaDeTextoCsv(doer?.bankingInfo?.alias),
         contract.allocatedAmount || contract.price,
         contract.commission,
         contract.totalPrice,

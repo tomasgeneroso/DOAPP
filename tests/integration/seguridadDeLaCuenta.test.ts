@@ -38,7 +38,7 @@ jest.mock('../../server/services/email.js', () => ({
 import { User } from '../../server/models/sql/User.model.js';
 import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { RefreshToken } from '../../server/models/sql/RefreshToken.model.js';
-import { generateRefreshToken } from '../../server/utils/tokens.js';
+import { generateRefreshToken, hashDelRefresh } from '../../server/utils/tokens.js';
 import { crearUsuario } from '../helpers/fixtures.js';
 import {
   emitirCodigoDeClave,
@@ -175,7 +175,7 @@ describe('rutas de seguridad', () => {
     expect(bien.status).toBe(200);
     expect(bien.body.logout).toBe(true);
     // todas las demás sesiones (los tokens de renovación) quedan cerradas
-    expect(((await RefreshToken.findOne({ where: { token: sesionAbierta } })) as any).isRevoked).toBe(true);
+    expect(((await RefreshToken.findOne({ where: { token: hashDelRefresh(sesionAbierta) } })) as any).isRevoked).toBe(true);
     const g: any = await User.findByPk(u.id);
     expect(await g.comparePassword('clave-nueva-456')).toBe(true);
     expect(await g.comparePassword('clave-vieja-123')).toBe(false);

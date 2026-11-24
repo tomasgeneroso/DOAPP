@@ -18,7 +18,7 @@ import { idsDeContratosPorPago, pagosSinVincularPorContrato, vincularPagoAlContr
 import { bloqueoPorAprobacionPropia } from "../../services/aprobacionDePagos.js";
 import { resumenesDeTrabajos } from "../../services/panelDePublicaciones.js";
 
-const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&').replace(/'/g, "''");
 
 const router = express.Router();
 

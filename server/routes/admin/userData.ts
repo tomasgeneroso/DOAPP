@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { celdaCsv } from '../../utils/csvSeguro.js';
 import { Op } from 'sequelize';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { User } from '../../models/sql/User.model.js';
@@ -139,14 +140,9 @@ const CSV_COLUMNS: Array<{ key: keyof ReturnType<typeof toRecord>; label: string
 ];
 
 function csvCell(v: any): string {
-  if (v === null || v === undefined) return '';
-  let s: string;
-  if (typeof v === 'boolean') s = v ? 'Sí' : 'No';
-  else if (v instanceof Date) s = v.toISOString().split('T')[0];
-  else s = String(v);
-  if (/[",\n]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
-  return s;
+  return celdaCsv(v);
 }
+// (celdaCsv neutraliza las fórmulas de Excel y entrecomilla lo que mueve columnas: utils/csvSeguro.ts)
 
 // GET /api/admin/user-data/export.csv  — all rows matching the search
 router.get('/export.csv', async (req: AuthRequest, res: Response): Promise<void> => {

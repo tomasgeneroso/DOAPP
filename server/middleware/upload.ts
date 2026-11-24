@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
+import { nombreSeguro } from "../utils/archivoSeguro.js";
 import fs from "fs";
 import type { Request, Response, NextFunction } from "express";
 import { ErrorResponse } from './errorHandler.js';
@@ -46,13 +47,16 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, "avatars");
 const DOCUMENT_DIR = path.join(UPLOAD_DIR, "documents");
 const PORTFOLIO_DIR = path.join(UPLOAD_DIR, "portfolio");
 const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
+/** Fotos y videos de las publicaciones del perfil: carpeta PROPIA y pública. Antes caían en «disputes», mezcladas con la evidencia de los reclamos (que no tendría que ser pública). */
+export const POST_MEDIA_URL_DIR = "post-media";
+const POST_MEDIA_DIR = path.join(UPLOAD_DIR, POST_MEDIA_URL_DIR);
 const BLOG_DIR = path.join(UPLOAD_DIR, "blogs");
 const PROPOSALS_DIR = path.join(UPLOAD_DIR, "proposals");
 const DNI_DIR = path.join(UPLOAD_DIR, "dni");
 const LICENSE_DIR = path.join(UPLOAD_DIR, "licenses");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR, DNI_DIR, LICENSE_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, POST_MEDIA_DIR, BLOG_DIR, PROPOSALS_DIR, DNI_DIR, LICENSE_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -208,7 +212,7 @@ const avatarStorage = multer.diskStorage({
     callback(null, AVATAR_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -221,7 +225,7 @@ const documentStorage = multer.diskStorage({
     callback(null, DOCUMENT_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -234,7 +238,7 @@ const portfolioStorage = multer.diskStorage({
     callback(null, PORTFOLIO_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -247,7 +251,7 @@ const blogStorage = multer.diskStorage({
     callback(null, BLOG_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -260,8 +264,17 @@ const disputeStorage = multer.diskStorage({
     callback(null, DISPUTE_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
+  },
+});
+
+const postMediaStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, POST_MEDIA_DIR);
+  },
+  filename: (req, file, callback) => {
+    callback(null, nombreSeguro(file));
   },
 });
 
@@ -358,7 +371,7 @@ const dailyLogStorage = multer.diskStorage({
     callback(null, DAILY_LOG_DIR);
   },
   filename: (req, file, callback) => {
-    callback(null, generateUniqueFilename(sanitizeFilename(file.originalname)));
+    callback(null, nombreSeguro(file));
   },
 });
 
@@ -386,7 +399,7 @@ const deliveryStorage = multer.diskStorage({
     callback(null, DELIVERY_DIR);
   },
   filename: (req, file, callback) => {
-    callback(null, generateUniqueFilename(sanitizeFilename(file.originalname)));
+    callback(null, nombreSeguro(file));
   },
 });
 
@@ -400,7 +413,7 @@ export const uploadDeliveryPhotos = multer({
  * Upload middleware for post gallery (images and videos)
  */
 export const uploadPostGallery = multer({
-  storage: disputeStorage, // Reuse dispute storage for posts
+  storage: postMediaStorage, // Carpeta propia (antes se reutilizaba la de las disputas)
   fileFilter: disputeFileFilter, // Allows images and videos
   limits: {
     fileSize: MAX_VIDEO_SIZE, // Allow up to 50MB for videos
@@ -420,8 +433,8 @@ const ticketStorage = multer.diskStorage({
     callback(null, uploadPath);
   },
   filename: (req, file, callback) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    callback(null, `${uniqueSuffix}-${file.originalname}`);
+    // Antes llevaba el nombre del archivo tal cual, extensión incluida (un .html se servía como página): ahora la extensión sale del tipo (utils/archivoSeguro.ts).
+    callback(null, nombreSeguro(file, 'ticket-'));
   },
 });
 
@@ -466,7 +479,7 @@ const proposalStorage = multer.diskStorage({
     callback(null, PROPOSALS_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -523,7 +536,7 @@ const dniStorage = multer.diskStorage({
     callback(null, DNI_DIR);
   },
   filename: (req, file, callback) => {
-    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    const uniqueName = nombreSeguro(file);
     callback(null, uniqueName);
   },
 });
@@ -577,9 +590,7 @@ export const uploadInsuranceDocument = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, LICENSE_DIR),
     filename: (_req, file, cb) => {
-      const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `insurance-${uniqueSuffix}${ext}`);
+      cb(null, nombreSeguro(file, 'insurance-'));
     },
   }),
   fileFilter: (_req, file, cb) => {

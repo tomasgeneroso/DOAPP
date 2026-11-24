@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { Lock, ArrowLeft, CheckCircle2, AlertCircle, Home, Eye, EyeOff } from "lucide-react";
+import { motivoDeClaveDebil, TEXTO_DE_LA_REGLA_DE_CLAVE } from "../../shared/seguridad/clave";
 
 export default function ResetPassword() {
   const { t } = useTranslation();
@@ -30,8 +31,9 @@ export default function ResetPassword() {
     setError(null);
 
     // Validaciones
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    const motivoDeClave = motivoDeClaveDebil(password);
+    if (motivoDeClave) {
+      setError(motivoDeClave);
       setIsLoading(false);
       return;
     }
@@ -168,7 +170,7 @@ export default function ResetPassword() {
                         </button>
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Mínimo 6 caracteres
+                        {TEXTO_DE_LA_REGLA_DE_CLAVE}
                       </p>
                     </div>
 

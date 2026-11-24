@@ -19,7 +19,7 @@ import { isDiditConfigured, getDiditMedia } from "../../services/didit.js";
 import { permisoParaAprobarAMano, RAZON_MINIMA_DE_APROBACION } from "../../services/aprobacionManualDeIdentidad.js";
 import { otorgarContratosLibres } from "../../services/exencionDeComision.js";
 
-const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&').replace(/'/g, "''");
 
 const router = express.Router();
 

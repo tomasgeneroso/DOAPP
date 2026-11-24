@@ -16,6 +16,7 @@ import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { post } from '../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import { motivoDeClaveDebil } from '../../../shared/seguridad/clave';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -32,8 +33,9 @@ export default function ResetPasswordScreen() {
 
   const handleSubmit = async () => {
     setError('');
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+    const motivoDeClave = motivoDeClaveDebil(password);
+    if (motivoDeClave) {
+      setError(motivoDeClave);
       return;
     }
     if (password !== confirmPassword) {
@@ -94,7 +96,7 @@ export default function ResetPasswordScreen() {
 
           <Text style={[styles.title, { color: themeColors.text.primary }]}>Restablecer contraseña</Text>
           <Text style={[styles.subtitle, { color: themeColors.text.secondary }]}>
-            Ingresá tu nueva contraseña. Debe tener al menos 6 caracteres.
+            Ingresá tu nueva contraseña. Al menos 6 caracteres y un símbolo (por ejemplo ! ? . - _ @ # $ %).
           </Text>
 
           {error ? (

@@ -36,7 +36,7 @@ describe('registro en pasos', () => {
   const registrarPaso1 = async (extra: Record<string, unknown> = {}) => {
     const email = `pasos${Date.now().toString(36)}${n++}@registro.test`;
     emails.push(email);
-    return { email, r: await request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123', termsAccepted: true, ...extra }) };
+    return { email, r: await request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123!', termsAccepted: true, ...extra }) };
   };
 
   beforeAll(async () => {
@@ -69,21 +69,21 @@ describe('registro en pasos', () => {
     });
 
     it('sigue exigiendo un correo válido, una contraseña de 6 o más y aceptar los términos', async () => {
-      expect((await request(app).post('/api/auth/register').send({ pasos: true, email: 'no-es-correo', password: 'password123', termsAccepted: true })).status).toBe(400);
+      expect((await request(app).post('/api/auth/register').send({ pasos: true, email: 'no-es-correo', password: 'password123!', termsAccepted: true })).status).toBe(400);
       expect((await request(app).post('/api/auth/register').send({ pasos: true, email: 'a@registro.test', password: '123', termsAccepted: true })).status).toBe(400);
-      expect((await request(app).post('/api/auth/register').send({ pasos: true, email: 'b@registro.test', password: 'password123', termsAccepted: false })).status).toBe(400);
+      expect((await request(app).post('/api/auth/register').send({ pasos: true, email: 'b@registro.test', password: 'password123!', termsAccepted: false })).status).toBe(400);
     });
 
     it('un correo ya registrado se rechaza', async () => {
       const { email } = await registrarPaso1();
-      const otra = await request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123', termsAccepted: true });
+      const otra = await request(app).post('/api/auth/register').send({ pasos: true, email, password: 'password123!', termsAccepted: true });
       expect(otra.status).toBe(400);
     });
 
     it('el registro de siempre (con nombre, usuario y DNI) sigue funcionando y NO queda pendiente', async () => {
       const email = `completo${Date.now().toString(36)}${n++}@registro.test`;
       emails.push(email);
-      const r = await request(app).post('/api/auth/register').send({ name: 'Ana Pérez', username: `ana${Date.now().toString(36)}`, email, password: 'password123', dni: dniNuevo(), termsAccepted: true });
+      const r = await request(app).post('/api/auth/register').send({ name: 'Ana Pérez', username: `ana${Date.now().toString(36)}`, email, password: 'password123!', dni: dniNuevo(), termsAccepted: true });
       expect(r.status).toBe(201);
       expect(((await User.findOne({ where: { email } })) as any).registrationPending).toBe(false);
     });

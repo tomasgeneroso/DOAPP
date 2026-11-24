@@ -24,6 +24,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { motivoDeClaveDebil } from '../../shared/seguridad/clave';
 
 /**
  * Cambiar la contraseña desde la app.
@@ -86,7 +87,8 @@ export default function CambiarContrasenaScreen() {
   );
 
   const validarNueva = (): string | null => {
-    if (nueva.length < 6) return 'La contraseña nueva debe tener al menos 6 caracteres.';
+    const motivoDeClave = motivoDeClaveDebil(nueva);
+    if (motivoDeClave) return motivoDeClave;
     if (nueva !== repetida) return 'Las contraseñas no coinciden.';
     return null;
   };

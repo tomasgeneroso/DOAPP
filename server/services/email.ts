@@ -1,4 +1,5 @@
 import sgMail from "@sendgrid/mail";
+import { escaparTextoDeLosCorreos, desescaparHtml } from "../utils/escaparHtml.js";
 import formData from "form-data";
 import Mailgun from "mailgun.js";
 import nodemailer from "nodemailer";
@@ -202,6 +203,8 @@ class EmailService {
    * Send email using configured provider
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    // El asunto viaja en una cabecera, no es HTML: se deshace el escape que se le puso al armarlo con el nombre de alguien (O&#39;Brien → O'Brien).
+    options = { ...options, subject: desescaparHtml(options.subject) };
     if (!this.sendgridInitialized && !this.mailgunInitialized && !this.smtpInitialized) {
       console.warn("No email provider initialized. Skipping email.");
       return false;
@@ -1124,4 +1127,5 @@ ${ctaBlock}
   }
 }
 
-export default new EmailService();
+// El texto de las personas se escapa por nombre de parámetro (utils/escaparHtml.ts); sendEmail y sendToUser reciben HTML ya armado y no se tocan.
+export default escaparTextoDeLosCorreos(new EmailService(), ["sendEmail", "sendToUser"]);

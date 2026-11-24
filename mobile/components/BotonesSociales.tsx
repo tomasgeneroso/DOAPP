@@ -4,6 +4,7 @@ import { spacing, borderRadius, fontSize, fontWeight } from '../constants/theme'
 import { API_URL } from '../services/api';
 import { IconoGoogle, IconoX } from './ui/IconosDeMarca';
 import { urlDeIngresoSocial, NOMBRE_DEL_PROVEEDOR, ProveedorSocial } from '../services/ingresoSocial';
+import { prepararIngresoSeguro } from '../services/ingresoSeguro';
 
 /**
  * «Ingresar con Google» y «Ingresar con X». Abren el ingreso en el navegador del teléfono y, al terminar, la web abre la app
@@ -14,7 +15,8 @@ export default function BotonesSociales({ accion }: { accion: 'ingresar' | 'regi
 
   const abrir = async (proveedor: ProveedorSocial) => {
     try {
-      await Linking.openURL(urlDeIngresoSocial(proveedor, API_URL));
+      const desafio = await prepararIngresoSeguro();
+      await Linking.openURL(urlDeIngresoSocial(proveedor, API_URL, desafio));
     } catch {
       Alert.alert('No se pudo abrir el navegador', `Probá de nuevo o ${accion} con tu correo.`);
     }

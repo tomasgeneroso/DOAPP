@@ -34,6 +34,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, post } from '../../services/api';
+import { abrirArchivo } from '../../services/archivos';
 import ReclamoDirectoPanel from '../../components/ReclamoDirectoPanel';
 import PruebasPorDetalle from '../../components/PruebasPorDetalle';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
@@ -174,8 +175,9 @@ export default function DisputeDetailScreen() {
     }
   };
 
+  // Las pruebas de un reclamo son privadas: se abren con un enlace firmado de 10 minutos (services/archivos.ts).
   const openFile = (url: string) => {
-    Linking.openURL(url);
+    void abrirArchivo(url);
   };
 
   const getFileIcon = (type: string) => {
