@@ -154,9 +154,9 @@ export default function AdminPagos() {
               <Text style={[styles.dato, { color: themeColors.text.muted, marginBottom: spacing.md }]}>
                 Hay {sinAccion} pago{sinAccion === 1 ? '' : 's'} más sin acción posible todavía (pendientes de pagar o en proceso).
               </Text>
-            ) : null
+            ) : undefined
           }
-          ListEmptyComponent={!error ? <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay pagos esperando a un administrador.</Text> : null}
+          ListEmptyComponent={!error ? <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay pagos esperando a un administrador.</Text> : undefined}
         />
       )}
       <PedirMotivo

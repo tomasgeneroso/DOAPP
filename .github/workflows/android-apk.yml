@@ -31,7 +31,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '20'
+  # La app pide Node 22.13 o más (React Native 0.88, Expo 58). El servidor y la web siguen en su versión.
+  NODE_VERSION: '22'
   CARPETA_REMOTA: /var/www/doapp-descargas
   EXPO_PUBLIC_API_URL: https://doapparg.com/api
 

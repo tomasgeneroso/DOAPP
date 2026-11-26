@@ -110,8 +110,8 @@ export default function AdminContratos() {
           renderItem={tarjeta}
           contentContainerStyle={{ padding: spacing.lg }}
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => { setRefrescando(true); cargar(); }} />}
-          ListHeaderComponent={error ? <Text style={{ color: colors.danger[600], marginBottom: spacing.md }}>{error}</Text> : null}
-          ListEmptyComponent={!error ? <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay contratos esperando aprobación.</Text> : null}
+          ListHeaderComponent={error ? <Text style={{ color: colors.danger[600], marginBottom: spacing.md }}>{error}</Text> : undefined}
+          ListEmptyComponent={!error ? <Text style={[styles.vacio, { color: themeColors.text.muted }]}>No hay contratos esperando aprobación.</Text> : undefined}
         />
       )}
       <PedirMotivo

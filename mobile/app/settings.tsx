@@ -54,7 +54,7 @@ export default function SettingsScreen() {
 
   const { section, tab } = useLocalSearchParams<{ section?: string; tab?: string }>();
   const { pending, countFor } = usePendingTasks();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [saving, setSaving] = useState(false);

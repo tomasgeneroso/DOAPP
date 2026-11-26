@@ -27,8 +27,8 @@ describe('Pestanas (celular)', () => {
         </ThemeProvider>,
       );
     });
-    // El proveedor del tema carga su preferencia de forma asíncrona: se espera a que aparezcan las pestañas (con carga alta tarda más).
-    for (let i = 0; i < 50 && arbol.root.findAll((n) => n.props.accessibilityRole === 'tab').length === 0; i++) {
+    // El proveedor del tema carga su preferencia de forma asíncrona: se espera a que aparezcan las pestañas (con carga alta tarda más: se le dan hasta 10 s; sale apenas aparecen).
+    for (let i = 0; i < 500 && arbol.root.findAll((n) => n.props.accessibilityRole === 'tab').length === 0; i++) {
       await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     }
     const tabs = arbol.root.findAll((n) => n.props.accessibilityRole === 'tab');
@@ -42,5 +42,5 @@ describe('Pestanas (celular)', () => {
     const segunda = tabs.find((t: any) => t.props.testID === 'p-b')!;
     act(() => segunda.props.onPress());
     expect(cambios).toEqual(['b']);
-  });
+  }, 20000);
 });

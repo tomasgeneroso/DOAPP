@@ -280,7 +280,7 @@ export default function NotificationsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[600]} />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.lg }} color={colors.primary[600]} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.lg }} color={colors.primary[600]} /> : undefined}
         />
       )}
     </SafeAreaView>

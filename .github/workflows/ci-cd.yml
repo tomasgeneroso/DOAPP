@@ -191,12 +191,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          # La app pide Node 22.13 o más (React Native 0.88, Expo 58); el resto del flujo sigue con env.NODE_VERSION.
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: mobile/package-lock.json
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+
+      - name: Mobile typecheck
+        run: npx tsc --noEmit
 
       - name: Mobile tests
         run: npx jest

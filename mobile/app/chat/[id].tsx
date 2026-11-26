@@ -586,7 +586,7 @@ export default function ChatScreen() {
           ListFooterComponent={
             loadingMore ? (
               <ActivityIndicator size="small" color={themeColors.primary[600]} style={{ marginVertical: spacing.md }} />
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>

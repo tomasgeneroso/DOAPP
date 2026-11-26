@@ -463,7 +463,7 @@ export default function DashboardScreen() {
               contentContainerStyle={styles.txList}
               onEndReached={loadMoreTransactions}
               onEndReachedThreshold={0.3}
-              ListFooterComponent={txLoading ? <ActivityIndicator style={{ padding: spacing.lg }} color={colors.primary[600]} /> : null}
+              ListFooterComponent={txLoading ? <ActivityIndicator style={{ padding: spacing.lg }} color={colors.primary[600]} /> : undefined}
             />
           )}
         </SafeAreaView>
