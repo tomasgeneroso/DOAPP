@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { entorno } from '../services/deployInfo.js';
+import { sumarAlContador } from '../services/registroDeUso.js';
 
 /**
  * Descarga de la app para Android como APK, sin pasar por ninguna tienda (regla del dueño, 2026-11-12: «que se pueda descargar como APK,
@@ -108,6 +109,8 @@ router.get('/android', limiteDeLaDescarga, async (req: Request, res: Response): 
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.type(TIPO_DEL_APK);
+  // Se cuenta la descarga que arranca (no las partes de una descarga retomada ni las consultas HEAD). Contar nunca puede frenarla.
+  if (req.method === 'GET' && !req.headers.range) void sumarAlContador('apk_download').catch((e) => console.error('Contador de descargas:', e?.message));
   res.download(path.join(carpeta, NOMBRE_DEL_APK), NOMBRE_DEL_APK, (err) => {
     // Si el cliente corta la descarga a medias no es un error nuestro; solo se responde si todavía no se mandó nada.
     if (err && !res.headersSent) res.status(500).json({ success: false, message: 'No se pudo descargar el archivo. Probá de nuevo.' });

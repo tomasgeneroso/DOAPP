@@ -72,6 +72,8 @@ export { LoginDevice } from './LoginDevice.model.js';
 export { Advertisement } from './Advertisement.model.js';
 export { Promoter } from './Promoter.model.js';
 export { UserAnalytics } from './UserAnalytics.model.js';
+export { ActivityDay } from './ActivityDay.model.js';
+export { UsageCounter } from './UsageCounter.model.js';
 
 // ============================================
 // PRIVACY & GDPR COMPLIANCE

@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PostWorkRatingGate } from '../components/PostWorkRatingModal';
 import { useSocket } from '../hooks/useSocket';
 import socketService from '../services/socket';
+import { useLatidoDeUso } from '../hooks/useLatidoDeUso';
 
 function AppContent() {
   const { isDarkMode } = useTheme();
@@ -17,6 +18,8 @@ function AppContent() {
 
   // El tiempo real se abre una vez para toda la sesión (antes sólo lo abrían las pantallas de administración: una persona común no recibía nada en vivo).
   useSocket();
+  // Registro de uso propio (índices del panel): el equipo no cuenta.
+  useLatidoDeUso(isAuthenticated && !user?.adminRole);
 
   // Registro en pasos: mientras falte verificar la identidad y completar los datos, la persona sigue ese recorrido (en vez de entrar a la
   // app a medio registrar). Se dejan abiertas las pantallas del propio recorrido, los textos legales y la ayuda.

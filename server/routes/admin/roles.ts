@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { body, validationResult } from "express-validator";
 import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
-import { requirePermission, ROLE_PERMISSIONS as PERMISOS_DEL_MIDDLEWARE } from "../../middleware/permissions.js";
+import { requireRole, ROLE_PERMISSIONS as PERMISOS_DEL_MIDDLEWARE } from "../../middleware/permissions.js";
 import type { AuthRequest } from "../../types/index.js";
 import { ROLE_PERMISSIONS, PERMISSIONS, ROLE_LEVELS } from "../../config/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
@@ -24,7 +24,10 @@ const router = Router();
 
 // All routes require admin authentication
 router.use(protect);
-router.use(requirePermission("role:view"));
+// La puerta va por ROL, como el menú del panel (owner, super_admin y admin). Antes pedía el permiso «role:view», que solo tenían quienes habían recibido
+// el rol desde el panel: un super_admin asignado con el script del servidor, y cualquier admin, recibían «Acceso denegado» (2026-11-26).
+// Lo que cada uno puede hacer adentro lo decide la jerarquía (puedeTocarA y ROL_NO_ASIGNABLE).
+router.use(requireRole("owner", "super_admin", "admin"));
 
 /**
  * GET /api/admin/roles/permissions
@@ -35,6 +38,9 @@ router.get("/permissions", async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       data: {
+        // Lo que la pantalla puede ofrecer a quien la mira: la misma regla que hace cumplir el servidor.
+        rolesAsignables: rolesQuePuedeDar(req.user.adminRole),
+        puedeCambiarPermisos: req.user.adminRole === "owner" || req.user.adminRole === "super_admin",
         roles: [
           {
             id: "owner",
@@ -199,7 +205,8 @@ router.get("/users", async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       data: {
-        users,
+        // `sePuedeCambiar`: si quien mira puede cambiarle el rol (nunca al owner; los demás, solo de un nivel más bajo y nunca a sí mismos).
+        users: users.map((u) => ({ ...u.toJSON(), sePuedeCambiar: u.adminRole !== "owner" && puedeTocarA(req.user as any, u) })),
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -224,6 +231,25 @@ router.get("/users", async (req: AuthRequest, res: Response) => {
 const nivelDelRol = (rol?: string | null): number => (rol ? ((ROLE_LEVELS as Record<string, number>)[rol] ?? 99) : 99);
 const puedeTocarA = (quien: { id: unknown; adminRole?: string | null }, objetivo: { id: unknown; adminRole?: string | null }): boolean =>
   quien.adminRole === "owner" || (String(quien.id) !== String(objetivo.id) && nivelDelRol(quien.adminRole) < nivelDelRol(objetivo.adminRole));
+const ROLES_DEL_PANEL = ["super_admin", "admin", "dpo", "support", "marketing"] as const;
+/** Los roles que alguien puede dar: solo los de un nivel más bajo que el propio (el de owner nunca se asigna desde el panel). */
+const rolesQuePuedeDar = (rol?: string | null): string[] => ROLES_DEL_PANEL.filter((r) => nivelDelRol(r) > nivelDelRol(rol));
+/** Todo lo que una persona tiene: lo de su rol (en las dos tablas) más lo que se le dio a mano. */
+const permisosEfectivos = (u: { adminRole?: string | null; permissions?: string[] | null }): Set<string> =>
+  new Set<string>([
+    ...(((ROLE_PERMISSIONS as any)[u.adminRole || ""] as string[] | undefined) || []),
+    ...(PERMISOS_DEL_MIDDLEWARE[u.adminRole || ""] || []),
+    ...(u.permissions || []),
+  ]);
+/**
+ * Nadie reparte lo que no tiene: sin esto un super_admin podía darle a un subordinado (por ejemplo una segunda cuenta suya) un permiso reservado, como
+ * confirmar una devolución hecha por fuera. Se miran solo los permisos NUEVOS: guardar sin cambiar lo que ya tenía no se frena. El owner no tiene tope.
+ */
+const permisosQueNoPuedeDar = (quien: { adminRole?: string | null; permissions?: string[] | null }, pedidos: string[], yaTenia: string[]): string[] => {
+  if (quien.adminRole === "owner") return [];
+  const propios = permisosEfectivos(quien);
+  return pedidos.filter((p) => !yaTenia.includes(p) && !propios.has(p));
+};
 /** Permisos que se pueden dar a mano: solo los que existen, y el de «todo» (*) solo lo da el owner. */
 // Hay dos tablas de permisos con nombres distintos (config/permissions.ts: «user:view»; middleware/permissions.ts: «users:read»): se acepta cualquiera de las dos.
 const PERMISOS_CONOCIDOS = new Set<string>([...Object.values(PERMISSIONS as Record<string, string>), ...Object.values(PERMISOS_DEL_MIDDLEWARE).flat()]);
@@ -438,6 +464,9 @@ router.put(
       }
 
       const previousPermissions = [...user.permissions];
+      if (permisosQueNoPuedeDar(adminUser, pedidos as string[], previousPermissions).length > 0) {
+        return res.status(403).json({ success: false, code: "PERMISO_QUE_NO_TENES", message: "Solo podés dar permisos que vos también tenés" });
+      }
       user.permissions = pedidos as string[];
       await user.save();
 
@@ -565,6 +594,10 @@ router.put(
 
       // For now, we'll just update users who have this role
       const usersWithRole = await User.findAll({ where: { adminRole: roleId } });
+      // Se compara contra los permisos de fábrica del rol: sacar o dejar lo que ya trae no se frena; agregar algo que quien edita no tiene, sí.
+      if (permisosQueNoPuedeDar(adminUser, pedidosDelRol as string[], [...(((ROLE_PERMISSIONS as any)[roleId] as string[]) || [])]).length > 0) {
+        return res.status(403).json({ success: false, code: "PERMISO_QUE_NO_TENES", message: "Solo podés dar permisos que vos también tenés" });
+      }
       for (const user of usersWithRole) {
         user.permissions = permissions;
         await user.save();

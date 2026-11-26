@@ -215,6 +215,7 @@ export default function AdminLayout() {
         // "qué significa este código" en vez de preguntar. La ven todos los roles; la guía de errores solo la lista de roles de dinero.
         { path: "/admin/ayuda", icon: BookOpen, label: t('admin.sidebar.help', 'Ayuda y manuales'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
         { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/metricas", icon: TrendingUp, label: 'Índices de producto', roles: ["owner", "marketing"] },
         { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/audit-logs", icon: Shield, label: t('admin.sidebar.auditLogs', 'Registro de acciones'), roles: ["owner", "super_admin", "admin"] },

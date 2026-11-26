@@ -60,9 +60,8 @@ describe('auditoría de seguridad del 24 de noviembre', () => {
     beto = await crearUsuario({ role: 'client' });
     carla = await crearUsuario({ role: 'doer' });
     dueno = await crearUsuario({ role: 'client', adminRole: 'owner' });
-    // Hoy solo el owner pasa la puerta de las rutas de roles (la tabla del middleware nombra los permisos distinto que la de config): para probar lo que hacen las
-    // rutas por dentro se le da a mano el permiso de la puerta. Lo que se prueba es que, adentro, tampoco puede subirse el nivel.
-    superUno = await crearUsuario({ role: 'client', adminRole: 'super_admin', permissions: ['role:view'] });
+    // Sin ningún permiso cargado a mano: así queda quien recibe el rol sin pasar por el panel, y la puerta (que va por rol) lo deja pasar igual.
+    superUno = await crearUsuario({ role: 'client', adminRole: 'super_admin', permissions: [] });
     superDos = await crearUsuario({ role: 'client', adminRole: 'super_admin' });
     admin = await crearUsuario({ role: 'client', adminRole: 'admin' });
     usuarios.push(ana.id, beto.id, carla.id, dueno.id, superUno.id, superDos.id, admin.id);
@@ -294,6 +293,42 @@ describe('auditoría de seguridad del 24 de noviembre', () => {
       const aSupport = await request(app).put(`/api/admin/roles/users/${otro.id}/role`).set(como(superUno)).send({ adminRole: 'support' });
       expect(aSupport.status).toBe(200);
       expect(((await User.findByPk(otro.id)) as any).adminRole).toBe('support');
+    });
+
+    it('nadie reparte lo que no tiene: un super_admin no le da a un subordinado la confirmación de devoluciones a mano', async () => {
+      const subordinado: any = await crearUsuario({ role: 'client', adminRole: 'admin', permissions: [] });
+      usuarios.push(subordinado.id);
+      const r = await request(app).put(`/api/admin/roles/users/${subordinado.id}/permissions`).set(como(superUno)).send({ permissions: ['dispute:confirm_manual_refund'] });
+      expect([r.status, r.body.code]).toEqual([403, 'PERMISO_QUE_NO_TENES']);
+      // el owner sí puede, y después un super_admin guarda la ficha sin que lo ya dado lo frene
+      expect((await request(app).put(`/api/admin/roles/users/${subordinado.id}/permissions`).set(como(dueno)).send({ permissions: ['dispute:confirm_manual_refund'] })).status).toBe(200);
+      expect((await request(app).put(`/api/admin/roles/users/${subordinado.id}/permissions`).set(como(superUno)).send({ permissions: ['dispute:confirm_manual_refund', 'tickets:update'] })).status).toBe(200);
+    });
+
+    it('un admin entra a la pantalla de roles, solo puede dar support o marketing y no toca permisos', async () => {
+      const jefe: any = await crearUsuario({ role: 'client', adminRole: 'admin', permissions: [] });
+      const persona: any = await crearUsuario({ role: 'client' });
+      usuarios.push(jefe.id, persona.id);
+      const pantalla = await request(app).get('/api/admin/roles/permissions').set(como(jefe));
+      expect(pantalla.status).toBe(200);
+      expect(pantalla.body.data.rolesAsignables).toEqual(['support', 'marketing']);
+      expect(pantalla.body.data.puedeCambiarPermisos).toBe(false);
+      expect((await request(app).put(`/api/admin/roles/users/${persona.id}/role`).set(como(jefe)).send({ adminRole: 'dpo' })).status).toBe(403);
+      expect((await request(app).put(`/api/admin/roles/users/${persona.id}/permissions`).set(como(jefe)).send({ permissions: [] })).status).toBe(403);
+      expect((await request(app).put(`/api/admin/roles/users/${persona.id}/role`).set(como(jefe)).send({ adminRole: 'support' })).status).toBe(200);
+    });
+
+    it('la lista dice a quién puede tocar quien mira, y support o marketing no entran', async () => {
+      const lista = await request(app).get('/api/admin/roles/users?limit=500').set(como(superUno));
+      const porId = new Map<string, any>(lista.body.data.users.map((u: any) => [u.id, u]));
+      expect(porId.get(superUno.id)?.sePuedeCambiar).toBe(false);
+      expect(porId.get(superDos.id)?.sePuedeCambiar).toBe(false);
+      expect(porId.get(admin.id)?.sePuedeCambiar).toBe(true);
+      for (const rol of ['support', 'marketing']) {
+        const u: any = await crearUsuario({ role: 'client', adminRole: rol });
+        usuarios.push(u.id);
+        expect((await request(app).get('/api/admin/roles/users').set(como(u))).status).toBe(403);
+      }
     });
 
     it('el owner no tiene tope: sí puede dar «*»', async () => {

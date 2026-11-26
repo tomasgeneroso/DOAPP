@@ -97,6 +97,7 @@ const AdminContentAgent = lazy(() => import("./pages/admin/ContentAgent"));
 const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
 const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
+const AdminMetricas = lazy(() => import("./pages/admin/Metricas"));
 const AdminAnalyticsUsers = lazy(() => import("./pages/admin/AnalyticsUsers"));
 const AdminAnalyticsContracts = lazy(() => import("./pages/admin/AnalyticsContracts"));
 const AdminAnalyticsTickets = lazy(() => import("./pages/admin/AnalyticsTickets"));
@@ -731,6 +732,7 @@ export default function App() {
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="metricas" element={<AdminMetricas />} />
               <Route path="analytics/users" element={<AdminAnalyticsUsers />} />
               <Route path="analytics/contracts" element={<AdminAnalyticsContracts />} />
               <Route path="analytics/tickets" element={<AdminAnalyticsTickets />} />

@@ -85,6 +85,10 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.launch_benefit_granted_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS launch_benefit_granted_at TIMESTAMPTZ` },
   { label: 'users.tokens_valid_after', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ` },
   { label: 'users.identity_key index', sql: `CREATE INDEX IF NOT EXISTS users_identity_key ON users (identity_key) WHERE identity_key IS NOT NULL` },
+  // --- registro de uso propio para los índices del panel (migración 20261126100000) ---
+  { label: 'activity_days', sql: `CREATE TABLE IF NOT EXISTS activity_days (user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, day DATE NOT NULL, platform VARCHAR(10) NOT NULL, sessions INTEGER NOT NULL DEFAULT 1, seconds INTEGER NOT NULL DEFAULT 0, first_seen_at TIMESTAMPTZ NOT NULL, last_seen_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_id, day, platform))` },
+  { label: 'activity_days.day', sql: `CREATE INDEX IF NOT EXISTS activity_days_day ON activity_days (day)` },
+  { label: 'usage_counters', sql: `CREATE TABLE IF NOT EXISTS usage_counters (day DATE NOT NULL, name VARCHAR(40) NOT NULL, total INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, name))` },
   // --- matrícula profesional encriptada (ver migración 20261012100000) ---
   { label: 'users.license_number text', sql: `ALTER TABLE users ALTER COLUMN license_number TYPE TEXT` },
   { label: 'users.license_document_back_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document_back_url TEXT` },

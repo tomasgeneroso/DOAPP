@@ -90,10 +90,11 @@ export function politicaDeContenidoDelSitio(hashes: string[]): string {
 
 /**
  * El subconjunto de la CSP que ya se hace cumplir aunque `CSP_SOLO_AVISA` sea true: no depende de la lista de servicios externos, así que no puede
- * romper una pantalla. Sin plugins (`object-src`), sin que un `<base>` inyectado cambie a dónde apuntan los enlaces, sin formularios que envíen a
+ * romper una pantalla. Sin objetos incrustados de otro sitio (`object-src 'self'` y no 'none': nginx también agrega esta cabecera a lo que pasa por /api y /uploads,
+ * donde hay comprobantes en PDF; dos políticas se cumplen a la vez y 'none' podía impedir verlos), sin que un `<base>` inyectado cambie a dónde apuntan los enlaces, sin formularios que envíen a
  * otro sitio (la web no tiene ninguno: todo va por fetch) y sin que otro sitio meta a DOAPP en un marco.
  */
-export const POLITICA_QUE_SE_APLICA_YA = "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+export const POLITICA_QUE_SE_APLICA_YA = "object-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
 /** true = la CSP del sitio solo AVISA en la consola (Report-Only). Pasar a false recién cuando la consola de producción no muestre bloqueos. */
 export const CSP_SOLO_AVISA = true;

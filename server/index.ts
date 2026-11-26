@@ -188,6 +188,9 @@ import familyCodesRoutes from "./routes/admin/familyCodes.js";
 import correosAdminRoutes from "./routes/admin/correos.js";
 import bajaDeCorreosRoutes from "./routes/bajaDeCorreos.js";
 import appAndroidRoutes from "./routes/appAndroid.js";
+import actividadRoutes from "./routes/actividad.js";
+import adminMetricasRoutes from "./routes/admin/metricas.js";
+import { borrarUsoViejo } from "./services/registroDeUso.js";
 
 // Promoter routes
 import promoterRoutes from "./routes/promoter.js";
@@ -505,6 +508,8 @@ app.use("/api/admin/correos", correosAdminRoutes);
 app.use("/api/correos", bajaDeCorreosRoutes);
 // Descarga de la app para Android como APK (pública, sin sesión): el archivo lo deja el workflow android-apk.yml en APK_DIR.
 app.use("/api/app", appAndroidRoutes);
+app.use("/api/actividad", actividadRoutes);
+app.use("/api/admin/metricas", adminMetricasRoutes);
 app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);
@@ -582,6 +587,8 @@ startReclamoDirectoJob();
 startResetReferralDiscountsJob();
 startVencerElProDeLanzamientoJob();
 startCampanasDeCorreoJob();
+// El registro de uso se guarda 13 meses: lo más viejo se borra una vez por día.
+setInterval(() => { void borrarUsoViejo().catch((e) => console.error('Limpieza del registro de uso:', e?.message)); }, 24 * 60 * 60 * 1000);
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();

@@ -125,7 +125,8 @@ describe('inyecciones y archivos (sin base)', () => {
       const { POLITICA_QUE_SE_APLICA_YA, cabecerasDelSitio } = await import('../shared/seguridad/csp');
       const c = Object.fromEntries(cabecerasDelSitio([], true));
       expect(c['Content-Security-Policy']).toBe(POLITICA_QUE_SE_APLICA_YA);
-      expect(c['Content-Security-Policy']).toContain("object-src 'none'");
+      // 'self' y no 'none': nginx la agrega también a los PDF que pasan por /api y /uploads.
+      expect(c['Content-Security-Policy']).toContain("object-src 'self'");
       expect(c['Content-Security-Policy']).toContain("base-uri 'self'");
       expect(c['Content-Security-Policy']).toContain("form-action 'self'");
       expect(c['Content-Security-Policy']).not.toContain('script-src');

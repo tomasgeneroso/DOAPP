@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
-              {t('privacy.lastUpdated', 'Última actualización: 7 de Noviembre de 2025')}
+              {t('privacy.lastUpdated', 'Última actualización: 26 de Noviembre de 2026')}
             </p>
 
             <div className="prose prose-slate dark:prose-invert max-w-none">
@@ -93,6 +93,15 @@ export default function PrivacyPolicy() {
                   <li>{t('privacy.s1_4li2', 'Hasta dos archivos de la matrícula (frente y reverso, si corresponde)')}</li>
                   <li>{t('privacy.s1_4li3', 'DOAPP no verifica la matrícula: se basa en tu buena fe. El usuario que te contrata puede verificarla por sus propios medios una vez que ambos están vinculados en un contrato')}</li>
                 </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+                  {t('privacy.s1_5Title', '1.5 Registro de Uso')}
+                </h3>
+                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
+                  <li>{t('privacy.s1_5li1', 'Qué días usás DOAPP, cuántas visitas hacés, cuánto duran y si entrás por la web, por Android o por iOS')}</li>
+                  <li>{t('privacy.s1_5li2', 'Lo medimos nosotros y no lo compartimos con terceros. Este registro no guarda qué pantallas mirás, lo que escribís ni tu dirección de internet. Sirve para saber si DOAPP funciona y mejorarlo; quienes lo analizan ven totales')}</li>
+                  <li>{t('privacy.s1_5li3', 'Se borra a los 400 días (unos 13 meses), y antes si pedís la eliminación de tu cuenta. Además contamos, sin identificar a nadie, las descargas de la app y las veces que se abre por primera vez')}</li>
+                </ul>
               </section>
 
               <section className="mb-8">
@@ -127,7 +136,7 @@ export default function PrivacyPolicy() {
                   <li><Trans i18nKey="privacy.s3li3" components={{ b: <strong /> }} defaults="<b>Cumplimiento legal:</b> Cuando sea requerido por ley o para proteger nuestros derechos" /></li>
                   <li><Trans i18nKey="privacy.s3li4" components={{ b: <strong /> }} defaults="<b>Transferencias empresariales:</b> En caso de fusión, venta o reorganización" /></li>
                   <li><Trans i18nKey="privacy.s3li6" components={{ b: <strong /> }} defaults="<b>Matrícula profesional:</b> el número que declarás puede verse en tu perfil y en tus propuestas. Los archivos de la matrícula solo los ve el personal autorizado de administración y, una vez que ambas partes están vinculadas en un contrato, el usuario contratante, para que pueda verificarla" /></li>
-                  <li><Trans i18nKey="privacy.s3li7" components={{ b: <strong /> }} defaults="<b>Mapas y búsqueda de direcciones:</b> cuando escribís una dirección o abrís un mapa, tu navegador o la app consulta a OpenStreetMap (un servicio abierto de terceros: Nominatim y sus mapas) para sugerir lugares y dibujar el mapa. Ese servicio recibe tu dirección de internet (IP), el texto de la dirección o las coordenadas que consultás y la zona del mapa que mirás, y se rige por su propia política de privacidad. No le enviamos tu nombre, tu correo ni ningún dato de tu cuenta" /></li>
+                  <li><Trans i18nKey="privacy.s3li7" components={{ b: <strong /> }} defaults="<b>Mapas y búsqueda de direcciones:</b> cuando escribís una dirección o una zona, o abrís un mapa, tu navegador o la app consulta a servicios de terceros para sugerir lugares y dibujar el mapa: OpenStreetMap (Nominatim y sus mapas), Georef (datos.gob.ar, del Estado argentino) y, en el buscador de la web, Mapbox. Cada servicio recibe tu dirección de internet (IP), el texto o las coordenadas que consultás y, si dibuja un mapa, la zona que mirás, y se rige por su propia política de privacidad. No le enviamos tu nombre, tu correo ni ningún otro dato de tu cuenta" /></li>
                 </ul>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mt-6 mb-2">
                   {t('privacy.s3intlTitle', 'Transferencia internacional de datos')}

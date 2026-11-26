@@ -18,7 +18,18 @@ interface User {
   isBanned: boolean;
   createdAt: string;
   lastLogin?: string;
+  /** Lo calcula el servidor: si quien mira puede cambiarle el rol. */
+  sePuedeCambiar?: boolean;
 }
+
+/** Cómo se muestra cada rol en el selector (los que se ofrecen los decide el servidor: `rolesAsignables`). */
+const NOMBRE_DEL_ROL: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin 🔒",
+  support: "Support",
+  marketing: "Marketing",
+  dpo: "Data Protection Officer",
+};
 
 interface Role {
   id: string;
@@ -41,6 +52,8 @@ export default function RoleManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [rolesAsignables, setRolesAsignables] = useState<string[]>([]);
+  const [puedeCambiarPermisos, setPuedeCambiarPermisos] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
@@ -96,6 +109,8 @@ export default function RoleManagement() {
       if (data.success) {
         setRoles(data.data.roles);
         setAllPermissions(data.data.allPermissions);
+        setRolesAsignables(data.data.rolesAsignables || []);
+        setPuedeCambiarPermisos(!!data.data.puedeCambiarPermisos);
       }
     } catch (error) {
       console.error("Error fetching roles:", error);
@@ -332,7 +347,8 @@ export default function RoleManagement() {
 
   const openRoleModal = (user: User) => {
     setSelectedUser(user);
-    setNewRole(user.adminRole || "none");
+    // Si el rol que tiene no está entre los que se pueden dar, el selector arranca en el primero que sí (nunca en un valor que no se ofrece).
+    setNewRole(user.adminRole && rolesAsignables.includes(user.adminRole) ? user.adminRole : "none");
     setShowRoleModal(true);
   };
 
@@ -507,20 +523,26 @@ export default function RoleManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openRoleModal(user)}
-                          className="px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded transition"
-                        >
-                          {t('admin.roles.assignRole', 'Assign Role')}
-                        </button>
-                        <button
-                          onClick={() => openPermissionsModal(user)}
-                          className="px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition"
-                        >
-                          {t('admin.roles.permissions', 'Permissions')}
-                        </button>
-                      </div>
+                      {user.sePuedeCambiar ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openRoleModal(user)}
+                            className="px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded transition"
+                          >
+                            {t('admin.roles.assignRole', 'Assign Role')}
+                          </button>
+                          {puedeCambiarPermisos && (
+                            <button
+                              onClick={() => openPermissionsModal(user)}
+                              className="px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition"
+                            >
+                              {t('admin.roles.permissions', 'Permissions')}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Lo cambia alguien de un nivel superior</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -549,12 +571,9 @@ export default function RoleManagement() {
                     className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="none">{t('admin.roles.noAdminRole', 'No admin role')}</option>
-                    {isOwner && <option value="owner">Owner 🔒</option>}
-                    <option value="super_admin">Super Admin</option>
-                    <option value="admin">Admin 🔒</option>
-                    <option value="support">Support</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="dpo">Data Protection Officer</option>
+                    {rolesAsignables.map((r) => (
+                      <option key={r} value={r}>{NOMBRE_DEL_ROL[r] || r}</option>
+                    ))}
                   </select>
                   {(newRole === "owner" || newRole === "admin") && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">

@@ -8,6 +8,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from 'sequelize';
+import { ActivityDay } from "../models/sql/ActivityDay.model.js";
 
 const router = express.Router();
 
@@ -154,6 +155,8 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
       req.user.id
     );
 
+    const registroDeUso = await ActivityDay.findAll({ where: { userId: req.user.id }, order: [['day', 'ASC']] });
+
     const exportData = {
       exportDate: new Date(),
       user: {
@@ -193,6 +196,7 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
       })),
       consents: consents,
       dataAccessHistory: dataAccessLogs,
+      usageRecord: registroDeUso.map((d) => ({ day: d.day, platform: d.platform, visits: d.sessions, seconds: d.seconds })),
     };
 
     res.json({
@@ -274,6 +278,8 @@ router.post(
       user.banReason = `Account deletion requested: ${reason}`;
       user.bannedAt = new Date();
       await user.save();
+      // El registro de uso no tiene obligación legal de conservarse: se borra en el momento (Política de Privacidad, 1.5).
+      await ActivityDay.destroy({ where: { userId: req.user.id } });
 
       res.json({
         success: true,

@@ -16,6 +16,7 @@ import {
   markNotificationAsked,
 } from "@/lib/firebase";
 import NotificationPermissionModal from "@/components/NotificationPermissionModal";
+import { useLatidoDeUso } from "./useLatidoDeUso";
 
 interface AuthContextType {
   user: User | null;
@@ -305,6 +306,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [retryTimeoutId]);
+
+  // Registro de uso propio (índices del panel): el equipo no cuenta.
+  useLatidoDeUso(!!user && !(user as { adminRole?: string }).adminRole);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(

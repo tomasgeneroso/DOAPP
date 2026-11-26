@@ -49,5 +49,8 @@
     "react-test-renderer": "^19.2.6",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "postcss": "^8.5.33"
+  }
 }
