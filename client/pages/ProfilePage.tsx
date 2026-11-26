@@ -32,6 +32,7 @@ import useImageViewer from '../hooks/useImageViewer';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import WorkerModeToggle from '../components/profile/WorkerModeToggle';
+import CompartirResena from "../components/momentos/CompartirResena";
 import {
   MapPin,
   Calendar,
@@ -891,6 +892,11 @@ export default function ProfilePage() {
           {isOwnProfile() && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
               <WorkerModeToggle />
+              {((user as any)?.role === 'doer' || (user as any)?.role === 'both') && (
+                <Link to="/mi-resumen" className="mt-3 inline-block text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">
+                  Ver lo que construiste este año
+                </Link>
+              )}
             </div>
           )}
 
@@ -1667,7 +1673,7 @@ export default function ProfilePage() {
                             <div>
                               {review.reviewer?.id ? (
                                 <Link
-                                  to={`/user/${review.reviewer.id}`}
+                                  to={`/profile/${review.reviewer.id}`}
                                   className="font-semibold text-sky-600 dark:text-sky-400 hover:underline"
                                 >
                                   {review.reviewer?.name || t('common.user', 'User')}
@@ -1699,6 +1705,9 @@ export default function ProfilePage() {
                             ))}
                           </div>
                         </div>
+
+                        {/* Una reseña buena propia se puede compartir (solo la puntuación y el enlace al perfil). */}
+                        {isOwnProfile() && Number(review.rating) >= 4 && <CompartirResena puntuacion={Number(review.rating)} userId={String(user.id)} />}
 
                         {/* Individual Ratings */}
                         {(review.communication || review.professionalism || review.quality || review.timeliness) && (

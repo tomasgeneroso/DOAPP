@@ -9,6 +9,7 @@ import ErrorBoundary from "../ErrorBoundary";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
 import KycWelcomeModal from "../KycWelcomeModal";
 import AvisoCorreoSinConfirmar from "../AvisoCorreoSinConfirmar";
+import MomentosGlobales from "../momentos/MomentosGlobales";
 import PendingPostWorkRatingGate from "../user/PendingPostWorkRatingGate";
 import { desplazarSuave, desplazarAElemento } from "../../utils/desplazamientoSuave";
 
@@ -88,6 +89,9 @@ export default function Layout() {
       </ErrorBoundary>
       <BetaBanner />
       <AvisoCorreoSinConfirmar />
+      <ErrorBoundary>
+        <MomentosGlobales />
+      </ErrorBoundary>
       <main id="main-content" className="flex-1 flex flex-col" tabIndex={-1}>
         <ErrorBoundary>
           <div className="flex-1">

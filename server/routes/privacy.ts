@@ -9,6 +9,7 @@ import { Payment } from "../models/sql/Payment.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from 'sequelize';
 import { ActivityDay } from "../models/sql/ActivityDay.model.js";
+import { UserMoment } from "../models/sql/UserMoment.model.js";
 
 const router = express.Router();
 
@@ -156,6 +157,7 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
     );
 
     const registroDeUso = await ActivityDay.findAll({ where: { userId: req.user.id }, order: [['day', 'ASC']] });
+    const avisosVistos = await UserMoment.findAll({ where: { userId: req.user.id }, order: [['seenAt', 'ASC']] });
 
     const exportData = {
       exportDate: new Date(),
@@ -196,6 +198,7 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
       })),
       consents: consents,
       dataAccessHistory: dataAccessLogs,
+      seenNotices: avisosVistos.map((a) => ({ key: a.momentKey, seenAt: a.seenAt })),
       usageRecord: registroDeUso.map((d) => ({ day: d.day, platform: d.platform, visits: d.sessions, seconds: d.seconds })),
     };
 

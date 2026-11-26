@@ -98,6 +98,7 @@ const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
 const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
 const AdminMetricas = lazy(() => import("./pages/admin/Metricas"));
+const MiResumen = lazy(() => import("./pages/MiResumen"));
 const AdminAnalyticsUsers = lazy(() => import("./pages/admin/AnalyticsUsers"));
 const AdminAnalyticsContracts = lazy(() => import("./pages/admin/AnalyticsContracts"));
 const AdminAnalyticsTickets = lazy(() => import("./pages/admin/AnalyticsTickets"));
@@ -319,6 +320,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <PortfolioManager />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/mi-resumen"
+                element={
+                  <ProtectedRoute>
+                    <MiResumen />
                   </ProtectedRoute>
                 }
               />

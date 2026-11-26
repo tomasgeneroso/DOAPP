@@ -17,6 +17,7 @@ import {
 } from "@/lib/firebase";
 import NotificationPermissionModal from "@/components/NotificationPermissionModal";
 import { useLatidoDeUso } from "./useLatidoDeUso";
+import { EVENTO_PARA_PEDIR_AVISOS } from "../utils/momentoDeAvisos";
 
 interface AuthContextType {
   user: User | null;
@@ -92,13 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(withBetaTier({ ...data.user }));
           setToken(MARCADOR_DE_SESION); // Indicador de que usamos cookies
 
-          // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
-          setTimeout(() => {
-            if (shouldShowNotificationModal()) {
-              setShowNotificationModal(true);
-              setIsRetryPrompt(false);
-            }
-          }, 30000); // 30 segundos de delay para que el usuario explore la app primero
         } else {
           console.warn("⚠️ No valid session cookie found");
           localStorage.removeItem("token");
@@ -157,13 +151,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(MARCADOR_DE_SESION);
       setUser(withBetaTier({ ...data.user }));
 
-      // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
-      setTimeout(() => {
-        if (shouldShowNotificationModal()) {
-          setShowNotificationModal(true);
-          setIsRetryPrompt(false);
-        }
-      }, 30000); // 30 segundos de delay para que el usuario explore la app primero
 
       return data.user as User;
     } catch (error) {
@@ -278,25 +265,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setShowNotificationModal(false);
     markNotificationAsked();
 
-    // If this is the first time (not retry), schedule a retry in 1 minute
-    if (!isRetryPrompt) {
-      console.log("⏰ Scheduling notification retry in 1 minute...");
-      const timeoutId = setTimeout(() => {
-        if (shouldShowNotificationModal()) {
-          console.log("🔔 Showing notification modal again (retry)");
-          setShowNotificationModal(true);
-          setIsRetryPrompt(true);
-        }
-      }, 60000); // 1 minute
-
-      setRetryTimeoutId(timeoutId);
-    } else {
-      // Second decline, don't ask again for 24 hours
-      console.log(
-        "⏸️ User declined notifications twice, will ask again in 24 hours",
-      );
-    }
   };
+
+  // El permiso se pide cuando sirve: después de postularse o de publicar (utils/momentoDeAvisos.ts).
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const preguntar = () => {
+      // Un momento después, para que primero se vea que lo que hizo salió bien.
+      espera = setTimeout(() => {
+        if (shouldShowNotificationModal()) {
+          setShowNotificationModal(true);
+          setIsRetryPrompt(false);
+        }
+      }, 1500);
+    };
+    window.addEventListener(EVENTO_PARA_PEDIR_AVISOS, preguntar);
+    return () => {
+      window.removeEventListener(EVENTO_PARA_PEDIR_AVISOS, preguntar);
+      if (espera) clearTimeout(espera);
+    };
+  }, []);
 
   // Cleanup timeout on unmount
   useEffect(() => {

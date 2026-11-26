@@ -47,6 +47,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Menu,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import Transicion from "@/components/ui/Transicion";
@@ -94,6 +96,15 @@ export default function AdminLayout() {
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobreEste, setSobreEste] = useState<string | null>(null);
   const [avisoDeOrden, setAvisoDeOrden] = useState('');
+  // El menú plegable del celular: se cierra al elegir una pantalla y con Escape.
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  useEffect(() => { setMenuAbierto(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAbierto(false); };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [menuAbierto]);
   useEffect(() => {
     setOrdenGuardado(leerOrdenGuardado(almacenDelNavegador(), user?.id));
   }, [user?.id]);
@@ -354,13 +365,48 @@ export default function AdminLayout() {
 
   return (
     <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
+      {/* En celular y tableta el menú está plegado: esta barra lo abre. En pantallas anchas no aparece. */}
+      <div className="lg:hidden fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4">
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(true)}
+          aria-expanded={menuAbierto}
+          aria-controls="menu-de-administracion"
+          className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200"
+        >
+          <Menu className="h-5 w-5" aria-hidden="true" />
+          Menú
+        </button>
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+          <Shield className="h-5 w-5 text-sky-600" aria-hidden="true" /> Admin
+        </span>
+      </div>
+      {/* El fondo oscuro cierra el menú al tocarlo; aparece y se va con transición. */}
+      <div
+        onClick={() => setMenuAbierto(false)}
+        aria-hidden="true"
+        data-testid="fondo-del-menu"
+        className={`lg:hidden fixed inset-0 z-30 bg-black/50 transition-opacity duration-200 ${menuAbierto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      />
       {/* Sidebar — fijo a la altura de la pantalla (position: fixed + 100vh): los módulos hacen scroll
           adentro y «Volver a la app» / «Cerrar sesión» quedan siempre al pie de la pantalla, después de los
           módulos, aunque la página sea larga. No es `sticky` porque html/body tienen overflow (global.css) y
           con eso sticky no se pega. El espaciador ocupa el lugar de la barra en la fila. (Sin zoom: 100vh directo.) */}
-      <div className="w-64 flex-shrink-0" aria-hidden="true" />
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex flex-col fixed inset-y-0 left-0 z-30 h-screen">
-        <div className="p-4 flex flex-col flex-1 min-h-0">
+      <div className="hidden lg:block w-64 flex-shrink-0" aria-hidden="true" />
+      {/* Plegado queda fuera de la pantalla e `invisible`: así tampoco se llega a sus enlaces con el teclado. */}
+      <aside
+        id="menu-de-administracion"
+        className={`w-64 max-w-[85vw] bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex flex-col fixed inset-y-0 left-0 z-40 h-screen transition-[transform,visibility] duration-200 lg:z-30 lg:translate-x-0 lg:visible ${menuAbierto ? 'translate-x-0 visible' : '-translate-x-full invisible'}`}
+      >
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(false)}
+          aria-label="Cerrar el menú"
+          className="lg:hidden absolute right-2 top-2 z-10 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <div className="p-4 pt-12 lg:pt-4 flex flex-col flex-1 min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
@@ -575,8 +621,8 @@ export default function AdminLayout() {
 
       {/* Main Content — no internal overflow: the PAGE scrolls, so the row grows
           with the content and the sidebar stretches to match it. */}
-      <main className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
-        <div className="p-6">
+      <main className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 pt-14 lg:pt-0" style={{ minHeight: '100vh' }}>
+        <div className="p-4 lg:p-6">
           <Outlet />
         </div>
       </main>

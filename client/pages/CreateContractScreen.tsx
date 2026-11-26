@@ -42,6 +42,10 @@ import { detallesDeUbicacion, sanearCalle, sanearNumeroDePuerta, validarCalleYNu
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 import { useCoherenciaDeDireccion } from "@/hooks/useCoherenciaDeDireccion";
+import Ocasiones from "../components/momentos/Ocasiones";
+import OfertaDelRubro from "../components/momentos/OfertaDelRubro";
+import { avisarMomentoParaNotificaciones } from "../utils/momentoDeAvisos";
+import { OCASIONES, type TrabajoDeOcasion } from "../../shared/momentos/momentos";
 
 interface FormFieldProps {
   label: string;
@@ -449,6 +453,7 @@ export default function CreateContractScreen() {
       if (data.requiresPayment) {
         navigate(`/jobs/${data.job.id}/payment`);
       } else {
+        avisarMomentoParaNotificaciones();
         navigate("/");
       }
     } catch (err: any) {
@@ -491,6 +496,18 @@ export default function CreateContractScreen() {
   const handleGoToSettings = () => {
     setShowBankingModal(false);
     navigate("/settings?tab=banking");
+  };
+
+  /** Elegir un trabajo de una ocasión pone el rubro y el título. Un título escrito por la persona no se pisa. */
+  const completarDesdeOcasion = (t: TrabajoDeOcasion) => {
+    setSelectedCategory(t.categoria);
+    const campo = formRef.current?.querySelector<HTMLInputElement>('[name="title"]');
+    const sugeridos = OCASIONES.flatMap((o) => o.trabajos.map((x) => x.titulo));
+    if (campo && (!campo.value.trim() || sugeridos.includes(campo.value))) {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(campo, t.titulo);
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    setCambiosDelFormulario((n) => n + 1);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -604,6 +621,9 @@ export default function CreateContractScreen() {
         )}
 
         {/* onChange y NO onInput: con onInput el formulario se redibujaba en el «input» del selector, antes de su «change», y React le devolvía la categoría vieja (no dejaba elegir). */}
+        <div className="mt-8">
+          <Ocasiones onElegir={completarDesdeOcasion} />
+        </div>
         <form ref={formRef} onSubmit={handleSubmit} onChange={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
@@ -670,6 +690,7 @@ export default function CreateContractScreen() {
                   </option>
                 ))}
               </select>
+              <OfertaDelRubro rubro={selectedCategory} />
             </FormField>
 
             <FormField

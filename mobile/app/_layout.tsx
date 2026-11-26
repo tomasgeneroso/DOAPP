@@ -9,6 +9,7 @@ import { PostWorkRatingGate } from '../components/PostWorkRatingModal';
 import { useSocket } from '../hooks/useSocket';
 import socketService from '../services/socket';
 import { useLatidoDeUso } from '../hooks/useLatidoDeUso';
+import AvisoDePoliticas from '../components/AvisoDePoliticas';
 
 function AppContent() {
   const { isDarkMode } = useTheme();
@@ -52,6 +53,7 @@ function AppContent() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
       <PostWorkRatingGate isAuthenticated={isAuthenticated} refreshKey={`${pathname}:${tick}`} />
+      <AvisoDePoliticas conSesion={isAuthenticated && !user?.registrationPending} />
     </>
   );
 }

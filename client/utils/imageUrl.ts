@@ -54,14 +54,3 @@ export function getImageUrl(path: string | undefined | null): string {
   // Any other absolute-ish path: route it through the API base too
   return `${API_BASE}${path}`;
 }
-
-/**
- * Get avatar URL with fallback to generated avatar
- */
-export function getAvatarUrl(avatar: string | undefined | null, name?: string, id?: string): string {
-  if (avatar) {
-    return getImageUrl(avatar);
-  }
-  const seed = name || id || 'user';
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0ea5e9&textColor=ffffff`;
-}

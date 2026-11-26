@@ -5,6 +5,7 @@ import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, Shield } from "
 import { COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing";
 import { useAuth } from "../hooks/useAuth";
 import { analytics } from "../utils/analytics";
+import { avisarMomentoParaNotificaciones } from "../utils/momentoDeAvisos";
 
 interface PaymentConfirmation {
   token: string;
@@ -25,7 +26,9 @@ export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
+  const { refreshUser, user: personaConSesion } = useAuth();
+  // Terminar de publicar es un buen momento para ofrecer avisos: así se entera cuando llegue la primera postulación.
+  useEffect(() => { if (personaConSesion) avisarMomentoParaNotificaciones(); }, [!!personaConSesion]); // eslint-disable-line react-hooks/exhaustive-deps
   const paymentType = searchParams.get("type") || "contract"; // 'membership' or 'contract'
   const membershipPlan = searchParams.get("plan") || "monthly"; // 'monthly' (la unica membresia paga)
 

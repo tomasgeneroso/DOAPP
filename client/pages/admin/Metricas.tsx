@@ -133,7 +133,7 @@ export default function Metricas() {
     try {
       const r = await fetch('/api/admin/metricas', { credentials: 'include', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) throw new Error(j?.message || 'No pudimos cargar los índices.');
+      if (!r.ok || !j?.success || !j.data?.indices) throw new Error(j?.message || 'No pudimos cargar los índices.');
       setDatos(j.data);
       setError('');
     } catch (e: any) {

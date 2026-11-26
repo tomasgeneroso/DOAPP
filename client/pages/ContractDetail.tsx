@@ -52,6 +52,7 @@ import HuboProblemas, { AvisoDeProblemaAbierto } from "@/components/contracts/Hu
 import EstadoDeConfirmaciones from "@/components/contracts/EstadoDeConfirmaciones";
 import CodigoDeEmparejamiento from "@/components/contracts/CodigoDeEmparejamiento";
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
+import AntesYDespues from "../components/momentos/AntesYDespues";
 
 /**
  * El contrato. Con `embebido` vive DENTRO de la vista del trabajo (pedido del dueño, 2026-11-22): no repite lo que el trabajo ya muestra (título, partes, detalles del pago, fechas)
@@ -1539,6 +1540,9 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
               onCambio={loadContract}
             />
           )}
+
+          {/* Antes y después: solo con el trabajo terminado y solo se publica si las dos partes lo aceptan. */}
+          {(isClient || isDoer) && contract.status === 'completed' && <AntesYDespues contractId={String(contract.id)} />}
 
           {(isClient || isDoer) &&
             ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (

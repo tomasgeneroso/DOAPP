@@ -639,9 +639,11 @@ router.post(
         attributes: ['name', 'avatar']
       });
 
+      // La primera respuesta es un momento: quien publicó la está esperando.
+      const esLaPrimera = (await Proposal.count({ where: { jobId: job.id } })) === 1;
       const notificationTitle = isCounterOffer
         ? 'Nueva contraoferta recibida'
-        : 'Nueva postulación recibida';
+        : esLaPrimera ? 'Llegó tu primera postulación' : 'Nueva postulación recibida';
       const notificationMessage = isCounterOffer
         ? `${freelancerUser?.name || 'Un trabajador'} envió una contraoferta de $${proposedPrice.toLocaleString('es-AR')} ARS para "${job.title}"`
         : `${freelancerUser?.name || 'Un trabajador'} se postuló para "${job.title}" por $${proposedPrice.toLocaleString('es-AR')} ARS`;

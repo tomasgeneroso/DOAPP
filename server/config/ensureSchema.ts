@@ -89,6 +89,9 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'activity_days', sql: `CREATE TABLE IF NOT EXISTS activity_days (user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, day DATE NOT NULL, platform VARCHAR(10) NOT NULL, sessions INTEGER NOT NULL DEFAULT 1, seconds INTEGER NOT NULL DEFAULT 0, first_seen_at TIMESTAMPTZ NOT NULL, last_seen_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_id, day, platform))` },
   { label: 'activity_days.day', sql: `CREATE INDEX IF NOT EXISTS activity_days_day ON activity_days (day)` },
   { label: 'usage_counters', sql: `CREATE TABLE IF NOT EXISTS usage_counters (day DATE NOT NULL, name VARCHAR(40) NOT NULL, total INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, name))` },
+  // --- momentos importantes (migración 20261126110000) ---
+  { label: 'user_moments', sql: "CREATE TABLE IF NOT EXISTS user_moments (user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, moment_key VARCHAR(80) NOT NULL, seen_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_id, moment_key))" },
+  { label: 'before_after_shares', sql: "CREATE TABLE IF NOT EXISTS before_after_shares (id UUID PRIMARY KEY, contract_id UUID NOT NULL UNIQUE REFERENCES contracts(id) ON DELETE CASCADE, proposed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, status VARCHAR(20) NOT NULL DEFAULT 'pending', photos JSONB NOT NULL, caption VARCHAR(300), answered_by UUID, answered_at TIMESTAMPTZ, post_id UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())" },
   // --- matrícula profesional encriptada (ver migración 20261012100000) ---
   { label: 'users.license_number text', sql: `ALTER TABLE users ALTER COLUMN license_number TYPE TEXT` },
   { label: 'users.license_document_back_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document_back_url TEXT` },

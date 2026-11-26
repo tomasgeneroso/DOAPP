@@ -74,6 +74,8 @@ export { Promoter } from './Promoter.model.js';
 export { UserAnalytics } from './UserAnalytics.model.js';
 export { ActivityDay } from './ActivityDay.model.js';
 export { UsageCounter } from './UsageCounter.model.js';
+export { UserMoment } from './UserMoment.model.js';
+export { BeforeAfterShare } from './BeforeAfterShare.model.js';
 
 // ============================================
 // PRIVACY & GDPR COMPLIANCE

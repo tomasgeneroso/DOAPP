@@ -204,6 +204,8 @@ async function registerModels() {
   const { PaymentAction } = await import('../models/sql/PaymentAction.model.js');
   const { ActivityDay } = await import('../models/sql/ActivityDay.model.js');
   const { UsageCounter } = await import('../models/sql/UsageCounter.model.js');
+  const { UserMoment } = await import('../models/sql/UserMoment.model.js');
+  const { BeforeAfterShare } = await import('../models/sql/BeforeAfterShare.model.js');
 
   // Add models to sequelize
   sequelize.addModels([
@@ -261,9 +263,24 @@ async function registerModels() {
     PaymentAction,
     ActivityDay,
     UsageCounter,
+    UserMoment,
+    BeforeAfterShare,
   ]);
 
   normalizeIndexFields();
+
+  // Una cuenta nueva acepta las políticas vigentes al registrarse: nace con el último cambio marcado como visto y no recibe el cartel. Se anota DESPUÉS de
+  // confirmar el alta (si fallara dentro de la transacción, Postgres la anularía entera) y nunca la frena.
+  const { cambioVigente, claveDelCambio } = await import('../../shared/legal/cambiosDePoliticas.js');
+  User.addHook('afterCreate', 'politicasVigentesVistas', (usuario: any, opciones: any) => {
+    const anotar = () =>
+      UserMoment.bulkCreate([{ userId: usuario.id, momentKey: claveDelCambio(cambioVigente().version), seenAt: new Date() }] as any, { ignoreDuplicates: true })
+        .then(() => undefined)
+        .catch((e: any) => console.error('No se pudo marcar el cambio de políticas de una cuenta nueva:', e?.message));
+    if (opciones?.transaction) opciones.transaction.afterCommit(anotar);
+    else return anotar();
+    return undefined;
+  });
 }
 
 /**

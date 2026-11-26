@@ -4,6 +4,7 @@ import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import WorkerNetAmount from "@/components/jobs/WorkerNetAmount";
 import { useTranslation, Trans } from 'react-i18next';
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { avisarMomentoParaNotificaciones } from "../utils/momentoDeAvisos";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -101,6 +102,7 @@ export default function JobApplicationSummary() {
       });
       const data = await response.json();
       if (data.success) {
+        avisarMomentoParaNotificaciones();
         navigate("/my-jobs?tab=applied");
       } else {
         setError(data.message || "No se pudo enviar la postulación");
@@ -133,6 +135,7 @@ export default function JobApplicationSummary() {
       const data = await response.json();
 
       if (data.success) {
+        avisarMomentoParaNotificaciones();
         // Redirect to chat with job context (accepted)
         navigate(`/chat/${data.conversationId}`, {
           state: {
