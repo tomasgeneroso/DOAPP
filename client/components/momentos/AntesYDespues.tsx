@@ -5,14 +5,16 @@ import { getImageUrl } from '@/utils/imageUrl';
 import { useEventoEnVivo } from '@/hooks/useSocket';
 import { FOTOS_POR_LADO } from '../../../shared/momentos/momentos';
 import { pedirMomentos } from './api';
+import { rutaParaReportar } from '../../../shared/tickets/reportes';
 
 interface Estado {
   terminado: boolean;
   fotos: { antes: string[]; despues: string[] };
   puedeProponer: boolean;
-  /** Las dos partes lo autorizaron al contratar: se publica sin pedir permiso de nuevo. */
+  /** Quien mira puede publicar sin pedir permiso (autorizado al contratar). */
   sePublicaDirecto?: boolean;
-  pedido: null | { id: string; estado: 'pending' | 'published' | 'rejected' | 'withdrawn'; loPropusisteVos: boolean; fotos: { antes: string[]; despues: string[] }; texto: string; publicacionId: string | null };
+  trabajasteVos?: boolean;
+  pedido: null | { id: string; estado: 'pending' | 'published' | 'rejected' | 'withdrawn' | 'removed'; loPropusisteVos: boolean; fotos: { antes: string[]; despues: string[] }; texto: string; publicacionId: string | null; puedeRetirar?: boolean };
 }
 
 const BOTON = 'rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50';
@@ -34,7 +36,7 @@ function Miniaturas({ titulo, rutas, elegidas, onTocar }: { titulo: string; ruta
   );
 }
 
-/** «Antes y después» de un trabajo terminado. Con la autorización de la contratación publica cualquiera de las dos; si no, tiene que aceptar la otra. Siempre se puede retirar. */
+/** «Antes y después» de un trabajo terminado: va al perfil de quien lo publica. Quien trabajó siempre puede mostrar su trabajo (con la autorización de la contratación). */
 export default function AntesYDespues({ contractId }: { contractId: string }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [armando, setArmando] = useState(false);
@@ -74,9 +76,9 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
       {activo && pedido && (
         <>
           <p className="text-sm text-slate-700 dark:text-slate-200">
-            {pedido.estado === 'published' ? 'Está publicado en el muro con el permiso de las dos partes. Cualquiera puede retirarlo.'
+            {pedido.estado === 'published' ? (pedido.loPropusisteVos ? 'Está publicado en tu perfil.' : 'Está publicado en el perfil de la otra persona.')
               : pedido.loPropusisteVos ? 'Esperando que la otra persona lo acepte. Hasta entonces las fotos siguen siendo privadas.'
-              : 'Quieren publicar estas fotos en el muro. Se publican solo si lo aceptás.'}
+              : 'Quieren publicar estas fotos en su perfil. Se publican solo si lo aceptás.'}
           </p>
           <Miniaturas titulo="Antes" rutas={pedido.fotos.antes} />
           <Miniaturas titulo="Después" rutas={pedido.fotos.despues} />
@@ -88,20 +90,26 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
                 <button type="button" disabled={enviando} onClick={() => hacer(`/antes-despues/${pedido.id}/rechazar`, {}, 'Las fotos quedan entre ustedes.')} className={`${BOTON} border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200`}>Dejarlo sin publicar</button>
               </>
             )}
-            {pedido.publicacionId && <Link to={`/posts/${pedido.publicacionId}`} className={`${BOTON} border border-sky-600 text-sky-700 dark:text-sky-300`}>Ver en el muro</Link>}
-            {(pedido.loPropusisteVos || pedido.estado === 'published') && (
+            {pedido.publicacionId && <Link to={`/posts/${pedido.publicacionId}`} className={`${BOTON} border border-sky-600 text-sky-700 dark:text-sky-300`}>Ver la publicación</Link>}
+            {pedido.puedeRetirar && (
               <button type="button" disabled={enviando} onClick={() => hacer(`/antes-despues/${pedido.id}/retirar`, {}, 'Retirado.')} className={`${BOTON} text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800`}>Retirar</button>
             )}
           </div>
+          {pedido.estado === 'published' && !pedido.puedeRetirar && (
+            <p className="text-xs text-slate-600 dark:text-slate-300" data-testid="en-el-perfil-de-quien-trabajo">
+              Quien trabajó puede mostrar en su perfil el trabajo que hizo, como se autorizó al contratar. Si las fotos muestran personas o datos personales,{' '}
+              <Link to={rutaParaReportar({ sobre: 'contrato', contratoId: contractId })} className="font-medium text-sky-700 underline dark:text-sky-300">escribí a soporte</Link> para que se retiren.
+            </p>
+          )}
         </>
       )}
 
       {!activo && !armando && (
         <>
           <p className="text-sm text-slate-700 dark:text-slate-200">
-            {estado.sePublicaDirecto
-              ? 'Mostrá cómo quedó. Las dos partes autorizaron publicar las fotos al contratar, y cualquiera puede retirarlas cuando quiera.'
-              : 'Mostrá cómo quedó. Se publica solo si la otra persona también lo acepta.'}
+            {!estado.sePublicaDirecto ? 'Mostrá cómo quedó. Se publica solo si la otra persona también lo acepta.'
+              : estado.trabajasteVos ? 'Mostrá en tu perfil el trabajo que hiciste, como se autorizó al contratar.'
+              : 'Mostrá cómo quedó en tu perfil. Las dos partes autorizaron publicar las fotos al contratar.'}
           </p>
           <button type="button" onClick={() => { setArmando(true); setAviso(''); }} className={`${BOTON} bg-sky-600 text-white hover:bg-sky-700`}>Armar un antes y después</button>
         </>
@@ -118,7 +126,7 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
           </label>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={enviando || despues.length === 0} onClick={() => hacer(`/antes-despues/contrato/${contractId}`, { antes, despues, texto }, estado.sePublicaDirecto ? 'Listo, quedó publicado.' : 'Pedido enviado.')} className={`${BOTON} bg-sky-600 text-white hover:bg-sky-700`}>
-              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : estado.sePublicaDirecto ? 'Publicar en el muro' : 'Pedir permiso para publicar'}
+              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : estado.sePublicaDirecto ? 'Publicar en mi perfil' : 'Pedir permiso para publicar'}
             </button>
             <button type="button" onClick={() => setArmando(false)} className={`${BOTON} text-slate-600 dark:text-slate-300`}>Cancelar</button>
           </div>

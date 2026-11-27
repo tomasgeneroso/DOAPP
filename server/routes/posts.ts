@@ -9,8 +9,14 @@ import type { AuthRequest } from "../middleware/auth.js";
 import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar, opinionesDeMiTrabajo } from "../services/etiquetasDePublicaciones.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { conSistema } from "../db/contextoRls.js";
+import { borrarCopiasDeFotos, bloquearPorElEquipo } from "../services/antesYDespues.js";
+import { logAudit } from "../utils/auditLog.js";
+import { Notification } from "../models/sql/Notification.model.js";
 
 const router = express.Router();
+
+/** Quiénes del equipo pueden retirar una publicación ajena. */
+const ROLES_QUE_RETIRAN_PUBLICACIONES = ["owner", "super_admin", "admin", "support"];
 
 // @route   GET /api/posts
 // @desc    Get all published posts with pagination
@@ -428,7 +434,7 @@ router.put(
 
 // @route   DELETE /api/posts/:id
 // @desc    Delete a post
-// @access  Private (author only)
+// @access  Private (su autor; o el equipo, con la clave de panel y un motivo)
 router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const post = await Post.findByPk(req.params.id);
@@ -441,12 +447,19 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Check if user is the author
-    if (post.author !== req.user.id) {
+    const esSuya = post.author === req.user.id;
+    // El equipo retira una publicación ajena (por ejemplo, fotos con personas o datos personales): deja el motivo y se avisa a quien publicó.
+    const delEquipo = !esSuya && ROLES_QUE_RETIRAN_PUBLICACIONES.includes(String(req.user.adminRole || ""));
+    if (!esSuya && !delEquipo) {
       res.status(403).json({
         success: false,
         message: "No autorizado para eliminar esta publicación",
       });
+      return;
+    }
+    const motivo = sanitizePlainText(String(req.body?.motivo || "")).trim().slice(0, 500);
+    if (delEquipo && motivo.length < 10) {
+      res.status(400).json({ success: false, code: "FALTA_EL_MOTIVO", message: "Escribí por qué se retira (al menos 10 letras)." });
       return;
     }
 
@@ -455,6 +468,22 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       await PostComment.destroy({ where: { post: post.id }, transaction });
       await post.destroy({ transaction });
     });
+    // Las copias públicas de un antes y después se borran con la publicación (T&C 6.8).
+    await borrarCopiasDeFotos(post);
+
+    if (delEquipo) {
+      await bloquearPorElEquipo(post.id, String(req.user.id));
+      await logAudit({
+        req, action: "post.removed_by_staff", category: "user", severity: "medium",
+        description: "El equipo retiró una publicación del perfil de una persona",
+        targetModel: "Post", targetId: String(post.id),
+        metadata: { autor: post.author, titulo: post.title, motivo, contrato: post.linkedContract || null },
+      });
+      await Notification.create({
+        recipientId: post.author, type: "warning", category: "system", title: "Retiramos una publicación de tu perfil",
+        message: `«${String(post.title).slice(0, 80)}»: ${motivo}`, actionUrl: "/help", sentVia: ["in_app"],
+      } as any);
+    }
 
     res.json({
       success: true,

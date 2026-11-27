@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import { DataTypes } from 'sequelize';
 import { Table, Column, Model, PrimaryKey, AllowNull, Default, CreatedAt, UpdatedAt } from 'sequelize-typescript';
 
-export type EstadoDeAntesYDespues = 'pending' | 'published' | 'rejected' | 'withdrawn';
+/** `removed`: lo retiró el equipo; no se vuelve a publicar sin pasar por soporte. */
+export type EstadoDeAntesYDespues = 'pending' | 'published' | 'rejected' | 'withdrawn' | 'removed';
 
 /**
  * Pedido de publicar el «antes y después» de un contrato terminado. Lo propone una parte y SOLO se publica si lo acepta la otra; cualquiera de las dos

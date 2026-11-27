@@ -1626,7 +1626,7 @@
     "termsAcceptance": "Terms acceptance",
     "acceptedOnHiring": "Accepted when hiring",
     "acceptedOnApplying": "Accepted when applying",
-    "termsHow": "The terms are accepted when hiring: the client when choosing the worker and the worker when applying. This includes publishing the photos of the job on DOAPP (Terms, section 6.8); either party can withdraw them. The contract starts on its own at the start time, with the payment credited: no administrator approval or separate step is needed.",
+    "termsHow": "The terms are accepted when hiring: the client when choosing the worker and the worker when applying. This includes publishing the photos of the job on DOAPP (Terms, section 6.8); whoever did the work can show them on their profile. The contract starts on its own at the start time, with the payment credited: no administrator approval or separate step is needed.",
     "statusNotStarted": "NOT STARTED YET",
     "statusDisputed": "IN DISPUTE",
     "accepted": "Accepted",

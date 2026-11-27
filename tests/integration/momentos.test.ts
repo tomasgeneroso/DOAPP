@@ -21,6 +21,7 @@ import { BeforeAfterShare } from '../../server/models/sql/BeforeAfterShare.model
 import { BalanceTransaction } from '../../server/models/sql/BalanceTransaction.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
 import { Post } from '../../server/models/sql/Post.model.js';
+import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
 import { Proposal } from '../../server/models/sql/Proposal.model.js';
 import { avisarPublicacionesSinPostulaciones } from '../../server/jobs/avisoSinPostulaciones.js';
 import { cambioVigente, claveDelCambio } from '../../shared/legal/cambiosDePoliticas.js';
@@ -282,16 +283,111 @@ describe('momentos importantes', () => {
       expect(await Notification.count({ where: { recipientId: laOtra.id, relatedId: x.c.id, title: 'Se publicó el antes y después' } as any })).toBe(1);
     });
 
-    it('si alguien lo retira, volver a publicarlo necesita que la otra parte acepte', async () => {
+    const registrarCopias = async (contractId: string) => {
+      for (const p of (await Post.findAll({ where: { linkedContract: contractId } as any })) as any[]) for (const g of p.gallery) creados.push(path.join(process.cwd(), g.url));
+    };
+    const estadoPara = async (x: any, quien: any) => (await request(app).get(`/api/momentos/antes-despues/contrato/${x.c.id}`).set(como(quien))).body.data;
+
+    it('si quien contrató lo retira, quien trabajó igual puede publicarlo en SU perfil sin pedir permiso, y lo ve en el contrato', async () => {
+      const x = await armar({});
+      const id = (await x.proponer(x.cliente)).body.data.id;
+      await registrarCopias(x.c.id);
+      expect(((await Post.findOne({ where: { linkedContract: x.c.id } as any })) as any).author).toBe(x.cliente.id);
+      expect((await x.accion(id, 'retirar', x.cliente)).status).toBe(200);
+
+      const paraElTrabajador = await estadoPara(x, x.doer);
+      expect(paraElTrabajador).toMatchObject({ puedeProponer: true, sePublicaDirecto: true, trabajasteVos: true });
+      expect(paraElTrabajador.fotos.despues).toEqual([x.despues]);
+      const r = await x.proponer(x.doer);
+      await registrarCopias(x.c.id);
+      expect(r.body.data.publicacionId).toBeTruthy();
+      const posts: any[] = await Post.findAll({ where: { linkedContract: x.c.id } as any });
+      expect(posts.map((p) => p.author)).toEqual([x.doer.id]);
+    });
+
+    it('lo que está en el perfil de quien trabajó no lo retira quien contrató; quien trabajó sí', async () => {
       const x = await armar({});
       const id = (await x.proponer(x.doer)).body.data.id;
-      for (const g of ((await Post.findOne({ where: { linkedContract: x.c.id } as any })) as any).gallery) creados.push(path.join(process.cwd(), g.url));
-      expect((await x.accion(id, 'retirar', x.cliente)).status).toBe(200);
-      const otraVez = await x.proponer(x.doer);
+      await registrarCopias(x.c.id);
+      expect((await estadoPara(x, x.cliente)).pedido).toMatchObject({ estado: 'published', puedeRetirar: false });
+      const r = await x.accion(id, 'retirar', x.cliente);
+      expect(r.status).toBe(403);
+      expect(r.body.message).toMatch(/soporte/);
+      expect(await Post.count({ where: { linkedContract: x.c.id } as any })).toBe(1);
+      expect((await x.accion(id, 'retirar', x.doer)).status).toBe(200);
+      expect(await Post.count({ where: { linkedContract: x.c.id } as any })).toBe(0);
+    });
+
+    it('quien contrató, después de un retiro, necesita que la otra parte acepte; quien trabajó puede retirar lo que publicó el cliente', async () => {
+      const x = await armar({});
+      const id = (await x.proponer(x.cliente)).body.data.id;
+      await registrarCopias(x.c.id);
+      expect((await x.accion(id, 'retirar', x.doer)).status).toBe(200);
+      const otraVez = await x.proponer(x.cliente);
       expect(otraVez.status).toBe(200);
       expect(otraVez.body.data.publicacionId).toBeNull();
       expect(await Post.count({ where: { linkedContract: x.c.id } as any })).toBe(0);
       expect((await BeforeAfterShare.findByPk(id))?.status).toBe('pending');
+    });
+
+    it('si al volver a publicar falla una foto, el retiro anterior no se pierde: el cliente sigue necesitando permiso', async () => {
+      const x = await armar({});
+      const id = (await x.proponer(x.cliente)).body.data.id;
+      await registrarCopias(x.c.id);
+      await x.accion(id, 'retirar', x.cliente);
+      fs.rmSync(path.join(process.cwd(), x.despues));
+      expect((await x.proponer(x.doer)).status).toBe(500);
+      expect((await BeforeAfterShare.findByPk(id))?.status).toBe('withdrawn');
+      expect((await estadoPara(x, x.cliente)).sePublicaDirecto).toBe(false);
+    });
+
+    it('en un contrato anterior a la cláusula no cambia nada: cualquiera retira y hace falta que acepten las dos', async () => {
+      const x = await armar();
+      const id = (await x.proponer(x.doer)).body.data.id;
+      expect((await x.accion(id, 'aceptar', x.cliente)).status).toBe(200);
+      await registrarCopias(x.c.id);
+      expect((await x.accion(id, 'retirar', x.cliente)).status).toBe(200);
+      expect((await x.proponer(x.doer)).body.data.publicacionId).toBeNull();
+    });
+
+    describe('retirar una publicación desde el perfil', () => {
+      let conPosts: Express;
+      beforeAll(async () => {
+        conPosts = express();
+        conPosts.use(express.json());
+        conPosts.use('/api/posts', (await import('../../server/routes/posts.js')).default);
+      });
+      const borrar = (postId: string, quien: any, cuerpo: any = {}) => request(conPosts).delete(`/api/posts/${postId}`).set(como(quien)).send(cuerpo);
+      const publicado = async () => {
+        const x = await armar({});
+        const r = await x.proponer(x.doer);
+        const post: any = await Post.findByPk(r.body.data.publicacionId);
+        const copias = post.gallery.map((g: any) => path.join(process.cwd(), g.url));
+        creados.push(...copias);
+        return { x, post, copias, id: r.body.data.id };
+      };
+
+      it('si su autor la borra del perfil, también se borran las copias públicas de las fotos', async () => {
+        const { x, post, copias } = await publicado();
+        expect(copias.every((f: string) => fs.existsSync(f))).toBe(true);
+        expect((await borrar(post.id, x.doer)).status).toBe(200);
+        expect(copias.some((f: string) => fs.existsSync(f))).toBe(false);
+      });
+
+      it('el equipo la retira con un motivo (queda anotado, se avisa y no se puede volver a publicar sin soporte); nadie más', async () => {
+        const { x, post, copias, id } = await publicado();
+        const soporte: any = await crearUsuario({ role: 'admin', adminRole: 'support' });
+        const marketing: any = await crearUsuario({ role: 'admin', adminRole: 'marketing' });
+        for (const quien of [x.cliente, x.ajeno, marketing]) expect((await borrar(post.id, quien, { motivo: 'Se ven personas en la foto' })).status).toBe(403);
+        expect((await borrar(post.id, soporte, {})).body.code).toBe('FALTA_EL_MOTIVO');
+        expect((await borrar(post.id, soporte, { motivo: 'Se ven personas en la foto' })).status).toBe(200);
+        expect(copias.some((f: string) => fs.existsSync(f))).toBe(false);
+        expect(await AuditLog.count({ where: { action: 'post.removed_by_staff', targetId: String(post.id) } })).toBe(1);
+        expect(await Notification.count({ where: { recipientId: x.doer.id, title: 'Retiramos una publicación de tu perfil' } as any })).toBe(1);
+        expect((await BeforeAfterShare.findByPk(id))?.status).toBe('removed');
+        expect((await x.proponer(x.doer)).status).toBe(409);
+        expect((await estadoPara(x, x.doer)).puedeProponer).toBe(false);
+      });
     });
 
     it('con la autorización, si falta una foto no queda nada a medias y se puede reintentar sin pedir permiso', async () => {

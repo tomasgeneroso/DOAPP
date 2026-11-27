@@ -11,6 +11,7 @@ import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
 import PostComments from "../components/user/PostComments";
 import { getImageUrl } from "../utils/imageUrl";
+import RetirarPorElEquipo from '../components/user/RetirarPorElEquipo';
 
 interface GalleryItem {
   url: string;
@@ -365,6 +366,11 @@ export default function PostDetail() {
                       <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
                     </button>
                   </div>
+                )}
+
+                {/* El equipo retira una publicación ajena, dejando el motivo */}
+                {!!user && !!authorId && String(user.id) !== String(authorId) && ['owner', 'super_admin', 'admin', 'support'].includes(String((user as any).adminRole)) && (
+                  <RetirarPorElEquipo postId={String(id)} token={token} alRetirar={() => navigate(`/profile/${authorId}`)} />
                 )}
 
                 {/* Share Button */}

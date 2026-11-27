@@ -76,7 +76,7 @@ export const claveDelAvisoSinPostulaciones = (jobId: string): string => `sin_pos
 
 /** Lo que se acepta al contratar (T&C 6.8). Se muestra donde se elige a un trabajador y donde alguien se postula, en la web y en la app. */
 export const AVISO_DE_FOTOS_AL_CONTRATAR =
-  'Al contratar, las dos partes autorizan que las fotos del trabajo se publiquen en DOAPP (Términos, punto 6.8). Cualquiera de las dos puede retirarlas cuando quiera.';
+  'Al contratar, las dos partes autorizan que las fotos del trabajo se publiquen en DOAPP (Términos, punto 6.8). Quien trabaja puede mostrarlas en su perfil como parte de su trabajo.';
 
 /** Fotos que se pueden elegir de cada lado en un antes y después. */
 export const FOTOS_POR_LADO = 3;

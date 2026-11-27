@@ -11,9 +11,12 @@ import { FOTOS_POR_LADO } from '../../shared/momentos/momentos.js';
 
 /**
  * «Antes y después» de un trabajo terminado (plan «Momentos DOAPP»). Las fotos de entrega son PRIVADAS hasta que se copian a la carpeta pública para el muro.
- * Al contratar, las dos partes autorizan esa publicación (T&C 6.8, `contracts.photo_consent_at`): cualquiera de las dos publica sin pedir permiso de nuevo.
- * Hace falta que acepte la otra en los contratos sin ese registro (anteriores a la cláusula) y cuando ya se retiró o se rechazó una vez. Cualquiera de las dos
- * lo retira en cualquier momento: se borra la publicación y las copias.
+ * Cada publicación aparece en el perfil de quien la publicó. Al contratar, las dos partes autorizan esa publicación (T&C 6.8, `contracts.photo_consent_at`):
+ *  - la primera vez, cualquiera de las dos publica sin pedir permiso;
+ *  - quien TRABAJÓ siempre puede mostrar en su perfil el trabajo que hizo, aunque quien contrató lo haya retirado o rechazado (regla del dueño, 2026-11-27);
+ *  - quien contrató, después de un retiro o un rechazo, necesita que la otra parte acepte, y no retira lo que está en el perfil de quien trabajó.
+ * En los contratos sin ese registro (anteriores a la cláusula) hace falta que acepten las dos y cualquiera retira. El equipo puede retirar cualquiera (por
+ * ejemplo, si muestra personas o datos personales) y entonces queda bloqueado. Al retirar se borran la publicación y las copias de las fotos.
  */
 
 export type Resultado<T = undefined> = { ok: true; dato: T } | { ok: false; status: number; message: string };
@@ -45,11 +48,17 @@ async function contratoDeUnaParte(contractId: string, userId: string): Promise<{
   return { contrato, trabajo, otra: userId === cliente ? doer : cliente };
 }
 
-/**
- * Se publica sin pedir permiso cuando las dos lo autorizaron al contratar y nadie dijo después que no: haberlo retirado (o rechazado) vale más que la
- * autorización general, y desde ahí hace falta que la otra parte acepte.
- */
-const seAutorizoAlContratar = (contrato: any, pedido: unknown): boolean => !!contrato.photoConsentAt && !pedido;
+const esQuienTrabajo = (contrato: any, userId: string): boolean => String(contrato.doerId) === userId;
+
+/** ¿Esta persona publica sin pedir permiso? Con la autorización de la contratación: quien trabajó, siempre; quien contrató, mientras nadie lo haya retirado ni rechazado. */
+const publicaSinPedirPermiso = (contrato: any, userId: string, pedido: unknown): boolean =>
+  !!contrato.photoConsentAt && (esQuienTrabajo(contrato, userId) || !pedido);
+
+/** ¿Está en el perfil de quien trabajó, con la autorización dada? Eso lo retira solo esa persona (o el equipo). */
+const esDelPerfilDeQuienTrabajo = (contrato: any, pedido: { proposedBy: string; status: string | null }): boolean =>
+  !!contrato.photoConsentAt && pedido.status === 'published' && esQuienTrabajo(contrato, String(pedido.proposedBy));
+
+const RETIRADO_POR_EL_EQUIPO = 'El equipo de DOAPP retiró este antes y después. Para volver a publicarlo, escribí a soporte.';
 
 const disponibles = (contrato: any, trabajo: any) => ({
   antes: ((trabajo?.images || []) as unknown[]).map((u) => rutaPropia(u, 'job-images')).filter((u): u is string => !!u),
@@ -81,8 +90,14 @@ export async function estadoDeAntesYDespues(contractId: string, userId: string):
       terminado: c.contrato.status === 'completed',
       fotos,
       puedeProponer: c.contrato.status === 'completed' && fotos.despues.length > 0 && (estado === null || estado === 'rejected' || estado === 'withdrawn'),
-      sePublicaDirecto: seAutorizoAlContratar(c.contrato, pedido),
-      pedido: pedido ? { id: pedido.id, estado, loPropusisteVos: String(pedido.proposedBy) === userId, fotos: pedido.photos, texto: pedido.caption || '', publicacionId: estado === 'published' ? pedido.postId : null } : null,
+      sePublicaDirecto: publicaSinPedirPermiso(c.contrato, userId, pedido),
+      trabajasteVos: esQuienTrabajo(c.contrato, userId),
+      pedido: pedido ? {
+        id: pedido.id, estado, loPropusisteVos: String(pedido.proposedBy) === userId, fotos: pedido.photos, texto: pedido.caption || '',
+        publicacionId: estado === 'published' ? pedido.postId : null,
+        puedeRetirar: estado === 'pending' ? String(pedido.proposedBy) === userId
+          : estado === 'published' && (esQuienTrabajo(c.contrato, userId) || !esDelPerfilDeQuienTrabajo(c.contrato, { proposedBy: pedido.proposedBy, status: estado })),
+      } : null,
     },
   };
 }
@@ -103,7 +118,10 @@ export async function proponer(contractId: string, userId: string, entrada: { an
   const texto = sanitizePlainText(String(entrada.texto || '')).slice(0, 300);
 
   const previo = await BeforeAfterShare.findOne({ where: { contractId } });
-  const directo = seAutorizoAlContratar(c.contrato, previo);
+  if (previo?.status === 'removed') return falla(409, RETIRADO_POR_EL_EQUIPO);
+  const directo = publicaSinPedirPermiso(c.contrato, userId, previo);
+  // Lo que había antes: si publicar falla, la fila vuelve a quedar así (el retiro o el rechazo no se pierden).
+  const anterior = previo ? { proposedBy: previo.proposedBy, status: previo.status, photos: previo.photos, caption: previo.caption ?? null, answeredBy: previo.answeredBy ?? null, answeredAt: previo.answeredAt ?? null, postId: previo.postId ?? null } : null;
   const datos = { proposedBy: userId, status: 'pending' as const, photos: { antes, despues }, caption: texto, answeredBy: null, answeredAt: null, postId: null };
   let id: string;
   if (previo) {
@@ -127,10 +145,13 @@ export async function proponer(contractId: string, userId: string, entrada: { an
     const pedido = (await BeforeAfterShare.findByPk(id))!;
     const publicacionId = await publicar(pedido, c.trabajo);
     if (!publicacionId) {
-      await pedido.destroy();
+      if (anterior) await BeforeAfterShare.update(anterior as any, { where: { id } });
+      else await pedido.destroy();
       return falla(500, NO_SE_PUDO_PUBLICAR);
     }
-    await avisar(c.otra, 'Se publicó el antes y después', `Las fotos de «${c.trabajo?.title || 'el trabajo'}» ya están en el muro, como se autorizó al contratar. Podés retirarlo desde el contrato.`, contractId);
+    await avisar(c.otra, 'Se publicó el antes y después', esQuienTrabajo(c.contrato, userId)
+      ? `Quien trabajó en «${c.trabajo?.title || 'el trabajo'}» lo muestra en su perfil, como se autorizó al contratar. Si las fotos muestran personas o datos personales, escribí a soporte para que se retiren.`
+      : `Las fotos de «${c.trabajo?.title || 'el trabajo'}» ya están publicadas, como se autorizó al contratar. Podés retirarlas desde el contrato.`, contractId);
     return { ok: true, dato: { id, publicacionId } };
   }
   await avisar(c.otra, 'Te piden permiso para publicar un antes y después', `Quieren mostrar cómo quedó «${c.trabajo?.title || 'el trabajo'}». Se publica solo si lo aceptás.`, contractId);
@@ -193,29 +214,46 @@ export async function responder(id: string, userId: string, acepta: boolean): Pr
     await BeforeAfterShare.update({ status: 'pending', answeredBy: null, answeredAt: null } as any, { where: { id } });
     return falla(500, NO_SE_PUDO_PUBLICAR);
   }
-  await avisar(String(pedido.proposedBy), 'Se publicó el antes y después', `La otra persona aceptó: «${c.trabajo?.title || 'el trabajo'}» ya está en el muro.`, pedido.contractId);
+  await avisar(String(pedido.proposedBy), 'Se publicó el antes y después', `La otra persona aceptó: «${c.trabajo?.title || 'el trabajo'}» ya está en tu perfil.`, pedido.contractId);
   return { ok: true, dato: { publicacionId } };
 }
 
-/** Cualquiera de las dos partes retira el pedido o la publicación, en cualquier momento. */
+/** Borra del disco las copias públicas de un antes y después (solo las suyas, por el nombre con que se crearon). */
+export async function borrarCopiasDeFotos(publicacion: { gallery?: unknown } | null | undefined): Promise<void> {
+  for (const f of ((publicacion?.gallery as Array<{ url?: string }>) || [])) {
+    const ruta = rutaPropia(f?.url, 'post-media');
+    if (ruta && path.basename(ruta).startsWith('antes-despues-')) await fs.unlink(enDisco(ruta)).catch(() => undefined);
+  }
+}
+
+/** El equipo retiró la publicación: queda bloqueado, para que no se vuelva a publicar sin pasar por soporte. */
+export async function bloquearPorElEquipo(postId: string, quien: string): Promise<void> {
+  await BeforeAfterShare.update({ status: 'removed', answeredBy: quien, answeredAt: new Date(), postId: null } as any, { where: { postId } });
+}
+
+/** Retirar el pedido o la publicación. Con la autorización de la contratación, lo que está en el perfil de quien trabajó lo retira solo esa persona. */
 export async function retirar(id: string, userId: string): Promise<Resultado> {
   const pedido = await BeforeAfterShare.findByPk(id);
   const c = pedido ? await contratoDeUnaParte(pedido.contractId, userId) : null;
   if (!pedido || !c) return falla(404, 'No encontramos ese pedido.');
   if (pedido.status !== 'pending' && pedido.status !== 'published') return falla(409, 'No hay nada para retirar.');
+  const publicacion: any = pedido.postId ? await Post.findByPk(pedido.postId) : null;
+  if (publicacion && !esQuienTrabajo(c.contrato, userId) && esDelPerfilDeQuienTrabajo(c.contrato, pedido)) {
+    return falla(403, 'Está en el perfil de quien trabajó, y lo retira esa persona. Si las fotos muestran personas o datos personales, escribí a soporte para que se retiren.');
+  }
   const [tomados] = await BeforeAfterShare.update({ status: 'withdrawn', answeredBy: userId, answeredAt: new Date() } as any, { where: { id, status: pedido.status } });
   if (tomados === 0) return falla(409, 'No hay nada para retirar.');
   if (pedido.postId) {
-    const post: any = await Post.findByPk(pedido.postId);
-    if (post) {
-      for (const f of (post.gallery || []) as Array<{ url?: string }>) {
-        const ruta = rutaPropia(f?.url, 'post-media');
-        if (ruta && path.basename(ruta).startsWith('antes-despues-')) await fs.unlink(enDisco(ruta)).catch(() => undefined);
-      }
-      await post.destroy();
+    if (publicacion) {
+      await borrarCopiasDeFotos(publicacion);
+      await publicacion.destroy();
     }
     await BeforeAfterShare.update({ postId: null } as any, { where: { id } });
   }
-  await avisar(c.otra, 'Se retiró el antes y después', `Las fotos de «${c.trabajo?.title || 'el trabajo'}» ya no se publican.`, pedido.contractId);
+  const trabajo = c.trabajo?.title || 'el trabajo';
+  const laOtraTrabajo = !esQuienTrabajo(c.contrato, userId);
+  await avisar(c.otra, 'Se retiró el antes y después', laOtraTrabajo && c.contrato.photoConsentAt
+    ? `La publicación de «${trabajo}» se retiró. Podés mostrar el trabajo en tu perfil desde el contrato.`
+    : `La publicación de «${trabajo}» se retiró.`, pedido.contractId);
   return { ok: true, dato: undefined };
 }
