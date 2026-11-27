@@ -111,3 +111,11 @@ export function senalarPrimerCampoInvalido(form: HTMLFormElement | null): boolea
   }, 300);
   return true;
 }
+
+/**
+ * Enter en un campo NO envía el formulario: la publicación se crea solo con su botón (pedido del dueño, 2026-11-27: «se clickea sin querer»). Los buscadores que
+ * usan Enter para elegir una sugerencia lo siguen haciendo (corren antes), y en un cuadro de texto largo Enter sigue haciendo un renglón nuevo.
+ */
+export function sinEnviarConEnter(e: { key: string; target: EventTarget | null; preventDefault: () => void }): void {
+  if (e.key === 'Enter' && (e.target as HTMLElement | null)?.tagName === 'INPUT') e.preventDefault();
+}

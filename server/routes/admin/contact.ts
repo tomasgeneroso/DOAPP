@@ -6,6 +6,8 @@ import { protect, authorize } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import sanitizer from '../../utils/sanitizer.js';
 import { Op } from 'sequelize';
+import emailService from '../../services/email.js';
+import { escaparHtml } from '../../utils/escaparHtml.js';
 
 const router = express.Router();
 
@@ -244,7 +246,14 @@ router.post(
         status: 'resolved',
       });
 
-      // TODO: Send email notification to user with response
+      // La respuesta le llega a quien escribió, desde la casilla de soporte (antes solo quedaba guardada).
+      const salio = await emailService.sendEmail({
+        to: message.email,
+        subject: 'Respuesta de DOAPP a tu mensaje',
+        html: `<p>Hola ${escaparHtml(message.name)}:</p><p style="white-space:pre-wrap">${escaparHtml(req.body.response)}</p><p>Si querés seguir la conversación, respondé este correo.</p>`,
+        conRespuesta: true,
+      });
+      if (!salio) console.warn('La respuesta de contacto quedó guardada pero el correo no salió.');
 
       res.json({
         success: true,

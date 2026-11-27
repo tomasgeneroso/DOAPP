@@ -6,12 +6,13 @@ import { isValidUUID } from "../utils/sanitizer.js";
 import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
-import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar, opinionesDeMiTrabajo } from "../services/etiquetasDePublicaciones.js";
+import { leerIds, resolverEtiquetas, presentarEtiquetados, avisarEtiquetas, candidatosDeEtiqueta, trabajosParaEtiquetar, opinionesDeMiTrabajo, puntuacionesElegidas, trabajosYaCompartidos } from "../services/etiquetasDePublicaciones.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { conSistema } from "../db/contextoRls.js";
 import { borrarCopiasDeFotos, bloquearPorElEquipo } from "../services/antesYDespues.js";
 import { logAudit } from "../utils/auditLog.js";
 import { Notification } from "../models/sql/Notification.model.js";
+import { limpiarEtiquetas } from "../../shared/etiquetas.js";
 
 const router = express.Router();
 
@@ -91,6 +92,18 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// @route   GET /api/posts/mis-compartidos?jobIds=a,b
+// @desc    Qué trabajos ya compartí y en qué publicación (antes de ofrecer compartir)
+// @access  Private
+router.get("/mis-compartidos", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const pedidos = typeof req.query.jobIds === "string" && req.query.jobIds ? leerIds(req.query.jobIds.split(",").join(",")) : undefined;
+    res.json({ success: true, compartidos: await trabajosYaCompartidos(String(req.user.id), pedidos) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "No pudimos revisar lo que ya compartiste" });
+  }
+});
+
 // @route   GET /api/posts/:id
 // @desc    Get single post by ID
 // @access  Public
@@ -162,7 +175,16 @@ router.post(
   verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { title, description, price, currency, type, tags, captions, linkedJob, taggedUsers } = req.body;
+      const { title, description, price, currency, type, tags, captions, linkedJob, taggedUsers, incluirPuntuaciones } = req.body;
+
+      // Un trabajo se comparte una sola vez por persona: si ya está, se contesta dónde está (la pantalla lleva ahí).
+      if (linkedJob) {
+        const yaCompartidos = await trabajosYaCompartidos(String(req.user.id), [String(linkedJob)]);
+        if (yaCompartidos[String(linkedJob)]) {
+          res.status(409).json({ success: false, code: "YA_COMPARTIDO", postId: yaCompartidos[String(linkedJob)], message: "Ya habías compartido este trabajo." });
+          return;
+        }
+      }
 
       // Un trabajo terminado que se comparte: se comprueba que quien publica haya participado y se arma a quién se etiqueta (solo a quien trabajó y lo permite).
       let contratoDelTrabajo: string | undefined;
@@ -213,6 +235,9 @@ router.post(
         }
       }
 
+      // Sin «#» ni repetidas: así se encuentran y se relacionan entre sí.
+      parsedTags = limpiarEtiquetas(parsedTags);
+
       const post = await Post.create({
         author: req.user.id,
         title: sanitizePlainText(title || ''),
@@ -225,6 +250,7 @@ router.post(
         // Solo el contrato que el servidor comprueba (el de quien participó en ese trabajo): antes se aceptaba cualquiera que mandara el cuerpo.
         linkedContract: contratoDelTrabajo || undefined,
         taggedUsers: etiquetados,
+        contractRatings: linkedJob && contratoDelTrabajo ? await puntuacionesElegidas(String(req.user.id), String(linkedJob), incluirPuntuaciones) : [],
       });
       if (etiquetados.length > 0) {
         await avisarEtiquetas(post.id, post.title, (req.user as any).name || 'Alguien', etiquetados);

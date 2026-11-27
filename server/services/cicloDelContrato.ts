@@ -62,9 +62,9 @@ const avisar = (recipientId: string, contractId: string, title: string, message:
  * Empieza los contratos a los que les llegó la hora de inicio. Devuelve cuántos empezaron.
  * El UPDATE es condicional al estado: si alguien lo empezó a mano un instante antes, no se pisa.
  */
-export async function iniciarContratosQueLlegaronASuHora(ahora: Date = new Date()): Promise<number> {
+export async function iniciarContratosQueLlegaronASuHora(ahora: Date = new Date(), soloElContrato?: string): Promise<number> {
   const candidatos = (await Contract.findAll({
-    where: { status: { [Op.in]: [...ESTADOS_SIN_EMPEZAR] }, startDate: { [Op.lte]: ahora } } as never,
+    where: { status: { [Op.in]: [...ESTADOS_SIN_EMPEZAR] }, startDate: { [Op.lte]: ahora }, ...(soloElContrato ? { id: soloElContrato } : {}) } as never,
     include: [{ model: Job, as: 'job', attributes: ['id', 'title', 'status', 'publicationPaid'] }],
     order: [['startDate', 'ASC']],
     limit: 200,

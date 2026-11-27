@@ -200,6 +200,13 @@ export class Proposal extends Model {
   })
   withdrawnReason?: string;
 
+  /** Quién la aceptó: quien publicó ('cliente'), la selección automática ('automatica') o una aceptación directa ('directa'). */
+  @Column(DataType.STRING(12))
+  approvedBy?: string;
+
+  @Column(DataType.DATE)
+  approvedAt?: Date;
+
   // ============================================
   // METHODS
   // ============================================

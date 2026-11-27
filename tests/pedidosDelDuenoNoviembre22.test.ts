@@ -74,8 +74,8 @@ describe('etiquetar a los trabajadores en la publicación', () => {
 
   it('la publicación sale con sus fotos (campo gallery) y a quién se etiqueta; la configuración tiene el interruptor', () => {
     const p = leer('client/pages/CreatePortfolioPost.tsx');
-    expect(p).toContain("postFormData.append('gallery'");
-    expect(p).toContain("postFormData.append('taggedUsers'");
+    expect(p).toContain("formulario.append('gallery'");
+    expect(p).toContain("formulario.append('taggedUsers'");
     expect(p).not.toContain('/api/posts/upload-images');
     expect(leer('client/pages/UserSettings.tsx')).toContain('data-testid="permitir-etiquetas-casilla"');
     expect(leer('server/routes/posts.ts')).toContain('resolverEtiquetas');

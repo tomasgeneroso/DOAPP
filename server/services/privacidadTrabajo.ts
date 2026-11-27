@@ -1,4 +1,5 @@
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { CAMPOS_PRIVADOS_DEL_DESTINO } from '../../shared/jobs/destinoYPies.js';
 
 /**
  * Que parte de un trabajo ve cada uno.
@@ -65,6 +66,12 @@ export function puedeVerDireccion(job: TrabajoPlano, user?: UsuarioMinimo | null
 
 export function ocultarDireccion<T extends TrabajoPlano>(job: T): T {
   for (const c of CAMPOS_DIRECCION) delete (job as any)[c];
+  // Del destino queda la zona; la calle, el número, las indicaciones y el punto exacto se cuidan igual que los del origen.
+  if ((job as any).destination) {
+    const zona = { ...(job as any).destination };
+    for (const c of CAMPOS_PRIVADOS_DEL_DESTINO) delete zona[c];
+    (job as any).destination = zona;
+  }
   return job;
 }
 

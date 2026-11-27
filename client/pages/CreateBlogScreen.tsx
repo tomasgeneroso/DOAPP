@@ -5,6 +5,7 @@ import { Helmet } from "react-helmet-async";
 import CreatePost from "../components/user/CreatePost";
 import { useAuth } from "../hooks/useAuth";
 import { ArrowLeft } from "lucide-react";
+import InfoIcono from '../components/ui/InfoIcono';
 
 export default function CreateBlogScreen() {
   const { user, isLoading } = useAuth();
@@ -48,7 +49,7 @@ export default function CreateBlogScreen() {
               {t('common.back')}
             </button>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {t('profile.writeArticle')}
+              {t('profile.writeArticle')} <InfoIcono ayuda="Artículos" className="ml-1" />
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
               {t('profile.writeArticle')}

@@ -1126,8 +1126,10 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
 
       // Update or create the balance transaction as completed
       const BalanceTransaction = (await import('../../models/sql/BalanceTransaction.model.js')).default;
+      // El movimiento de cobro de ESE trabajador para este contrato (hay uno solo); si quedaron repetidos de antes, primero el pendiente.
       const existingTransaction = await BalanceTransaction.findOne({
-        where: { relatedContractId: contract.id, type: 'payment' }
+        where: { userId: doer.id, relatedContractId: contract.id, type: 'payment', status: { [Op.in]: ['pending', 'completed'] } },
+        order: [['status', 'ASC'], ['createdAt', 'ASC']],
       });
 
       if (existingTransaction) {

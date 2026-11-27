@@ -36,6 +36,7 @@ import cacheService from "../services/cacheService.js";
 import { completarTrabajoSiTerminaron } from "../services/trabajoTerminado.js";
 import { avisarContratoAlChatDelEquipo, sincronizarChatDelEquipo } from "../services/chatDelEquipo.js";
 import { reportarProblema, ErrorDeProblema, resumenDelProblemaDelContrato, contratosConProblemaAbierto, alConfirmarQuienContrato } from "../services/problemasDelTrabajo.js";
+import { aceptacionDelContrato } from "../services/aceptacion.js";
 
 const router = express.Router();
 
@@ -272,7 +273,7 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
 
     res.json({
       success: true,
-      contract,
+      contract: { ...(contract.toJSON() as any), aceptacion: await aceptacionDelContrato(contract) },
       // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
       liquidacion: await liquidacionDelContrato(contract),
       // «Hubo problemas durante el trabajo» abierto en este contrato (para no ofrecer otro aviso y decir que el pago no se libera solo).
@@ -1042,6 +1043,7 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Cuándo se libera el dinero y desde cuándo lo puede retirar el trabajador (los «Detalles del pago»).
     plano.liquidacion = await liquidacionDelContrato(contract);
+    plano.aceptacion = await aceptacionDelContrato(contract);
 
     // En qué está el contrato dicho para quien lo mira (el mismo estado que ve el equipo). Un administrador que lo mira ve el estado como lo ve el equipo en sus listas.
     if (isParticipant) {
@@ -1748,38 +1750,24 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     );
 
     // Balance y job completion
-    if (job && (job.maxWorkers || 1) > 1) {
-      /**
-       * Tres cosas estaban mal en este asiento y las tres eran silenciosas:
-       *
-       *   status 'pending'        nunca pasaba a 'completed', así que el saldo
-       *                           subía y el libro decía que el pago seguía en
-       *                           camino. La auditoría lo marca como pendiente
-       *                           para siempre.
-       *   relatedModel/relatedId  columnas que BalanceTransaction no tiene.
-       *                           Sequelize las descarta sin avisar: el asiento
-       *                           quedaba sin referencia al contrato.
-       *   sin bloqueo             leer-sumar-guardar. Dos contratos del mismo
-       *                           trabajo confirmados a la vez y uno pisa al
-       *                           otro: el trabajador cobra una sola vez.
-       */
-      const { acreditarSaldo } = await import('../services/quotePayment.js');
-      await acreditarSaldo(String(contract.doerId), paymentAmount, `Pago por contrato #${contract.id} - ${job.title}`, {
-        relatedModel: 'Contract',
-        relatedId: String(contract.id),
-        tipo: 'payment',
+    if (job) {
+      // Un solo movimiento de cobro por contrato (services/quotePayment.ts): con varios lugares se acredita al saldo; con uno queda pendiente de «Pagos a trabajadores».
+      const variosLugares = (job.maxWorkers || 1) > 1;
+      const { anotarElCobroDelContrato } = await import('../services/quotePayment.js');
+      await anotarElCobroDelContrato({
+        userId: String(contract.doerId),
+        contractId: String(contract.id),
+        monto: paymentAmount,
+        descripcion: `Cobro por el trabajo «${job.title}»`,
+        alSaldo: variosLugares,
         metadata: {
           jobId: job.id,
-          contractId: contract.id,
           jobTitle: job.title,
-          // El cobro se suma ya, pero se retira recién cuando Mercado Pago liberó el pago y venció el plazo para reclamar (services/liberacionDeSaldo.ts).
+          // Lo acreditado se retira recién cuando Mercado Pago liberó el pago y venció el plazo para reclamar (services/liberacionDeSaldo.ts).
           disponibleDesde: (await import('../services/liberacionDeSaldo.js')).disponibleDesdeDeUnCobro(contract as any, payment as any),
-          isMultiWorker: true,
-          totalWorkers: job.maxWorkers,
-          percentageOfBudget: contract.percentageOfBudget || (paymentAmount / Number(job.price) * 100),
+          ...(variosLugares ? { isMultiWorker: true, totalWorkers: job.maxWorkers, percentageOfBudget: contract.percentageOfBudget || (paymentAmount / Number(job.price) * 100) } : {}),
         },
       });
-
     }
 
     await contract.save();

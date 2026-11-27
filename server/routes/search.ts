@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import searchService from "../services/search";
+import { buscarPorEtiqueta } from "../services/etiquetas.js";
 
 const router = Router();
 
@@ -77,6 +78,19 @@ router.get("/jobs", async (req: Request, res: Response): Promise<void> => {
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+/**
+ * Todo lo público con una etiqueta, y las relacionadas.
+ * GET /api/search/etiqueta/:etiqueta
+ */
+router.get("/etiqueta/:etiqueta", async (req: Request, res: Response): Promise<void> => {
+  try {
+    res.json({ success: true, data: await buscarPorEtiqueta(String(req.params.etiqueta)) });
+  } catch (error: any) {
+    console.error("Buscar por etiqueta:", error?.message);
+    res.status(500).json({ success: false, message: "No pudimos buscar esa etiqueta" });
   }
 });
 

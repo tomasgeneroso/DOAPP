@@ -19,6 +19,7 @@ import {
   tituloDeProblema,
   type ProblemaDelTrabajo,
 } from '../../shared/tickets/problemasDelTrabajo.js';
+import { correoAlEquipo } from '../utils/remitenteDeCorreo.js';
 
 /**
  * «Hubo problemas durante el trabajo» (pedido del dueño, 2026-11-21): quien contrató abre un TICKET; mientras esté abierto la confirmación automática se detiene.
@@ -198,18 +199,14 @@ export async function reportarProblema(args: { contractId: string; userId: strin
   await avisar(String(contract.doerId), 'El cliente avisó que hubo problemas', `Quien te contrató avisó que hubo problemas en "${titulo}" (${ticketNumber}). El equipo de DOAPP lo revisa; mientras tanto el pago no se libera solo. Podés contar tu versión en el ticket.`, contract.id, 'warning');
   await avisar(String(args.userId), 'Recibimos tu aviso', `Abrimos el ticket ${ticketNumber}. Mientras esté abierto la confirmación automática está detenida y el pago no se libera. Si se arregla, podés seguir con el mismo trabajo; si no, llevarlo a un reclamo.`, contract.id, 'info', `/tickets/${ticket.id}`);
 
-  const supportEmail = process.env.SMTP_USER || process.env.SUPPORT_EMAIL;
-  if (supportEmail) {
-    const url = `${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/tickets/${ticket.id}`;
-    // Sin datos de las personas: el correo del equipo lleva el número, el trabajo y la categoría; el relato está en el ticket.
-    await emailService
-      .sendEmail({
-        to: supportEmail,
-        subject: `[Hubo problemas durante el trabajo] ${ticketNumber}`,
-        html: `<p>Quien contrató avisó que hubo problemas en <strong>${String(titulo).replace(/[<>&]/g, '')}</strong>.</p><ul><li><strong>Ticket:</strong> ${ticketNumber}</li><li><strong>Qué pasó:</strong> ${tituloDeProblema(args.categoria)}</li></ul><p>La confirmación automática del contrato está detenida mientras el ticket esté abierto.</p><a href="${url}">Ver el ticket en el panel</a>`,
-      })
-      .catch(() => {});
-  }
+  const url = `${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/tickets/${ticket.id}`;
+  // Sin datos de las personas: el correo del equipo lleva el número, el trabajo y la categoría; el relato está en el ticket.
+  await emailService
+    .sendEmail(correoAlEquipo({
+      asunto: `[Hubo problemas durante el trabajo] ${ticketNumber}`,
+      html: `<p>Quien contrató avisó que hubo problemas en <strong>${String(titulo).replace(/[<>&]/g, '')}</strong>.</p><ul><li><strong>Ticket:</strong> ${ticketNumber}</li><li><strong>Qué pasó:</strong> ${tituloDeProblema(args.categoria)}</li></ul><p>La confirmación automática del contrato está detenida mientras el ticket esté abierto.</p><a href="${url}">Ver el ticket en el panel</a>`,
+    }))
+    .catch(() => {});
 
   return { ticket, contract };
 }

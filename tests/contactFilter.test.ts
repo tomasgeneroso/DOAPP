@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { mensajeParaCompartir, enlaceInterno } from '../shared/chat/enlacesDeDoapp.js';
 import { findContactInfo, contactBlockedMessage, analyzeMessage } from '../shared/chat/contactFilter.js';
 
 /**
@@ -108,5 +110,34 @@ describe('lo que pasa pero queda marcado para revisar', () => {
     const r = analyzeMessage('mi numero es 11 2345 6789');
     expect(r.bloquear.length).toBeGreaterThan(0);
     expect(r.revisar).toHaveLength(0);
+  });
+});
+
+describe('enlaces de DOAPP', () => {
+  it('compartir una publicación nunca se toma por un teléfono (antes se bloqueaba 1 de cada 8 enlaces)', () => {
+    const ids = ['11223344-5566-4778-8990-1122334455ab', '0697ee18-fffe-4bf1-b55f-77ee4cf13d86', ...Array.from({ length: 600 }, () => randomUUID())];
+    for (const id of ids) {
+      for (const base of ['https://doapparg.com/posts/', 'https://staging.doapparg.com/profile/', 'https://www.doapparg.com/jobs/', 'http://localhost:5173/posts/']) {
+        const r = analyzeMessage(mensajeParaCompartir('publicacion', 'Pintura', base + id));
+        expect({ id, base, ...r }).toEqual({ id, base, bloquear: [], revisar: [] });
+      }
+    }
+  });
+
+  it('no abre un hueco: un teléfono al lado del enlace, en otro sitio, o disfrazado de identificador se sigue detectando', () => {
+    const id = '0697ee18-fffe-4bf1-b55f-77ee4cf13d86';
+    expect(analyzeMessage(`https://doapparg.com/posts/${id} mi cel es 3794 123456`).revisar.length + analyzeMessage(`https://doapparg.com/posts/${id} mi cel es 3794 123456`).bloquear.length).toBeGreaterThan(0);
+    expect(analyzeMessage('https://doapparg.com/posts/11223344-5566-4778-8990-112233445566').bloquear.length).toBeGreaterThan(0); // solo cifras
+    expect(analyzeMessage('https://doapparg.com/3794-123456').bloquear.length + analyzeMessage('https://doapparg.com/3794-123456').revisar.length).toBeGreaterThan(0);
+    expect(analyzeMessage('https://otro-sitio.example/posts/11223344-5566-4778-8990-1122334455ab').bloquear.length).toBeGreaterThan(0);
+  });
+
+  it('en el chat se muestran como tarjeta solo las páginas propias', () => {
+    const origen = 'https://doapparg.com';
+    expect(enlaceInterno('https://doapparg.com/posts/abc', origen)).toEqual({ ruta: '/posts/abc', rotulo: 'Ver publicación' });
+    expect(enlaceInterno('https://doapparg.com/blog/como-contratar', origen)?.rotulo).toBe('Ver artículo');
+    for (const ajeno of ['https://doapparg.com.estafa.example/posts/abc', 'https://estafa.example/posts/abc', 'https://doapparg.com@estafa.example/posts/abc', 'https://doapparg.com/admin/users', 'javascript:alert(1)', 'no es un enlace']) {
+      expect(enlaceInterno(ajeno, origen)).toBeNull();
+    }
   });
 });

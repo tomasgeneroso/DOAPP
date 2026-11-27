@@ -320,6 +320,67 @@ export async function acreditarSaldo(
   if (descuadre) await avisarDescuadre(userId, descuadre, 'acreditar');
 }
 
+export type ResultadoDelCobro = 'anotado' | 'acreditado' | 'ya_estaba' | 'sin_monto';
+
+/**
+ * El cobro de quien trabajó: UN SOLO movimiento por contrato, cambie las veces que cambie de estado. Un contrato puede cerrarse, reabrirse (un reclamo que se
+ * cierra restaura el estado anterior; un administrador puede cambiarlo) y volver a cerrarse: antes cada cierre anotaba otro movimiento y, en trabajos de varios
+ * lugares, volvía a sumar la plata (pagaba dos veces). Todo camino que cierra un contrato anota el cobro por acá.
+ *  - `alSaldo` (varios lugares): se acredita UNA vez en su saldo. Si estaba anotado como pendiente, ese mismo movimiento pasa a acreditado.
+ *  - Si no (un lugar): queda «pendiente», sin sumar al saldo; «Pagos a trabajadores» lo completa cuando el equipo transfiere.
+ * El saldo se bloquea mientras se mira y se escribe: dos cierres a la vez dejan un solo movimiento.
+ */
+export async function anotarElCobroDelContrato(p: {
+  userId: string;
+  contractId: string;
+  monto: number;
+  descripcion: string;
+  alSaldo: boolean;
+  /** Entre otras cosas `disponibleDesde`: desde cuándo se puede retirar lo acreditado. */
+  metadata?: Record<string, any>;
+}): Promise<ResultadoDelCobro> {
+  if (!(p.monto > 0)) return 'sin_monto';
+  const { sequelize } = await import('../config/database.js');
+  const { User } = await import('../models/sql/User.model.js');
+  const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+  let descuadre = null as SaldoContraLibro | null;
+  const resultado = await conSistema(() => sequelize.transaction(async (t): Promise<ResultadoDelCobro> => {
+    const user = await User.findByPk(p.userId, { lock: t.LOCK.UPDATE, transaction: t });
+    if (!user) throw new Error(`Usuario ${p.userId} no encontrado al anotar el cobro`);
+
+    const previos: any[] = await BalanceTransaction.findAll({
+      where: { userId: p.userId, relatedContractId: p.contractId, type: 'payment', status: { [Op.in]: ['pending', 'completed'] } } as any,
+      order: [['createdAt', 'ASC']],
+      transaction: t,
+    });
+    if (previos.some((x) => x.status === 'completed')) return 'ya_estaba';
+    const pendiente = previos[0];
+    const antes = parseFloat(String((user as any).balanceArs)) || 0;
+    const despues = Math.round((antes + p.monto) * 100) / 100;
+    const metadata = { ...(pendiente?.metadata || {}), ...(p.metadata || {}), contractId: p.contractId, relatedModel: 'Contract', relatedId: p.contractId };
+
+    if (!p.alSaldo) {
+      if (pendiente) return 'ya_estaba';
+      await BalanceTransaction.create(
+        { userId: p.userId, type: 'payment', amount: p.monto, balanceBefore: antes, balanceAfter: despues, description: p.descripcion, status: 'pending', relatedContractId: p.contractId, metadata } as any,
+        { transaction: t },
+      );
+      return 'anotado';
+    }
+
+    descuadre = await avisarSiNoCierra(p.userId, antes, t);
+    const datos = { amount: p.monto, balanceBefore: antes, balanceAfter: despues, description: p.descripcion, status: 'completed', metadata };
+    if (pendiente) await pendiente.update(datos, { transaction: t });
+    else await BalanceTransaction.create({ userId: p.userId, type: 'payment', relatedContractId: p.contractId, ...datos } as any, { transaction: t });
+    (user as any).balanceArs = despues;
+    await user.save({ transaction: t });
+    return 'acreditado';
+  }));
+  if (descuadre) await avisarDescuadre(p.userId, descuadre, 'acreditar');
+  return resultado;
+}
+
 /**
  * Anota plata que el cliente va a tener a favor pero que TODAVÍA NO ES SUYA: la del pago original sigue en Mercado Pago y no llegó a la cuenta de la
  * plataforma. Queda como asiento «pending» del libro, con `metadata.pendienteDeLiquidacion` y la fecha en `disponibleDesde`: no suma al saldo, no se

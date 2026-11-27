@@ -6,6 +6,7 @@ import { useEventoEnVivo } from '@/hooks/useSocket';
 import { FOTOS_POR_LADO } from '../../../shared/momentos/momentos';
 import { pedirMomentos } from './api';
 import { rutaParaReportar } from '../../../shared/tickets/reportes';
+import InfoIcono from '@/components/ui/InfoIcono';
 
 interface Estado {
   terminado: boolean;
@@ -71,7 +72,7 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
 
   return (
     <section aria-label="Antes y después" data-testid="antes-y-despues" className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-3">
-      <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white"><Images className="h-5 w-5 text-sky-600" aria-hidden="true" />Antes y después</h3>
+      <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white"><Images className="h-5 w-5 text-sky-600" aria-hidden="true" />Antes y después<InfoIcono ayuda="Antes y después" /></h3>
 
       {activo && pedido && (
         <>

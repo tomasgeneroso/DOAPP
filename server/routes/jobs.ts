@@ -7,6 +7,7 @@ import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
+import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Proposal } from "../models/sql/Proposal.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
@@ -47,8 +48,17 @@ import { ErrorResponse } from '../middleware/errorHandler.js';
 import { bloqueoParaOperar } from "../services/identidadDeclarada.js";
 import { verificacionConDiditActiva } from "../services/didit.js";
 import { sanearRubros, sanearPunto, sanearRadio, leerAreasPedidas, puntoEnArea } from "../../shared/perfiles/zonaDeTrabajo.js";
+import { algunaEtiquetaContiene } from "../services/etiquetas.js";
+import { bloqueoParaCambiarElPrecio, contratosVigentesDelTrabajo } from "../services/cambioDePresupuesto.js";
+import { leerDestino, leerPies, leerMapaDePies, piesDeLasFotos } from "../../shared/jobs/destinoYPies.js";
 
 const router = express.Router();
+
+/** La zona del destino es pública: se revisa como el resto del texto (la calle y el número tienen sus propios campos, privados). */
+const zonaDelDestino = (valor: unknown): string => {
+  const d = leerDestino(valor);
+  return d.ok && d.destino ? [d.destino.neighborhood, d.destino.location].filter(Boolean).join(' · ') : '';
+};
 
 // Ensure upload directory exists
 const JOB_IMAGES_DIR = path.join(process.cwd(), 'uploads', 'job-images');
@@ -270,6 +280,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
           { title: { [Op.iLike]: searchPattern } },
           { summary: { [Op.iLike]: searchPattern } },
           { description: { [Op.iLike]: searchPattern } },
+          // También por etiqueta («#plomería» o «plomeria»).
+          algunaEtiquetaContiene('Job', searchQuery),
         ],
       });
     }
@@ -1031,6 +1043,8 @@ router.post(
         summary: req.body.summary,
         description: req.body.description,
         requirements: req.body.requirements,
+        imageCaptions: leerPies(req.body.imageCaptions).join(' · '),
+        destino: zonaDelDestino(req.body.destination),
       });
       if (hallazgos.length > 0) {
         res.status(400).json({
@@ -1239,7 +1253,15 @@ router.post(
         }
       }
 
+      const destinoLeido = leerDestino(req.body.destination);
+      if (destinoLeido.ok === false) {
+        res.status(400).json({ success: false, code: 'DESTINO_INVALIDO', message: destinoLeido.mensaje });
+        return;
+      }
+
       const jobData = {
+        destination: destinoLeido.destino,
+        imageCaptions: piesDeLasFotos([], {}, imageUrls, leerPies(req.body.imageCaptions)),
         title: req.body.title,
         summary: req.body.summary,
         description: req.body.description,
@@ -1412,6 +1434,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
       for (const campo of ['title', 'summary', 'description', 'requirements']) {
         if (req.body[campo] !== undefined) aRevisar[campo] = req.body[campo];
       }
+      aRevisar.imageCaptions = [...leerPies(req.body.imageCaptions), ...Object.values(leerMapaDePies(req.body.existingCaptions) ?? {})].join(' · ');
+      aRevisar.destino = zonaDelDestino(req.body.destination);
       const hallazgos = revisarPublicacion(aRevisar);
       if (hallazgos.length > 0) {
         res.status(400).json({
@@ -1548,6 +1572,21 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     }
     // Remove existingImages from updateData (it's not a real field)
     delete updateData.existingImages;
+
+    // El pie de cada foto: las que quedan conservan el suyo (o el nuevo texto) y las recién subidas toman el suyo por orden.
+    const piesDeAntes = leerMapaDePies(req.body.existingCaptions) ?? ((job as any).imageCaptions || {});
+    if (updateData.images !== undefined || req.body.existingCaptions !== undefined) {
+      updateData.imageCaptions = piesDeLasFotos(updateData.images !== undefined ? existingImages : (job.images || []), piesDeAntes, newImageUrls, leerPies(req.body.imageCaptions));
+    }
+
+    if (req.body.destination !== undefined) {
+      const destinoLeido = leerDestino(req.body.destination);
+      if (destinoLeido.ok === false) {
+        res.status(400).json({ success: false, code: 'DESTINO_INVALIDO', message: destinoLeido.mensaje });
+        return;
+      }
+      updateData.destination = destinoLeido.destino;
+    }
 
     // Parse tags if sent as JSON string
     if (updateData.tags && typeof updateData.tags === 'string') {
@@ -1726,8 +1765,30 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     const newPrice = req.body.price !== undefined ? Number(req.body.price) : null;
     const oldPrice = Number(job.price);
 
-    if (newPrice !== null && newPrice !== oldPrice && !hayQuePagarDeNuevo) {
-      const priceDifference = newPrice - oldPrice;
+    // Con alguien ya contratado, lo acordado (precio y fechas) no se cambia desde la publicación: se acuerda en el contrato.
+    const cambiaDeVerdad = (campo: 'startDate' | 'endDate') => {
+      if (updateData[campo] === undefined) return false;
+      const minuto = (v: unknown) => (v ? Math.floor(new Date(v as string).getTime() / 60_000) : null);
+      return minuto(updateData[campo]) !== minuto((job as any)[campo]);
+    };
+    if (!requiresReapproval && (cambiaDeVerdad('startDate') || cambiaDeVerdad('endDate')) && (await contratosVigentesDelTrabajo(String(job.id))) > 0) {
+      res.status(409).json({ success: false, code: 'FECHAS_ACORDADAS_EN_EL_CONTRATO', message: "Las fechas ya están acordadas en el contrato. Para cambiarlas, pedí el cambio desde el contrato: la otra parte lo tiene que aceptar." });
+      return;
+    }
+
+    const cambiaElPrecio = newPrice !== null && Number.isFinite(newPrice) && newPrice !== oldPrice && !hayQuePagarDeNuevo;
+    if (cambiaElPrecio) {
+      // Volver a publicar una publicación rechazada o cancelada se mide con las fechas nuevas.
+      const frenado = await bloqueoParaCambiarElPrecio(job, requiresReapproval ? { status: 'pending_approval', startDate: updateData.startDate ?? job.startDate, soloContratos: true } : {});
+      if (frenado) {
+        res.status(409).json({ success: false, code: frenado.codigo, message: frenado.mensaje });
+        return;
+      }
+    }
+
+    // Sin pagar todavía, el precio nuevo se guarda con el resto: no hay diferencia que cobrar ni que devolver (antes, subirlo hacía pagar SOLO la diferencia).
+    if (cambiaElPrecio && job.publicationPaid) {
+      const priceDifference = newPrice! - oldPrice;
 
       if (priceDifference > 0) {
         // Precio aumentado - requiere pago de diferencia + comisión
@@ -1755,7 +1816,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
 
         await job.update({
           ...updateData,
-          pendingNewPrice: newPrice,
+          pendingNewPrice: newPrice!,
           priceChangeReason: req.body.priceChangeReason || 'Modificación de presupuesto',
           originalPrice: job.originalPrice || oldPrice,
           previousStatus: prevStatus,
@@ -2018,6 +2079,42 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
   }
 });
 
+// @route   POST /api/jobs/:id/restore
+// @desc    Recuperar de la papelera: vuelve con el estado y los datos que tenía
+// @access  Private (solo quien lo publicó, dentro de los 30 días)
+router.post("/:id/restore", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const desde = new Date(Date.now() - DIAS_EN_LA_PAPELERA * 86_400_000);
+    const job = /^[0-9a-f-]{36}$/i.test(String(req.params.id))
+      ? await Job.findOne({ where: { id: req.params.id, clientId: req.user.id, deletedAt: { [Op.gte]: desde } } as any, paranoid: false })
+      : null;
+    if (!job) {
+      res.status(404).json({ success: false, message: "Ese trabajo no está en tu papelera." });
+      return;
+    }
+    await job.restore();
+    job.deletedBy = null as any;
+    await job.save();
+    await logEvento({
+      action: 'job.restored_by_owner',
+      actor: `user:${req.user.id}`,
+      performedBy: String(req.user.id),
+      category: 'system',
+      severity: 'low',
+      description: `El dueño recuperó de la papelera el trabajo «${job.title}».`,
+      targetModel: 'Job',
+      targetId: String(job.id),
+      targetIdentifier: job.title,
+      metadata: { estado: job.status },
+    });
+    cacheService.delPattern('jobs:*');
+    socketService.notifyJobUpdate(job.id, req.user.id, { action: 'restored', job: job.toJSON() });
+    res.json({ success: true, message: "Trabajo recuperado: quedó como estaba.", job: { id: job.id, title: job.title, status: job.status } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
 // @route   DELETE /api/jobs/:id
 // @desc    Eliminar trabajo
 // @access  Private
@@ -2039,6 +2136,16 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
         success: false,
         message: "No tienes permiso para eliminar este trabajo",
       });
+      return;
+    }
+
+    // Un trabajo pagado y vigente no se elimina: se cancela, que es lo que devuelve la plata según los términos. Antes solo la pantalla lo impedía.
+    if ((job as any).publicationPaid && !['cancelled', 'rejected'].includes(String(job.status))) {
+      res.status(409).json({ success: false, code: 'CANCELAR_PRIMERO', message: "Este trabajo está pagado: primero cancelalo (así se liquida tu pago) y después lo podés eliminar." });
+      return;
+    }
+    if (!(job as any).publicationPaid && (job as any).publicationPaymentId && (await Payment.count({ where: { id: (job as any).publicationPaymentId, status: 'pending_verification' } as any })) > 0) {
+      res.status(409).json({ success: false, code: 'PAGO_EN_REVISION', message: "Hay un pago de esta publicación en revisión. Cuando se resuelva la podés eliminar." });
       return;
     }
 
@@ -2126,22 +2233,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       }
     }
 
-    // Eliminar propuestas relacionadas primero (para evitar error de foreign key)
-    await Proposal.destroy({ where: { jobId: job.id } });
-
-    // Eliminar tareas relacionadas
-    await JobTask.destroy({ where: { jobId: job.id } });
-
-    // Eliminar conversaciones y mensajes relacionados
-    const conversations = await Conversation.findAll({ where: { jobId: job.id } });
-    for (const conversation of conversations) {
-      await ChatMessage.destroy({ where: { conversationId: conversation.id } });
-    }
-    await Conversation.destroy({ where: { jobId: job.id } });
-
-    // Eliminar todos los contratos relacionados (ya están cancelados los activos)
-    await Contract.destroy({ where: { jobId: job.id } });
-
+    // No se borra nada de lo relacionado (tareas, postulaciones, chats, contratos): se esconde junto con el trabajo y vuelve entero si se recupera de la papelera.
     // El trabajo NO se borra: queda guardado como eliminado (pedido del dueño, 2026-11-23). Su dueño lo ve 30 días en «Ver papelera de trabajos»; el equipo lo ve siempre.
     job.deletedBy = String(req.user.id);
     await job.save();
@@ -2377,30 +2469,29 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Si el trabajo está en progreso con contrato, redirigir al endpoint de contratos
-    if (job.status === 'in_progress') {
-      const contract = await Contract.findOne({ where: { jobId: job.id } });
-      if (contract) {
-        res.status(400).json({
-          success: false,
-          message: "Para cambiar el presupuesto de un trabajo en progreso con contrato, usa el endpoint de modificación de contratos",
-          redirectTo: `/api/contracts/${contract.id}/request-price-change`,
-        });
-        return;
-      }
-    }
-
-    // No permitir cambios en trabajos completados
-    if (job.status === 'completed') {
-      res.status(400).json({
-        success: false,
-        message: "No puedes cambiar el presupuesto de un trabajo completado",
-      });
+    // La regla (estado, alguien ya elegido, cuánto falta para el inicio) es una sola para todas las puertas.
+    const frenado = await bloqueoParaCambiarElPrecio(job);
+    if (frenado) {
+      res.status(409).json({ success: false, code: frenado.codigo, message: frenado.mensaje });
       return;
     }
 
     const currentPrice = Number(job.price);
     const priceDifference = newPrice - currentPrice;
+
+    // Sin pagar todavía: el precio se cambia y listo. NO hay nada que devolver ni que cobrar aparte (antes acá se acreditaba la diferencia como saldo aunque la
+    // publicación nunca se hubiera pagado).
+    if (!job.publicationPaid) {
+      if (priceDifference !== 0) {
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({ oldPrice: currentPrice, newPrice, reason: reason.trim(), changedAt: new Date() });
+        await job.update({ price: newPrice, priceChangeReason: reason.trim(), priceChangedAt: new Date(), priceHistory });
+        cacheService.delPattern('jobs:*');
+        socketService.notifyJobStatusChanged(job.toJSON(), job.status);
+      }
+      res.json({ success: true, message: "Presupuesto actualizado. Lo pagás al publicar.", job: { id: job.id, title: job.title, oldPrice: currentPrice, newPrice } });
+      return;
+    }
 
     // Obtener el usuario para acceder a su balance
     const client = await User.findByPk(req.user.id);
@@ -3599,6 +3690,13 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
         success: false,
         message: "No hay una propuesta de reducción de precio pendiente para este trabajo.",
       });
+      return;
+    }
+
+    // Se vuelve a mirar ahora: entre el pedido y la aceptación pudo elegirse a alguien o acercarse el inicio.
+    const frenado = await bloqueoParaCambiarElPrecio(job);
+    if (frenado) {
+      res.status(409).json({ success: false, code: frenado.codigo, message: frenado.mensaje });
       return;
     }
 

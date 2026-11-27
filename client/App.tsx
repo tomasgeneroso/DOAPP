@@ -63,8 +63,8 @@ const TicketDetail = lazy(() => import("./pages/TicketDetail"));
 const CreateDispute = lazy(() => import("./pages/CreateDispute"));
 const DisputeDetail = lazy(() => import("./pages/DisputeDetail"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
-const PortfolioManager = lazy(() => import("./pages/PortfolioManager"));
 const CreatePortfolioPost = lazy(() => import("./pages/CreatePortfolioPost"));
+const EtiquetaPage = lazy(() => import("./pages/EtiquetaPage"));
 const PortfolioItemDetail = lazy(() => import("./pages/PortfolioItemDetail"));
 const ProUsageDashboard = lazy(() => import("./pages/ProUsageDashboard"));
 const FinancePanel = lazy(() => import("./pages/FinancePanel"));
@@ -316,14 +316,8 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/portfolio"
-                element={
-                  <ProtectedRoute>
-                    <PortfolioManager />
-                  </ProtectedRoute>
-                }
-              />
+              {/* La pestaña Portfolio sobraba (pedido del dueño, 2026-11-27): lo hecho se ve en el perfil y en «Mis trabajos» → Realizados. */}
+              <Route path="/portfolio" element={<Navigate to="/my-jobs?tab=realizados" replace />} />
               <Route
                 path="/mi-resumen"
                 element={
@@ -481,6 +475,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/chat" element={<Navigate to="/messages" replace />} />
               <Route
                 path="/chat/:id"
                 element={
@@ -541,6 +536,7 @@ export default function App() {
               {features.blog && <Route path="/blog/create" element={<CreateBlogScreen />} />}
               {features.blog && <Route path="/blog/:slug" element={<BlogDetailScreen />} />}
               <Route path="/posts/:id" element={<PostDetail />} />
+              <Route path="/etiquetas/:etiqueta" element={<EtiquetaPage />} />
               {features.sitemap && <Route path="/sitemap" element={<SiteMap />} />}
               <Route path="/analytics-reference" element={<AnalyticsReference />} />
               <Route path="/tickets/new" element={<CreateTicket />} />

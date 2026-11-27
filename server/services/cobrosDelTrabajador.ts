@@ -167,3 +167,72 @@ export async function pedirElCobro(userId: string, contractId: string, ahora: Da
     return { ok: true as const, pedidoEl: ahora.toISOString(), monto: c.monto };
   });
 }
+
+// ───────────────────────── Revisión de cobros anotados antes de que hubiera uno solo por contrato ─────────────────────────
+
+export interface HallazgoDeCobro {
+  tipo: 'repetido' | 'sin_acreditar' | 'acreditado_dos_veces';
+  contractId: string;
+  userId: string;
+  monto: number;
+  /** Ids de los movimientos involucrados. */
+  movimientos: string[];
+  corregido: boolean;
+}
+
+/**
+ * Busca (y con `aplicar` corrige) lo que dejó el cobro anotado en cada cierre:
+ *  - «repetido»: una línea pendiente de un cobro que ya terminó. Se anula (queda en el libro como fallida, con el motivo). No mueve saldo.
+ *  - «sin_acreditar»: varios lugares con el cobro pendiente y nunca acreditado. Se acredita una vez.
+ *  - «acreditado_dos_veces»: dos o más créditos al saldo por el mismo contrato. NO se corrige solo: se resuelve con `ajustarSaldo` después de mirarlo.
+ */
+export async function revisarCobrosDeContratos(aplicar: boolean): Promise<HallazgoDeCobro[]> {
+  const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
+  const { anotarElCobroDelContrato } = await import('./quotePayment.js');
+  return conSistema(async () => {
+    const filas: any[] = await BalanceTransaction.findAll({
+      where: { type: 'payment', status: { [Op.in]: ['pending', 'completed'] }, amount: { [Op.gt]: 0 }, relatedContractId: { [Op.ne]: null } } as any,
+      order: [['createdAt', 'ASC']],
+    });
+    const grupos = new Map<string, any[]>();
+    for (const f of filas) {
+      const clave = `${f.userId}|${f.relatedContractId}`;
+      grupos.set(clave, [...(grupos.get(clave) || []), f]);
+    }
+    const salida: HallazgoDeCobro[] = [];
+    for (const lista of grupos.values()) {
+      const { userId, relatedContractId: contractId } = lista[0];
+      const pendientes = lista.filter((f) => f.status === 'pending');
+      const terminados = lista.filter((f) => f.status === 'completed');
+      const alSaldo = terminados.filter((f) => f.metadata?.fueraDelSaldo !== true);
+      if (alSaldo.length > 1) {
+        salida.push({ tipo: 'acreditado_dos_veces', contractId, userId, monto: alSaldo.slice(1).reduce((s, f) => s + Number(f.amount), 0), movimientos: alSaldo.map((f) => f.id), corregido: false });
+      }
+      // Sobran: las pendientes de un cobro terminado y, sin ninguno terminado, todas menos la primera.
+      const sobran = terminados.length > 0 ? pendientes : pendientes.slice(1);
+      for (const f of sobran) {
+        if (aplicar) {
+          await f.update({ status: 'failed', metadata: { ...(f.metadata || {}), anuladoPorRepetido: new Date().toISOString() } });
+          await logMoneyEvent({ action: 'DUPLICATE_PAYOUT_ENTRY_VOIDED', actor: 'script:revisarCobrosDeContratos', severity: 'medium', description: 'Se anuló una línea repetida de un cobro (no movía el saldo)', contractId, userId, monto: Number(f.amount), moneda: 'ARS', metadata: { movimiento: f.id } });
+        }
+        salida.push({ tipo: 'repetido', contractId, userId, monto: Number(f.amount), movimientos: [f.id], corregido: aplicar });
+      }
+      if (terminados.length === 0 && pendientes.length > 0) {
+        const contrato: any = await Contract.findByPk(contractId);
+        const trabajo: any = contrato ? await Job.findByPk(contrato.jobId, { attributes: ['id', 'title', 'maxWorkers'] }) : null;
+        if (contrato?.status === 'completed' && contrato.paymentStatus === 'pending_payout' && (Number(trabajo?.maxWorkers) || 1) > 1) {
+          const pago: any = await Payment.findOne({ where: { contractId } });
+          const monto = montoParaElTrabajador(contrato, pago).neto;
+          let corregido = false;
+          if (aplicar) {
+            const { disponibleDesdeDeUnCobro } = await import('./liberacionDeSaldo.js');
+            corregido = (await anotarElCobroDelContrato({ userId, contractId, monto, descripcion: `Cobro por el trabajo «${trabajo.title}»`, alSaldo: true, metadata: { jobId: trabajo.id, isMultiWorker: true, disponibleDesde: disponibleDesdeDeUnCobro(contrato, pago) } })) === 'acreditado';
+            if (corregido) await logMoneyEvent({ action: 'MISSING_MULTIWORKER_PAYOUT_CREDITED', actor: 'script:revisarCobrosDeContratos', severity: 'high', description: 'Se acreditó un cobro de varios lugares que había quedado pendiente para siempre', contractId, userId, monto, moneda: 'ARS' });
+          }
+          salida.push({ tipo: 'sin_acreditar', contractId, userId, monto, movimientos: [pendientes[0].id], corregido });
+        }
+      }
+    }
+    return salida;
+  });
+}

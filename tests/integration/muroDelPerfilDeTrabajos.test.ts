@@ -71,8 +71,10 @@ describe('muro del perfil: la publicación de un trabajo se agrega y se quita, n
   });
 
   it('quitar la publicación del muro sigue funcionando y el trabajo no se toca', async () => {
+    // Ese trabajo ya está compartido: no se crea otra publicación, se devuelve dónde está la que existe.
     const creada = await publicarTrabajo();
-    const id = creada.body.post?.id ?? creada.body.data?.id;
+    expect([creada.status, creada.body.code]).toEqual([409, 'YA_COMPARTIDO']);
+    const id = creada.body.postId;
     const r = await request(app).delete(`/api/posts/${id}`).set(como(cliente));
     expect(r.status).toBe(200);
     expect(await Post.findByPk(id)).toBeNull();

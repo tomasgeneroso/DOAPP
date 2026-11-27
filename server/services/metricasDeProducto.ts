@@ -135,7 +135,7 @@ export async function metricasDeProducto(ahora: Date = new Date()): Promise<Metr
     ['Escribir en el chat', `SELECT sender_id AS id FROM chat_messages WHERE created_at >= :t30 AND created_at <= :ahora AND type <> 'system'`],
     ['Dejar una reseña', `SELECT reviewer_id AS id FROM reviews WHERE created_at >= :t30 AND created_at <= :ahora`],
     ['Publicar en el muro', `SELECT author AS id FROM posts WHERE created_at >= :t30 AND created_at <= :ahora`],
-    ['Sumar al portafolio', `SELECT user_id AS id FROM portfolio_items WHERE created_at >= :t30 AND created_at <= :ahora`],
+    ['Compartir un trabajo terminado', `SELECT author AS id FROM posts WHERE linked_contract IS NOT NULL AND created_at >= :t30 AND created_at <= :ahora`],
     ['Invitar con su código', `SELECT referrer_id AS id FROM referrals WHERE created_at >= :t30 AND created_at <= :ahora`],
   ];
   // La base es toda persona con alguna señal de vida en el período: entró (registro de uso) o hizo alguna de estas cosas. Así la tabla sirve desde el primer día.

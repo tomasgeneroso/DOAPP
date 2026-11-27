@@ -59,6 +59,15 @@ export const POLITICAS = {
   CONTRATOS_LIBRES_POR_MES: 1,
 
   /**
+   * Hasta cuántas horas antes del inicio se puede cambiar el presupuesto de una publicación ya pagada (y solo si todavía no se eligió a nadie). La regla completa está en
+   * `shared/jobs/cambioDePresupuesto.ts` (pedido del dueño, 2026-11-27).
+   */
+  CAMBIO_DE_PRESUPUESTO_HASTA_HORAS_ANTES: 24,
+
+  /** Si faltan menos de estas horas para el inicio y no se eligió a nadie, el sistema elige solo (`jobs/autoSelectWorker.ts`). */
+  SELECCION_AUTOMATICA_HORAS_ANTES: 24,
+
+  /**
    * Días que la pasarela de pagos tarda en liberar un pago a la Plataforma. Hasta entonces, una devolución al Cliente que sale de ese pago figura como
    * «a favor pendiente»: no se puede usar ni retirar (T&C 7.9). Es el valor por defecto; si la pasarela informa la fecha real de un pago, manda esa
    * (`services/liberacionDeSaldo.ts`, que lo puede cambiar con `PAYMENT_RELEASE_DAYS`).

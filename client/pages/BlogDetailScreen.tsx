@@ -20,6 +20,8 @@ import {
   Users,
   Star,
 } from "lucide-react";
+import CompartirPorChat from "../components/chat/CompartirPorChat";
+import Etiqueta from "../components/Etiqueta";
 
 export default function BlogDetailScreen() {
   const { t } = useTranslation();
@@ -326,7 +328,8 @@ export default function BlogDetailScreen() {
               <Eye className="h-5 w-5" />
               <span>{post.views} {t('blog.views', 'views')}</span>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <CompartirPorChat que="articulo" ruta={`/blog/${post.slug}`} titulo={post.title} conTexto />
               <div className="relative">
                 <button
                   onClick={() => setShowShareMenu(!showShareMenu)}
@@ -414,15 +417,7 @@ export default function BlogDetailScreen() {
             <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-2 flex-wrap">
                 <Tag className="h-5 w-5 text-slate-400" />
-                {post.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    to={`/blog?tag=${encodeURIComponent(tag)}`}
-                    className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-full text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
+                {post.tags.map((tag) => <Etiqueta key={tag} etiqueta={tag} />)}
               </div>
             </div>
           )}

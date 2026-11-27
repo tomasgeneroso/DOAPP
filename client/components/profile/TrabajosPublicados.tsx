@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Briefcase, ExternalLink, Loader2, MapPin } from "lucide-react";
 import { estadoDePublicacion } from "../../../shared/jobs/estadoDePublicacion";
 import Transicion from "../ui/Transicion";
+import InfoIcono from '../ui/InfoIcono';
 
 interface TrabajoPublicado {
   id: string;
@@ -61,7 +62,7 @@ export default function TrabajosPublicados({ userId, esPropio, token }: { userId
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Trabajos publicados</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Trabajos publicados <InfoIcono ayuda="Trabajo publicado" className="ml-1" /></h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {trabajos === null ? " " : `${trabajos.length} ${trabajos.length === 1 ? "trabajo publicado" : "trabajos publicados"}`}
           </p>

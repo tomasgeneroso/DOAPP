@@ -254,9 +254,9 @@ export function useSocket() {
         setIsConnected(false);
       }
 
-      // Don't reconnect if server intentionally closed or we gave up
-      if (reason === "io server disconnect" || connectionGaveUp) {
-        return;
+      // Si el servidor cortó (reinicio, despliegue), socket.io no vuelve solo: se reconecta acá.
+      if (reason === "io server disconnect") {
+        setTimeout(() => { if (globalSocket === socketInstance) socketInstance.connect(); }, INITIAL_RECONNECT_DELAY * 2);
       }
     });
 
@@ -267,18 +267,19 @@ export function useSocket() {
       }
 
       connectionAttempts++;
+      const sesionRechazada = /authentication/i.test(error.message);
 
-      if (connectionAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.warn(`⚠️ Socket: Gave up after ${MAX_RECONNECT_ATTEMPTS} failed attempts. Will retry on user action.`);
+      // Una sesión rechazada no se arregla insistiendo: se espera a que la persona vuelva a la pestaña o ingrese de nuevo.
+      if (sesionRechazada && connectionAttempts >= MAX_RECONNECT_ATTEMPTS) {
         connectionGaveUp = true;
         socketInstance.disconnect();
-        // Una sesión vencida no es una falla de los avisos en vivo.
-        if (!/authentication/i.test(error.message)) reportarFalla('tiempo_real');
         return;
       }
-
-      const delay = getReconnectDelay();
-      console.log(`🔄 Socket: Reconnecting in ${delay}ms (attempt ${connectionAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+      // Cualquier otro corte se sigue reintentando (cada 30 s como mucho): antes se rendía a los 5 intentos, unos 30 segundos, y un despliegue dejaba la
+      // pestaña sin avisos en vivo hasta recargar (reporte del dueño, 2026-11-27).
+      if (connectionAttempts === MAX_RECONNECT_ATTEMPTS && !sesionRechazada) reportarFalla('tiempo_real');
+      // Cuando el servidor rechaza el ingreso (error propio, no de red), socket.io no reintenta solo.
+      if (!socketInstance.active) setTimeout(() => { if (globalSocket === socketInstance && !connectionGaveUp) socketInstance.connect(); }, getReconnectDelay());
     });
 
     // Message handlers
@@ -421,7 +422,7 @@ export function useSocket() {
       reconnection: true,
       reconnectionDelay: INITIAL_RECONNECT_DELAY,
       reconnectionDelayMax: MAX_RECONNECT_DELAY,
-      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+      reconnectionAttempts: Infinity,
       timeout: 10000, // 10 second connection timeout
       forceNew: false, // Reuse connection if possible
     });

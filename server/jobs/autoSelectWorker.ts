@@ -11,337 +11,359 @@ import { intentarDevolverPresupuesto } from '../services/presupuestoDelTrabajo.j
 import { getIO } from '../services/socket.js';
 import { Op, fn, col } from 'sequelize';
 import { fallaDeTarea } from '../services/avisarFalla.js';
+import { settleQuote } from '../services/quotePayment.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
-/**
- * Cron job para auto-seleccionar trabajador 24h antes del inicio del trabajo
- * Se ejecuta cada hora para verificar trabajos que necesitan auto-selección
- */
-export function startAutoSelectWorkerJob() {
-  // Ejecutar cada hora: 0 * * * *
-  cron.schedule('0 * * * *', async () => {
-    try {
-      console.log('🔍 [CRON] Verificando trabajos para auto-selección de trabajador...');
+/** Elige solo para los trabajos que empiezan pronto y todavía no tienen a quien los haga. Exportada para poder probarla. */
+export async function autoSeleccionar(): Promise<void> {
+  try {
+    console.log('🔍 [CRON] Verificando trabajos para auto-selección de trabajador...');
 
-      const now = new Date();
-      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const twentyFourHoursFromNow = new Date(now.getTime() + POLITICAS.SELECCION_AUTOMATICA_HORAS_ANTES * 60 * 60 * 1000);
 
-      // Buscar trabajos abiertos que comienzan en las próximas 24 horas
-      // Incluir trabajos que no tienen el máximo de trabajadores seleccionados
-      const jobsNeedingSelection = await Job.findAll({
-        where: {
-          status: 'open',
-          startDate: {
-            [Op.lte]: twentyFourHoursFromNow,
-            [Op.gt]: now,
-          },
+    // Buscar trabajos abiertos que comienzan en las próximas 24 horas
+    // Incluir trabajos que no tienen el máximo de trabajadores seleccionados
+    const jobsNeedingSelection = await Job.findAll({
+      where: {
+        status: 'open',
+        startDate: {
+          [Op.lte]: twentyFourHoursFromNow,
+          [Op.gt]: now,
         },
-        include: [
-          {
-            model: User,
-            as: 'client',
-            attributes: ['id', 'name', 'email'],
-          },
-        ],
-      });
-
-      // Filtrar solo los trabajos que necesitan más trabajadores
-      // Count approved proposals as ground truth (selectedWorkers array may lag)
-      const approvedCountsByJob = await Proposal.findAll({
-        where: {
-          jobId: { [Op.in]: jobsNeedingSelection.map(j => j.id) },
-          status: 'approved',
+      },
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email'],
         },
-        attributes: ['jobId', [fn('COUNT', col('id')), 'count']],
-        group: ['jobId'],
-        raw: true,
-      }) as any[];
-      const approvedMap: Record<string, number> = {};
-      for (const row of approvedCountsByJob) {
-        approvedMap[row.jobId] = parseInt(row.count, 10);
-      }
+      ],
+    });
 
-      const jobsToProcess = jobsNeedingSelection.filter(job => {
+    // Filtrar solo los trabajos que necesitan más trabajadores
+    // Count approved proposals as ground truth (selectedWorkers array may lag)
+    const approvedCountsByJob = await Proposal.findAll({
+      where: {
+        jobId: { [Op.in]: jobsNeedingSelection.map(j => j.id) },
+        status: 'approved',
+      },
+      attributes: ['jobId', [fn('COUNT', col('id')), 'count']],
+      group: ['jobId'],
+      raw: true,
+    }) as any[];
+    const approvedMap: Record<string, number> = {};
+    for (const row of approvedCountsByJob) {
+      approvedMap[row.jobId] = parseInt(row.count, 10);
+    }
+
+    const jobsToProcess = jobsNeedingSelection.filter(job => {
+      const maxWorkers = job.maxWorkers || 1;
+      const approvedCount = approvedMap[job.id] || 0;
+      const selectedCount = job.selectedWorkers?.length || 0;
+      const currentWorkers = Math.max(approvedCount, selectedCount);
+      return currentWorkers < maxWorkers;
+    });
+
+    if (jobsToProcess.length === 0) {
+      console.log('✅ [CRON] No hay trabajos que requieran auto-selección');
+      return;
+    }
+
+    console.log(`⚠️  [CRON] Encontrados ${jobsToProcess.length} trabajos para auto-selección`);
+
+    let autoSelectedCount = 0;
+
+    for (const job of jobsToProcess) {
+      try {
         const maxWorkers = job.maxWorkers || 1;
-        const approvedCount = approvedMap[job.id] || 0;
-        const selectedCount = job.selectedWorkers?.length || 0;
-        const currentWorkers = Math.max(approvedCount, selectedCount);
-        return currentWorkers < maxWorkers;
-      });
+        // Use already-approved proposals as ground truth to avoid over-selecting
+        const approvedProposalWorkers = await Proposal.findAll({
+          where: { jobId: job.id, status: 'approved' },
+          attributes: ['freelancerId'],
+          raw: true,
+        });
+        const approvedWorkerIds = approvedProposalWorkers.map((p: any) => p.freelancerId);
+        const selectedFromDb = job.selectedWorkers || [];
+        // Merge both sources so we never select a worker already counted in either
+        const allKnownWorkers = [...new Set([...approvedWorkerIds, ...selectedFromDb])];
+        const workersNeeded = maxWorkers - allKnownWorkers.length;
 
-      if (jobsToProcess.length === 0) {
-        console.log('✅ [CRON] No hay trabajos que requieran auto-selección');
-        return;
-      }
+        if (workersNeeded <= 0) {
+          console.log(`⏭️  [CRON] Trabajo ${job.id} ya tiene suficientes trabajadores aprobados, saltando`);
+          continue;
+        }
 
-      console.log(`⚠️  [CRON] Encontrados ${jobsToProcess.length} trabajos para auto-selección`);
+        const currentWorkers = allKnownWorkers;
 
-      let autoSelectedCount = 0;
-
-      for (const job of jobsToProcess) {
-        try {
-          const maxWorkers = job.maxWorkers || 1;
-          // Use already-approved proposals as ground truth to avoid over-selecting
-          const approvedProposalWorkers = await Proposal.findAll({
-            where: { jobId: job.id, status: 'approved' },
-            attributes: ['freelancerId'],
-            raw: true,
-          });
-          const approvedWorkerIds = approvedProposalWorkers.map((p: any) => p.freelancerId);
-          const selectedFromDb = job.selectedWorkers || [];
-          // Merge both sources so we never select a worker already counted in either
-          const allKnownWorkers = [...new Set([...approvedWorkerIds, ...selectedFromDb])];
-          const workersNeeded = maxWorkers - allKnownWorkers.length;
-
-          if (workersNeeded <= 0) {
-            console.log(`⏭️  [CRON] Trabajo ${job.id} ya tiene suficientes trabajadores aprobados, saltando`);
-            continue;
-          }
-
-          const currentWorkers = allKnownWorkers;
-
-          // Buscar propuestas pendientes ordenadas por fecha de creación
-          // Defensive limit: never select more than workersNeeded
-          const pendingProposals = await Proposal.findAll({
-            where: {
-              jobId: job.id,
-              status: 'pending',
-              ...(currentWorkers.length > 0 && {
-                freelancerId: { [Op.notIn]: currentWorkers },
-              }),
+        // Buscar propuestas pendientes ordenadas por fecha de creación
+        // Defensive limit: never select more than workersNeeded
+        const pendingProposals = await Proposal.findAll({
+          where: {
+            jobId: job.id,
+            status: 'pending',
+            ...(currentWorkers.length > 0 && {
+              freelancerId: { [Op.notIn]: currentWorkers },
+            }),
+          },
+          include: [
+            {
+              model: User,
+              as: 'freelancer',
+              attributes: ['id', 'name', 'email'],
             },
-            include: [
-              {
-                model: User,
-                as: 'freelancer',
-                attributes: ['id', 'name', 'email'],
+          ],
+          order: [['createdAt', 'ASC']],
+          limit: Math.max(0, workersNeeded),
+        });
+
+        if (pendingProposals.length === 0) {
+          console.log(`⚠️  [CRON] Trabajo ${job.id} no tiene postulados pendientes, no se puede auto-seleccionar`);
+          continue;
+        }
+
+        // No se contrata por encima de lo que el cliente pagó: una contraoferta mayor la tiene que aceptar (y pagar) una persona.
+        const alcanzan: typeof pendingProposals = [];
+        let sinAsignar = (await settleQuote(job, 0)).yaPagado;
+        for (const p of pendingProposals) {
+          const pide = Number(p.proposedPrice) || 0;
+          if (pide > 0 && pide <= sinAsignar + 0.005) {
+            alcanzan.push(p);
+            sinAsignar -= pide;
+          }
+        }
+        if (alcanzan.length === 0) continue;
+        pendingProposals.splice(0, pendingProposals.length, ...alcanzan);
+
+        // Auto-seleccionar las propuestas necesarias
+        const selectedWorkerIds: string[] = [...allKnownWorkers];
+        const approvedProposalIds: string[] = [];
+
+        for (const proposal of pendingProposals) {
+          proposal.status = 'approved';
+              proposal.approvedBy = 'automatica';
+              proposal.approvedAt = new Date();
+          await proposal.save();
+          selectedWorkerIds.push(proposal.freelancerId);
+          approvedProposalIds.push(proposal.id);
+          console.log(`✅ [CRON] Auto-seleccionado trabajador ${proposal.freelancerId} para trabajo ${job.id}`);
+        }
+
+        // Actualizar trabajo con los nuevos trabajadores
+        job.selectedWorkers = selectedWorkerIds;
+        job.changed('selectedWorkers', true);
+
+        // Si es el primer trabajador, también asignar a doerId para compatibilidad
+        if (!job.doerId && selectedWorkerIds.length > 0) {
+          job.doerId = selectedWorkerIds[0];
+        }
+
+        // Solo rechazar otras propuestas si ya se alcanzó el máximo
+        if (selectedWorkerIds.length >= maxWorkers) {
+          await Proposal.update(
+            {
+              status: 'rejected',
+              rejectionReason: `Auto-selección: Se completaron los ${maxWorkers} puesto${maxWorkers > 1 ? 's' : ''} disponible${maxWorkers > 1 ? 's' : ''}`,
+            },
+            {
+              where: {
+                jobId: job.id,
+                id: { [Op.notIn]: approvedProposalIds },
+                status: 'pending',
               },
-            ],
-            order: [['createdAt', 'ASC']],
-            limit: Math.max(0, workersNeeded),
+            }
+          );
+        }
+
+        // Actualizar estado del trabajo
+        const jobStartDate = job.startDate ? new Date(job.startDate) : new Date();
+        if (jobStartDate <= new Date()) {
+          job.status = 'in_progress';
+        }
+
+        await job.save();
+
+        // Notificar al frontend para que actualice el worker count
+        try {
+          const io = getIO();
+          if (io) {
+            io.emit('jobs:refresh', {
+              jobId: job.id,
+              selectedWorkers: job.selectedWorkers,
+              status: job.status,
+              autoSelected: true,
+            });
+          }
+        } catch (_) { /* socket no crítico */ }
+
+        const client = job.client as any;
+
+        // Crear contrato para cada trabajador seleccionado
+        for (const proposal of pendingProposals) {
+          // Comisión del embudo único (0 en la beta). Antes un 10% fijo que ignoraba la beta.
+          const precio = Number(proposal.proposedPrice);
+          const commission = (await calculateCommission(String(job.clientId), precio)).commission;
+          const totalPrice = Math.round((precio + Number(commission)) * 100) / 100;
+
+          // Las fechas son las del trabajo (antes el contrato empezaba «ahora» y terminaba según la duración estimada).
+          const startDate = job.startDate ? new Date(job.startDate) : new Date();
+          const endDate = job.endDate ? new Date(job.endDate) : new Date(startDate.getTime() + (proposal.estimatedDuration || 7) * 86_400_000);
+
+          const contract = await Contract.create({
+            jobId: job.id,
+            clientId: job.clientId,
+            doerId: proposal.freelancerId,
+            type: 'trabajo',
+            price: precio,
+              allocatedAmount: precio,
+            commission,
+            totalPrice,
+            startDate,
+            endDate,
+            status: 'pending',
+            // El cliente aceptó al publicar y el trabajador al postularse: la elección automática es esa misma aceptación.
+            termsAccepted: true,
+            termsAcceptedAt: new Date(),
+            termsAcceptedByClient: true,
+            termsAcceptedByDoer: true,
           });
 
-          if (pendingProposals.length === 0) {
-            console.log(`⚠️  [CRON] Trabajo ${job.id} no tiene postulados pendientes, no se puede auto-seleccionar`);
-            continue;
-          }
+          const freelancer = proposal.freelancer as any;
 
-          // Auto-seleccionar las propuestas necesarias
-          const selectedWorkerIds: string[] = [...allKnownWorkers];
-          const approvedProposalIds: string[] = [];
-
-          for (const proposal of pendingProposals) {
-            proposal.status = 'approved';
-            await proposal.save();
-            selectedWorkerIds.push(proposal.freelancerId);
-            approvedProposalIds.push(proposal.id);
-            console.log(`✅ [CRON] Auto-seleccionado trabajador ${proposal.freelancerId} para trabajo ${job.id}`);
-          }
-
-          // Actualizar trabajo con los nuevos trabajadores
-          job.selectedWorkers = selectedWorkerIds;
-          job.changed('selectedWorkers', true);
-
-          // Si es el primer trabajador, también asignar a doerId para compatibilidad
-          if (!job.doerId && selectedWorkerIds.length > 0) {
-            job.doerId = selectedWorkerIds[0];
-          }
-
-          // Solo rechazar otras propuestas si ya se alcanzó el máximo
-          if (selectedWorkerIds.length >= maxWorkers) {
-            await Proposal.update(
-              {
-                status: 'rejected',
-                rejectionReason: `Auto-selección: Se completaron los ${maxWorkers} puesto${maxWorkers > 1 ? 's' : ''} disponible${maxWorkers > 1 ? 's' : ''}`,
-              },
-              {
-                where: {
-                  jobId: job.id,
-                  id: { [Op.notIn]: approvedProposalIds },
-                  status: 'pending',
-                },
-              }
-            );
-          }
-
-          // Actualizar estado del trabajo
-          const jobStartDate = job.startDate ? new Date(job.startDate) : new Date();
-          if (jobStartDate <= new Date()) {
-            job.status = 'in_progress';
-          }
-
-          await job.save();
-
-          // Notificar al frontend para que actualice el worker count
-          try {
-            const io = getIO();
-            if (io) {
-              io.emit('jobs:refresh', {
-                jobId: job.id,
-                selectedWorkers: job.selectedWorkers,
-                status: job.status,
-                autoSelected: true,
-              });
-            }
-          } catch (_) { /* socket no crítico */ }
-
-          const client = job.client as any;
-
-          // Crear contrato para cada trabajador seleccionado
-          for (const proposal of pendingProposals) {
-            // Comisión del embudo único (0 en la beta). Antes un 10% fijo que ignoraba la beta.
-            const commission = (await calculateCommission(String(job.clientId), Number(proposal.proposedPrice))).commission;
-            const totalPrice = proposal.proposedPrice + commission;
-
-            const startDate = new Date();
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() + (proposal.estimatedDuration || 7));
-
-            const contract = await Contract.create({
-              jobId: job.id,
-              clientId: job.clientId,
-              doerId: proposal.freelancerId,
-              type: 'trabajo',
-              price: proposal.proposedPrice,
-              commission,
-              totalPrice,
-              startDate,
-              endDate,
-              status: 'pending',
-              // El cliente aceptó al publicar y el trabajador al postularse: la elección automática es esa misma aceptación.
-              termsAccepted: true,
-              termsAcceptedAt: new Date(),
-              termsAcceptedByClient: true,
-              termsAcceptedByDoer: true,
-            });
-
-            const freelancer = proposal.freelancer as any;
-
-            // Notificación al trabajador seleccionado
-            await Notification.create({
-              recipientId: proposal.freelancerId,
-              type: 'success',
-              category: 'contract',
-              title: '¡Has sido seleccionado automáticamente!',
-              message: `Fuiste elegido automáticamente para el trabajo "${job.title}" ya que el cliente no seleccionó un trabajador antes del límite de 24 horas.`,
-              relatedModel: 'Contract',
-              relatedId: contract.id,
-              actionText: 'Ver contrato',
-              data: {
-                jobId: job.id,
-                proposalId: proposal.id,
-                contractId: contract.id,
-              },
-              read: false,
-            });
-
-            // Enviar email al trabajador
-            if (freelancer?.email) {
-              await emailService.sendEmail({
-                to: freelancer.email,
-                subject: `¡Has sido seleccionado automáticamente! - ${job.title}`,
-                html: `
-                  <h2>¡Felicitaciones ${freelancer.name}!</h2>
-                  <p>Has sido seleccionado automáticamente para el trabajo <strong>"${job.title}"</strong>.</p>
-                  <p>El cliente no seleccionó un trabajador antes del límite de 24 horas previas al inicio del trabajo, por lo que fuiste elegido automáticamente.</p>
-                  <p>Por favor, revisa los detalles del contrato lo antes posible.</p>
-                  <p>
-                    <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
-                       style="display: inline-block; padding: 12px 24px; background-color: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                      Ver contrato
-                    </a>
-                  </p>
-                `,
-              });
-            }
-
-            // Actualizar el mensaje del chat para reflejar la autoselección
-            const chatMessage = await ChatMessage.findOne({
-              where: {
-                'metadata.proposalId': proposal.id,
-                'metadata.action': 'job_application',
-              },
-            });
-
-            if (chatMessage) {
-              // Actualizar metadata para reflejar aprobación automática
-              await chatMessage.update({
-                metadata: {
-                  ...chatMessage.metadata,
-                  proposalStatus: 'approved',
-                  contractId: contract.id,
-                  autoSelected: true,
-                  autoSelectedAt: new Date().toISOString(),
-                },
-              });
-
-              // Emitir actualización por socket
-              const updatedMessage = await ChatMessage.findByPk(chatMessage.id, {
-                include: [{
-                  model: User,
-                  as: 'sender',
-                  attributes: ['id', 'name', 'avatar'],
-                }],
-              });
-
-              if (updatedMessage) {
-                getIO()?.to(`conversation:${chatMessage.conversationId}`).emit('message:updated', updatedMessage);
-              }
-            }
-          }
-
-          // Notificación al cliente (una sola vez con todos los trabajadores)
-          const workerNames = pendingProposals.map(p => (p.freelancer as any)?.name || 'Trabajador').join(', ');
+          // Notificación al trabajador seleccionado
           await Notification.create({
-            recipientId: job.clientId,
-            type: 'info',
-            category: 'jobs',
-            title: `${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente`,
-            message: `Se asignó automáticamente a ${workerNames} para tu trabajo "${job.title}" ya que no seleccionaste antes del límite de 24 horas.`,
-            relatedModel: 'Job',
-            relatedId: job.id,
-            actionText: 'Ver trabajo',
+            recipientId: proposal.freelancerId,
+            type: 'success',
+            category: 'contract',
+            title: '¡Has sido seleccionado automáticamente!',
+            message: `Fuiste elegido automáticamente para el trabajo "${job.title}" ya que el cliente no seleccionó un trabajador antes del límite de 24 horas.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            actionText: 'Ver contrato',
             data: {
               jobId: job.id,
-              workerIds: selectedWorkerIds,
+              proposalId: proposal.id,
+              contractId: contract.id,
             },
             read: false,
           });
 
-          // Email al cliente
-          if (client?.email) {
+          // Enviar email al trabajador
+          if (freelancer?.email) {
             await emailService.sendEmail({
-              to: client.email,
-              subject: `${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente - ${job.title}`,
+              to: freelancer.email,
+              subject: `¡Has sido seleccionado automáticamente! - ${job.title}`,
               html: `
-                <h2>${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente</h2>
-                <p>Como no seleccionaste ${pendingProposals.length > 1 ? 'trabajadores' : 'un trabajador'} para <strong>"${job.title}"</strong> antes del límite de 24 horas previas al inicio, hemos asignado automáticamente a: <strong>${workerNames}</strong>.</p>
-                <p>Por favor, revisa los detalles del trabajo.</p>
+                <h2>¡Felicitaciones ${freelancer.name}!</h2>
+                <p>Has sido seleccionado automáticamente para el trabajo <strong>"${job.title}"</strong>.</p>
+                <p>El cliente no seleccionó un trabajador antes del límite de 24 horas previas al inicio del trabajo, por lo que fuiste elegido automáticamente.</p>
+                <p>Por favor, revisa los detalles del contrato lo antes posible.</p>
                 <p>
-                  <a href="${process.env.CLIENT_URL}/jobs/${job.id}"
-                     style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                    Ver trabajo
+                  <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                     style="display: inline-block; padding: 12px 24px; background-color: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    Ver contrato
                   </a>
                 </p>
               `,
             });
           }
 
-          autoSelectedCount += pendingProposals.length;
-          console.log(
-            `✅ [CRON] Auto-seleccionados ${pendingProposals.length} trabajador(es) para trabajo "${job.title}"`
-          );
-        } catch (error) {
-          fallaDeTarea('autoSelectWorker', `❌ [CRON] Error auto-seleccionando para trabajo ${job.id}:`, error);
-        }
-      }
+          // Actualizar el mensaje del chat para reflejar la autoselección
+          const chatMessage = await ChatMessage.findOne({
+            where: {
+              'metadata.proposalId': proposal.id,
+              'metadata.action': 'job_application',
+            },
+          });
 
-      console.log(
-        `🎯 [CRON] Proceso completado: ${autoSelectedCount}/${jobsNeedingSelection.length} trabajos con trabajador auto-seleccionado`
-      );
-    } catch (error) {
-      fallaDeTarea('autoSelectWorker', '❌ [CRON] Error en job de auto-selección:', error);
+          if (chatMessage) {
+            // Actualizar metadata para reflejar aprobación automática
+            await chatMessage.update({
+              metadata: {
+                ...chatMessage.metadata,
+                proposalStatus: 'approved',
+                contractId: contract.id,
+                autoSelected: true,
+                autoSelectedAt: new Date().toISOString(),
+              },
+            });
+
+            // Emitir actualización por socket
+            const updatedMessage = await ChatMessage.findByPk(chatMessage.id, {
+              include: [{
+                model: User,
+                as: 'sender',
+                attributes: ['id', 'name', 'avatar'],
+              }],
+            });
+
+            if (updatedMessage) {
+              getIO()?.to(`conversation:${chatMessage.conversationId}`).emit('message:updated', updatedMessage);
+            }
+          }
+        }
+
+        // Notificación al cliente (una sola vez con todos los trabajadores)
+        const workerNames = pendingProposals.map(p => (p.freelancer as any)?.name || 'Trabajador').join(', ');
+        await Notification.create({
+          recipientId: job.clientId,
+          type: 'info',
+          category: 'jobs',
+          title: `${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente`,
+          message: `Se asignó automáticamente a ${workerNames} para tu trabajo "${job.title}" ya que no seleccionaste antes del límite de 24 horas.`,
+          relatedModel: 'Job',
+          relatedId: job.id,
+          actionText: 'Ver trabajo',
+          data: {
+            jobId: job.id,
+            workerIds: selectedWorkerIds,
+          },
+          read: false,
+        });
+
+        // Email al cliente
+        if (client?.email) {
+          await emailService.sendEmail({
+            to: client.email,
+            subject: `${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente - ${job.title}`,
+            html: `
+              <h2>${pendingProposals.length > 1 ? 'Trabajadores asignados' : 'Trabajador asignado'} automáticamente</h2>
+              <p>Como no seleccionaste ${pendingProposals.length > 1 ? 'trabajadores' : 'un trabajador'} para <strong>"${job.title}"</strong> antes del límite de 24 horas previas al inicio, hemos asignado automáticamente a: <strong>${workerNames}</strong>.</p>
+              <p>Por favor, revisa los detalles del trabajo.</p>
+              <p>
+                <a href="${process.env.CLIENT_URL}/jobs/${job.id}"
+                   style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                  Ver trabajo
+                </a>
+              </p>
+            `,
+          });
+        }
+
+        autoSelectedCount += pendingProposals.length;
+        console.log(
+          `✅ [CRON] Auto-seleccionados ${pendingProposals.length} trabajador(es) para trabajo "${job.title}"`
+        );
+      } catch (error) {
+        fallaDeTarea('autoSelectWorker', `❌ [CRON] Error auto-seleccionando para trabajo ${job.id}:`, error);
+      }
     }
-  });
+
+    console.log(
+      `🎯 [CRON] Proceso completado: ${autoSelectedCount}/${jobsNeedingSelection.length} trabajos con trabajador auto-seleccionado`
+    );
+  } catch (error) {
+    fallaDeTarea('autoSelectWorker', '❌ [CRON] Error en job de auto-selección:', error);
+  }
+}
+
+/**
+ * Cron job para auto-seleccionar trabajador 24h antes del inicio del trabajo
+ * Se ejecuta cada hora para verificar trabajos que necesitan auto-selección
+ */
+export function startAutoSelectWorkerJob() {
+  // Cada hora.
+  cron.schedule('0 * * * *', () => void autoSeleccionar());
 
   console.log('✅ [CRON] Job de auto-selección de trabajadores iniciado (cada hora)');
 

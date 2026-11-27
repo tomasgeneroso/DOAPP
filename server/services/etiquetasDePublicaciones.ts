@@ -161,3 +161,45 @@ export async function avisarEtiquetas(publicacionId: string, titulo: string, aut
     }
   }
 }
+
+export type PuntuacionVisible = { contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string };
+
+/** Las puntuaciones elegidas para mostrar. Salen de las reseñas reales que esa persona dejó: la pantalla solo dice cuáles y si llevan el comentario. */
+export async function puntuacionesElegidas(autorId: string, trabajoId: string, pedidos: unknown): Promise<PuntuacionVisible[]> {
+  let lista: unknown = pedidos;
+  if (typeof pedidos === 'string') {
+    try { lista = JSON.parse(pedidos); } catch { return []; }
+  }
+  if (!Array.isArray(lista) || lista.length === 0) return [];
+  const mias = await opinionesDeMiTrabajo(autorId, trabajoId);
+  const salida: PuntuacionVisible[] = [];
+  for (const pedido of lista.slice(0, 10) as Array<{ contractId?: string; puntaje?: boolean; comentario?: boolean }>) {
+    const o = mias.find((x) => x.contractId === String(pedido?.contractId));
+    if (!o || pedido?.puntaje === false || salida.some((s) => s.contractId === o.contractId)) continue;
+    salida.push({ contractId: o.contractId, workerId: o.workerId, name: o.name, role: o.role, rating: o.rating, ...(pedido?.comentario === true && o.comment.trim() ? { comment: o.comment.trim().slice(0, 500) } : {}) });
+  }
+  return salida;
+}
+
+/**
+ * Qué trabajos YA compartió esta persona, y en qué publicación: `{ idDelTrabajo: idDeLaPublicacion }`. Se mira antes de ofrecer «compartir» (para llevar a lo
+ * que ya existe) y antes de crear (para que no quede dos veces). Si borra la publicación, el trabajo vuelve a figurar sin compartir.
+ */
+export async function trabajosYaCompartidos(autorId: string, soloEstos?: string[]): Promise<Record<string, string>> {
+  const { Post } = await import('../models/sql/Post.model.js');
+  const publicaciones = await Post.findAll({
+    where: { author: autorId, linkedContract: { [Op.ne]: null } } as any,
+    attributes: ['id', 'linkedContract', 'createdAt'],
+    order: [['createdAt', 'DESC']],
+    limit: 1000,
+  });
+  if (publicaciones.length === 0) return {};
+  const contratos = await conSistema(() => Contract.findAll({ where: { id: publicaciones.map((p) => p.linkedContract as string) }, attributes: ['id', 'jobId'], paranoid: false }));
+  const trabajoDe = new Map(contratos.map((c) => [String(c.id), String(c.jobId)]));
+  const salida: Record<string, string> = {};
+  for (const p of publicaciones) {
+    const trabajo = trabajoDe.get(String(p.linkedContract));
+    if (trabajo && !salida[trabajo] && (!soloEstos || soloEstos.includes(trabajo))) salida[trabajo] = String(p.id);
+  }
+  return salida;
+}

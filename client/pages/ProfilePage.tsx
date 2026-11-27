@@ -259,7 +259,7 @@ export default function ProfilePage() {
       const categoryParam = category ? `&category=${category}` : '';
       const jobHeaders: Record<string, string> = {};
       if (token) jobHeaders['Authorization'] = `Bearer ${token}`;
-      const response = await fetch(`/api/users/${idToUse}/completed-jobs?limit=20${categoryParam}`, {
+      const response = await fetch(`/api/users/${idToUse}/completed-jobs?publicados=1&limit=20${categoryParam}`, {
         credentials: 'include',
         headers: jobHeaders,
       });
@@ -1189,7 +1189,7 @@ export default function ProfilePage() {
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           {selectedCategory
                             ? `${t('profile.showingJobsFrom', 'Showing jobs from')} ${(() => { const cat = getCategoryById(selectedCategory!); const apiCat = completedByCategory.find(c => c.id === selectedCategory); return cat ? t(cat.labelKey, cat.label) : apiCat?.label || ''; })()}`
-                            : `${completedJobs.length} ${t('profile.jobsCompleted', 'jobs completed')}`}
+                            : `${completedJobs.length} ${completedJobs.length === 1 ? 'trabajo realizado y publicado' : 'trabajos realizados y publicados'}`}
                         </p>
                       </div>
                     </div>
@@ -1198,6 +1198,14 @@ export default function ProfilePage() {
 
                 {/* Completed Jobs List */}
                 <div className="p-6">
+                  {/* Lo que todavía no compartió se administra en «Mis trabajos» → Realizados. */}
+                  {isOwnProfile() && (
+                    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-400" data-testid="enlace-a-realizados">
+                      Acá se ven los que publicaste.
+                      <Link to="/my-jobs?tab=realizados" className="font-semibold text-sky-700 hover:underline dark:text-sky-300">Ver los no publicados en Mis trabajos →</Link>
+                      <InfoIcono ayuda="Publicaciones del perfil" />
+                    </p>
+                  )}
                   {completedJobsLoading ? (
                     <div className="text-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
@@ -1257,7 +1265,7 @@ export default function ProfilePage() {
                       {completedJobs.map((contract) => (
                         <Link
                           key={contract.id}
-                          to={`/jobs/${contract.job?.id}`}
+                          to={contract.publicacionId ? `/posts/${contract.publicacionId}` : `/jobs/${contract.job?.id}`}
                           className="block p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors cursor-pointer"
                         >
                           <div className="flex gap-4">
@@ -1381,7 +1389,7 @@ export default function ProfilePage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                        {t('profile.posts', 'Posts')}
+                        {viewMode === 'articles' ? 'Artículos' : t('profile.posts', 'Posts')} <InfoIcono ayuda={viewMode === 'articles' ? 'Artículos' : 'Publicaciones del perfil'} className="ml-1" />
                       </h2>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         {posts.length} {t('profile.publicationsCount', 'publications')}

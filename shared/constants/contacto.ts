@@ -79,7 +79,8 @@ export const CORREOS = {
   disputas: SOPORTE,
   facturacion: SOPORTE,
   /**
-   * El remitente de los correos automáticos.
+   * La casilla desde la que se autentica el envío. Los correos automáticos salen con `SMTP_FROM_EMAIL` (noreply@, un alias de esta casilla en Hostinger); los que piden
+   * respuesta y los que van al equipo salen de soporte (`server/utils/remitenteDeCorreo.ts`).
    *
    * Tiene que ser una casilla real del dominio: el SMTP es de Hostinger sobre
    * doapparg.com, y mandar desde otro dominio hace que SPF y DKIM no validen.

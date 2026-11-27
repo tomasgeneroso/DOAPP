@@ -30,6 +30,8 @@ interface FileUploadWithPreviewProps {
   className?: string;
   /** Al elegir una foto se abre el editor (rotar, centrar, recortar). Por defecto sí. */
   editable?: boolean;
+  /** Con esto, cada foto tiene un campo de pie; se avisa la lista en el mismo orden que los archivos. */
+  onPies?: (pies: string[]) => void;
 }
 
 export default function FileUploadWithPreview({
@@ -44,11 +46,17 @@ export default function FileUploadWithPreview({
   initialFiles = [],
   className = "",
   editable = true,
+  onPies,
 }: FileUploadWithPreviewProps) {
   const { t } = useTranslation();
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>(initialFiles);
   const [error, setError] = useState<string>("");
+  const [pies, setPies] = useState<string[]>([]);
+  const cambiarPies = (nuevos: string[]) => {
+    setPies(nuevos);
+    onPies?.(nuevos);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { editar, editarUna, editor } = useEditorDeFotos();
 
@@ -95,6 +103,7 @@ export default function FileUploadWithPreview({
 
     setSelectedFiles(newFiles);
     setPreviewUrls(newPreviews);
+    cambiarPies(selectedFiles.map((_, i) => pies[i] ?? "").filter((_, i) => i !== index));
 
     // Notificar al padre
     if (onChange) {
@@ -173,6 +182,7 @@ export default function FileUploadWithPreview({
 
     const newFiles = [...selectedFiles, ...filesWithPreviews];
     setSelectedFiles(newFiles);
+    cambiarPies(newFiles.map((_, i) => pies[i] ?? ""));
 
     // Actualizar URLs de preview
     const newPreviews = filesWithPreviews
@@ -256,7 +266,8 @@ export default function FileUploadWithPreview({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {selectedFiles.map((file, index) => (
-              <div key={index} className="relative group">
+              <div key={index} className="min-w-0">
+              <div className="relative group">
                 {isImage(file) ? (
                   // Preview de imagen
                   <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
@@ -314,6 +325,18 @@ export default function FileUploadWithPreview({
                 <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
                   {(file.size / 1024 / 1024).toFixed(1)} MB
                 </div>
+              </div>
+              {onPies && file.type.startsWith('image/') && (
+                <input
+                  type="text"
+                  value={pies[index] ?? ''}
+                  maxLength={140}
+                  onChange={(e) => cambiarPies(selectedFiles.map((_, i) => (i === index ? e.target.value : pies[i] ?? '')))}
+                  placeholder="Pie de foto (opcional)"
+                  aria-label={`Pie de la foto ${index + 1}`}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                />
+              )}
               </div>
             ))}
           </div>

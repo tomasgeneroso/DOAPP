@@ -12,6 +12,8 @@ import Button from "../components/ui/Button";
 import PostComments from "../components/user/PostComments";
 import { getImageUrl } from "../utils/imageUrl";
 import RetirarPorElEquipo from '../components/user/RetirarPorElEquipo';
+import CompartirPorChat from '../components/chat/CompartirPorChat';
+import Etiqueta from '../components/Etiqueta';
 
 interface GalleryItem {
   url: string;
@@ -44,6 +46,7 @@ interface Post {
   commentsCount: number;
   viewsCount: number;
   tags?: string[];
+  contractRatings?: Array<{ contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string }>;
   /** Si viene de un trabajo: no se edita (editarla sería modificar el trabajo), solo se quita del muro. */
   linkedContract?: string | { id?: string } | null;
   /** A quién se etiquetó (solo quien trabajó en el trabajo y lo permite). */
@@ -373,6 +376,8 @@ export default function PostDetail() {
                   <RetirarPorElEquipo postId={String(id)} token={token} alRetirar={() => navigate(`/profile/${authorId}`)} />
                 )}
 
+                <CompartirPorChat que={post.type === 'article' ? 'articulo' : 'publicacion'} ruta={`/posts/${id}`} titulo={post.title} />
+
                 {/* Share Button */}
                 <button
                   onClick={handleShare}
@@ -421,17 +426,28 @@ export default function PostDetail() {
               )}
 
               {/* Tags */}
+              {post.contractRatings && post.contractRatings.length > 0 && (
+                <div className="mb-6" data-testid="puntuaciones-del-trabajo">
+                  <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Puntuación al terminar el trabajo</h2>
+                  <ul className="space-y-2">
+                    {post.contractRatings.map((r) => (
+                      <li key={r.contractId} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-700/50">
+                        <div className="flex items-center justify-between gap-2">
+                          <Link to={`/profile/${r.workerId}`} className="text-sm font-medium text-slate-900 hover:underline dark:text-white">
+                            {r.name} <span className="font-normal text-slate-500 dark:text-slate-400">({r.role === 'doer' ? 'trabajador' : 'cliente'})</span>
+                          </Link>
+                          <span className="text-lg text-yellow-400" aria-label={`${r.rating} de 5`}>{'★'.repeat(r.rating)}<span className="text-slate-300 dark:text-slate-600">{'★'.repeat(5 - r.rating)}</span></span>
+                        </div>
+                        {r.comment && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">«{r.comment}»</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {post.tags && post.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {post.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-sm"
-                    >
-                      <Tag className="w-3 h-3" />
-                      {tag}
-                    </span>
-                  ))}
+                  {post.tags.map((tag) => <Etiqueta key={tag} etiqueta={tag} />)}
                 </div>
               )}
 

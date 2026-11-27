@@ -17,6 +17,7 @@ import Transicion from "../components/ui/Transicion";
 import { useEditorDeFotos } from "../hooks/useEditorDeFotos";
 import AvatarConInicial from "../components/ui/AvatarConInicial";
 import { getImageUrl } from "../utils/imageUrl";
+import InfoIcono from '@/components/ui/InfoIcono';
 
 interface JobData {
   id: string;
@@ -63,7 +64,8 @@ export default function CreatePortfolioPost() {
   const [eleccion, setEleccion] = useState<Record<string, { puntaje: boolean; comentario: boolean }>>({});
   // El trabajo ya tiene su categoría: es la que se usa; se puede sumar UNA más.
   const [categoriaExtra, setCategoriaExtra] = useState('');
-  const [publishAsPost, setPublishAsPost] = useState(true);
+  // Antes de ofrecer el formulario se verifica si este trabajo ya se compartió: si es así, se lleva a la publicación.
+  const [yaCompartido, setYaCompartido] = useState<string | null>(null);
   // A quién se puede etiquetar: quienes trabajaron en este trabajo (sin uno mismo). El servidor deja afuera a quien apagó las etiquetas en su configuración.
   const [equipo, setEquipo] = useState<Array<{ id: string; name: string; avatar?: string | null }>>([]);
   const [etiquetados, setEtiquetados] = useState<string[]>([]);
@@ -95,6 +97,11 @@ export default function CreatePortfolioPost() {
 
   const fetchJobData = async () => {
     try {
+      const previo = await fetch(`/api/posts/mis-compartidos?jobIds=${jobId}`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => null);
+      if (previo?.compartidos?.[String(jobId)]) {
+        setYaCompartido(previo.compartidos[String(jobId)]);
+        return;
+      }
       const response = await fetch(`/api/jobs/${jobId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -177,96 +184,37 @@ export default function CreatePortfolioPost() {
     setSubmitting(true);
 
     try {
-      // First create the portfolio item
-      const portfolioData = {
-        title,
-        description,
-        // La del trabajo (no se escribe de nuevo); la extra, si se agregó, va también como etiqueta.
-        category: jobId && jobData?.category ? jobData.category : category,
-        tags: Array.from(new Set([...tags.split(',').map(t => t.trim()).filter(Boolean), ...(categoriaExtra ? [categoriaExtra] : [])])),
-        linkedJob: jobId,
-        price: jobData?.price,
-        clientName: jobData?.client?.name || 'Cliente DoApp',
-        projectDuration: calculateDuration(),
-        // El servidor arma las puntuaciones desde las reseñas reales: acá solo se dice cuáles mostrar y si lleva el comentario.
-        ...(opiniones.length > 0 && { incluirPuntuaciones: opiniones.map((o) => ({ contractId: o.contractId, puntaje: eleccion[o.contractId]?.puntaje !== false, comentario: eleccion[o.contractId]?.comentario !== false })) }),
-      };
-
-      const response = await fetch('/api/portfolio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(portfolioData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = data.message || data.errors?.[0]?.msg || t('portfolio.createError', 'Error creating portfolio');
-        throw new Error(errorMsg);
+      // La publicación del perfil lleva las fotos que adjuntaste, el trabajo, a quién etiquetás y las puntuaciones que elegiste mostrar.
+      const etiquetas = Array.from(new Set([...tags.split(',').map((x) => x.trim().replace(/^#+/, '')).filter(Boolean), ...(categoriaExtra ? [categoriaExtra] : [])]));
+      const formulario = new FormData();
+      formulario.append('title', title);
+      formulario.append('description', description);
+      formulario.append('type', 'post');
+      formulario.append('currency', 'ARS');
+      if (jobData?.price) formulario.append('price', String(jobData.price));
+      formulario.append('tags', JSON.stringify(etiquetas));
+      if (jobId) formulario.append('linkedJob', jobId);
+      if (etiquetados.length > 0) formulario.append('taggedUsers', JSON.stringify(etiquetados));
+      if (opiniones.length > 0) {
+        // El servidor arma las puntuaciones desde las reseñas reales: acá solo se dice cuáles mostrar y si llevan el comentario.
+        formulario.append('incluirPuntuaciones', JSON.stringify(opiniones.map((o) => ({ contractId: o.contractId, puntaje: eleccion[o.contractId]?.puntaje !== false, comentario: eleccion[o.contractId]?.comentario !== false }))));
       }
+      images.forEach((img) => formulario.append('gallery', img));
 
-      const portfolioId = data.data?.id || data.data?.id;
-
-      // If there are images, upload them
-      if (images.length > 0 && portfolioId) {
-        const formData = new FormData();
-        images.forEach(img => {
-          formData.append('images', img);
-        });
-
-        await fetch(`/api/portfolio/${portfolioId}/images`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
+      const respuesta = await fetch('/api/posts', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formulario });
+      const datos = await respuesta.json().catch(() => ({}));
+      if (datos?.code === 'YA_COMPARTIDO') {
+        setYaCompartido(datos.postId);
+        return;
       }
-
-      // Also create a post if the option is enabled
-      if (publishAsPost) {
-        try {
-          // La publicación lleva las fotos que adjuntaste (campo «gallery»), el trabajo y a quién etiquetás. Antes las fotos iban a una ruta que no existía y la
-          // publicación salía sin ellas: solo se veía la del contrato.
-          const postFormData = new FormData();
-          postFormData.append('title', title);
-          postFormData.append('description', description);
-          postFormData.append('type', 'post');
-          postFormData.append('currency', 'ARS');
-          if (jobData?.price) postFormData.append('price', String(jobData.price));
-          postFormData.append('tags', JSON.stringify(Array.from(new Set([...tags.split(',').map(t => t.trim()).filter(Boolean), ...(categoriaExtra ? [categoriaExtra] : [])]))));
-          if (jobId) postFormData.append('linkedJob', jobId);
-          if (etiquetados.length > 0) postFormData.append('taggedUsers', JSON.stringify(etiquetados));
-          images.forEach(img => postFormData.append('gallery', img));
-
-          const postResponse = await fetch('/api/posts', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: postFormData,
-          });
-          const postRespuesta = await postResponse.json().catch(() => ({}));
-          if (!postResponse.ok) {
-            setError(postRespuesta?.message || t('portfolio.postError', 'Se guardó en tu portafolio, pero no se pudo crear la publicación en tu perfil.'));
-          } else if (postRespuesta?.noEtiquetados > 0) {
-            setAvisoDeEtiquetas(t('portfolio.noTagged', '{{count}} persona(s) no quedaron etiquetadas porque no permiten que las etiqueten.', { count: postRespuesta.noEtiquetados }));
-          }
-        } catch (postErr) {
-          console.error('Error creating post:', postErr);
-          // Don't fail the whole operation if post creation fails
-        }
+      if (!respuesta.ok) throw new Error(datos?.message || 'No pudimos publicar el trabajo.');
+      if (datos?.noEtiquetados > 0) {
+        setAvisoDeEtiquetas(t('portfolio.noTagged', '{{count}} persona(s) no quedaron etiquetadas porque no permiten que las etiqueten.', { count: datos.noEtiquetados }));
       }
 
       setSuccess(true);
-
-      // Redirect after 2 seconds
-      setTimeout(() => {
-        navigate('/portfolio');
-      }, 2000);
+      const destino = datos?.post?.id ? `/posts/${datos.post.id}` : user?.id ? `/profile/${user.id}` : '/';
+      setTimeout(() => navigate(destino, { replace: true }), 2000);
 
     } catch (err: any) {
       setError(err.message || t('portfolio.createError', 'Error creating portfolio'));
@@ -298,6 +246,19 @@ export default function CreatePortfolioPost() {
     );
   }
 
+  if (yaCompartido) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+        <div className="animate-fadeIn text-center bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-lg max-w-md" data-testid="trabajo-ya-compartido">
+          <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" aria-hidden="true" />
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Ya habías compartido este trabajo</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">Está publicado en tu perfil. Desde ahí lo podés editar o eliminar.</p>
+          <button type="button" onClick={() => navigate(`/posts/${yaCompartido}`)} className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Ver trabajo compartido</button>
+        </div>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
@@ -309,7 +270,7 @@ export default function CreatePortfolioPost() {
             {t('portfolio.publishedSuccess', 'Published Successfully')}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 mb-4">
-            {t('portfolio.sharedInPortfolio', 'Your work has been shared in your portfolio')}
+            Tu trabajo ya está en tu perfil.
           </p>
           {avisoDeEtiquetas && <p className="mb-3 text-sm text-amber-700 dark:text-amber-300" data-testid="aviso-de-etiquetas">{avisoDeEtiquetas}</p>}
           <p className="text-sm text-slate-500">{t('common.redirecting', 'Redirecting...')}</p>
@@ -334,7 +295,7 @@ export default function CreatePortfolioPost() {
               {t('portfolio.shareCompletedWork', 'Share Completed Work')}
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
-              {t('portfolio.showInPortfolio', 'Show your work in your portfolio')}
+              Mostralo en tu perfil <InfoIcono ayuda="Publicaciones del perfil" />
             </p>
           </div>
         </div>
@@ -531,7 +492,7 @@ export default function CreatePortfolioPost() {
             {opiniones.length > 0 && (
               <div className="mb-5" data-testid="opinion-del-trabajo">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{opiniones.length > 1 ? 'Tu puntuación a cada persona al terminar el trabajo' : 'Tu puntuación al terminar el trabajo'}</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">La copiamos de lo que dejaste al terminar. Elegí qué mostrar en el portafolio.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">La copiamos de lo que dejaste al terminar. Elegí qué mostrar en la publicación.</p>
                 <div className="space-y-3">
                   {opiniones.map((o) => {
                     const e = eleccion[o.contractId] ?? { puntaje: true, comentario: true };
@@ -581,45 +542,6 @@ export default function CreatePortfolioPost() {
                     );
                   })}
                 </div>
-                {!publishAsPost && etiquetados.length > 0 && (
-                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('portfolio.tagNeedsPost', 'Las etiquetas van en la publicación de tu perfil: activá «Publicar también en mi perfil».')}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Auto-publish as Post Toggle */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {t('portfolio.alsoPublishProfile', 'Also publish on my profile')}
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  {t('portfolio.alsoPublishDesc', 'In addition to the portfolio, a post visible on your profile will be created')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPublishAsPost(!publishAsPost)}
-                className={`relative w-14 h-8 rounded-full transition-colors ${
-                  publishAsPost
-                    ? 'bg-green-500'
-                    : 'bg-slate-300 dark:bg-slate-600'
-                }`}
-              >
-                <span
-                  className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
-                    publishAsPost ? 'left-7' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-            {publishAsPost && (
-              <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  {t('portfolio.publishConfirmation', 'Your work will appear in your portfolio and as a post on your profile')}
-                </p>
               </div>
             )}
           </div>

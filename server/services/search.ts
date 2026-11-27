@@ -1,6 +1,8 @@
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Op } from 'sequelize';
+import { algunaEtiquetaContiene } from './etiquetas.js';
+import { ocultarDireccion, ocultarContacto } from './privacidadTrabajo.js';
 
 // Simple in-memory cache
 const memoryCache = new Map<string, { data: any; expiresAt: number }>();
@@ -101,6 +103,7 @@ class SearchService {
         { title: { [Op.iLike]: searchPattern } },
         { summary: { [Op.iLike]: searchPattern } },
         { description: { [Op.iLike]: searchPattern } },
+        algunaEtiquetaContiene('Job', String(query)),
       ];
     }
 
@@ -184,7 +187,8 @@ class SearchService {
     });
 
     // Convert to plain objects
-    let plainJobs = jobs.map(job => job.toJSON());
+    // La búsqueda es pública: sale sin la dirección exacta ni datos de contacto (antes devolvía la calle y el número de cada publicación).
+    let plainJobs: any[] = jobs.map(job => ocultarDireccion(ocultarContacto(job.toJSON() as any)));
 
     // Apply location filter with normalization if provided (post-processing)
     if (location) {

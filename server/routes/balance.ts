@@ -2,6 +2,7 @@ import express, { Response } from "express";
 import { protect, requireKyc, AuthRequest } from "../middleware/auth.js";
 import { MINIMUM_WITHDRAWAL_ARS } from "../../shared/pricing/minimums.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
+import { sinCobrosRepetidos } from "../../shared/pagos/cobroEnEspera.js";
 import { User } from "../models/sql/User.model.js";
 import { WithdrawalRequest } from "../models/sql/WithdrawalRequest.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -155,6 +156,17 @@ router.post("/request-payout", protect, requireKyc, async (req: AuthRequest, res
   }
 });
 
+/** Saca de la lista la línea «pendiente» de un cobro que ya terminó (aunque la terminada haya quedado en otra página). */
+async function cobrosSinRepetir<T extends BalanceTransaction>(userId: string, filas: T[]): Promise<T[]> {
+  const pendientes = filas.filter((f) => f.type === "payment" && f.status === "pending" && f.relatedContractId).map((f) => String(f.relatedContractId));
+  if (pendientes.length === 0) return filas;
+  const terminados = await BalanceTransaction.findAll({
+    where: { userId, type: "payment", status: "completed", relatedContractId: pendientes } as any,
+    attributes: ["relatedContractId"],
+  });
+  return sinCobrosRepetidos(filas as any, new Set(terminados.map((x) => String(x.relatedContractId)))) as unknown as T[];
+}
+
 /**
  * Get balance transaction history
  * GET /api/balance/transactions
@@ -191,10 +203,12 @@ router.get("/transactions", protect, async (req: AuthRequest, res: Response): Pr
     });
 
     const totalCount = await BalanceTransaction.count({ where });
+    // Un cobro es UNA línea: si quedó repetida de antes (pendiente y además terminada), se muestra solo la terminada.
+    const visibles = await cobrosSinRepetir(String(userId), transactions);
 
     res.status(200).json({
       success: true,
-      transactions,
+      transactions: visibles,
       pagination: {
         total: totalCount,
         limit: Number(limit),
@@ -359,7 +373,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
       totalBonuses: suma('bonus'),
       totalAdjustments: suma('adjustment'),
       transactionCount: stats.reduce((sum: number, s: any) => sum + Number(s.count), 0),
-      recentTransactions
+      recentTransactions: await cobrosSinRepetir(String(userId), recentTransactions)
     };
 
     res.status(200).json({

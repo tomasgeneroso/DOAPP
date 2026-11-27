@@ -1,3 +1,5 @@
+import { sinIdsDeEnlacesDeDoapp } from './enlacesDeDoapp.js';
+
 /**
  * Detecta telefonos y correos en los mensajes del chat.
  *
@@ -111,7 +113,8 @@ export interface MessageAnalysis {
 export function analyzeMessage(texto: string): MessageAnalysis {
   const encontrados: ContactMatch[] = [];
   const sospechosos: ContactMatch[] = [];
-  const original = String(texto || '');
+  // Los identificadores de los enlaces propios no son teléfonos (se tapan con letras: las posiciones no cambian).
+  const original = sinIdsDeEnlacesDeDoapp(String(texto || ''));
   if (!original.trim()) return { bloquear: encontrados, revisar: sospechosos };
 
   for (const re of [EMAIL, EMAIL_HABLADO]) {

@@ -9,6 +9,7 @@ import { POLITICAS } from "../../shared/constants/policies.js";
 import { DOMINIO, CORREOS, esDelDominio } from "../../shared/constants/contacto.js";
 import { enmascararCorreo } from "../../shared/seguridad/datosPersonales.js";
 import { fallaDe, exitoDe } from "./avisarFalla.js";
+import { conRemitente } from "../utils/remitenteDeCorreo.js";
 
 interface EmailOptions {
   to: string;
@@ -17,6 +18,8 @@ interface EmailOptions {
   text?: string;
   from?: string;
   replyTo?: string;
+  /** Se le pide a la persona que conteste (o es una conversación con soporte): sale de la casilla de soporte y la respuesta llega ahí. */
+  conRespuesta?: boolean;
   /** Cabeceras extra (por SMTP): el módulo de correos manda `List-Unsubscribe` para que el cliente de correo ofrezca «darse de baja» con un toque. */
   headers?: Record<string, string>;
 }
@@ -235,7 +238,7 @@ class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     // El asunto viaja en una cabecera, no es HTML: se deshace el escape que se le puso al armarlo con el nombre de alguien (O&#39;Brien → O'Brien).
-    options = { ...options, subject: desescaparHtml(options.subject) };
+    options = conRemitente({ ...options, subject: desescaparHtml(options.subject) });
     if (!this.sendgridInitialized && !this.mailgunInitialized && !this.smtpInitialized) {
       console.warn("No email provider initialized. Skipping email.");
       this.ultimoFallo = "Este servidor no tiene el correo configurado (faltan SMTP_HOST, SMTP_USER y SMTP_PASS).";
@@ -600,7 +603,7 @@ ${ctaBlock}
       `,
       cta: { label: 'Apelar la suspensión', url: `${config.clientUrl}/help` },
     });
-    return await this.sendEmail({ to: email, subject: 'Tu cuenta fue suspendida · DOAPP', html });
+    return await this.sendEmail({ to: email, subject: 'Tu cuenta fue suspendida · DOAPP', html, conRespuesta: true });
   }
 
   /** Admin permanently deleted the account. */
@@ -1114,7 +1117,7 @@ ${ctaBlock}
         `,
         cta: { label: 'Ver mi ticket', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
-      await this.sendEmail({ to: userEmail, subject: `Ticket #${ticketNumber} creado · DOAPP`, html });
+      await this.sendEmail({ to: userEmail, subject: `Ticket #${ticketNumber} creado · DOAPP`, html, conRespuesta: true });
     } catch (error) {
       console.error('Error sending ticket created email:', error);
     }
@@ -1133,7 +1136,7 @@ ${ctaBlock}
         `,
         cta: { label: 'Ver la respuesta', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
-      await this.sendEmail({ to: recipientEmail, subject: `Respuesta en ticket #${ticketNumber} · DOAPP`, html });
+      await this.sendEmail({ to: recipientEmail, subject: `Respuesta en ticket #${ticketNumber} · DOAPP`, html, conRespuesta: true });
     } catch (error) {
       console.error('Error sending ticket message email:', error);
     }

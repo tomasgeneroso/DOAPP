@@ -23,6 +23,9 @@ import {
   Image,
   ExternalLink,
 } from 'lucide-react';
+import AvisoDelSistema from './AvisoDelSistema';
+import { esTarjetaDePostulacion, motivoParaNoAceptar } from '../../../shared/chat/tarjetas';
+import { textoDeAceptacion } from '../../../shared/contratos/aceptacion';
 
 interface SystemMessageCardProps {
   message: {
@@ -41,6 +44,9 @@ interface SystemMessageCardProps {
       autoSelected?: boolean;
       isCounterOffer?: boolean;
       contractId?: string;
+      jobStatus?: string;
+      aceptadaPor?: string;
+      aceptadaEl?: string | null;
       directProposal?: {
         title?: string;
         description?: string;
@@ -225,6 +231,17 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const notify = (msg: string) =>
     setDialog({ tone: 'danger', title: t('common.attention', 'Atención'), message: msg, acknowledge: true });
 
+  /** La aceptación no se hizo: se dice por qué y, si lo que falta es pagar, se lleva a pagar. Después se vuelve a pedir el estado real. */
+  const explicarPorQueNo = (result: { message?: string; requierePago?: boolean }) => {
+    const mensaje = result.message || t('chat.errorAccepting', 'Error accepting');
+    if (result.requierePago && message.metadata?.jobId) {
+      setDialog({ tone: 'warning', title: 'Falta un pago para aceptar', message: `${mensaje} La aceptación queda hecha cuando se complete el pago.`, confirmLabel: 'Ir a pagar', onConfirm: () => navigate(`/jobs/${message.metadata?.jobId}`, { state: { scrollTo: 'proposals' } }) });
+    } else {
+      notify(mensaje);
+    }
+    onRefresh();
+  };
+
   // Handle accept proposal
   const handleAccept = () => {
     if (!message.metadata?.proposalId) {
@@ -291,7 +308,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       const result = await response.json();
       if (!result.success) {
         setVariosLugares(null);
-        notify(result.message || t('chat.errorAccepting', 'Error accepting'));
+        explicarPorQueNo(result);
         return;
       }
       setLocalStatus('approved');
@@ -348,7 +365,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           navigate(`/contracts/${result.contractId}/summary`);
         }
       } else {
-        notify(result.message || t('chat.errorAccepting', 'Error accepting'));
+        explicarPorQueNo(result);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -440,6 +457,12 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     }
   };
 
+  // Un aviso (novedad del equipo, un pago, un trabajo compartido) no es una postulación: no lleva estado ni botones.
+  if (!esTarjetaDePostulacion(message.message, message.metadata)) {
+    return <AvisoDelSistema texto={message.message} jobId={message.metadata?.jobId} fecha={message.createdAt} />;
+  }
+  const yaNoSePuedeElegir = motivoParaNoAceptar(message.metadata);
+
   return (
     <div className={`flex my-4 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -476,12 +499,12 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           </span>
         </div>
 
-        {/* Autoselected banner */}
-        {message.metadata?.autoSelected && (
-          <div className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
-              {t('chat.autoSelected', 'Automatically selected')}
+        {/* Quién la aceptó y cuándo. Quien mandó la postulación es quien va a trabajar. */}
+        {isApproved && (message.metadata?.aceptadaPor || message.metadata?.autoSelected) && (
+          <div className="animate-fadeIn px-4 py-2 bg-green-100 dark:bg-green-900/30 flex items-start gap-2" data-testid="quien-acepto">
+            <CheckCircle className="h-4 w-4 flex-shrink-0 text-green-700 dark:text-green-400" />
+            <span className="text-xs font-medium text-green-800 dark:text-green-200">
+              {textoDeAceptacion({ como: message.metadata?.aceptadaPor ?? 'automatica', cuando: message.metadata?.aceptadaEl }, isCurrentUser ? 'quien_trabaja' : 'quien_publico')}
             </span>
           </div>
         )}
@@ -497,7 +520,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
         )}
 
         {/* New application banner for receiver */}
-        {!isCurrentUser && isPending && !message.metadata?.autoSelected && !message.metadata?.isCounterOffer && (
+        {!isCurrentUser && isPending && !yaNoSePuedeElegir && !message.metadata?.autoSelected && !message.metadata?.isCounterOffer && (
           <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-pulse" />
             <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -613,6 +636,8 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                       {t('common.waiting', 'Waiting...')}
                     </div>
                   </>
+                ) : yaNoSePuedeElegir ? (
+                  <p className="w-full rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200" data-testid="ya-no-se-puede-elegir">{yaNoSePuedeElegir}</p>
                 ) : (
                   // Receiver actions
                   <>

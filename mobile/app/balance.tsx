@@ -39,6 +39,7 @@ import { extraerFacturas, pedirDireccionDeDescarga } from '../services/facturas'
 import { get } from '../services/api';
 import { BalanceTransaction, WithdrawalRequest, Invoice } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { descripcionDelMovimiento, estadoDelCobro } from '../../shared/pagos/cobroEnEspera';
 
 type TabType = 'transactions' | 'withdrawals' | 'invoices';
 
@@ -534,11 +535,16 @@ export default function BalanceScreen() {
                   </View>
                   <View style={styles.txContent}>
                     <Text style={[styles.txDescription, { color: themeColors.text.primary }]}>
-                      {tx.description}
+                      {descripcionDelMovimiento(tx as any)}
                     </Text>
                     <Text style={[styles.txDate, { color: themeColors.text.muted }]}>
                       {formatDate(tx.createdAt)}
                     </Text>
+                    {estadoDelCobro(tx as any) && (
+                      <Text style={[styles.txDate, { color: estadoDelCobro(tx as any)!.clave === 'pendiente' ? colors.warning[600] : colors.success[600] }]}>
+                        {estadoDelCobro(tx as any)!.rotulo}
+                      </Text>
+                    )}
                     {/* A favor pendiente: figura acá pero todavía no sumó al saldo (el pago original sigue en Mercado Pago). */}
                     {esAFavorPendiente(tx) && (
                       <Text style={[styles.txDate, { color: colors.primary[600] }]}>

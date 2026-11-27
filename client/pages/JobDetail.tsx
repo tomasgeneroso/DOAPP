@@ -87,6 +87,10 @@ import CodigoDeEmparejamiento from "../components/contracts/CodigoDeEmparejamien
 import HuboProblemas, { AvisoDeProblemaAbierto, type ProblemaAbierto } from "../components/contracts/HuboProblemas";
 import RecordatorioDeConfirmacion from "../components/contracts/RecordatorioDeConfirmacion";
 import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
+import { OfertaDeCompartir, useTrabajosCompartidos } from "../components/jobs/TrabajosCompartidos";
+import Etiqueta from "../components/Etiqueta";
+import { bloqueoDelPresupuesto } from "../../shared/jobs/cambioDePresupuesto";
+import { DestinoDelTrabajo } from "../components/jobs/DireccionDeDestino";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -206,6 +210,7 @@ export default function JobDetail() {
   } | null>(null);
 
   const [confirmingWork, setConfirmingWork] = useState(false);
+  const compartidos = useTrabajosCompartidos(token);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] =
     useState(false);
   // Encuesta post-trabajo pendiente tras completarse el contrato
@@ -502,7 +507,8 @@ export default function JobDetail() {
   const idDeQuienPublico = (job as any)?.client?.id ?? (job as any)?.clientId ?? (typeof (job as any)?.client === "string" ? (job as any).client : undefined);
   const esQuienPublico = !!user?.id && !!idDeQuienPublico && String(idDeQuienPublico) === String(user.id);
   useEffect(() => {
-    if (!id || !token || isAdmin || !esQuienPublico) return;
+    // También si quien publicó es del equipo: sin la clave de panel la vista de administración no responde y se quedaba sin ningún detalle.
+    if (!id || !token || !esQuienPublico) return;
     let vivo = true;
     fetch(`/api/jobs/${id}/payment-details`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
@@ -2971,8 +2977,8 @@ export default function JobDetail() {
             )}
 
             {/* Detalles del pago: plegable. Lo ve el equipo (con el comprobante y los enlaces) y quien publicó el trabajo. */}
-            {(isAdmin ? adminPayment?.detalle : detallePago) && (
-              <DetallesDelPago detalle={isAdmin ? adminPayment.detalle : detallePago} paraEquipo={isAdmin}>
+            {((isAdmin && adminPayment?.detalle) || detallePago) && (
+              <DetallesDelPago detalle={(isAdmin && adminPayment?.detalle) || detallePago} paraEquipo={Boolean(isAdmin && adminPayment?.detalle)}>
                 {isAdmin && adminPayment && (
                   <>
                 {/* Comprobantes: los del cliente y los del equipo (cada uno dice de quién es) y «Agregar comprobante». */}
@@ -3018,13 +3024,21 @@ export default function JobDetail() {
               <p className="whitespace-pre-line leading-relaxed text-slate-600 dark:text-slate-300">
                 {job.description}
               </p>
+              {Array.isArray((job as any).tags) && (job as any).tags.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2" data-testid="etiquetas-del-trabajo">
+                  {((job as any).tags as string[]).map((tag) => <Etiqueta key={tag} etiqueta={tag} />)}
+                </div>
+              )}
             </div>
+
+            <DestinoDelTrabajo destino={(job as any).destination} />
 
             {/* Fotos del trabajo: tarjeta propia, que no aparece si ninguna foto carga */}
             {Array.isArray((job as any).images) && (job as any).images.length > 0 && (
               <CarruselDeFotos
                 fotos={(job as any).images}
                 titulo={job.title}
+                pies={(job as any).imageCaptions}
                 encabezado={t("jobs.photos", "Fotos del trabajo")}
                 avisarSiNoCargan={!!isOwnJob}
                 editarHref={`/jobs/${job.id}/edit`}
@@ -4136,19 +4150,9 @@ export default function JobDetail() {
                       })}
                     </p>
                   )}
-                  {/* Share to Portfolio button for workers on completed jobs */}
+                  {/* Compartir el trabajo terminado: primero se verifica si ya lo compartió */}
                   {job.status === "completed" && isWorkerOnJob && (
-                    <button
-                      onClick={() =>
-                        navigate(
-                          `/portfolio/create?fromJob=${job.id}`,
-                        )
-                      }
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50 dark:bg-sky-900/20 px-4 py-2.5 text-sm font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 hover:border-sky-300 dark:hover:border-sky-700 transition-all duration-200 active:scale-95 shadow-sm"
-                    >
-                      <Share2 className="h-4 w-4" />
-                      {t("jobs.shareToPortfolio", "Share to Portfolio")}
-                    </button>
+                    <OfertaDeCompartir jobId={String(job.id)} compartidos={compartidos} className="mt-4" />
                   )}
                 </div>
               )}
@@ -4496,6 +4500,7 @@ export default function JobDetail() {
                       canPause={canPauseJob()}
                       canCancel={canCancelJob()}
                       onChangeBudget={() => setShowBudgetModal(true)}
+                      motivoSinCambioDePresupuesto={bloqueoDelPresupuesto({ status: job.status, publicationPaid: (job as any).publicationPaid, startDate: job.startDate, hayAlguienElegido: ((job as any).selectedWorkers?.length ?? 0) > 0 || Boolean((job as any).doer) })?.mensaje ?? null}
                       onPause={handlePauseJob}
                       onCancel={() => setShowCancelModal(true)}
                       onContactSupport={() =>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { borrarBorrador, guardarBorrador, haceCuanto, leerBorrador } from "../utils/borradorDeTrabajo";
-import { senalarCampo } from "../utils/senalarCampo";
+import { senalarCampo, sinEnviarConEnter } from "../utils/senalarCampo";
 import ComoFuncionaElPago from "@/components/pagos/ComoFuncionaElPago";
 const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
@@ -46,6 +46,9 @@ import Ocasiones from "../components/momentos/Ocasiones";
 import OfertaDelRubro from "../components/momentos/OfertaDelRubro";
 import { avisarMomentoParaNotificaciones } from "../utils/momentoDeAvisos";
 import { OCASIONES, type TrabajoDeOcasion } from "../../shared/momentos/momentos";
+import InfoIcono from '../components/ui/InfoIcono';
+import DireccionDeDestino from '../components/jobs/DireccionDeDestino';
+import type { Destino } from '../../shared/jobs/destinoYPies';
 
 interface FormFieldProps {
   label: string;
@@ -92,11 +95,14 @@ export default function CreateContractScreen() {
   const sinGuardar = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avisoDeBorrador, setAvisoDeBorrador] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(borrador?.category ?? "");
   const [selectedTags, setSelectedTags] = useState<string[]>(borrador?.tags ?? []);
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState(borrador?.location ?? "");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [pies, setPies] = useState<string[]>([]);
+  const [destino, setDestino] = useState<Destino | null>(borrador?.destino ?? null);
   const [maxWorkers, setMaxWorkers] = useState(borrador?.maxWorkers ?? 1);
   // Con varios trabajadores: ¿puede empezar igual con menos de los pedidos (1 de 2)? Por defecto sí.
   const [partialStartAllowed, setPartialStartAllowed] = useState(true);
@@ -190,6 +196,7 @@ export default function CreateContractScreen() {
         latitude,
         longitude,
         sinProteccion,
+        destino,
       });
       setGuardadoEl(guardado ? new Date().toISOString() : null);
     }, 800);
@@ -197,7 +204,7 @@ export default function CreateContractScreen() {
   }, [
     user?.id, cambiosDelFormulario, selectedCategory, selectedTags, location, neighborhood, postalCode, addressStreet, addressNumber, addressDetails, budget,
     isQuotable, allowCounterOffers, singleDelivery, maxWorkers, requirements, tareas, vacancyTaskAssignments, endDateFlexible, startDate, endDate,
-    latitude, longitude, sinProteccion, textoDelFormulario,
+    latitude, longitude, sinProteccion, textoDelFormulario, destino,
   ]);
 
   // Check if user has banking info configured
@@ -425,6 +432,8 @@ export default function CreateContractScreen() {
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
     });
+    submitData.append("imageCaptions", JSON.stringify(pies));
+    if (destino) submitData.append("destination", JSON.stringify(destino));
 
     return submitData;
   };
@@ -451,7 +460,13 @@ export default function CreateContractScreen() {
       if (user?.id) borrarBorrador(String(user.id));
 
       if (data.requiresPayment) {
+        // Ya quedó guardado como borrador. Antes del pago se deja en el historial su pantalla de edición: «atrás» vuelve a lo cargado y no a un formulario vacío
+        // (y no se publica dos veces).
+        navigate(`/jobs/${data.job.id}/edit`, { replace: true });
         navigate(`/jobs/${data.job.id}/payment`);
+      } else if (data.requiresEmail || data.requiresKyc) {
+        // Guardado como borrador, falta un paso de la cuenta: se lo lleva adonde lo puede ver.
+        setAvisoDeBorrador(data.message);
       } else {
         avisarMomentoParaNotificaciones();
         navigate("/");
@@ -512,6 +527,9 @@ export default function CreateContractScreen() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Solo el botón de publicar crea la publicación.
+    const quienEnvia = (event.nativeEvent as unknown as { submitter?: HTMLElement | null }).submitter;
+    if (quienEnvia && !quienEnvia.hasAttribute("data-publicar")) return;
     setIsSubmitting(true);
     setError(null);
 
@@ -580,7 +598,7 @@ export default function CreateContractScreen() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-              {t('contracts.publishNewJob', 'Publicar un trabajo')}
+              {t('contracts.publishNewJob', 'Publicar un trabajo')} <InfoIcono ayuda="Publicar un trabajo" className="ml-1" />
             </h1>
             <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
               {t('contracts.publishDescription', 'Describe el servicio que necesitás para que los profesionales puedan aplicar.')}
@@ -624,7 +642,7 @@ export default function CreateContractScreen() {
         <div className="mt-8">
           <Ocasiones onElegir={completarDesdeOcasion} />
         </div>
-        <form ref={formRef} onSubmit={handleSubmit} onChange={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
+        <form ref={formRef} onSubmit={handleSubmit} onKeyDown={sinEnviarConEnter} onChange={() => setCambiosDelFormulario((n) => n + 1)} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
               label={t('jobs.titleLabel', 'Job title')}
@@ -699,6 +717,7 @@ export default function CreateContractScreen() {
               description={t('jobs.tagsDescription', 'Add tags to help your job be found (max 10)')}
             >
               <div className="space-y-3">
+                <p className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">Cómo funcionan las etiquetas <InfoIcono ayuda="Etiquetas" /></p>
                 {/* Selected tags */}
                 {selectedTags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -970,6 +989,8 @@ export default function CreateContractScreen() {
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
+
+            <DireccionDeDestino destino={destino} onChange={setDestino} />
 
             {/* Mapa de ubicación */}
             <Suspense fallback={
@@ -1297,6 +1318,7 @@ export default function CreateContractScreen() {
                 maxFiles={5}
                 accept="image/*"
                 onChange={setSelectedFiles}
+                onPies={setPies}
               />
             </FormField>
           </div>
@@ -1337,6 +1359,11 @@ export default function CreateContractScreen() {
           </details>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400 animate-fadeIn">{error}</p>}
+          {avisoDeBorrador && (
+            <p role="status" className="animate-fadeIn rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100">
+              {avisoDeBorrador} <Link to="/my-jobs" className="font-semibold underline">Verlo en Mis trabajos</Link>
+            </p>
+          )}
 
           {guardadoEl && (
             <p className="text-xs text-slate-500 dark:text-slate-400" aria-live="polite">
@@ -1353,6 +1380,7 @@ export default function CreateContractScreen() {
             </Link>
             <button
               type="submit"
+              data-publicar
               disabled={isSubmitting || !!overlapWarning}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >

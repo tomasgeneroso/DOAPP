@@ -18,6 +18,7 @@ jest.mock('../../server/services/email.js', () => ({ __esModule: true, default: 
 import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import { AuditLog } from '../../server/models/sql/AuditLog.model.js';
+import { JobTask } from '../../server/models/sql/JobTask.model.js';
 import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
 
 describe('trabajos eliminados: se guardan, la papelera dura 30 días y solo el equipo los borra de verdad', () => {
@@ -105,6 +106,36 @@ describe('trabajos eliminados: se guardan, la papelera dura 30 días y solo el e
     expect((soloEliminados.body.data || soloEliminados.body.jobs || []).map((j: any) => j.id)).toContain(t.id);
     const borradores = await request(app).get(`/api/admin/jobs?status=draft&limit=200`).set(con(owner));
     expect((borradores.body.data || borradores.body.jobs || []).map((j: any) => j.id)).not.toContain(t.id);
+  });
+
+  describe('recuperar de la papelera (pedido del dueño, 2026-11-27)', () => {
+    it.each([['draft', false], ['pending_payment', false], ['cancelled', true]])('vuelve con el estado que tenía (%s) y con sus tareas', async (status, publicationPaid) => {
+      const t = await borrador({ status, publicationPaid });
+      await JobTask.create({ jobId: t.id, createdById: duenio.id, title: 'Primer paso', orderIndex: 0, status: 'pending' } as any);
+      await request(app).delete(`/api/jobs/${t.id}`).set(con(duenio));
+      const r = await request(app).post(`/api/jobs/${t.id}/restore`).set(con(duenio));
+      expect([r.status, r.body.job?.status]).toEqual([200, status]);
+      const fila = await guardado(t.id);
+      expect([fila.deletedAt, fila.deletedBy ?? null, fila.status]).toEqual([null, null, status]);
+      expect(await JobTask.count({ where: { jobId: t.id } as any })).toBe(1);
+      const mis = await request(app).get('/api/jobs/my-jobs').set(con(duenio));
+      expect(mis.body.jobs.map((j: any) => j.id)).toContain(t.id);
+    });
+
+    it('solo lo recupera su dueño y solo dentro de los 30 días', async () => {
+      const t = await borrador();
+      await request(app).delete(`/api/jobs/${t.id}`).set(con(duenio));
+      expect((await request(app).post(`/api/jobs/${t.id}/restore`).set(con(otro))).status).toBe(404);
+      await Job.update({ deletedAt: new Date(Date.now() - 31 * 86_400_000) } as any, { where: { id: t.id }, paranoid: false } as any);
+      expect((await request(app).post(`/api/jobs/${t.id}/restore`).set(con(duenio))).status).toBe(404);
+    });
+
+    it.each(['open', 'pending_approval', 'paused'])('un trabajo pagado que sigue vigente (%s) no se elimina: se cancela, para que la plata se devuelva', async (status) => {
+      const t = await borrador({ status, publicationPaid: true });
+      const r = await request(app).delete(`/api/jobs/${t.id}`).set(con(duenio));
+      expect([r.status, r.body.code]).toEqual([409, 'CANCELAR_PRIMERO']);
+      expect(await Job.findByPk(t.id)).not.toBeNull();
+    });
   });
 
   describe('borrarlo de verdad', () => {

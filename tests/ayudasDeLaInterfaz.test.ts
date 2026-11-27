@@ -42,8 +42,8 @@ describe('ayudas de la interfaz', () => {
       'client/components/user/MultipleRatings.tsx': 'ayuda="Puntuación total"',
     };
     for (const [ruta, marca] of Object.entries(esperadas)) expect([ruta, leer(ruta).includes(marca)]).toEqual([ruta, true]);
-    // en «Mis trabajos» las dos pestañas explican la que está abierta
-    expect(leer('client/pages/MyJobsScreen.tsx')).toContain('"Mis publicaciones" : "Mis aplicaciones"');
+    // en «Mis trabajos» cada pestaña explica la que está abierta
+    for (const clave of ['"Mis publicaciones"', '"Mis aplicaciones"', '"Trabajos realizados"']) expect(leer('client/pages/MyJobsScreen.tsx')).toContain(clave);
   });
 
   it('el botón es accesible: nombre propio, se llega con teclado y Escape lo cierra', () => {

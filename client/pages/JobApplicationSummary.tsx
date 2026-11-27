@@ -27,6 +27,7 @@ import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
 import Transicion from "../components/ui/Transicion";
 import { lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar";
 import { AVISO_DE_FOTOS_AL_CONTRATAR } from "../../shared/momentos/momentos";
+import { useMiPostulacion, YaTePostulaste } from "../components/OfertasYaHechas";
 
 export default function JobApplicationSummary() {
   const { t } = useTranslation();
@@ -74,6 +75,8 @@ export default function JobApplicationSummary() {
       navigate("/login", { state: { from: `/jobs/${id}/apply` } });
     }
   }, [loading, user, navigate, id]);
+
+  const miPostulacion = useMiPostulacion(id, localStorage.getItem("token"));
 
   /** Un trabajo de varios lugares no se toma de un clic: el cliente elige entre las propuestas (el servidor lo rechaza con JOB_REQUIRES_PROPOSAL). */
   const variosLugares = Number((job as any)?.maxWorkers) > 1;
@@ -491,8 +494,11 @@ export default function JobApplicationSummary() {
 
             <p className="mb-3 text-center text-xs text-slate-500 dark:text-slate-400" data-testid="aviso-de-fotos">{AVISO_DE_FOTOS_AL_CONTRATAR}</p>
 
+            {/* Antes de ofrecer postularse se mira si ya lo hizo */}
+            {miPostulacion && <YaTePostulaste postulacionId={miPostulacion} />}
+
             {/* Action Buttons */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${miPostulacion || miPostulacion === undefined ? "hidden" : ""}`}>
               {/* Apply without quote */}
               <button
                 onClick={variosLugares ? handlePostularse : handleAccept}

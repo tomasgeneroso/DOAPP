@@ -69,3 +69,54 @@ export function textoDelCobro(c: CobroParaDecir, ahora: Date = new Date(), conSa
     puedePedir: false,
   };
 }
+
+// ───────────────────────── Cómo se ve un cobro en el historial ─────────────────────────
+
+export interface MovimientoDelHistorial {
+  type?: string;
+  status?: string;
+  amount?: number | string;
+  description?: string | null;
+  relatedContractId?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
+const esUnCobro = (m: MovimientoDelHistorial): boolean => m.type === 'payment' && Number(m.amount) > 0;
+
+/** ¿Este movimiento cambió el saldo? Uno pendiente todavía no, y uno pagado por transferencia a la cuenta de la persona nunca pasa por el saldo. */
+export const cambiaElSaldo = (m: MovimientoDelHistorial): boolean => m.status === 'completed' && m.metadata?.fueraDelSaldo !== true;
+
+export type EstadoDeUnCobro = 'pendiente' | 'pagado_a_tu_cuenta' | 'en_tu_saldo';
+
+/** El MISMO movimiento cambia de estado: primero «pendiente» y después pagado o acreditado. `null` si no es un cobro por un trabajo. */
+export function estadoDelCobro(m: MovimientoDelHistorial): { clave: EstadoDeUnCobro; rotulo: string } | null {
+  if (!esUnCobro(m)) return null;
+  if (m.status !== 'completed') return { clave: 'pendiente', rotulo: 'Pendiente: te lo paga DOAPP' };
+  return m.metadata?.fueraDelSaldo === true
+    ? { clave: 'pagado_a_tu_cuenta', rotulo: 'Pagado por DOAPP a tu cuenta' }
+    : { clave: 'en_tu_saldo', rotulo: 'Acreditado en tu saldo' };
+}
+
+/** El texto del movimiento sin el estado escrito adentro (los viejos decían «Pago pendiente…» aun después de pagados, o mostraban el id del contrato). */
+export function descripcionDelMovimiento(m: MovimientoDelHistorial): string {
+  const t = String(m.description ?? '');
+  const viejo = t.match(/^Pago pendiente por trabajo completado: (.+)$/) || t.match(/^Pago por contrato #[0-9a-f-]{36} - (.+)$/i) || (esUnCobro(m) ? t.match(/^Pago por contrato - (.+)$/) : null);
+  return viejo ? `Cobro por el trabajo «${viejo[1]}»` : t;
+}
+
+/**
+ * UN renglón por cobro de cada contrato (las filas que quedaron repetidas antes de que hubiera un solo movimiento por contrato): si ya está acreditado o pagado, se saca la
+ * «pendiente»; si quedaron dos «pendientes», se muestra una (la primera que viene, la más nueva). `yaCobrados`: contratos con un cobro terminado, incluidos los de otras páginas.
+ */
+export function sinCobrosRepetidos<T extends MovimientoDelHistorial>(movimientos: T[], yaCobrados: ReadonlySet<string> = new Set()): T[] {
+  const cobrados = new Set(yaCobrados);
+  for (const m of movimientos) if (esUnCobro(m) && m.status === 'completed' && m.relatedContractId) cobrados.add(String(m.relatedContractId));
+  const pendientesVistos = new Set<string>();
+  return movimientos.filter((m) => {
+    if (!esUnCobro(m) || m.status !== 'pending' || !m.relatedContractId) return true;
+    const contrato = String(m.relatedContractId);
+    if (cobrados.has(contrato) || pendientesVistos.has(contrato)) return false;
+    pendientesVistos.add(contrato);
+    return true;
+  });
+}

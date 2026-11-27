@@ -80,6 +80,8 @@ async function processScheduledAutoSelections() {
 
         // Marcar propuesta como aprobada
         selectedProposal.status = 'approved';
+        (selectedProposal as any).approvedBy = 'automatica';
+        (selectedProposal as any).approvedAt = new Date();
         await (selectedProposal as any).save();
 
         // Rechazar otras propuestas

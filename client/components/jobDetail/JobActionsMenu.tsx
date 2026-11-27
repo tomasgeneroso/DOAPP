@@ -7,6 +7,8 @@ interface JobActionsMenuProps {
   canPause: boolean;
   canCancel: boolean;
   onChangeBudget: () => void;
+  /** Por qué no se puede cambiar el presupuesto ahora (`null`: se puede). Se dice antes de ofrecerlo. */
+  motivoSinCambioDePresupuesto?: string | null;
   onPause: () => void;
   onCancel: () => void;
   onContactSupport: () => void;
@@ -20,6 +22,7 @@ export default function JobActionsMenu({
   canPause,
   canCancel,
   onChangeBudget,
+  motivoSinCambioDePresupuesto,
   onPause,
   onCancel,
   onContactSupport,
@@ -37,11 +40,15 @@ export default function JobActionsMenu({
             onChangeBudget();
             onClose();
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          disabled={!!motivoSinCambioDePresupuesto}
+          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <DollarSign className="h-4 w-4 text-sky-500" />
           {t("jobs.actions.changeBudget")}
         </button>
+        {motivoSinCambioDePresupuesto && (
+          <p className="max-w-xs px-4 pb-3 text-xs text-slate-500 dark:text-slate-400" data-testid="motivo-sin-cambio-de-presupuesto">{motivoSinCambioDePresupuesto}</p>
+        )}
         <button
           onClick={() => {
             onPause();

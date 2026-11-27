@@ -114,7 +114,7 @@ export async function cerrarChatDelEquipo(jobId: string, motivo: 'completado' | 
     await publicar(
       chat,
       job,
-      `🔒 ${motivo === 'completado' ? 'El trabajo terminó' : 'El trabajo se canceló'}: este chat se cierra y no se puede escribir más. Se borra el ${borrarDesde.toLocaleDateString('es-AR')} (${DIAS} días, el plazo para reclamar); si hay un reclamo abierto, se borra recién cuando se resuelva.`,
+      `🔒 ${motivo === 'completado' ? 'El trabajo terminó' : 'El trabajo se canceló'}: este chat se cierra y no se puede escribir más. Se borra el ${borrarDesde.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })} (${DIAS} días, el plazo para reclamar); si hay un reclamo abierto, se borra recién cuando se resuelva.`,
       'chat_cerrado',
     );
     await conSistema(async () => {
@@ -129,6 +129,27 @@ export async function cerrarChatDelEquipo(jobId: string, motivo: 'completado' | 
 
 /** ¿Este chat está cerrado? Lo usa el envío de mensajes (REST y socket). */
 export const chatDelEquipoCerrado = (conversacion: { metadata?: any } | null | undefined): boolean => Boolean(conversacion?.metadata?.cerradoEl);
+
+/** Cómo está un chat para la pantalla: `null` si sigue abierto. */
+export const cierreDelChat = (conversacion: { metadata?: any } | null | undefined): { el: string; borrarDesde: string | null } | null =>
+  conversacion?.metadata?.cerradoEl ? { el: String(conversacion.metadata.cerradoEl), borrarDesde: conversacion.metadata.borrarDesde ? String(conversacion.metadata.borrarDesde) : null } : null;
+
+/**
+ * Antes de mostrar un chat del equipo como abierto se mira su trabajo: si ya terminó o se canceló y el cierre no llegó (se pasó por otro camino), se cierra en el momento.
+ */
+export async function cerrarSiElTrabajoYaTermino(conversaciones: any[]): Promise<void> {
+  for (const c of conversaciones) {
+    try {
+      if (chatDelEquipoCerrado(c) || !c.jobId) continue;
+      const job = await conSistema(() => Job.findByPk(String(c.jobId), { attributes: ['id', 'status', 'groupChatId'] }));
+      if (!job || String(job.groupChatId) !== String(c.id) || !['completed', 'cancelled'].includes(String(job.status))) continue;
+      await cerrarChatDelEquipo(String(job.id), job.status === 'completed' ? 'completado' : 'cancelado');
+      await conSistema(() => c.reload({ attributes: ['id', 'metadata'] } as any));
+    } catch (error) {
+      console.error('[chatDelEquipo] no se pudo revisar si el chat tiene que cerrarse:', error);
+    }
+  }
+}
 
 /**
  * Barrido: sincroniza a los integrantes, cierra los chats de trabajos ya terminados o cancelados (por si el cierre no llegó) y borra los que cumplieron el plazo,

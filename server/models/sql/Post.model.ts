@@ -58,6 +58,10 @@ export class Post extends Model {
   })
   declare id: string;
 
+  /** Las puntuaciones del trabajo que quien publica eligió mostrar. Las arma el servidor desde las reseñas reales. */
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: [], field: 'contract_ratings' })
+  contractRatings!: Array<{ contractId: string; workerId: string; name: string; role: 'doer' | 'client'; rating: number; comment?: string }>;
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.UUID,

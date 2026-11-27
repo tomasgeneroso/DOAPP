@@ -38,6 +38,7 @@ import SituacionDeLaOperacion from "../components/SituacionDeLaOperacion";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import Pestanas from "../components/ui/Pestanas";
 import { ofreceServicios } from "../../shared/cuenta/capacidades";
+import { OfertaDeCompartir, TrabajosRealizados, useTrabajosCompartidos, type TrabajoRealizado } from "../components/jobs/TrabajosCompartidos";
 
 interface Job {
   id: string;
@@ -129,7 +130,7 @@ function buildAvailabilityGoogleCalUrl(slot: AvailabilitySlot): string | null {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-type MainTab = "published" | "applied";
+type MainTab = "published" | "applied" | "done";
 type ViewMode = "list" | "calendar";
 
 export default function MyJobsScreen() {
@@ -147,6 +148,7 @@ export default function MyJobsScreen() {
     // Quien ofrece sus servicios arranca en sus postulaciones; el resto, en sus publicaciones (se puede cambiar de pestaña).
     if (tabParam === "applied") return "applied";
     if (tabParam === "published") return "published";
+    if (tabParam === "realizados") return "done";
     return ofreceServicios(user?.role) ? "applied" : "published";
   });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -166,7 +168,9 @@ export default function MyJobsScreen() {
   const [trabajoAEliminar, setTrabajoAEliminar] = useState<Job | null>(null);
   // «Ver papelera de trabajos»: lo que eliminé en los últimos 30 días (no se borra: queda guardado; después deja de verse para mí).
   const [verPapelera, setVerPapelera] = useState(false);
-  const [papelera, setPapelera] = useState<Array<{ id: string; title: string; price: number; eliminadoEl: string; dejaDeVerseEl: string }> | null>(null);
+  const [papelera, setPapelera] = useState<Array<{ id: string; title: string; price: number; status?: string; eliminadoEl: string; dejaDeVerseEl: string }> | null>(null);
+  const [recuperando, setRecuperando] = useState<string | null>(null);
+  const [avisoDeLaPapelera, setAvisoDeLaPapelera] = useState<{ texto: string; error?: boolean } | null>(null);
   const [cargandoPapelera, setCargandoPapelera] = useState(false);
   const alternarPapelera = async () => {
     const abrir = !verPapelera;
@@ -673,6 +677,26 @@ export default function MyJobsScreen() {
     }
   };
 
+  /** Cómo estaba al eliminarlo: así vuelve. */
+  const comoEstaba = (status?: string) => ({ draft: 'Borrador sin pagar', pending_payment: 'Pendiente de pago', cancelled: 'Cancelado', rejected: 'Rechazado' } as Record<string, string>)[String(status)] || status || '';
+
+  const recuperarTrabajo = async (id: string) => {
+    setRecuperando(id);
+    setAvisoDeLaPapelera(null);
+    try {
+      const r = await fetch(`/api/jobs/${id}/restore`, { method: "POST", credentials: "include", headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.success) throw new Error(d.message || "No se pudo recuperar el trabajo.");
+      setPapelera((p) => (p ? p.filter((x) => x.id !== id) : p));
+      setAvisoDeLaPapelera({ texto: `«${d.job.title}» volvió a tu lista, como estaba.` });
+      await fetchMyJobs();
+    } catch (e: any) {
+      setAvisoDeLaPapelera({ texto: e?.message || "No se pudo recuperar el trabajo.", error: true });
+    } finally {
+      setRecuperando(null);
+    }
+  };
+
   const getFilteredJobs = () => {
     return jobs.filter((job) => {
       if (filter === "published") {
@@ -711,6 +735,27 @@ export default function MyJobsScreen() {
       return true;
     });
   };
+
+  // Trabajos terminados en que participó (cada uno una sola vez). Salen de sus CONTRATOS terminados: un trabajo que llegó sin postulación (contrato directo, cargado por
+  // el equipo) también cuenta. Se suman las publicaciones propias terminadas.
+  const [contratosTerminados, setContratosTerminados] = useState<any[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    let vigente = true;
+    fetch("/api/contracts?status=completed&limit=100", { credentials: "include", headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (vigente && d?.success) setContratosTerminados(d.contracts || []); })
+      .catch(() => { /* quedan las publicaciones y postulaciones ya cargadas */ });
+    return () => { vigente = false; };
+  }, [token, jobs, proposals]);
+  const realizados: TrabajoRealizado[] = (() => {
+    const porId = new Map<string, TrabajoRealizado>();
+    for (const c of contratosTerminados) if (c.job?.id && !porId.has(String(c.job.id))) porId.set(String(c.job.id), { id: String(c.job.id), titulo: c.job.title, como: String(c.doerId) === String(user?.id) ? "trabajaste" : "contrataste" });
+    for (const p of proposals) if (p.status === "approved" && p.job?.status === "completed" && !porId.has(String(p.job.id))) porId.set(String(p.job.id), { id: String(p.job.id), titulo: p.job.title, como: "trabajaste" });
+    for (const j of jobs) if (j.status === "completed" && !porId.has(String(j.id))) porId.set(String(j.id), { id: String(j.id), titulo: j.title, como: "contrataste" });
+    return [...porId.values()];
+  })();
+  const compartidos = useTrabajosCompartidos(token);
 
   const filteredJobs = getFilteredJobs();
   const filteredProposals = getFilteredProposals();
@@ -956,19 +1001,23 @@ export default function MyJobsScreen() {
         <Pestanas
           className="flex-1"
           tamano="grande"
-          ariaLabel="Mis publicaciones y mis postulaciones"
+          ariaLabel="Mis publicaciones, mis postulaciones y mis trabajos realizados"
           valor={mainTab}
           onCambiar={setMainTab}
           opciones={[
             { id: "published" as const, texto: t('jobs.myPublications', 'Mis Publicaciones'), icono: <Briefcase className="h-5 w-5" />, insignia: jobs.length },
             { id: "applied" as const, texto: t('jobs.myApplications', 'Mis Postulaciones'), icono: <Send className="h-5 w-5" />, insignia: proposals.length },
+            { id: "done" as const, texto: 'Realizados', icono: <CheckCircle className="h-5 w-5" />, insignia: realizados.length },
           ]}
         />
-        <InfoIcono ayuda={mainTab === "published" ? "Mis publicaciones" : "Mis aplicaciones"} />
+        <InfoIcono ayuda={mainTab === "published" ? "Mis publicaciones" : mainTab === "applied" ? "Mis aplicaciones" : "Trabajos realizados"} />
         </div>
 
+        {/* Realizados: separados en los que ya compartió en su perfil y los que no */}
+        {mainTab === "done" && <TrabajosRealizados trabajos={realizados} compartidos={compartidos} inicial={searchParams.get("compartidos") === "si" ? "si" : "no"} />}
+
         {/* Calendar View */}
-        {viewMode === "calendar" && (
+        {viewMode === "calendar" && mainTab !== "done" && (
           <JobsCalendar
             jobs={calendarJobs}
             title={mainTab === "published" ? t('jobs.calendarPublished') : t('jobs.calendarApplied')}
@@ -1025,6 +1074,9 @@ export default function MyJobsScreen() {
               <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800" data-testid="papelera-de-trabajos">
                 <h2 className="text-base font-semibold text-slate-900 dark:text-white">Papelera de trabajos</h2>
                 <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Los trabajos que eliminaste quedan guardados y se ven acá 30 días; después dejan de verse para vos.</p>
+                {avisoDeLaPapelera && (
+                  <p role="status" className={`animate-fadeIn mb-3 rounded-lg px-3 py-2 text-sm ${avisoDeLaPapelera.error ? "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-200" : "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-200"}`}>{avisoDeLaPapelera.texto}</p>
+                )}
                 {cargandoPapelera ? (
                   <Loader2 className="h-5 w-5 animate-spin text-sky-500" aria-label="Cargando" />
                 ) : !papelera || papelera.length === 0 ? (
@@ -1037,9 +1089,12 @@ export default function MyJobsScreen() {
                         <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid="trabajo-en-la-papelera">
                           <div className="min-w-0">
                             <p className="truncate font-medium text-slate-900 dark:text-white">{p.title}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Eliminado el {new Date(p.eliminadoEl).toLocaleDateString("es-AR")} · deja de verse en {quedan} {quedan === 1 ? "día" : "días"}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{comoEstaba(p.status) && <span className="font-medium">Estaba: {comoEstaba(p.status)} · </span>}Eliminado el {new Date(p.eliminadoEl).toLocaleDateString("es-AR")} · deja de verse en {quedan} {quedan === 1 ? "día" : "días"}</p>
                           </div>
                           <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">${Number(p.price).toLocaleString("es-AR")}</span>
+                          <button type="button" onClick={() => recuperarTrabajo(p.id)} disabled={recuperando === p.id} className="rounded-lg border border-sky-600 px-3 py-1.5 text-sm font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-60 dark:text-sky-300 dark:hover:bg-sky-900/20" data-testid="recuperar-trabajo">
+                            {recuperando === p.id ? "Recuperando…" : "Recuperar"}
+                          </button>
                         </li>
                       );
                     })}
@@ -1239,15 +1294,7 @@ export default function MyJobsScreen() {
                         </div>
                       )}
 
-                      {job.status === "completed" && (
-                        <button
-                          onClick={() => navigate(`/portfolio/create?fromJob=${job.id}`)}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
-                        >
-                          <Share2 className="h-4 w-4" />
-                          {t('jobs.sharePortfolio', 'Compartir en Portfolio')}
-                        </button>
-                      )}
+                      {job.status === "completed" && <OfertaDeCompartir jobId={String(job.id)} compartidos={compartidos} />}
                     </div>
                   </div>
                 ))}
@@ -1441,15 +1488,7 @@ export default function MyJobsScreen() {
                         </div>
                       )}
 
-                      {proposal.job.status === "completed" && (
-                        <button
-                          onClick={() => navigate(`/portfolio/create?fromJob=${proposal.job.id}`)}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
-                        >
-                          <Share2 className="h-4 w-4" />
-                          {t('jobs.sharePortfolio', 'Compartir en Portfolio')}
-                        </button>
-                      )}
+                      {proposal.job.status === "completed" && proposal.status === "approved" && <OfertaDeCompartir jobId={String(proposal.job.id)} compartidos={compartidos} />}
                     </div>
                   </div>
                 ))}

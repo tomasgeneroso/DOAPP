@@ -27,6 +27,9 @@ import { calculateCommission } from "../services/commissionService.js";
 import { esContraoferta, lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { avisarContratoAlChatDelEquipo, sincronizarChatDelEquipo } from "../services/chatDelEquipo.js";
+import { iniciarContratosQueLlegaronASuHora } from "../services/cicloDelContrato.js";
+import { conSistema } from "../db/contextoRls.js";
+import { escaparHtml } from "../utils/escaparHtml.js";
 
 
 const router = express.Router();
@@ -66,7 +69,7 @@ async function createOrUpdateGroupChat(job: Job, workerIds: string[]): Promise<C
       await ChatMessage.create({
         conversationId: groupChat.id,
         senderId: job.clientId,
-        message: `📋 Chat grupal del trabajo: ${job.title}||Equipo de trabajo||Este chat incluye al cliente y a todos los trabajadores seleccionados para este trabajo.\n\n👥 Participantes: ${allParticipants.length}\n📍 Ubicación: ${job.location}\n📅 Inicio: ${new Date(job.startDate).toLocaleDateString('es-AR')}`,
+        message: `📋 Chat grupal del trabajo: ${job.title}||Equipo de trabajo||Este chat incluye al cliente y a todos los trabajadores seleccionados para este trabajo.\n\n👥 Participantes: ${allParticipants.length}\n📍 Ubicación: ${job.location}\n📅 Inicio: ${new Date(job.startDate).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}`,
         type: 'system',
         metadata: {
           jobId: job.id,
@@ -544,7 +547,7 @@ router.post(
       const avisoDeLugares = lugares > 1 ? `\n**Trabajo de ${lugares} trabajadores:** el total de $${Number(job.price).toLocaleString("es-AR")} ARS se reparte entre ellos` : '';
       const messageText = isCounterOffer
         ? `${req.user.name} envió una contraoferta||${job.title}||**Contraoferta:** $${Number(proposedPrice).toLocaleString("es-AR")} ARS (Precio original: $${precioDelLugar.toLocaleString("es-AR")} ARS)\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días${avisoDeLugares}\n\n**Mensaje:**\n${coverLetter}`
-        : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${Number(proposedPrice).toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}${avisoDeLugares}`;
+        : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${Number(proposedPrice).toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric" })}${avisoDeLugares}`;
 
       const applicationMessage = await ChatMessage.create({
         conversationId: conversation.id,
@@ -906,6 +909,8 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
 
     // Set proposal status (will save later after contract creation to avoid inconsistency)
     proposal.status = "approved";
+    proposal.approvedBy = "cliente";
+    proposal.approvedAt = new Date();
 
     // Agregar trabajador al array de selectedWorkers
     const updatedWorkers = [...currentWorkers, proposal.freelancerId];
@@ -1052,6 +1057,11 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     ]);
     console.log(`✅ Proposal ${proposal.id} and Job ${job.id} saved successfully`);
 
+    // Si la hora de inicio ya llegó, el contrato empieza ahora (antes quedaba «pendiente», sin el botón para terminar, hasta la tarea que corre cada 5 minutos).
+    if (new Date(startDate) <= new Date()) {
+      await conSistema(() => iniciarContratosQueLlegaronASuHora(new Date(), String(contract.id)));
+    }
+
     // Lo que sobra del presupuesto pagado vuelve al saldo del cliente, si el equipo quedó cerrado (completo). Es un asiento del libro: NUNCA un pedido
     // de retiro; sacarlo al banco lo pide el cliente. Si falla, se avisa a administración y el barrido lo reintenta (el contrato ya está hecho).
     const devolucion = await intentarDevolverPresupuesto(String(job.id));
@@ -1142,6 +1152,15 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
 
     // Send real-time notification
     // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
+    // Y por correo, para quien no tiene DOAPP abierto. No frena la aceptación.
+    const correoDelElegido = (proposal as any).freelancer?.email;
+    if (correoDelElegido) {
+      void Promise.resolve(emailService.sendEmail({
+        to: correoDelElegido,
+        subject: `¡Te eligieron! - ${job.title}`,
+        html: `<h2>¡Te eligieron para un trabajo!</h2><p>Quien publicó «${escaparHtml(job.title)}» aceptó tu postulación.</p><p><a href="${process.env.CLIENT_URL}/contracts/${contract.id}">Ver el contrato</a></p>`,
+      })).catch((e: unknown) => console.error('No se pudo mandar el correo de aceptación:', (e as Error)?.message));
+    }
 
     // Al cliente se le avisó que quedó plata a su favor (la notificación la crea services/presupuestoDelTrabajo.ts): acá solo llega en vivo.
     // La notificación llega en vivo sola: la engancha el modelo (services/avisosPorCambios.ts).
@@ -1598,6 +1617,8 @@ router.post(
         proposedPrice: jobPrice,
         estimatedDuration: durationDays,
         status: "approved",
+        approvedBy: "directa",
+        approvedAt: new Date(),
       });
 
       // Actualizar trabajo
@@ -1633,9 +1654,9 @@ router.post(
 
       // Crear mensaje automático del sistema con nuevo formato
       const endDateText = endDate
-        ? `Finalización estimada: ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
+        ? `Finalización estimada: ${endDate!.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" })}`
         : `Finalización: Por definir (fecha flexible)`;
-      const systemMessageText = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
+      const systemMessageText = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
 
       const chatSystemMessage = await ChatMessage.create({
         conversationId: conversation.id,
@@ -1726,8 +1747,8 @@ router.post(
                     <h3>${job.title}</h3>
                     <p><strong>Cliente:</strong> ${clientUser.name}</p>
                     <p><strong>Ubicación:</strong> ${job.location}</p>
-                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
+                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <div class="warning-box">
@@ -1771,8 +1792,8 @@ router.post(
                   <div class="info-box">
                     <h3>${job.title}</h3>
                     <p><strong>Candidato:</strong> ${req.user.name}</p>
-                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
+                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate ? endDate.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por definir (fecha flexible)"}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <p>Puedes revisar todas las postulaciones y seleccionar al trabajador ideal.</p>
@@ -2228,6 +2249,8 @@ router.put(
 
       // Actualizar propuesta
       proposal.status = 'approved';
+      proposal.approvedBy = 'directa';
+      proposal.approvedAt = new Date();
       proposal.jobId = job.id;
       await proposal.save();
 

@@ -3,7 +3,7 @@ import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket, useEventoEnVivo } from '../hooks/useSocket';
 import { ContractModal, ContractModalType } from '../components/chat/ContractModals';
 import { SystemMessageCard } from '../components/chat/SystemMessageCard';
 import { getImageUrl } from '../utils/imageUrl';
@@ -36,6 +36,8 @@ import QuoteMessage from '../components/chat/QuoteMessage';
 import { mezclarMensajes } from '../utils/mensajesDelChat';
 import SelectorDeEmojis from '../components/chat/SelectorDeEmojis';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import { enlaceInterno } from "../../shared/chat/enlacesDeDoapp";
+import { PestanasDeChats, ExplicacionDeCerrados, AvisoDeChatCerrado, type ChatCerrado } from '../components/chat/ChatsCerrados';
 
 interface ConversationPreview {
   id?: string;
@@ -43,6 +45,7 @@ interface ConversationPreview {
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: Record<string, number>;
+  cerrado?: ChatCerrado | null;
   jobId?: { title?: string } | string;
   contractId?: string;
   type?: string;
@@ -92,6 +95,7 @@ interface ConversationData {
   contractId?: string;
   jobId?: string;
   type: string;
+  cerrado?: ChatCerrado | null;
 }
 
 interface Job {
@@ -104,23 +108,24 @@ interface Job {
   status: string;
 }
 
-// Render plain message text with clickable URLs
+// El texto de un mensaje con sus enlaces. Una página de DOAPP (publicación, artículo, trabajo o perfil) se ve como tarjeta y abre dentro de la app.
 function linkifyText(text: string): React.ReactNode {
-  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
-    /^https?:\/\//.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline break-all font-medium"
-      >
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
+    if (!/^https?:\/\//.test(part)) return part;
+    const interno = enlaceInterno(part, window.location.origin);
+    if (interno) {
+      return (
+        <Link key={i} to={interno.ruta} data-testid="enlace-de-doapp" className="mt-1 flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50 dark:border-slate-600 dark:bg-slate-800 dark:text-sky-300">
+          {interno.rotulo} →
+        </Link>
+      );
+    }
+    return (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all font-medium">
         {part}
       </a>
-    ) : (
-      part
-    )
-  );
+    );
+  });
 }
 
 export default function ChatScreen() {
@@ -210,6 +215,7 @@ export default function ChatScreen() {
   // Sidebar conversations
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const [verChats, setVerChats] = useState<'abiertos' | 'cerrados'>('abiertos');
 
   // Suggested presentation text
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -331,6 +337,9 @@ export default function ChatScreen() {
     return registerProposalUpdateHandler(handleProposalUpdate);
   }, [registerProposalUpdateHandler]);
 
+  // Con cambios de estado (las tarjetas) se vuelve a pedir aunque no haya mensajes nuevos.
+  useEventoEnVivo(['job:updated', 'contract:updated', 'socket:reconectado'], () => { void fetchMessagesOnly(); });
+
   // Se baja al último mensaje SOLO cuando llegó uno nuevo y la persona ya estaba mirando el final (o lo escribió ella). Antes se bajaba cada vez que cambiaba la lista
   // (cada actualización en segundo plano), y con `scrollIntoView` movía toda la página: mientras uno escribía, la pantalla se iba sola hacia el cuadro de texto
   // (reporte del dueño, 2026-11-19: «cuando escribo en el chat se me baja siempre para el input»). Ahora solo se mueve la lista de mensajes.
@@ -392,7 +401,7 @@ export default function ChatScreen() {
     if (!token) return;
     setLoadingConversations(true);
     try {
-      const res = await fetch('/api/chat/conversations', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('/api/chat/conversations?limit=100', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setConversations(data.data || []);
     } catch {
@@ -566,7 +575,7 @@ export default function ChatScreen() {
         fetch(`/api/jobs?client=${otherParticipant.id}&status=open`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`/api/proposals/my-proposals`, {
+        fetch(`/api/proposals?type=sent`, {
           headers: { Authorization: `Bearer ${token}` },
         })
       ]);
@@ -583,7 +592,7 @@ export default function ChatScreen() {
       // Create a set of job IDs I've already applied to
       if (proposalsData.success && proposalsData.proposals) {
         const appliedIds = new Set<string>(
-          proposalsData.proposals.map((p: any) => p.jobId || p.job?.id)
+          proposalsData.proposals.filter((p: any) => !['withdrawn', 'rejected'].includes(p.status)).map((p: any) => p.jobId || p.job?.id)
         );
         setMyAppliedJobIds(appliedIds);
       }
@@ -932,13 +941,17 @@ export default function ChatScreen() {
             <MessageSquare className="h-5 w-5 text-sky-500" />
             <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Mensajes</h2>
           </div>
+          <div className="px-3 py-2">
+            <PestanasDeChats cerrados={conversations.filter((c) => c.cerrado).length} ver={verChats} alCambiar={setVerChats} />
+          </div>
           <div className="flex-1 overflow-y-auto">
+            {verChats === 'cerrados' && <ExplicacionDeCerrados />}
             {loadingConversations ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-500" /></div>
             ) : conversations.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-slate-400">Sin conversaciones</div>
             ) : (
-              conversations.map(conv => {
+              conversations.filter((c) => Boolean(c.cerrado) === (verChats === 'cerrados')).map(conv => {
                 const cid = conv.id || '';
                 const isActive = cid === conversationId;
                 const unread = getUnread(conv);
@@ -1030,7 +1043,7 @@ export default function ChatScreen() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               {/* Quote Button */}
-              {otherParticipant && (
+              {otherParticipant && !conversationData?.cerrado && (
                 <button
                   onClick={() => {
                     const recipientId = otherParticipant.id || '';
@@ -1047,7 +1060,7 @@ export default function ChatScreen() {
               )}
 
               {/* Propose Price Button */}
-              <button
+              {!conversationData?.cerrado && (<button
                 onClick={() => { setShowPriceProposal(p => !p); if (!showPriceProposal) fetchMyJobs(); }}
                 className={`flex items-center gap-2 px-4 py-2 font-semibold rounded-lg transition-colors ${
                   showPriceProposal
@@ -1058,7 +1071,7 @@ export default function ChatScreen() {
               >
                 <DollarSign className="h-5 w-5" />
                 <span className="hidden sm:inline">Proponer precio</span>
-              </button>
+              </button>)}
 
 
               {/* Participant Profile */}
@@ -1518,6 +1531,7 @@ export default function ChatScreen() {
           </div>
         </div>
 
+        {conversationData?.cerrado ? <AvisoDeChatCerrado cerrado={conversationData.cerrado} /> : (<>
         {/* Suggested presentation texts */}
         {messages.length === 0 && !loading && (
           <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-3">
@@ -1572,6 +1586,7 @@ export default function ChatScreen() {
             </form>
           </div>
         </div>
+        </>)}
 
         </div>{/* end main chat column */}
       </div>

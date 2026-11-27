@@ -44,6 +44,8 @@ export interface BorradorDeTrabajo {
   latitude: number | null;
   longitude: number | null;
   sinProteccion: boolean;
+  /** Dirección de destino (mudanzas, mandados). Los borradores de antes no la tienen. */
+  destino?: import("../../shared/jobs/destinoYPies").Destino | null;
 }
 
 /** El almacenamiento mínimo que se usa (el `localStorage` del navegador, o uno falso en las pruebas). */

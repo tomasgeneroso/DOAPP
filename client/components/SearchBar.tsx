@@ -6,6 +6,8 @@ import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { searchLocations } from "../../shared/constants/locations";
 import { useMapboxGeocoding, hasMapboxToken } from "../hooks/useMapboxGeocoding";
 import analytics from "../utils/analytics";
+import { useNavigate } from "react-router-dom";
+import { etiquetaBuscada, rutaDeEtiqueta } from "../../shared/etiquetas";
 
 interface SearchBarProps {
   onSearch: (filters: SearchFilters) => void;
@@ -30,6 +32,7 @@ export interface SearchFilters {
 type PerfilBuscado = NonNullable<SearchFilters['userRole']>;
 
 export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) {
+  const irA = useNavigate();
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -224,6 +227,12 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowLocationSuggestions(false);
+    // «#plomería» lleva a todo lo que usa esa etiqueta (trabajos, publicaciones y artículos) y a las relacionadas.
+    const etiqueta = etiquetaBuscada(query);
+    if (etiqueta) {
+      irA(rutaDeEtiqueta(etiqueta));
+      return;
+    }
     analytics.jobSearch(query, { category, location });
     if (location) analytics.filterApply('location', location, 'search_bar');
     if (category) analytics.filterApply('category', category, 'search_bar');

@@ -36,4 +36,25 @@ export const AYUDAS: Record<string, string> = {
     'Si hubo un problema con un contrato, podés abrir un reclamo. Una persona de DOAPP interviene y el dinero queda protegido mientras tanto.',
   'Centro de ayuda':
     'Consultas, reportes y reclamos en un solo lugar. Escribinos cuando lo necesites y te respondemos.',
+  // Lo que se publica es público: se dice dónde aparece y que lo puede encontrar un buscador o una IA que consulte la web (pedido del dueño, 2026-11-27).
+  'Publicaciones del perfil':
+    'Lo que publicás aparece en tu perfil. Es público: se ve sin cuenta y puede salir en Google o en respuestas de asistentes de IA que consultan la web.',
+  'Artículos':
+    'Un artículo sale en tu perfil y en el Blog de DOAPP. Es público: puede aparecer en Google o en respuestas de asistentes de IA que consultan la web.',
+  'Blog':
+    'Notas del equipo de DOAPP y artículos de la comunidad. Son públicos: pueden aparecer en Google o en respuestas de asistentes de IA que consultan la web.',
+  'Publicar un trabajo':
+    'Una vez aprobado, el trabajo se ve sin cuenta y puede aparecer en Google o en respuestas de IA. La calle y el número quedan reservados para quien contrates.',
+  'Trabajo publicado':
+    'Mientras está abierto, un trabajo es público y puede aparecer en Google o en respuestas de asistentes de IA que consultan la web.',
+  'Etiquetas':
+    'Agrupan trabajos, publicaciones y artículos. Tocá una para ver todo lo que la usa y las relacionadas. También podés escribir #etiqueta en el buscador.',
+  'Trabajos realizados':
+    'Los trabajos terminados en que participaste, separados en los que ya compartiste en tu perfil y los que todavía no.',
+  'Origen y destino':
+    'Para mudanzas, fletes y mandados. De cada dirección se publica la zona; la calle y el número se comparten con quien contrates.',
+  'Chats cerrados':
+    'El chat de un equipo se cierra cuando el trabajo termina o se cancela. Se puede leer durante el plazo para reclamar y después se borra.',
+  'Antes y después':
+    'Fotos de cómo estaba y cómo quedó. Van al perfil de quien publica y son públicas. Si muestran personas o datos personales, pedí a soporte que se retiren.',
 };

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -30,6 +30,8 @@ import {
   ClipboardList,
   Users,
 } from "lucide-react";
+import { mezclarMensajes } from "../utils/mensajesDelChat";
+import { PestanasDeChats, ExplicacionDeCerrados, AvisoDeChatCerrado, type ChatCerrado } from "../components/chat/ChatsCerrados";
 
 interface Conversation {
   id?: string;
@@ -48,6 +50,7 @@ interface Conversation {
     title: string;
   };
   contractId?: string;
+  cerrado?: ChatCerrado | null;
   contract?: {
     id: string;
     status: string;
@@ -87,7 +90,6 @@ export default function MessagesScreen() {
   const { user, token } = useAuth();
   const { t } = useTranslation();
   const {
-    sendMessage: socketSendMessage,
     joinConversation,
     leaveConversation,
     messages: socketMessages,
@@ -106,6 +108,9 @@ export default function MessagesScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [errorDeEnvio, setErrorDeEnvio] = useState("");
+  const [parametros, setParametros] = useSearchParams();
+  const verChats = parametros.get("tab") === "cerrados" ? "cerrados" : "abiertos";
 
   // Inline job attachment in active chat
   const [showInlineJobPicker, setShowInlineJobPicker] = useState(false);
@@ -195,6 +200,17 @@ export default function MessagesScreen() {
     scrollToBottom();
   }, [messages]);
 
+  // Si la postulación, el trabajo o el contrato cambian (o vuelve la conexión), la conversación abierta se vuelve a pedir en silencio.
+  const refrescarMensajes = useRecargaJuntada(() => { if (conversationIdParam) void fetchMessages(conversationIdParam, true); });
+  useEventoEnVivo(['proposal:updated', 'job:updated', 'contract:updated', 'chat:actualizado', 'socket:reconectado'], refrescarMensajes);
+  // Respaldo sin conexión en vivo: se mira cada 5 s (y cada 20 s con conexión).
+  useEffect(() => {
+    if (!conversationIdParam) return;
+    const cada = setInterval(() => { if (document.visibilityState !== "hidden") void fetchMessages(conversationIdParam, true); }, isConnected ? 20000 : 5000);
+    return () => clearInterval(cada);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationIdParam, isConnected, token]);
+
   // Un mensaje nuevo (de una persona o del sistema: contrato, pago, trabajo), una conversación nueva o la conexión que vuelve: la lista se actualiza sola.
   const recargarConversaciones = useRecargaJuntada(() => fetchConversations());
   useEventoEnVivo(['chat:actualizado', 'socket:reconectado'], recargarConversaciones);
@@ -228,7 +244,7 @@ export default function MessagesScreen() {
 
   const fetchConversations = async () => {
     try {
-      const response = await fetch("/api/chat/conversations", {
+      const response = await fetch("/api/chat/conversations?limit=100", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -244,10 +260,10 @@ export default function MessagesScreen() {
     }
   };
 
-  const fetchMessages = async (convId: string) => {
+  const fetchMessages = async (convId: string, enSilencio = false) => {
     if (!token || !convId || convId.trim() === '') return;
 
-    setLoadingMessages(true);
+    if (!enSilencio) setLoadingMessages(true);
     try {
       const response = await fetch(`/api/chat/conversations/${convId}/messages`, {
         headers: {
@@ -385,46 +401,37 @@ export default function MessagesScreen() {
     setShowInlineJobPicker(!showInlineJobPicker);
   };
 
-  // Enhanced send message with job attachment support
+  /**
+   * El envío va por la API, que contesta: así se sabe si el mensaje quedó guardado. Antes esta pantalla lo mandaba solo por la conexión en vivo, que no contesta:
+   * si estaba caída o el servidor lo rechazaba, el cuadro se vaciaba y el mensaje no salía nunca (reporte del dueño, 2026-11-27).
+   */
   const handleSendMessageWithJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!newMessage.trim() && !inlineSelectedJob) || sending || !activeConversation) return;
 
     setSending(true);
     try {
-      if (inlineSelectedJob) {
-        // Send via HTTP to support job attachment
-        const body: any = {};
-        if (newMessage.trim()) body.content = newMessage.trim();
-        if (inlineSelectedJob) body.jobId = inlineSelectedJob.id;
+      const body: any = {};
+      if (newMessage.trim()) body.content = newMessage.trim();
+      if (inlineSelectedJob) body.jobId = inlineSelectedJob.id;
 
-        const response = await fetch(`/api/chat/conversations/${getId(activeConversation)}/messages`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        });
-        const data = await response.json();
-        if (data.success) {
-          // Add all messages (job attachment + text if both)
-          const newMsgs = data.messages || [data.message];
-          setLocalMessages(prev => [...prev, ...newMsgs]);
-        }
-        setInlineSelectedJob(null);
-        setShowInlineJobPicker(false);
-      } else {
-        // Use socket for regular text messages
-        socketSendMessage({
-          conversationId: getId(activeConversation),
-          message: newMessage,
-          type: "text",
-        });
-      }
+      const response = await fetch(`/api/chat/conversations/${getId(activeConversation)}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || "No pudimos enviar tu mensaje. Probá de nuevo.");
+      // Se muestra enseguida (y si también llega en vivo, no se repite).
+      setLocalMessages(prev => mezclarMensajes(prev, (data.messages || [data.message]) as Message[]));
       setNewMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
+      setInlineSelectedJob(null);
+      setShowInlineJobPicker(false);
+      setErrorDeEnvio("");
+    } catch (error: any) {
+      // El texto queda en el cuadro para reintentar, y se dice por qué.
+      setErrorDeEnvio(error?.message === "Failed to fetch" ? "No pudimos conectar con DOAPP. Revisá tu conexión y probá de nuevo." : error?.message || "No pudimos enviar tu mensaje. Probá de nuevo.");
     } finally {
       setSending(false);
     }
@@ -442,25 +449,6 @@ export default function MessagesScreen() {
 
   const handleSelectConversation = (conversation: Conversation) => {
     navigate(`/messages/${getId(conversation)}`);
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || sending || !activeConversation) return;
-
-    setSending(true);
-    try {
-      socketSendMessage({
-        conversationId: getId(activeConversation),
-        message: newMessage,
-        type: "text",
-      });
-      setNewMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-    } finally {
-      setSending(false);
-    }
   };
 
   // Baja la lista de mensajes (no toda la página) solo cuando llegó un mensaje nuevo y se estaba mirando el final, o lo escribió la persona.
@@ -523,7 +511,9 @@ export default function MessagesScreen() {
     return msg;
   };
 
+  const cantidadDeCerrados = conversations.filter((c) => c.cerrado).length;
   const filteredConversations = conversations.filter((conv) => {
+    if (Boolean(conv.cerrado) !== (verChats === "cerrados")) return false;
     const other = getOtherParticipant(conv.participants);
     const jobTitle = conv.job?.title || conv.jobId?.title || conv.contract?.job?.title || '';
     return (
@@ -531,6 +521,8 @@ export default function MessagesScreen() {
       jobTitle.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
+
+  const chatCerrado = activeConversation ? (conversations.find((c) => getId(c) === getId(activeConversation))?.cerrado ?? activeConversation.cerrado ?? null) : null;
 
   const otherParticipant = activeConversation
     ? getOtherParticipant(activeConversation.participants)
@@ -621,6 +613,10 @@ export default function MessagesScreen() {
               </div>
             </div>
 
+            <div className="mb-3">
+              <PestanasDeChats cerrados={cantidadDeCerrados} ver={verChats} alCambiar={(v) => setParametros(v === "cerrados" ? { tab: "cerrados" } : {}, { replace: true })} />
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -636,11 +632,12 @@ export default function MessagesScreen() {
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto">
+            {verChats === "cerrados" && <ExplicacionDeCerrados />}
             {filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full px-4 text-center">
                 <MessageCircle className="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                  {searchQuery ? t('common.noResults', 'No results') : t('chat.noConversations')}
+                  {searchQuery ? t('common.noResults', 'No results') : verChats === "cerrados" ? "Cuando un trabajo en equipo termine, su chat aparece acá" : t('chat.noConversations')}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
                   {searchQuery
@@ -804,6 +801,7 @@ export default function MessagesScreen() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {!chatCerrado && (<>
                   {/* Cotizar / Facturar — mismo estilo que ChatScreen */}
                   <button
                     onClick={() => {
@@ -831,6 +829,8 @@ export default function MessagesScreen() {
                     <DollarSign className="h-5 w-5" />
                     <span className="hidden sm:inline">Proponer precio</span>
                   </button>
+
+                  </>)}
 
                   {/* Ver Perfil */}
                   <button
@@ -926,6 +926,7 @@ export default function MessagesScreen() {
                 </div>
               </div>
 
+              {chatCerrado ? <AvisoDeChatCerrado cerrado={chatCerrado} /> : (<>
               {/* Inline Job Picker */}
               {showInlineJobPicker && (
                 <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
@@ -971,6 +972,10 @@ export default function MessagesScreen() {
                 </div>
               )}
 
+              {errorDeEnvio && (
+                <p role="alert" data-testid="error-de-envio" className="animate-fadeIn border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-900/20 dark:text-red-200">{errorDeEnvio}</p>
+              )}
+
               {/* Message Input */}
               <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
                 <form onSubmit={handleSendMessageWithJob} className="flex items-center gap-2">
@@ -1002,6 +1007,7 @@ export default function MessagesScreen() {
                   </button>
                 </form>
               </div>
+              </>)}
             </>
           ) : (
             // Empty State

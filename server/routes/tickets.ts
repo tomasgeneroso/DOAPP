@@ -18,6 +18,7 @@ import { sequelize } from "../config/database.js";
 import { logAudit } from "../utils/auditLog.js";
 import { avisarMensajeDeTicket } from "../services/avisosDeMensajes.js";
 import { alCerrarseElTicket, resumenDelProblemaDelTicket, seguirConElMismoTrabajo, ErrorDeProblema } from "../services/problemasDelTrabajo.js";
+import { correoAlEquipo } from "../utils/remitenteDeCorreo.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -92,24 +93,21 @@ router.post(
       await emailService.sendTicketCreatedEmail(ticket.id, ticketNumber, subject, user.email, user.name).catch(() => {});
 
       // Notify support team
-      const supportEmail = process.env.SMTP_USER || process.env.SUPPORT_EMAIL;
-      if (supportEmail) {
-        const adminUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/admin/tickets/${ticket.id}`;
-        await emailService.sendEmail({
-          to: supportEmail,
-          subject: `[Ticket Invitado] ${ticketNumber} - ${subject}`,
-          // Todo lo que escribió la persona se escapa (antes el asunto y el mensaje llegaban como HTML a la casilla de soporte).
-          html: `<p>Ticket creado sin sesión (email del usuario: ${escaparHtml(user.email)}).</p>
-            <ul>
-              <li><strong>Número:</strong> ${escaparHtml(ticketNumber)}</li>
-              <li><strong>Usuario:</strong> ${escaparHtml(user.name)} (${escaparHtml(user.email)})</li>
-              <li><strong>Categoría:</strong> ${escaparHtml(category)}</li>
-              <li><strong>Asunto:</strong> ${escaparHtml(subject)}</li>
-              <li><strong>Mensaje:</strong> ${escaparHtml(message)}</li>
-            </ul>
-            <a href="${adminUrl}">Ver ticket en panel admin</a>`,
-        }).catch(() => {});
-      }
+      const adminUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/admin/tickets/${ticket.id}`;
+      await emailService.sendEmail(correoAlEquipo({
+        responderA: user.email,
+        asunto: `[Ticket Invitado] ${ticketNumber} - ${subject}`,
+        // Todo lo que escribió la persona se escapa (antes el asunto y el mensaje llegaban como HTML a la casilla de soporte).
+        html: `<p>Ticket creado sin sesión (email del usuario: ${escaparHtml(user.email)}).</p>
+          <ul>
+            <li><strong>Número:</strong> ${escaparHtml(ticketNumber)}</li>
+            <li><strong>Usuario:</strong> ${escaparHtml(user.name)} (${escaparHtml(user.email)})</li>
+            <li><strong>Categoría:</strong> ${escaparHtml(category)}</li>
+            <li><strong>Asunto:</strong> ${escaparHtml(subject)}</li>
+            <li><strong>Mensaje:</strong> ${escaparHtml(message)}</li>
+          </ul>
+          <a href="${adminUrl}">Ver ticket en panel admin</a>`,
+      })).catch(() => {});
 
       res.status(201).json({
         success: true,
@@ -242,23 +240,20 @@ router.post(
       }
 
       // Notify support team
-      const supportEmail = process.env.SMTP_USER || process.env.SUPPORT_EMAIL;
-      if (supportEmail) {
-        const adminTicketUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/tickets/${ticket.id}`;
-        await emailService.sendEmail({
-          to: supportEmail,
-          subject: `[Nuevo Ticket] ${ticketNumber} - ${subject}`,
-          html: `<p>Nuevo ticket de soporte recibido.</p>
-            <ul>
-              <li><strong>Número:</strong> ${ticketNumber}</li>
-              <li><strong>Usuario:</strong> ${user?.name || 'N/A'} (${user?.email || 'N/A'})</li>
-              <li><strong>Categoría:</strong> ${category}</li>
-              <li><strong>Asunto:</strong> ${subject}</li>
-              <li><strong>Mensaje:</strong> ${message}</li>
-            </ul>
-            <a href="${adminTicketUrl}">Ver ticket en panel admin</a>`,
-        }).catch(() => {}); // Non-blocking
-      }
+      const adminTicketUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/tickets/${ticket.id}`;
+      await emailService.sendEmail(correoAlEquipo({
+        responderA: user?.email,
+        asunto: `[Nuevo Ticket] ${ticketNumber} - ${subject}`,
+        html: `<p>Nuevo ticket de soporte recibido.</p>
+          <ul>
+            <li><strong>Número:</strong> ${ticketNumber}</li>
+            <li><strong>Usuario:</strong> ${escaparHtml(user?.name || 'N/A')} (${escaparHtml(user?.email || 'N/A')})</li>
+            <li><strong>Categoría:</strong> ${escaparHtml(category)}</li>
+            <li><strong>Asunto:</strong> ${escaparHtml(subject)}</li>
+            <li><strong>Mensaje:</strong> ${escaparHtml(message)}</li>
+          </ul>
+          <a href="${adminTicketUrl}">Ver ticket en panel admin</a>`,
+      })).catch(() => {}); // Non-blocking
 
       res.status(201).json({
         success: true,

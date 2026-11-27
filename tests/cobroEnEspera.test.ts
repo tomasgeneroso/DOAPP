@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { diasQueFaltan, textoDelCobro, RECORDATORIO_DE_LIBERACION } from '../shared/pagos/cobroEnEspera.js';
+import { diasQueFaltan, textoDelCobro, RECORDATORIO_DE_LIBERACION, sinCobrosRepetidos } from '../shared/pagos/cobroEnEspera.js';
 import { POLITICAS } from '../shared/constants/policies.js';
 
 /**
@@ -46,5 +46,19 @@ describe('cobro en espera de liberación (textos)', () => {
 
   it('una fecha que ya pasó cuenta como liberado aunque el servidor no lo haya marcado', () => {
     expect(textoDelCobro({ liberado: false, disponibleDesde: enDias(-1) }, ahora).estado).toBe('Liberado');
+  });
+});
+
+describe('un renglón por cobro en el historial', () => {
+  const cobro = (id: string, status: string, contrato = 'c1') => ({ id, type: 'payment', status, relatedContractId: contrato, amount: 5000, description: 'x' });
+
+  it('dos «pendientes» del mismo contrato (el caso del reporte) se ven como uno', () => {
+    expect(sinCobrosRepetidos([cobro('nuevo', 'pending'), cobro('viejo', 'pending')] as any).map((m: any) => m.id)).toEqual(['nuevo']);
+  });
+  it('pendiente y pagado: queda el pagado', () => {
+    expect(sinCobrosRepetidos([cobro('pagado', 'completed'), cobro('pendiente', 'pending')] as any).map((m: any) => m.id)).toEqual(['pagado']);
+  });
+  it('cobros de contratos distintos no se tocan', () => {
+    expect(sinCobrosRepetidos([cobro('a', 'pending', 'c1'), cobro('b', 'pending', 'c2')] as any)).toHaveLength(2);
   });
 });

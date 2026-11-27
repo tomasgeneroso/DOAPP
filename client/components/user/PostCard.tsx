@@ -5,6 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 import ConfirmModal from "../ui/ConfirmModal";
 import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play, Briefcase, Users, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import CompartirPorChat from '../chat/CompartirPorChat';
+import Etiqueta from '../Etiqueta';
 
 interface Author {
   id?: string;
@@ -421,18 +423,13 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
             <Eye className="h-5 w-5" />
             <span className="text-sm">{post.viewsCount}</span>
           </div>
+
+          <CompartirPorChat que={(post as any).type === 'article' ? 'articulo' : 'publicacion'} ruta={`/posts/${postId}`} titulo={post.title} />
         </div>
 
         {post.tags && post.tags.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            {post.tags.slice(0, 3).map((tag, index) => (
-              <span
-                key={index}
-                className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-full"
-              >
-                #{tag}
-              </span>
-            ))}
+            {post.tags.slice(0, 3).map((tag) => <Etiqueta key={tag} etiqueta={tag} anidada />)}
           </div>
         )}
       </div>

@@ -16,7 +16,7 @@ import { MINIMUM_COMMISSION_EUR } from "../../shared/pricing/minimums";
 
 export default function JobPayment() {
   const { t } = useTranslation();
-  const { notify, dialog } = useDialog();
+  const { notify, confirm, dialog } = useDialog();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -215,6 +215,30 @@ export default function JobPayment() {
       navigate(`/jobs/${id}`);
     }
   };
+
+  /** Lo cargado ya está guardado como borrador: se puede dejar el pago para más adelante, o cancelar la publicación (va a la papelera, de donde se recupera). */
+  const pagarDespues = () => {
+    toast.success('Quedó guardada', 'La encontrás en «Mis trabajos». Cuando quieras, tocá «Pagar y publicar».');
+    navigate('/my-jobs');
+  };
+  const cancelarPublicacion = () =>
+    confirm({
+      title: 'Cancelar la publicación',
+      message: 'La publicación va a la papelera de «Mis trabajos». Durante 30 días la podés recuperar tal como está.',
+      confirmLabel: 'Sí, cancelar',
+      cancelLabel: 'Seguir acá',
+      tone: 'danger',
+      onConfirm: async () => {
+        const r = await fetch(`/api/jobs/${id}`, { method: 'DELETE', credentials: 'include' });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.success) {
+          toast.error('No se pudo cancelar', d.message || 'Probá de nuevo.');
+          return;
+        }
+        toast.success('Publicación cancelada', 'Está en la papelera de «Mis trabajos».');
+        navigate('/my-jobs');
+      },
+    });
 
   // Un segundo clic (o un doble toque) mientras el primer pago sigue en curso no tiene que crear otra orden: la primera ya cambió el
   // estado del trabajo y la segunda volvía con «no está esperando el pago».
@@ -418,12 +442,18 @@ export default function JobPayment() {
 
       <div className="container mx-auto max-w-3xl py-12 px-4">
         <button
-          onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate(-1)}
+          onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate(`/jobs/${id}/edit`)}
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver
+          {isBudgetIncrease ? 'Volver' : 'Volver a editar la publicación'}
         </button>
+
+        {!isBudgetIncrease && job && !job.publicationPaid && (
+          <p role="status" data-testid="publicacion-guardada" className="animate-fadeIn mb-6 rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-100">
+            <strong>Tu publicación ya está guardada.</strong> Si cerrás esta pantalla, la encontrás en «Mis trabajos» para pagarla y publicarla cuando quieras.
+          </p>
+        )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           {/* Header */}
@@ -905,13 +935,24 @@ export default function JobPayment() {
                 </>
               )}
             </button>
-            <button
-              onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate("/")}
-              disabled={processing}
-              className="w-full rounded-2xl py-3 px-6 font-medium text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-            >
-              {isBudgetIncrease ? t('payments.cancelChange', 'Cancelar cambio') : t('common.cancel', 'Cancelar')}
-            </button>
+            {isBudgetIncrease ? (
+              <button
+                onClick={handleCancelBudgetChange}
+                disabled={processing}
+                className="w-full rounded-2xl py-3 px-6 font-medium text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                {t('payments.cancelChange', 'Cancelar cambio')}
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={pagarDespues} disabled={processing} className="flex-1 rounded-2xl border border-sky-600 py-3 px-4 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-900/20">
+                  Pagar y publicar después
+                </button>
+                <button type="button" onClick={cancelarPublicacion} disabled={processing} className="flex-1 rounded-2xl py-3 px-4 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/20">
+                  Cancelar publicación
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

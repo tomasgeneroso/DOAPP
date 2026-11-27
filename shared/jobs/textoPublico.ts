@@ -122,6 +122,8 @@ const NOMBRE_DE_CAMPO: Record<string, string> = {
   description: 'la descripción',
   requirements: 'los requisitos',
   tasks: 'las tareas',
+  imageCaptions: 'el pie de las fotos',
+  destino: 'la zona de destino',
 };
 
 /**

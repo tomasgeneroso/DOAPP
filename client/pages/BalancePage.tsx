@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { BalanceTransaction } from "@/types";
 import { esAFavorPendiente, fechaDeLiquidacion } from "../../shared/pagos/aFavorPendiente";
+import { cambiaElSaldo, descripcionDelMovimiento, estadoDelCobro } from '../../shared/pagos/cobroEnEspera';
 
 export default function BalancePage() {
   const { t } = useTranslation();
@@ -379,12 +380,21 @@ export default function BalancePage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-slate-900 dark:text-white">
-                            {transaction.description}
+                            {descripcionDelMovimiento(transaction as any)}
                           </p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
-                              {getTypeLabel(transaction.type)}
-                            </span>
+                            {estadoDelCobro(transaction as any) ? (
+                              <span data-testid="estado-del-cobro" className={`px-2 py-0.5 rounded text-xs font-medium ${estadoDelCobro(transaction as any)!.clave === 'pendiente' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'}`}>
+                                {estadoDelCobro(transaction as any)!.rotulo}
+                              </span>
+                            ) : (
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
+                                {getTypeLabel(transaction.type)}
+                              </span>
+                            )}
+                            {(transaction as any).relatedContractId && (
+                              <Link to={`/contracts/${(transaction as any).relatedContractId}`} className="text-xs font-medium text-sky-700 hover:underline dark:text-sky-300">Ver contrato</Link>
+                            )}
                             {/* A favor pendiente: figura acá pero todavía no sumó al saldo (el pago original sigue en Mercado Pago). */}
                             {esAFavorPendiente(transaction) && (
                               <span className="px-2 py-0.5 rounded text-xs font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
@@ -418,6 +428,8 @@ export default function BalancePage() {
                           className={`text-xl font-bold ${
                             esAFavorPendiente(transaction)
                               ? "text-sky-600 dark:text-sky-400"
+                              : estadoDelCobro(transaction as any)?.clave === 'pendiente'
+                                ? "text-amber-600 dark:text-amber-400"
                               : transaction.amount >= 0
                                 ? "text-green-600 dark:text-green-400"
                                 : "text-red-600 dark:text-red-400"
@@ -428,7 +440,8 @@ export default function BalancePage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           {esAFavorPendiente(transaction)
                             ? t('balance.notBalanceYet', 'Pasa a saldo cuando se libere')
-                            : `${t('balance.balanceLabel', 'Saldo')}: $${transaction.balanceAfter.toLocaleString("es-AR")}`}
+                            // El saldo se muestra solo en lo que lo cambió: en un cobro pendiente sería una suma que todavía no existe.
+                            : cambiaElSaldo(transaction as any) ? `${t('balance.balanceLabel', 'Saldo')}: $${transaction.balanceAfter.toLocaleString("es-AR")}` : ''}
                         </p>
                       </div>
                     </div>

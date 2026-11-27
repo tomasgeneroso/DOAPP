@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -7,8 +8,12 @@ import { getImageUrl } from "../utils/imageUrl";
 import { BookOpen, Calendar, User, Search, Filter, Clock, Star, Crown, Users, PenSquare } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import Transicion from "../components/ui/Transicion";
+import Etiqueta from "../components/Etiqueta";
+import { etiquetaBuscada, rutaDeEtiqueta } from "../../shared/etiquetas";
+import InfoIcono from '../components/ui/InfoIcono';
 
 export default function BlogsScreen() {
+  const irA = useNavigate();
   const { t } = useTranslation();
   const { user } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -123,7 +128,7 @@ export default function BlogsScreen() {
         <div className="bg-gradient-to-r from-sky-600 to-blue-600 text-white py-16">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">{t('blog.title', 'DoApp Blog')}</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">{t('blog.title', 'DoApp Blog')} <InfoIcono ayuda="Blog" className="ml-1 !text-white hover:!text-sky-700" /></h1>
               <p className="text-xl text-sky-100 mb-6">
                 {t('blog.subtitle', 'Tips, guides and advice for your home')}
               </p>
@@ -145,6 +150,8 @@ export default function BlogsScreen() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  // «#algo» + Enter abre la página de esa etiqueta.
+                  onKeyDown={(e) => { const et = e.key === "Enter" ? etiquetaBuscada(searchQuery) : null; if (et) irA(rutaDeEtiqueta(et)); }}
                   placeholder={t('blog.searchPlaceholder', 'Search articles...')}
                   className="w-full px-6 py-4 pr-12 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-white"
                 />
@@ -405,14 +412,7 @@ export default function BlogsScreen() {
 
                           {post.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-4">
-                              {post.tags.slice(0, 3).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded"
-                                >
-                                  #{tag}
-                                </span>
-                              ))}
+                              {post.tags.slice(0, 3).map((tag) => <Etiqueta key={tag} etiqueta={tag} anidada />)}
                             </div>
                           )}
                         </div>

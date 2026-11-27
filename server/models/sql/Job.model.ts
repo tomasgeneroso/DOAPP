@@ -16,6 +16,7 @@ import {
   AfterBulkUpdate,
   AfterBulkDestroy,
   DeletedAt,
+  BeforeSave,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { cacheService } from '../../services/cacheService.js';
@@ -335,6 +336,15 @@ export class Job extends Model {
   @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   images!: string[];
+
+  /** Pie de cada foto: { dirección de la foto: texto }. */
+  @Default({})
+  @Column(DataType.JSONB)
+  imageCaptions!: Record<string, string>;
+
+  /** Dirección de destino (mudanzas, mandados). La dirección de siempre es el origen. */
+  @Column(DataType.JSONB)
+  destination?: import('../../../shared/jobs/destinoYPies.js').Destino | null;
 
   // Minimum completion criteria: list of conditions that must be met for the job to be considered done
   // Serves as evidence baseline in case of disputes between client and worker
@@ -816,6 +826,23 @@ export class Job extends Model {
       await Pago.update({ jobId: trabajo.id } as never, { where: { id: pagoId, jobId: null } as never, transaction: opciones?.transaction as never, hooks: false });
     } catch {
       /* un vínculo que no se pudo hacer se completa en la próxima corrida: nunca frena el guardado del trabajo */
+    }
+  }
+
+  /**
+   * La publicación queda paga por EL PRECIO QUE SE COBRÓ. El pago se crea con el precio de ese momento; si después cambió (un link de pago viejo que se paga más tarde),
+   * publicar con el precio nuevo respaldaría más de lo que entró. Vale para toda vía que marque la publicación como pagada.
+   */
+  @BeforeSave
+  static async publicarPorLoQueSePago(trabajo: Job, opciones?: { transaction?: unknown }): Promise<void> {
+    if (!trabajo.publicationPaid || !trabajo.changed('publicationPaid') || !trabajo.publicationPaymentId) return;
+    const Pago = Job.sequelize?.models.Payment as any;
+    if (!Pago) return;
+    const pago = await Pago.findByPk(trabajo.publicationPaymentId, { attributes: ['id', 'metadata'], transaction: opciones?.transaction });
+    const cobrado = Number(pago?.metadata?.precioDelTrabajo);
+    if (Number.isFinite(cobrado) && cobrado > 0 && Math.abs(cobrado - Number(trabajo.price)) > 0.005) {
+      console.warn(`[publicación] ${trabajo.id}: se pagó por ${cobrado} y el precio era ${trabajo.price}; queda el precio pagado`);
+      trabajo.price = cobrado;
     }
   }
 

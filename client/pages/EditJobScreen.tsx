@@ -31,6 +31,10 @@ import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 import { useCoherenciaDeDireccion } from "@/hooks/useCoherenciaDeDireccion";
 import Transicion from "../components/ui/Transicion";
+import { bloqueoDelPresupuesto } from "../../shared/jobs/cambioDePresupuesto";
+import DireccionDeDestino from '../components/jobs/DireccionDeDestino';
+import type { Destino } from '../../shared/jobs/destinoYPies';
+import { sinEnviarConEnter } from '../utils/senalarCampo';
 
 interface FormFieldProps {
   label: string;
@@ -79,6 +83,9 @@ export default function EditJobScreen() {
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  // El precio tal como vino, y lo que decide si se puede cambiar: sin tocarlo no se manda (un redondeo no es un cambio de precio).
+  const [precioCargado, setPrecioCargado] = useState("");
+  const [acordado, setAcordado] = useState<{ publicationPaid: boolean; hayAlguienElegido: boolean; startDate: string | null }>({ publicationPaid: false, hayAlguienElegido: false, startDate: null });
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
@@ -97,6 +104,9 @@ export default function EditJobScreen() {
   // Fotos guardadas en el trabajo cuyo archivo ya no está en el servidor: se muestran como «no disponible» y se pueden quitar.
   const [fotosRotas, setFotosRotas] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [pies, setPies] = useState<string[]>([]);
+  const [piesDeLasQueEstaban, setPiesDeLasQueEstaban] = useState<Record<string, string>>({});
+  const [destino, setDestino] = useState<Destino | null>(null);
   const [jobStatus, setJobStatus] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
   const [hasExpiredDates, setHasExpiredDates] = useState(false);
@@ -176,6 +186,8 @@ export default function EditJobScreen() {
           setSummary(job.summary || "");
           setDescription(job.description || "");
           setPrice(job.price ? String(Math.round(Number(job.price))) : "");
+          setPrecioCargado(job.price ? String(Math.round(Number(job.price))) : "");
+          setAcordado({ publicationPaid: !!job.publicationPaid, hayAlguienElegido: (job.selectedWorkers?.length ?? 0) > 0 || Boolean(job.doer), startDate: job.startDate || null });
           setSelectedCategory(job.category || "");
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
@@ -191,6 +203,8 @@ export default function EditJobScreen() {
           setEndDateFlexible(job.endDateFlexible || false);
           setAllowCounterOffers(job.allowCounterOffers !== false);
           setExistingImages(job.images || []);
+          setPiesDeLasQueEstaban(job.imageCaptions || {});
+          setDestino(job.destination || null);
           setJobStatus(job.status || "");
           setCancellationReason(job.cancellationReason || "");
 
@@ -398,7 +412,7 @@ export default function EditJobScreen() {
     submitData.append("title", title);
     submitData.append("summary", summary);
     submitData.append("description", description);
-    submitData.append("price", price);
+    if (price !== precioCargado) submitData.append("price", price);
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("allowCounterOffers", String(allowCounterOffers));
@@ -418,6 +432,9 @@ export default function EditJobScreen() {
       submitData.append("endDate", endDate);
     }
     submitData.append("existingImages", JSON.stringify(existingImages));
+    submitData.append("existingCaptions", JSON.stringify(piesDeLasQueEstaban));
+    submitData.append("imageCaptions", JSON.stringify(pies));
+    submitData.append("destination", destino ? JSON.stringify(destino) : "");
 
     // Add new files
     selectedFiles.forEach((file) => {
@@ -460,6 +477,12 @@ export default function EditJobScreen() {
         toastSuccess(t('jobs.jobUpdated', 'Job updated'), t('jobs.jobUpdatedDesc', 'Changes have been saved successfully.'));
       }
 
+      // Un borrador sin pagar sigue su camino: lo que falta es el pago.
+      if (!acordado.publicationPaid && ["draft", "pending_payment"].includes(jobStatus)) {
+        navigate(`/jobs/${id}/payment`);
+        return;
+      }
+
       // Redirect back to job detail
       navigate(`/jobs/${id}`);
     } catch (err: any) {
@@ -468,6 +491,11 @@ export default function EditJobScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // Volver a publicar una publicación cancelada o rechazada es otra cosa: ahí se cargan fechas y precio nuevos.
+  const republica = ['cancelled', 'rejected'].includes(jobStatus);
+  const frenoDelPrecio = republica ? null : bloqueoDelPresupuesto({ status: jobStatus, publicationPaid: acordado.publicationPaid, startDate: acordado.startDate, hayAlguienElegido: acordado.hayAlguienElegido });
+  const fechasAcordadas = !republica && acordado.hayAlguienElegido;
 
   if (loading) {
     return (
@@ -552,7 +580,7 @@ export default function EditJobScreen() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-10 space-y-8">
+        <form onSubmit={handleSubmit} onKeyDown={sinEnviarConEnter} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
               label={t('jobs.titleLabel', 'Job title')}
@@ -697,11 +725,12 @@ export default function EditJobScreen() {
                     value={price}
                     onChange={setPrice}
                     required
-                    disabled={fieldsDisabled}
+                    disabled={fieldsDisabled || !!frenoDelPrecio}
                     placeholder="15.000"
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
+                {frenoDelPrecio && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" data-testid="precio-bloqueado">{frenoDelPrecio.mensaje}</p>}
                 {/* Counter-offers: defined next to the price */}
                 <label className="flex items-start gap-2 mt-2 cursor-pointer">
                   <input
@@ -786,6 +815,8 @@ export default function EditJobScreen() {
               </fieldset>
             </div>
 
+            <DireccionDeDestino destino={destino} onChange={setDestino} disabled={fieldsDisabled} />
+
             <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 ${hasExpiredDates ? 'p-4 rounded-xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
               {hasExpiredDates && (
                 <div className="sm:col-span-6 mb-2">
@@ -810,6 +841,10 @@ export default function EditJobScreen() {
                   required
                   description={t('jobs.datesDescription', 'Tocá el primer día y después el último; las horas se eligen debajo del calendario.')}
                 >
+                  {fechasAcordadas && (
+                    <p className="mb-2 text-sm text-amber-700 dark:text-amber-300" data-testid="fechas-bloqueadas">Las fechas ya están acordadas en el contrato. Para cambiarlas, pedí el cambio desde el contrato: la otra parte lo tiene que aceptar.</p>
+                  )}
+                  <fieldset disabled={fechasAcordadas} className="m-0 min-w-0 border-0 p-0 disabled:opacity-60">
                   <RangoDeFechas
                     inicio={startDate ? new Date(startDate) : null}
                     fin={endDate ? new Date(endDate) : null}
@@ -840,6 +875,7 @@ export default function EditJobScreen() {
                       </p>
                     </div>
                   )}
+                  </fieldset>
                 </FormField>
               </div>
             </div>
@@ -868,7 +904,8 @@ export default function EditJobScreen() {
               <FormField label={t('jobs.existingImages', 'Existing images')} icon={ImageIcon}>
                 <div className="flex flex-wrap gap-3">
                   {existingImages.map((img, index) => (
-                    <div key={index} className="relative group">
+                    <div key={index} className="w-32">
+                    <div className="relative group w-24">
                       {fotosRotas.has(img) ? (
                         <div className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-500 p-1 text-center text-[11px] text-slate-400">
                           <ImageIcon className="h-5 w-5" aria-hidden="true" />
@@ -891,6 +928,16 @@ export default function EditJobScreen() {
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                    <input
+                      type="text"
+                      value={piesDeLasQueEstaban[img] ?? ''}
+                      maxLength={140}
+                      onChange={(e) => setPiesDeLasQueEstaban((p) => ({ ...p, [img]: e.target.value }))}
+                      placeholder="Pie de foto"
+                      aria-label={`Pie de la foto ${index + 1}`}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                    />
+                    </div>
                   ))}
                 </div>
               </FormField>
@@ -908,6 +955,7 @@ export default function EditJobScreen() {
                 maxFiles={5 - existingImages.length}
                 accept="image/*"
                 onChange={setSelectedFiles}
+                onPies={setPies}
               />
             </FormField>
           </div>

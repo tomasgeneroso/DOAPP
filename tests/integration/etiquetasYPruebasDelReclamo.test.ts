@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Express } from 'express';
 import jwt from 'jsonwebtoken';
@@ -71,6 +71,9 @@ describe('etiquetas en la publicación y notas en las pruebas del reclamo', () =
   };
 
   describe('etiquetas', () => {
+    // Cada persona comparte un trabajo UNA sola vez (2026-11-27): cada caso empieza sin publicaciones.
+    beforeEach(async () => { await Post.destroy({ where: { author: [cliente.id, ana.id, beto.id, ajeno.id] } as any }); });
+
     it('el cliente etiqueta a quien trabajó y lo permite: queda etiquetada y recibe un aviso; quien apagó las etiquetas no', async () => {
       const r = await publicar(cliente, { linkedJob: jobId, taggedUsers: JSON.stringify([ana.id, beto.id]) });
       expect(r.status).toBe(201);

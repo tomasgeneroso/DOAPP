@@ -18,6 +18,7 @@ import emailService from "./email";
 import { Op } from 'sequelize';
 import { SALA_DE_ADMINISTRACION } from "./avisosEnVivo.js";
 import { paraQuienMira } from "./privacidadTrabajo.js";
+import { conEstadoActual } from "./tarjetasDelChat.js";
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -227,7 +228,7 @@ export class SocketService {
 
       socket.emit("conversation:history", {
         conversationId,
-        messages: messages.reverse(),
+        messages: await conEstadoActual(messages.reverse()),
       });
     } catch (error: any) {
       console.error("Join conversation error:", error);

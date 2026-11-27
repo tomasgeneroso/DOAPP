@@ -32,6 +32,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { get } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import { descripcionDelMovimiento, estadoDelCobro } from '../../shared/pagos/cobroEnEspera';
 
 interface DashboardStats {
   jobsPublished: number;
@@ -240,11 +241,11 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.txInfo}>
           <Text style={[styles.txDesc, { color: themeColors.text.primary }]} numberOfLines={2}>
-            {item.description}
+            {descripcionDelMovimiento(item as any)}
           </Text>
           <View style={styles.txMeta}>
             <Text style={[styles.txType, { color: themeColors.text.muted }]}>
-              {getTypeLabel(item.type)}
+              {estadoDelCobro(item as any)?.rotulo || getTypeLabel(item.type)}
             </Text>
             <View style={[styles.txStatusDot, { backgroundColor: getStatusColor(item.status) }]} />
             <Text style={[styles.txDate, { color: themeColors.text.muted }]}>

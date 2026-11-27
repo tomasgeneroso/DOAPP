@@ -53,6 +53,8 @@ import EstadoDeConfirmaciones from "@/components/contracts/EstadoDeConfirmacione
 import CodigoDeEmparejamiento from "@/components/contracts/CodigoDeEmparejamiento";
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 import AntesYDespues from "../components/momentos/AntesYDespues";
+import { ConsultaAbiertaDelContrato } from "../components/OfertasYaHechas";
+import { textoDeAceptacion } from "../../shared/contratos/aceptacion";
 
 /**
  * El contrato. Con `embebido` vive DENTRO de la vista del trabajo (pedido del dueño, 2026-11-22): no repite lo que el trabajo ya muestra (título, partes, detalles del pago, fechas)
@@ -705,6 +707,7 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
             >
               Escribir a soporte sobre este contrato
             </Link>
+            <ConsultaAbiertaDelContrato contractId={String(contract.id)} token={localStorage.getItem("token")} />
             {(isClient ? contract.doer?.id : contract.client?.id) && (
               <Link
                 to={rutaParaReportar({ sobre: 'usuario', usuarioId: isClient ? contract.doer?.id : contract.client?.id, contratoId: contract.id, nombre: isClient ? contract.doer?.name : contract.client?.name })}
@@ -730,8 +733,8 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
           </div>
 
           {/* Contract Details */}
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 ${embebido ? 'hidden' : ''}`}>
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
+          <div className={`grid grid-cols-1 gap-6 mb-6 ${embebido ? '' : 'md:grid-cols-2'}`}>
+            <div className={`bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500 ${embebido ? 'hidden' : ''}`}>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <User className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 {t('contracts.contractParties', 'Contract Parties')}
@@ -778,7 +781,7 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
+            <div className={`bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500 ${embebido ? 'hidden' : ''}`}>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 {t('contracts.paymentDetails', 'Payment Details')}
@@ -836,7 +839,7 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
+            <div className={`bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500 ${embebido ? 'hidden' : ''}`}>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 {t('contracts.dates', 'Dates')}
@@ -885,6 +888,12 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                   </div>
                 </div>
 
+                {(isClient || isDoer) && (contract as any).aceptacion && (
+                  <p className="text-sm text-slate-700 dark:text-slate-200" data-testid="quien-acepto">
+                    {textoDeAceptacion((contract as any).aceptacion, isClient ? 'quien_publico' : 'quien_trabaja')}
+                  </p>
+                )}
+
                 {/* Aceptación de términos: se aceptan al contratar (el cliente al elegir al trabajador, el trabajador al postularse). */}
                 {(() => {
                   // Un contrato que ya empezó o terminó no puede tener los términos sin aceptar: se aceptaron al contratar, aunque el dato viejo no lo diga.
@@ -926,14 +935,14 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                 })()}
 
                 {/* El código de emparejamiento lo ven las dos partes (pedido del dueño, 2026-11-22) */}
-                {(isClient || isDoer) && contract.pairingCode && ['pending', 'ready', 'accepted', 'in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && (
+                {!embebido && (isClient || isDoer) && contract.pairingCode && ['pending', 'ready', 'accepted', 'in_progress', 'awaiting_confirmation'].includes(String(contract.status)) && (
                   <div className="border-t pt-3">
                     <CodigoDeEmparejamiento codigo={contract.pairingCode} vence={(contract as any).pairingExpiry} rol={isDoer ? 'trabajador' : 'cliente'} />
                   </div>
                 )}
 
                 {/* Verificación de Código de Emparejamiento */}
-                {contract.pairingCode && (
+                {!embebido && contract.pairingCode && (
                   <div className="border-t pt-3">
                     <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
                       <Key className="h-3.5 w-3.5" />
@@ -1052,10 +1061,11 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                               const elapsed = Date.now() - new Date(contract.startDate).getTime();
                               return elapsed < totalDuration * 0.3;
                             })()}
-                            className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            data-testid="terminar-el-trabajo"
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
                           >
-                            <Clock className="h-5 w-5" />
-                            {t('contracts.confirmChangeHours', 'Confirm / Change Hours Worked')}
+                            <CheckCircle className="h-5 w-5" />
+                            {isDoer ? t('contracts.finishWorkDoer', 'Completé el trabajo') : t('contracts.finishWorkClient', 'El trabajo está terminado: confirmar')}
                           </button>
                         ) : (
                           <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4 space-y-3">
@@ -1099,7 +1109,7 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                         {/* Soy quien debe revisar → botones confirmar/rechazar */}
                         {contract.confirmationProposedBy !== user?.id && (isClient || isDoer) && (
                           <div className="space-y-2">
-                            <button onClick={handleConfirmCompletion} disabled={confirmingWork} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <button data-testid="terminar-el-trabajo" onClick={handleConfirmCompletion} disabled={confirmingWork} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                               {confirmingWork ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-5 w-5" />}
                               {t('contracts.confirmAndRelease', 'Confirm and Release Payment')}
                             </button>

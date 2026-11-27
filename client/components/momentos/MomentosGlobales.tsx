@@ -107,7 +107,7 @@ export default function MomentosGlobales() {
               «{cobro.titulo}»{cobro.via === 'saldo' && cobro.monto !== null ? `: $ ${cobro.monto.toLocaleString('es-AR')} en tu saldo.` : ': el equipo registró la transferencia.'} Sumalo a tu portafolio para que la próxima persona vea cómo trabajás.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link to="/portfolio/create" onClick={() => cerrar(CLAVE_PRIMER_COBRO)} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800">Sumar a mi portafolio</Link>
+              <Link to="/my-jobs?tab=realizados" onClick={() => cerrar(CLAVE_PRIMER_COBRO)} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800">Mostrarlo en mi perfil</Link>
               <Link to={`/contracts/${cobro.contractId}`} className="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-800 dark:text-emerald-200">Ver el contrato</Link>
             </div>
           </section>

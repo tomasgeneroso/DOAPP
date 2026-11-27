@@ -17,8 +17,11 @@ export default function CarruselDeFotos({
   encabezado,
   avisarSiNoCargan = false,
   editarHref,
+  pies,
 }: {
   fotos: string[];
+  /** Pie de cada foto, por su dirección. */
+  pies?: Record<string, string> | null;
   titulo: string;
   /** Se llama al tocar la foto grande, con su dirección y su texto alternativo (para abrirla ampliada). */
   alAbrir?: (url: string, alt: string) => void;
@@ -154,6 +157,10 @@ export default function CarruselDeFotos({
           </>
         )}
       </div>
+
+      {pies?.[visibles[indice]] && (
+        <p key={visibles[indice]} className="animate-fadeIn mt-2 text-center text-sm text-slate-600 dark:text-slate-300" data-testid="pie-de-foto">{pies[visibles[indice]]}</p>
+      )}
 
       {/* Lo lee el lector de pantalla cada vez que cambia la foto */}
       <p className="sr-only" aria-live="polite">{`Foto ${indice + 1} de ${total}`}</p>

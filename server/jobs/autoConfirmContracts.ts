@@ -3,7 +3,6 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
-import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import emailService from '../services/email.js';
 import { montoParaElTrabajador } from '../services/payoutAmount.js';
@@ -14,6 +13,8 @@ import { avisarContratoAlChatDelEquipo } from '../services/chatDelEquipo.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { fallaDeTarea } from '../services/avisarFalla.js';
+import { anotarElCobroDelContrato } from '../services/quotePayment.js';
+import { disponibleDesdeDeUnCobro } from '../services/liberacionDeSaldo.js';
 
 /**
  * Horas en awaiting_confirmation antes de confirmar solo y liberar el escrow.
@@ -121,22 +122,18 @@ export function startAutoConfirmContractsJob() {
             contract.actualEndDate = contract.proposedEndTime || contract.endDate;
             await contract.save();
 
-            // Crear transacción de balance como pendiente (el admin debe verificar y procesar el pago)
+            // El cobro de quien trabajó: el mismo movimiento único que al confirmar a mano. Con varios lugares se acredita al saldo (antes quedaba «pendiente» para
+            // siempre y esas personas no cobraban); con un lugar queda pendiente hasta que el equipo transfiere.
             if (workerPaymentAmount > 0 && doer) {
-              const doerUser = await User.findByPk(doer.id);
-              const currentBalance = parseFloat(doerUser?.balanceArs as any) || 0;
-
-              // Crear transacción pendiente (no se acredita aún)
-              // Note: balanceAfter = balanceBefore because status is 'pending' - actual credit happens when admin processes
-              await BalanceTransaction.create({
-                userId: doer.id,
-                type: 'payment',
-                amount: workerPaymentAmount,
-                balanceBefore: currentBalance,
-                balanceAfter: currentBalance + workerPaymentAmount, // Expected balance after processing
-                description: `Pago pendiente por trabajo completado: ${job?.title || 'Contrato'}`,
-                relatedContractId: contract.id,
-                status: 'pending', // Pendiente de procesamiento por admin
+              const trabajoEntero = await Job.findByPk(contract.jobId, { attributes: ['id', 'title', 'maxWorkers'] });
+              const variosLugares = (Number(trabajoEntero?.maxWorkers) || 1) > 1;
+              await anotarElCobroDelContrato({
+                userId: String(doer.id),
+                contractId: String(contract.id),
+                monto: workerPaymentAmount,
+                descripcion: `Cobro por el trabajo «${trabajoEntero?.title || job?.title || 'Contrato'}»`,
+                alSaldo: variosLugares,
+                metadata: { jobId: String(contract.jobId), disponibleDesde: disponibleDesdeDeUnCobro(contract as any, pagoDelCliente as any), ...(variosLugares ? { isMultiWorker: true } : {}) },
               });
             }
 

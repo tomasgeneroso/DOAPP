@@ -9,6 +9,7 @@ import { body, validationResult } from "express-validator";
 import { uploadBlogCover, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML } from "../utils/sanitizer.js";
 import { contenidoParaMostrar } from "../utils/markdownToHtml.js";
+import { algunaEtiquetaContiene } from "../services/etiquetas.js";
 
 const router = express.Router();
 
@@ -40,6 +41,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
           { title: { [Op.iLike]: `%${search}%` } },
           { subtitle: { [Op.iLike]: `%${search}%` } },
           { content: { [Op.iLike]: `%${search}%` } },
+          algunaEtiquetaContiene('BlogPost', String(search)),
         ];
       }
 
@@ -93,6 +95,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         postWhere[Op.or] = [
           { title: { [Op.iLike]: `%${search}%` } },
           { description: { [Op.iLike]: `%${search}%` } },
+          algunaEtiquetaContiene('Post', String(search)),
         ];
       }
       if (tag) {

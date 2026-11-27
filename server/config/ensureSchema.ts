@@ -238,10 +238,16 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },
   // Portafolio: la puntuación que se dejó a cada trabajador al terminar el trabajo.
+  { label: 'posts.contract_ratings', sql: `ALTER TABLE posts ADD COLUMN IF NOT EXISTS contract_ratings JSONB NOT NULL DEFAULT '[]'::jsonb` },
   { label: 'portfolio_items.contract_ratings', sql: `ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS contract_ratings JSONB NOT NULL DEFAULT '[]'::jsonb` },
   // Trabajos eliminados: se guardan, no se borran (papelera de 30 días para quien publicó; el equipo los ve siempre).
   { label: 'jobs.deleted_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ` },
   { label: 'jobs.deleted_by', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS deleted_by UUID` },
+  // Quién aceptó cada postulación, pie de las fotos de un trabajo y dirección de destino (2026-11-27).
+  { label: 'proposals.approved_by', sql: `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS approved_by VARCHAR(12)` },
+  { label: 'proposals.approved_at', sql: `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ` },
+  { label: 'jobs.image_captions', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS image_captions JSONB NOT NULL DEFAULT '{}'::jsonb` },
+  { label: 'jobs.destination', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS destination JSONB` },
   // Publicaciones de trabajos terminados: a quién se etiquetó.
   { label: 'posts.tagged_users', sql: `ALTER TABLE posts ADD COLUMN IF NOT EXISTS tagged_users JSONB NOT NULL DEFAULT '[]'::jsonb` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---

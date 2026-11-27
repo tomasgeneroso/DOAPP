@@ -252,6 +252,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentType: "job_publication",
           paymentMethod: "bank_transfer",
           description: `Publicación: ${job.title}`,
+          metadata: { jobId: String(job.id), precioDelTrabajo: Number(job.price) },
           platformFee: publicationCost,
           platformFeePercentage: commissionResult.rate,
           processingCharge: split.processingCharge,
@@ -313,7 +314,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         // De qué trabajo es: cada intento queda atado a su trabajo desde que se crea (antes solo el último, a través del trabajo), así los intentos sin
         // completar se reconocen y se anidan bajo el último pago en las listas del equipo.
         jobId: job.id,
-        metadata: { jobId: String(job.id), userId, paymentType: 'job_publication' },
+        metadata: { jobId: String(job.id), userId, paymentType: 'job_publication', precioDelTrabajo: Number(job.price) },
         platformFee: publicationCost,
         platformFeePercentage: commissionResult.rate,
         processingCharge: split.processingCharge,

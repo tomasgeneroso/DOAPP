@@ -554,6 +554,11 @@ router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<v
       return;
     }
 
+    // `publicados=1`: solo los trabajos que esta persona compartió en su perfil (lo que se muestra ahí). Cada uno trae su publicación.
+    const { trabajosYaCompartidos } = await import("../services/etiquetasDePublicaciones.js");
+    const compartidos = await trabajosYaCompartidos(String(userId));
+    const soloPublicados = req.query.publicados === '1';
+
     // Build job where clause for category filter
     const jobWhere: any = {};
     if (category && category !== 'all') {
@@ -565,6 +570,7 @@ router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<v
       where: {
         doerId: userId,
         status: 'completed',
+        ...(soloPublicados ? { jobId: Object.keys(compartidos) } : {}),
       },
       include: [
         {
@@ -617,6 +623,7 @@ router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<v
       return {
         id: contract.id,
         completedAt: (contract as any).completedAt || contract.updatedAt,
+        publicacionId: job ? compartidos[String(job.id)] || null : null,
         price: contract.price,
         job: job ? {
           id: job.id,

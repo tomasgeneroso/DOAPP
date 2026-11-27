@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { chatDelEquipoCerrado } from "../services/chatDelEquipo.js";
+import { chatDelEquipoCerrado, cierreDelChat, cerrarSiElTrabajoYaTermino } from "../services/chatDelEquipo.js";
 import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Conversation } from "../models/sql/Conversation.model.js";
@@ -10,6 +10,7 @@ import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from 'sequelize';
 import { getIO } from "../services/socket.js";
+import { conEstadoActual } from "../services/tarjetasDelChat.js";
 
 const router = Router();
 
@@ -126,9 +127,12 @@ router.get("/conversations", protect, async (req: AuthRequest, res: Response): P
 
     const usersMap = new Map(participantUsers.map(u => [u.id, u]));
 
+    await cerrarSiElTrabajoYaTermino(conversations.filter((c) => (c.participants?.length || 0) > 2 || c.type === 'contract'));
+
     // Transform conversations to include participant objects
     const conversationsData = conversations.map(conv => {
-      const data = conv.toJSON();
+      const data: any = conv.toJSON();
+      data.cerrado = cierreDelChat(conv as any);
       data.participants = conv.participants.map(id => {
         const user = usersMap.get(id);
         return user ? {
@@ -225,8 +229,11 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
       attributes: ['id', 'name', 'avatar', 'username'],
     });
 
+    await cerrarSiElTrabajoYaTermino([conversation]);
+
     // Transform response to include participant objects
-    const conversationData = conversation.toJSON();
+    const conversationData: any = conversation.toJSON();
+    conversationData.cerrado = cierreDelChat(conversation as any);
     conversationData.participants = participantUsers.map(u => ({
       id: u.id,
       name: u.name,
@@ -609,7 +616,7 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
 
     res.json({
       success: true,
-      data: messages.reverse(), // Return in chronological order
+      data: await conEstadoActual(messages.reverse()), // En orden, y cada tarjeta con el estado de AHORA
       pagination: {
         page: Number(page),
         limit: Number(limit),

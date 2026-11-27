@@ -30,6 +30,7 @@ import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.j
 
 describe('terminar un contrato: una sola vez, y el trabajo termina con él', () => {
   let app: Express;
+  let app2: Express;
   let cliente: any, trabajador: any, otroTrabajador: any;
   const jobs: string[] = [];
   const contratos: string[] = [];
@@ -57,6 +58,9 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
     app = express();
     app.use(express.json());
     app.use('/api/contracts', (await import('../../server/routes/contracts.js')).default);
+    app2 = express();
+    app2.use(express.json());
+    app2.use('/api/balance', (await import('../../server/routes/balance.js')).default);
     cliente = await crearUsuario({ role: 'client' });
     trabajador = await crearUsuario({ role: 'doer' });
     otroTrabajador = await crearUsuario({ role: 'doer' });
@@ -186,6 +190,100 @@ describe('terminar un contrato: una sola vez, y el trabajo termina con él', () 
       await correrElCron();
       await correrElCron();
       expect(await BalanceTransaction.count({ where: { userId: trabajador.id, type: 'payment', relatedContractId: c.id } as any })).toBe(1);
+    });
+
+    // Lo que vio el dueño (captura del 2026-11-27): el mismo cobro dos veces. Un contrato ya cerrado y cobrado volvió a quedar abierto (un reclamo que se
+    // cierra restaura el estado anterior; un administrador puede cambiarlo) y al cerrarse de nuevo se anotó otra vez.
+    const cobrosDe = (doer: any, contractId: string) => BalanceTransaction.findAll({ where: { userId: doer.id, type: 'payment', relatedContractId: contractId } as any }) as Promise<any[]>;
+    const saldoDe = async (u: any) => Number(((await User.findByPk(u.id)) as any).balanceArs);
+    const reabrir = (id: string, extra: Record<string, unknown> = {}) => Contract.update({ status: 'awaiting_confirmation', awaitingConfirmationAt: hace(2), ...extra } as any, { where: { id } });
+
+    it('un contrato que se cerró, se reabrió y se volvió a cerrar tiene UN solo movimiento de cobro (varios lugares: acreditado una vez)', async () => {
+      const t = await trabajo({ maxWorkers: 2 });
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer);
+      await confirmar(c.id, cliente);
+      expect((await confirmar(c.id, doer)).status).toBe(200);
+      expect(await saldoDe(doer)).toBe(2500);
+      await reabrir(c.id);
+      await correrElCron();
+      expect((await contratoDe(c.id)).status).toBe('completed');
+      const cobros = await cobrosDe(doer, c.id);
+      expect(cobros.map((x) => x.status)).toEqual(['completed']);
+      expect(await saldoDe(doer)).toBe(2500);
+    });
+
+    it('reabierto y vuelto a confirmar a mano tampoco paga dos veces', async () => {
+      const t = await trabajo({ maxWorkers: 2 });
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer);
+      await confirmar(c.id, cliente);
+      await confirmar(c.id, doer);
+      await reabrir(c.id, { clientConfirmed: false });
+      expect((await confirmar(c.id, cliente)).status).toBe(200);
+      expect(await saldoDe(doer)).toBe(2500);
+      expect(await cobrosDe(doer, c.id)).toHaveLength(1);
+    });
+
+    it('un lugar: queda UN movimiento pendiente (no suma al saldo), se cierre las veces que se cierre y por el camino que sea', async () => {
+      const t = await trabajo();
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer, { price: 5000 });
+      await confirmar(c.id, cliente);
+      await confirmar(c.id, doer);
+      expect((await cobrosDe(doer, c.id)).map((x) => x.status)).toEqual(['pending']);
+      await reabrir(c.id);
+      await correrElCron();
+      expect((await cobrosDe(doer, c.id)).map((x) => x.status)).toEqual(['pending']);
+      expect(await saldoDe(doer)).toBe(0);
+    });
+
+    it('lo que ya había quedado repetido: el historial muestra una sola línea, y la revisión la anula sin tocar el saldo y avisa lo acreditado de más', async () => {
+      const t = await trabajo({ maxWorkers: 2 });
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer);
+      await confirmar(c.id, cliente);
+      await confirmar(c.id, doer);
+      // Como quedó en la base antes del arreglo: además del acreditado, una línea «pendiente» del mismo cobro.
+      const vieja: any = await BalanceTransaction.create({ userId: doer.id, type: 'payment', amount: 2500, balanceBefore: 2500, balanceAfter: 5000, status: 'pending', description: 'Pago pendiente por trabajo completado: X', relatedContractId: c.id } as any);
+      const historial = async () => (await request(app2).get('/api/balance/transactions').set(como(doer))).body.transactions.filter((x: any) => x.relatedContractId === c.id);
+      expect((await historial()).map((x: any) => x.status)).toEqual(['completed']);
+
+      const { revisarCobrosDeContratos } = await import('../../server/services/cobrosDelTrabajador.js');
+      const delContrato = (h: any[]) => h.filter((x) => x.contractId === c.id);
+      expect(delContrato(await revisarCobrosDeContratos(false))).toMatchObject([{ tipo: 'repetido', corregido: false }]);
+      expect(((await BalanceTransaction.findByPk(vieja.id)) as any).status).toBe('pending');
+      expect(delContrato(await revisarCobrosDeContratos(true))).toMatchObject([{ tipo: 'repetido', corregido: true }]);
+      expect(((await BalanceTransaction.findByPk(vieja.id)) as any).status).toBe('failed');
+      expect(await saldoDe(doer)).toBe(2500);
+      expect(delContrato(await revisarCobrosDeContratos(true))).toEqual([]);
+
+      await BalanceTransaction.create({ userId: doer.id, type: 'payment', amount: 2500, balanceBefore: 2500, balanceAfter: 5000, status: 'completed', description: 'crédito doble viejo', relatedContractId: c.id } as any);
+      expect(delContrato(await revisarCobrosDeContratos(true))).toMatchObject([{ tipo: 'acreditado_dos_veces', monto: 2500, corregido: false }]);
+    });
+
+    it('la revisión acredita una sola vez un cobro de varios lugares que quedó pendiente para siempre', async () => {
+      const t = await trabajo({ maxWorkers: 2 });
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer, { status: 'completed', paymentStatus: 'pending_payout', clientConfirmed: true, doerConfirmed: true });
+      await BalanceTransaction.create({ userId: doer.id, type: 'payment', amount: 2500, balanceBefore: 0, balanceAfter: 2500, status: 'pending', description: 'Pago pendiente por trabajo completado: X', relatedContractId: c.id } as any);
+      const { revisarCobrosDeContratos } = await import('../../server/services/cobrosDelTrabajador.js');
+      const delContrato = (h: any[]) => h.filter((x) => x.contractId === c.id);
+      expect(delContrato(await revisarCobrosDeContratos(false))).toMatchObject([{ tipo: 'sin_acreditar', corregido: false }]);
+      expect(await saldoDe(doer)).toBe(0);
+      await revisarCobrosDeContratos(true);
+      await revisarCobrosDeContratos(true);
+      expect(await saldoDe(doer)).toBe(2500);
+      expect((await cobrosDe(doer, c.id)).map((x) => x.status)).toEqual(['completed']);
+    });
+
+    it('varios lugares confirmado solo (a las 24 h): el cobro se acredita al saldo igual que confirmando a mano', async () => {
+      const t = await trabajo({ maxWorkers: 2 });
+      const doer: any = await crearUsuario({ role: 'doer' });
+      const c = await contrato(t.id, doer, { status: 'awaiting_confirmation', awaitingConfirmationAt: hace(2), clientConfirmed: true, doerConfirmed: false });
+      await correrElCron();
+      expect((await cobrosDe(doer, c.id)).map((x) => x.status)).toEqual(['completed']);
+      expect(await saldoDe(doer)).toBe(2500);
     });
   });
 });

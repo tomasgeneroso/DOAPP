@@ -6,6 +6,9 @@ import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
 import { limitadorDeFormulariosPublicos } from '../middleware/security.js';
 import { Op } from 'sequelize';
+import emailService from '../services/email.js';
+import { correoAlEquipo } from '../utils/remitenteDeCorreo.js';
+import { escaparHtml } from '../utils/escaparHtml.js';
 
 const router = express.Router();
 
@@ -66,8 +69,14 @@ router.post(
         userAgent,
       });
 
-      // TODO: Send email notification to admin
-      // TODO: Send confirmation email to user
+      // El mensaje llega a la casilla de soporte; «Responder» le escribe a quien lo mandó. (No se manda copia a la dirección que escribió: el formulario es público y
+      // serviría para hacerle llegar correos de DOAPP a cualquiera.)
+      const asuntos: Record<string, string> = { support: 'Soporte', advertising: 'Publicidad', general: 'Consulta o sugerencia', complaint: 'Reclamo', other: 'Otro' };
+      void Promise.resolve(emailService.sendEmail(correoAlEquipo({
+        responderA: String(req.body.email),
+        asunto: `[Contacto: ${asuntos[sanitizedData.subject] || sanitizedData.subject}] mensaje desde DOAPP`,
+        html: `<p>Llegó un mensaje desde el formulario de contacto.</p><ul><li><strong>De:</strong> ${escaparHtml(req.body.name)} (${escaparHtml(req.body.email)})</li><li><strong>Tema:</strong> ${escaparHtml(asuntos[sanitizedData.subject] || sanitizedData.subject)}</li></ul><p style="white-space:pre-wrap">${escaparHtml(req.body.message)}</p><p>Contestá con «Responder».</p>`,
+      }))).catch((e: unknown) => console.error('No se pudo avisar a soporte del mensaje de contacto:', (e as Error)?.message));
 
       res.status(201).json({
         success: true,
