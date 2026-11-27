@@ -7,6 +7,7 @@ import emailService from '../services/email.js';
 import fcmService from '../services/fcm.js';
 import { Op } from 'sequelize';
 import { enmascararCorreo } from '../../shared/seguridad/datosPersonales.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job to send confirmation reminders when job end date has passed
@@ -164,13 +165,13 @@ export function startConfirmationReminderJob() {
           remindersSent++;
 
         } catch (error) {
-          console.error(`❌ [CRON] Error sending reminder for contract ${contract.id}:`, error);
+          fallaDeTarea('sendConfirmationReminders', `❌ [CRON] Error sending reminder for contract ${contract.id}:`, error);
         }
       }
 
       console.log(`🎯 [CRON] Confirmation reminders completed: ${remindersSent} contracts processed`);
     } catch (error) {
-      console.error('❌ [CRON] Error in confirmation reminder job:', error);
+      fallaDeTarea('sendConfirmationReminders', '❌ [CRON] Error in confirmation reminder job:', error);
     }
   });
 

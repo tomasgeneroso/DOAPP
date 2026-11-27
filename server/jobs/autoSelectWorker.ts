@@ -10,6 +10,7 @@ import { calculateCommission } from '../services/commissionService.js';
 import { intentarDevolverPresupuesto } from '../services/presupuestoDelTrabajo.js';
 import { getIO } from '../services/socket.js';
 import { Op, fn, col } from 'sequelize';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job para auto-seleccionar trabajador 24h antes del inicio del trabajo
@@ -330,7 +331,7 @@ export function startAutoSelectWorkerJob() {
             `✅ [CRON] Auto-seleccionados ${pendingProposals.length} trabajador(es) para trabajo "${job.title}"`
           );
         } catch (error) {
-          console.error(`❌ [CRON] Error auto-seleccionando para trabajo ${job.id}:`, error);
+          fallaDeTarea('autoSelectWorker', `❌ [CRON] Error auto-seleccionando para trabajo ${job.id}:`, error);
         }
       }
 
@@ -338,7 +339,7 @@ export function startAutoSelectWorkerJob() {
         `🎯 [CRON] Proceso completado: ${autoSelectedCount}/${jobsNeedingSelection.length} trabajos con trabajador auto-seleccionado`
       );
     } catch (error) {
-      console.error('❌ [CRON] Error en job de auto-selección:', error);
+      fallaDeTarea('autoSelectWorker', '❌ [CRON] Error en job de auto-selección:', error);
     }
   });
 
@@ -379,13 +380,13 @@ export function startAutoSelectWorkerJob() {
           // barrido de devolución de presupuesto lo reintenta).
           if ((Number(job.maxWorkers) || 1) > 1) await intentarDevolverPresupuesto(String(job.id));
         } catch (error) {
-          console.error(`❌ [CRON] Error activando trabajo ${job.id}:`, error);
+          fallaDeTarea('autoSelectWorker', `❌ [CRON] Error activando trabajo ${job.id}:`, error);
         }
       }
 
       console.log(`🎯 [CRON] Proceso completado: ${jobsToActivate.length} trabajos activados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de activación:', error);
+      fallaDeTarea('autoSelectWorker', '❌ [CRON] Error en job de activación:', error);
     }
   });
 

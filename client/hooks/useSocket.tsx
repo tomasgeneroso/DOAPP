@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./useAuth";
+import { reportarFalla } from "../utils/reportarFalla";
 
 // Configuración de URL para Socket.io
 // En desarrollo, usar el mismo host (proxy de Vite lo redirigirá a :5000)
@@ -271,6 +272,8 @@ export function useSocket() {
         console.warn(`⚠️ Socket: Gave up after ${MAX_RECONNECT_ATTEMPTS} failed attempts. Will retry on user action.`);
         connectionGaveUp = true;
         socketInstance.disconnect();
+        // Una sesión vencida no es una falla de los avisos en vivo.
+        if (!/authentication/i.test(error.message)) reportarFalla('tiempo_real');
         return;
       }
 

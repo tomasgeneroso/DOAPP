@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { vencerOrdenesViejas } from '../services/pagoAlTerminar.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Vence las órdenes de pago al terminar que nadie pagó.
@@ -20,7 +21,7 @@ export function startVencerOrdenesDePagoJob() {
     } catch (e: any) {
       // Que falle no puede tumbar el proceso: es limpieza, no una operación de
       // dinero. Queda el aviso para que se note si falla siempre.
-      console.error('❌ No se pudieron vencer las órdenes de pago:', e?.message);
+      fallaDeTarea('vencerOrdenesDePago', '❌ No se pudieron vencer las órdenes de pago:', e?.message);
     }
   });
 

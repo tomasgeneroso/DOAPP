@@ -4,6 +4,7 @@ import { User } from "../models/sql/User.model.js";
 import fcmService from "./fcm.js";
 import emailService from "./email.js";
 import { Op } from 'sequelize';
+import { fallaDeTarea } from './avisarFalla.js';
 
 class EscrowAutomationService {
   /**
@@ -53,7 +54,7 @@ class EscrowAutomationService {
         await this.releaseEscrowAutomatically(contract);
       }
     } catch (error) {
-      console.error("Error checking contracts for auto-release:", error);
+      fallaDeTarea('escrowAutomation', "Error checking contracts for auto-release:", error);
     }
   }
 
@@ -113,7 +114,7 @@ class EscrowAutomationService {
         );
       }
     } catch (error) {
-      console.error(`Error releasing escrow for contract ${contract.id}:`, error);
+      fallaDeTarea('escrowAutomation', `Error releasing escrow for contract ${contract.id}:`, error);
     }
   }
 
@@ -175,7 +176,7 @@ class EscrowAutomationService {
         }
       }
     } catch (error) {
-      console.error("Error sending approval reminders:", error);
+      fallaDeTarea('escrowAutomation', "Error sending approval reminders:", error);
     }
   }
 
@@ -230,7 +231,7 @@ class EscrowAutomationService {
         }
       }
     } catch (error) {
-      console.error("Error checking overdue contracts:", error);
+      fallaDeTarea('escrowAutomation', "Error checking overdue contracts:", error);
     }
   }
 }

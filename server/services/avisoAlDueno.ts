@@ -72,8 +72,21 @@ const fechaLegible = (ms: number): string => new Date(ms).toLocaleString('es-AR'
 
 /** Los correos de quienes son dueños. Sin duplicados y sin vacíos. */
 async function correosDeLosDuenos(): Promise<string[]> {
-  const duenos: Array<{ email?: string | null }> = await User.findAll({ where: { adminRole: { [Op.eq]: 'owner' } } as never, attributes: ['email'] });
-  return [...new Set(duenos.map((d) => String(d.email ?? '').trim()).filter((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)))];
+  try {
+    const duenos: Array<{ email?: string | null }> = await User.findAll({ where: { adminRole: { [Op.eq]: 'owner' } } as never, attributes: ['email'] });
+    ultimosDuenos = [...new Set(duenos.map((d) => String(d.email ?? '').trim()).filter((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)))];
+  } catch (e) {
+    // Justo cuando lo caído es la base, la consulta falla: se usa la última lista que se leyó (solo en memoria).
+    if (ultimosDuenos.length === 0) throw e;
+  }
+  return ultimosDuenos;
+}
+
+let ultimosDuenos: string[] = [];
+
+/** Se llama al arrancar para tener la lista a mano antes de que haga falta. */
+export async function recordarALosDuenos(): Promise<void> {
+  await correosDeLosDuenos().catch(() => undefined);
 }
 
 function armarCorreo(aviso: AvisoAlDueno, ahora: number, omitidos: number): { html: string; text: string } {

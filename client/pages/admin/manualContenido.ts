@@ -219,6 +219,21 @@ export const MANUAL: EntradaManual[] = [
     ],
   },
   {
+    id: "avisos-de-fallas",
+    titulo: "Avisos cuando algo falla",
+    roles: ["owner"],
+    resumen: "Qué partes de DOAPP avisan por correo, cómo probarlo y qué queda afuera.",
+    claves: ["aviso", "falla", "caído", "error", "correo", "mapas", "fotos", "pagos", "salud", "monitor", "estado"],
+    cuerpo: [
+      "A quienes tienen el rol <b>owner</b> les llega un correo cuando falla: la base de datos, el envío de correos, las fotos y el disco, la búsqueda de direcciones, los mapas, Mercado Pago, la cotización, las notificaciones del teléfono, el ingreso con Google o X, los avisos en vivo, una pantalla de la web, una tarea automática o cualquier pedido que el servidor responda con error. Cada correo dice a quién afecta y qué hacer.",
+      "Para que no sea ruido: un tropiezo suelto no avisa (hacen falta 3 en 15 minutos, 2 chequeos seguidos, o 3 conexiones distintas si lo cuenta el navegador). El mismo problema no se repite hasta dentro de 6 horas, y cuando vuelve a andar llega otro correo con cuánto duró.",
+      "<b>Si lo que falla es el correo</b>, no puede avisar por correo: queda el aviso dentro de DOAPP (la campanita) y el correo llega cuando vuelve.",
+      "<b>Probarlo</b>, en el servidor: <code>npx tsx server/scripts/estadoDeComponentes.ts</code> prueba cada parte ahora y dice cuáles andan. Agregando <code>--probar-aviso</code> manda además un correo de prueba.",
+      "Solo funciona en los servidores (en staging el asunto empieza con [STAGING]).",
+      "<b>Queda afuera:</b> si se cae el servidor entero (VPS, nginx o Cloudflare), DOAPP no puede avisar de sí mismo. Para eso hace falta un vigilante externo que consulte <code>https://doapparg.com/api/health</code> cada pocos minutos.",
+    ],
+  },
+  {
     id: "clave-de-panel",
     titulo: "La clave de panel",
     roles: ["admin", "support", "dpo", "marketing"],

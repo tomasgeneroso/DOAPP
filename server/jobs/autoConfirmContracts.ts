@@ -13,6 +13,7 @@ import { confirmacionDetenidaPorProblema } from '../services/problemasDelTrabajo
 import { avisarContratoAlChatDelEquipo } from '../services/chatDelEquipo.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Horas en awaiting_confirmation antes de confirmar solo y liberar el escrow.
@@ -223,7 +224,7 @@ export function startAutoConfirmContractsJob() {
 
             console.log(`✅ [CRON] Contrato "${contract.id}" auto-confirmado. Pago de $${workerPaymentAmount} pendiente de procesamiento para ${doer?.name}`);
           } catch (error) {
-            console.error(`❌ [CRON] Error auto-confirmando contrato ${contract.id}:`, error);
+            fallaDeTarea('autoConfirmContracts', `❌ [CRON] Error auto-confirmando contrato ${contract.id}:`, error);
           }
         }
       } else {
@@ -232,7 +233,7 @@ export function startAutoConfirmContractsJob() {
 
       console.log(`🎯 [CRON] Proceso de auto-confirmación completado: ${contractsToAutoConfirm.length} contratos procesados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de auto-confirmación:', error);
+      fallaDeTarea('autoConfirmContracts', '❌ [CRON] Error en job de auto-confirmación:', error);
     }
   });
 

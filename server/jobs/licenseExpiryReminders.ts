@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Recordatorios de vencimiento de matrícula (Centro Profesional · SUPER PRO).
@@ -45,7 +46,7 @@ export function startLicenseExpiryReminderJob() {
             to: u.email,
             subject: `${title} · DOAPP`,
             html: `<p>Hola ${u.name || ''},</p><p>${message}</p><p>Podés actualizar tu matrícula desde tu <strong>Centro Profesional</strong> en DOAPP.</p>`,
-          }).catch((e) => console.error('[CRON] license email error:', e?.message));
+          }).catch((e) => fallaDeTarea('licenseExpiryReminders', '[CRON] license email error:', e?.message));
         }
 
         await Notification.create({
@@ -55,14 +56,14 @@ export function startLicenseExpiryReminderJob() {
           title,
           message,
           actionText: 'Ver Centro Profesional',
-        } as any).catch((e) => console.error('[CRON] license notification error:', e?.message));
+        } as any).catch((e) => fallaDeTarea('licenseExpiryReminders', '[CRON] license notification error:', e?.message));
 
         sent += 1;
       }
 
       if (sent > 0) console.log(`🔔 [CRON] Recordatorios de matrícula enviados: ${sent}`);
     } catch (error) {
-      console.error('[CRON] licenseExpiryReminders error:', error);
+      fallaDeTarea('licenseExpiryReminders', '[CRON] licenseExpiryReminders error:', error);
     }
   });
 

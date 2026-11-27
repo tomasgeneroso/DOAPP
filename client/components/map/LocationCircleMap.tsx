@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
 import { aCoordenada, puntoDeUnaZona } from '../../utils/coordenadas';
+import { reportarFalla, vigilarMapa } from '../../utils/reportarFalla';
 
 interface LocationCircleMapProps {
   location: string;
@@ -101,6 +102,7 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
         // Cargar Leaflet dinámicamente
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onerror = () => reportarFalla('mapas');
         document.head.appendChild(script);
 
         const link = document.createElement('link');
@@ -123,10 +125,10 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
       mapInstanceRef.current = map;
 
       // Añadir capa de mapa (OpenStreetMap)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      vigilarMapa(L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
-      }).addTo(map);
+      })).addTo(map);
 
       // Dibujar círculo de 1km
       L.circle([lat, lng], {

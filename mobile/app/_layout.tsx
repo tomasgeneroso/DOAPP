@@ -10,6 +10,10 @@ import { useSocket } from '../hooks/useSocket';
 import socketService from '../services/socket';
 import { useLatidoDeUso } from '../hooks/useLatidoDeUso';
 import AvisoDePoliticas from '../components/AvisoDePoliticas';
+import { reportarFalla } from '../services/reportarFalla';
+import { alFallarElBuscador } from '../../shared/geo/direcciones';
+
+alFallarElBuscador(() => reportarFalla('direcciones'));
 
 function AppContent() {
   const { isDarkMode } = useTheme();

@@ -6,6 +6,7 @@
 
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { binanceVigente } from './datosDeCobro.js';
+import { fallaDe } from './avisarFalla.js';
 
 export type PaymentProvider = 'mercadopago' | 'bank_transfer' | 'binance';
 
@@ -193,6 +194,7 @@ class MercadoPagoPaymentService {
       };
     } catch (error: any) {
       console.error(`❌ Error creating payment with ${provider}:`, error);
+      fallaDe('pagos', error?.message || error);
       throw new Error(`Failed to create payment: ${error.message || 'Unknown error'}`);
     }
   }
@@ -236,6 +238,7 @@ class MercadoPagoPaymentService {
       };
     } catch (error: any) {
       console.error('❌ Error creating Binance payment:', error);
+      fallaDe('pagos', error?.message || error);
       throw new Error(`Binance payment failed: ${error.message}`);
     }
   }
@@ -294,6 +297,7 @@ class MercadoPagoPaymentService {
       };
     } catch (error: any) {
       console.error(`Error fetching payment ${paymentId}:`, error);
+      fallaDe('pagos', error?.message || error);
       throw error;
     }
   }
@@ -400,6 +404,7 @@ class MercadoPagoPaymentService {
         error?.message ||
         'error desconocido';
       console.error(`❌ Falló la devolución del pago ${paymentId}: ${detalle}`);
+      fallaDe('pagos', error?.message || error);
       throw new Error(`No se pudo procesar la devolución: ${detalle}`);
     }
   }
@@ -437,6 +442,7 @@ class MercadoPagoPaymentService {
       };
     } catch (error: any) {
       console.error(`Error processing webhook for ${provider}:`, error);
+      fallaDe('pagos', error?.message || error);
       throw error;
     }
   }

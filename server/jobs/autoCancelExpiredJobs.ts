@@ -7,6 +7,7 @@ import { Proposal } from '../models/sql/Proposal.model.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
 import { publicacionDevueltaPorCancelacion } from '../services/creditoDePublicacion.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Process a single expired job - cancel it and notify the owner
@@ -53,7 +54,7 @@ async function processExpiredJob(job: Job, sendEmail: boolean = true): Promise<b
           motivo: job.cancellationReason,
         });
       } catch (e: any) {
-        console.error(`❌ No se pudo liquidar la cancelacion automatica del trabajo ${job.id}:`, e.message);
+        fallaDeTarea('autoCancelExpiredJobs', `❌ No se pudo liquidar la cancelacion automatica del trabajo ${job.id}:`, e.message);
       }
     }
 
@@ -171,7 +172,7 @@ async function processExpiredJob(job: Job, sendEmail: boolean = true): Promise<b
     );
     return true;
   } catch (error) {
-    console.error(`❌ Error auto-cancelando trabajo ${job.id}:`, error);
+    fallaDeTarea('autoCancelExpiredJobs', `❌ Error auto-cancelando trabajo ${job.id}:`, error);
     return false;
   }
 }
@@ -214,7 +215,7 @@ export async function checkAndProcessUserExpiredJobs(userId: string): Promise<nu
 
     return cancelledCount;
   } catch (error) {
-    console.error(`❌ Error checking expired jobs for user ${userId}:`, error);
+    fallaDeTarea('autoCancelExpiredJobs', `❌ Error checking expired jobs for user ${userId}:`, error);
     return 0;
   }
 }
@@ -268,7 +269,7 @@ async function checkAndProcessAllExpiredJobs(): Promise<void> {
       `🎯 [CRON] Proceso completado: ${cancelledCount}/${expiredJobs.length} trabajos auto-cancelados`
     );
   } catch (error) {
-    console.error('❌ [CRON] Error en job de auto-cancelación:', error);
+    fallaDeTarea('autoCancelExpiredJobs', '❌ [CRON] Error en job de auto-cancelación:', error);
   }
 }
 
@@ -392,11 +393,11 @@ async function autoCompleteExpiredInProgressJobs(): Promise<void> {
 
         console.log(`✅ [CRON] Trabajo "${job.title}" (${job.id}) movido a awaiting_confirmation por ausencia del cliente`);
       } catch (err) {
-        console.error(`❌ [CRON] Error procesando trabajo vencido ${job.id}:`, err);
+        fallaDeTarea('autoCancelExpiredJobs', `❌ [CRON] Error procesando trabajo vencido ${job.id}:`, err);
       }
     }
   } catch (error) {
-    console.error('❌ [CRON] Error en auto-complete de trabajos vencidos:', error);
+    fallaDeTarea('autoCancelExpiredJobs', '❌ [CRON] Error en auto-complete de trabajos vencidos:', error);
   }
 }
 

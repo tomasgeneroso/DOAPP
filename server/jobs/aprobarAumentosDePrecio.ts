@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { aprobarAumentosVencidos } from '../services/aumentoDePrecio.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Aprueba solos los aumentos de precio pagados que un administrador no revisó a tiempo.
@@ -15,7 +16,7 @@ export function startAprobarAumentosDePrecioJob() {
       await aprobarAumentosVencidos();
     } catch (e: any) {
       // Que falle no tumba el proceso; el aumento sigue esperando y la próxima corrida lo vuelve a intentar.
-      console.error('❌ No se pudieron aprobar los aumentos de precio vencidos:', e?.message);
+      fallaDeTarea('aprobarAumentosDePrecio', '❌ No se pudieron aprobar los aumentos de precio vencidos:', e?.message);
     }
   });
 

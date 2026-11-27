@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { iniciarContratosQueLlegaronASuHora, cerrarContratosQueTerminaron } from '../services/cicloDelContrato.js';
 import { completarTrabajosYaTerminados } from '../services/trabajoTerminado.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cada 5 minutos: empieza los contratos a los que les llegó la hora de inicio y pasa a «esperando confirmación» los que llegaron a su hora de fin sin
@@ -15,7 +16,7 @@ export function startCicloDelContratoJob() {
       const trabajosCerrados = await completarTrabajosYaTerminados();
       if (empezaron || terminaron || trabajosCerrados) console.log(`🔄 [CRON] Ciclo del contrato: ${empezaron} empezaron, ${terminaron} terminaron, ${trabajosCerrados} trabajos cerrados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en el ciclo del contrato:', error);
+      fallaDeTarea('cicloDelContrato', '❌ [CRON] Error en el ciclo del contrato:', error);
     }
   });
   console.log('✅ [CRON] Ciclo del contrato iniciado (cada 5 minutos)');

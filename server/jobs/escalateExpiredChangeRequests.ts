@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { escalarSolicitudesVencidas, HORAS_PARA_RESPONDER } from '../services/solicitudesDeCambio.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job para escalar a soporte las solicitudes de cambio de contrato sin respuesta.
@@ -18,7 +19,7 @@ export function startEscalateExpiredChangeRequestsJob() {
       }
       console.log(`🎯 [CRON] Solicitudes escaladas: ${escaladas}${fallidas ? ` · con error: ${fallidas}` : ''}`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de escalación:', error);
+      fallaDeTarea('escalateExpiredChangeRequests', '❌ [CRON] Error en job de escalación:', error);
     }
   });
 

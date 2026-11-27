@@ -4,6 +4,7 @@ import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job para enviar recordatorios antes del inicio del trabajo
@@ -111,13 +112,13 @@ export function startJobReminderJob() {
             console.log(`✅ [CRON] Recordatorio 2h enviado para trabajo "${job.title}"`);
           }
         } catch (error) {
-          console.error(`❌ [CRON] Error procesando recordatorio para trabajo ${job.id}:`, error);
+          fallaDeTarea('jobReminders', `❌ [CRON] Error procesando recordatorio para trabajo ${job.id}:`, error);
         }
       }
 
       console.log(`🎯 [CRON] Proceso de recordatorios completado: ${remindersSent} recordatorios enviados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de recordatorios:', error);
+      fallaDeTarea('jobReminders', '❌ [CRON] Error en job de recordatorios:', error);
     }
   });
 

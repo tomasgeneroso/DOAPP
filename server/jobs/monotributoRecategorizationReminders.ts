@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Recordatorio de recategorización de monotributo (Centro Profesional · SUPER PRO).
@@ -39,7 +40,7 @@ export function startMonotributoRecategorizationReminderJob() {
               subject: `${title} · DOAPP`,
               html: `<p>Hola ${u.name || ''},</p><p>${message}</p><p>Recordá que esto es orientativo: ante dudas, consultá con tu contador.</p>`,
             })
-            .catch((e) => console.error('[CRON] recat email error:', e?.message));
+            .catch((e) => fallaDeTarea('monotributoRecategorizationReminders', '[CRON] recat email error:', e?.message));
         }
 
         await Notification.create({
@@ -49,14 +50,14 @@ export function startMonotributoRecategorizationReminderJob() {
           title,
           message,
           actionText: 'Ver Centro Profesional',
-        } as any).catch((e) => console.error('[CRON] recat notification error:', e?.message));
+        } as any).catch((e) => fallaDeTarea('monotributoRecategorizationReminders', '[CRON] recat notification error:', e?.message));
 
         sent += 1;
       }
 
       if (sent > 0) console.log(`🔔 [CRON] Recordatorios de recategorización enviados: ${sent}`);
     } catch (error) {
-      console.error('[CRON] monotributoRecategorizationReminders error:', error);
+      fallaDeTarea('monotributoRecategorizationReminders', '[CRON] monotributoRecategorizationReminders error:', error);
     }
   });
 

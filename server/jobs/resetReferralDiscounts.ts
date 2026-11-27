@@ -8,6 +8,7 @@ import { beneficiosPro } from '../../shared/constants/beneficiosPro.js';
 import { Op } from 'sequelize';
 import { limpiarCampos, valoresAnteriores } from '../utils/limpiarCampos.js';
 import { logEvento } from '../utils/auditLog.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job para resetear los descuentos de comisión por referidos que expiraron.
@@ -135,13 +136,13 @@ export function startResetReferralDiscountsJob() {
           resetCount++;
           console.log(`🔄 [CRON] Reseteado descuento para usuario ${user.id}`);
         } catch (error) {
-          console.error(`❌ [CRON] Error reseteando descuento para usuario ${user.id}:`, error);
+          fallaDeTarea('resetReferralDiscounts', `❌ [CRON] Error reseteando descuento para usuario ${user.id}:`, error);
         }
       }
 
       console.log(`🎯 [CRON] Proceso completado: ${resetCount}/${usersWithExpiredDiscount.length} descuentos reseteados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de reset de descuentos:', error);
+      fallaDeTarea('resetReferralDiscounts', '❌ [CRON] Error en job de reset de descuentos:', error);
     }
   });
 

@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { esErrorDeVersionVieja, recargarPorVersionNueva } from '../utils/versionNuevaDeLaWeb';
+import { reportarFalla } from '../utils/reportarFalla';
 
 interface Props {
   children: ReactNode;
@@ -40,6 +41,7 @@ class ErrorBoundary extends Component<Props, State> {
 
     // Una versión vieja de la pantalla (deploy nuevo): se trae la nueva sola, una vez.
     if (esErrorDeVersionVieja(error)) void recargarPorVersionNueva();
+    else reportarFalla('pantalla');
 
     // Llamar callback si existe
     if (this.props.onError) {

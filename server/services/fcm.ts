@@ -3,6 +3,7 @@ import { config } from "../config/env";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
+import { fallaDe } from "./avisarFalla.js";
 
 interface NotificationPayload {
   userId: string;
@@ -169,6 +170,7 @@ class FCMService {
       return response.successCount > 0;
     } catch (error) {
       console.error("Error sending push notification:", error);
+      fallaDe("notificaciones", error);
       return false;
     }
   }
@@ -223,6 +225,7 @@ class FCMService {
       return true;
     } catch (error) {
       console.error("Error sending topic notification:", error);
+      fallaDe("notificaciones", error);
       return false;
     }
   }

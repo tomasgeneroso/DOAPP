@@ -7,6 +7,7 @@ import {
   sanearArea,
   type AreaEnMapa,
 } from '../../../shared/perfiles/zonaDeTrabajo';
+import { reportarFalla, vigilarMapa } from '../../utils/reportarFalla';
 
 /**
  * Marcar en un mapa la zona donde se trabaja (pedido del dueño, 2026-11-19): un RADIO (se toca el centro y se elige cuántos km) o un POLÍGONO (se tocan los vértices, en orden).
@@ -46,12 +47,18 @@ export default function MapaDeZonas({ centroInicial, guardadas, irA, alAgregar, 
   useEffect(() => {
     let vivo = true;
     (async () => {
-      const leaflet: any = (await import('leaflet')).default ?? (await import('leaflet'));
-      await import('leaflet/dist/leaflet.css');
+      let leaflet: any;
+      try {
+        leaflet = (await import('leaflet')).default ?? (await import('leaflet'));
+        await import('leaflet/dist/leaflet.css');
+      } catch {
+        reportarFalla('mapas');
+        return;
+      }
       if (!vivo || !contenedor.current) return;
       L.current = leaflet;
       const m = leaflet.map(contenedor.current, { scrollWheelZoom: false }).setView(centroInicial ? [centroInicial.lat, centroInicial.lng] : ARGENTINA, centroInicial ? 11 : 5);
-      leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 18 }).addTo(m);
+      vigilarMapa(leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 18 })).addTo(m);
       capaGuardadas.current = leaflet.layerGroup().addTo(m);
       capaNueva.current = leaflet.layerGroup().addTo(m);
       m.on('click', (e: any) => {

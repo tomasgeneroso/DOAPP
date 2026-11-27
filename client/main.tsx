@@ -6,6 +6,8 @@ import "./i18n";
 import "./global.css";
 import "./styles/datepicker.css";
 import { puedeRecargarSola, recargarPorVersionNueva } from "./utils/versionNuevaDeLaWeb";
+import { instalarVigiaDeFotos, reportarFalla } from './utils/reportarFalla';
+import { alFallarElBuscador } from '../shared/geo/direcciones';
 // Note: quill (CreatePost) and leaflet (LocationPinMap) CSS are imported inside
 // those lazy components so they stay out of the critical-path bundle.
 
@@ -20,4 +22,7 @@ window.addEventListener("vite:preloadError", () => {
 
 limpiarTokenViejo(); // quedó un token real de antes del cambio: se reemplaza por el marcador (utils/sesion.ts)
 instalarFotosRotas();
+// Lo que falla en el navegador se le cuenta al servidor para que avise (solo el nombre de la parte).
+instalarVigiaDeFotos();
+alFallarElBuscador(() => reportarFalla('direcciones'));
 createRoot(document.getElementById("root")!).render(<App />);

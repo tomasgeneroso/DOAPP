@@ -1,4 +1,4 @@
-import { IDIOMA_PHOTON, URL_PHOTON_BUSQUEDA, URL_PHOTON_INVERSO, lugaresDePhoton, normalizarCodigoPostal, separarCalleYAltura } from './direcciones.js';
+import { anotarFallaDelBuscador, IDIOMA_PHOTON, URL_PHOTON_BUSQUEDA, URL_PHOTON_INVERSO, lugaresDePhoton, normalizarCodigoPostal, separarCalleYAltura } from './direcciones.js';
 
 /**
  * Lugares y direcciones reales para el formulario de un trabajo (Ubicación, Calle, Número, Barrio y Código postal).
@@ -85,8 +85,10 @@ export async function buscarLugares(consulta: string, opciones: { signal?: Abort
   if (!url) return [];
   try {
     const r = await fetch(url, { signal: opciones.signal });
+    if (!r.ok) anotarFallaDelBuscador({ estado: r.status });
     return r.ok ? leerLugares(await r.json(), consulta) : [];
-  } catch {
+  } catch (error) {
+    anotarFallaDelBuscador({ error });
     return [];
   }
 }
@@ -108,7 +110,10 @@ export async function detallesDeUbicacion(lat: unknown, lon: unknown, opciones: 
       signal: opciones.signal,
       headers: opciones.userAgent ? { 'User-Agent': opciones.userAgent } : undefined,
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      anotarFallaDelBuscador({ estado: r.status });
+      return null;
+    }
     const cerca = lugaresDePhoton(await r.json()).map((l) => l.propiedades);
     if (cerca.length === 0) return null;
     // Barrio, ciudad y provincia del punto más cercano; el código postal, del más cercano que lo tenga cargado.

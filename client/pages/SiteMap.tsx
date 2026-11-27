@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { MapPin, Loader2, Briefcase, Calendar, DollarSign, Filter, X } from 'lucide-react';
 import type { Job } from '@/types';
+import { reportarFalla, vigilarMapa } from '../utils/reportarFalla';
 
 // Cache para coordenadas geocodificadas
 const geocodeCache: { [key: string]: [number, number] } = {};
@@ -174,6 +175,7 @@ export default function SiteMap() {
       if (typeof (window as any).L === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onerror = () => reportarFalla('mapas');
         script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
         script.crossOrigin = '';
         document.head.appendChild(script);
@@ -220,10 +222,10 @@ export default function SiteMap() {
       mapInstanceRef.current = map;
 
       // Añadir capa de mapa
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      vigilarMapa(L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
-      }).addTo(map);
+      })).addTo(map);
 
       setMapLoading(false);
       updateMarkers();

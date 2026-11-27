@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { getToken, getPaseDePanel } from './api';
+import { reportarFalla } from './reportarFalla';
 
 // Socket URL configuration
 const getSocketUrl = () => {
@@ -106,6 +107,8 @@ function setupSocketListeners(socket: Socket) {
   socket.on('connect_error', (error) => {
     console.error('Socket connection error:', error.message);
     connectionAttempts++;
+    // Al agotar los intentos (y si no es una sesión vencida) se avisa que los avisos en vivo no conectan.
+    if (connectionAttempts === MAX_RECONNECT_ATTEMPTS && !/authentication/i.test(error.message)) reportarFalla('tiempo_real');
     notifyHandlers('connection:status', { connected: false, error: error.message });
   });
 

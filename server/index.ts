@@ -193,6 +193,9 @@ import momentosRoutes from "./routes/momentos.js";
 import { startAvisoSinPostulacionesJob } from "./jobs/avisoSinPostulaciones.js";
 import adminMetricasRoutes from "./routes/admin/metricas.js";
 import claveDePanelRoutes from "./routes/claveDePanel.js";
+import saludRoutes from "./routes/salud.js";
+import { startChequeosDeSalud } from "./jobs/chequeosDeSalud.js";
+import { avisosAlDuenoActivos } from "./services/avisosAlDuenoActivos.js";
 import { borrarUsoViejo } from "./services/registroDeUso.js";
 
 // Promoter routes
@@ -515,6 +518,7 @@ app.use("/api/actividad", actividadRoutes);
 app.use("/api/momentos", momentosRoutes);
 app.use("/api/admin/metricas", adminMetricasRoutes);
 app.use("/api/clave-de-panel", claveDePanelRoutes);
+app.use("/api/salud", saludRoutes);
 app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);
@@ -601,6 +605,9 @@ startAutoConfirmContractsJob();
 
 // Los contratos empiezan solos a la hora de inicio y pasan a esperar confirmación al llegar la hora de fin y se dan por terminados 24 h después si nadie confirma (ver services/cicloDelContrato.ts)
 startCicloDelContratoJob();
+// Chequeos de cada parte de DOAPP: avisan por correo si algo deja de andar (solo en el servidor).
+startChequeosDeSalud();
+if (avisosAlDuenoActivos()) void import('./services/avisoAlDueno.js').then((x) => x.recordarALosDuenos()).catch(() => undefined);
 startVencerOrdenesDePagoJob();
 startDevolucionDePresupuestoJob();
 startChatsDelEquipoJob();
@@ -638,12 +645,29 @@ httpServer.on('error', (error: NodeJS.ErrnoException) => {
 
 // Errores que se escapan de todo (una promesa sin atrapar, una excepción fuera de una ruta): quedan en el registro con una etiqueta que se busca fácil.
 // Una promesa sin atrapar se anota y la app sigue; una excepción sin atrapar deja la app en un estado dudoso: se anota y se reinicia (PM2 la levanta).
+// En el servidor, además, llega un correo. Antes de reiniciar se le da hasta 8 segundos para salir.
+const avisarDelError = async (reinicia: boolean, error: unknown): Promise<void> => {
+  if (!avisosAlDuenoActivos()) return;
+  const { avisarAlDuenoPorCorreo } = await import('./services/avisoAlDueno.js');
+  await avisarAlDuenoPorCorreo({
+    clave: reinicia ? 'proceso:se-reinicio' : 'proceso:promesa',
+    asunto: reinicia ? 'El servidor se reinició por un error' : 'El servidor atrapó un error que nadie manejaba',
+    quePaso: reinicia
+      ? 'Un error dejó al servidor en un estado dudoso: se cerró y PM2 lo vuelve a levantar. Mientras tanto DOAPP no responde unos segundos.'
+      : 'Algo falló fuera de un pedido y nadie lo había previsto. El servidor sigue andando, pero lo que estaba haciendo puede haber quedado a medias.',
+    queHacer: 'En el servidor: pm2 status y pm2 logs doapp --lines 200 --nostream | grep "SIN ATRAPAR" -A 15.',
+    detalle: error instanceof Error ? error.message : String(error),
+  });
+};
 process.on('unhandledRejection', (motivo) => {
   console.error('[PROMESA SIN ATRAPAR]', motivo instanceof Error ? motivo.stack || motivo.message : motivo);
+  void avisarDelError(false, motivo).catch(() => undefined);
 });
 process.on('uncaughtException', (error) => {
   console.error('[EXCEPCIÓN SIN ATRAPAR]', error?.stack || error);
-  process.exit(1);
+  void Promise.race([avisarDelError(true, error), new Promise((listo) => setTimeout(listo, 8_000))])
+    .catch(() => undefined)
+    .finally(() => process.exit(1));
 });
 
 // Iniciar servidor

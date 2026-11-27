@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { procesarCampanas } from '../services/campanasDeCorreo.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Manda la tanda de este minuto de las campañas de correo que están enviando (módulo de correos, 2026-11-11). Cada minuto: de a poco según el ritmo de cada campaña y con un
@@ -15,7 +16,7 @@ export function startCampanasDeCorreoJob() {
       const n = await procesarCampanas();
       if (n > 0) console.log(`✉️ [CRON] campañas de correo: ${n} correo(s) enviados en este minuto.`);
     } catch (e) {
-      console.error('❌ [CRON] campañas de correo:', (e as Error).message);
+      fallaDeTarea('campanasDeCorreo', '❌ [CRON] campañas de correo:', (e as Error).message);
     } finally {
       corriendo = false;
     }

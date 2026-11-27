@@ -74,14 +74,34 @@ export function leerSugerencias(json: unknown): SugerenciaDeDireccion[] {
 }
 
 /** Busca sugerencias. Cualquier falla (sin red, límite, respuesta rara) devuelve una lista vacía. */
+let avisoDeFalla: (() => void) | null = null;
+
+/** La web y la app anotan acá a quién contarle que un buscador de direcciones falló. */
+export function alFallarElBuscador(fn: (() => void) | null): void {
+  avisoDeFalla = fn;
+}
+
+/** Es una falla del buscador un corte de red o una respuesta de error suya (no un pedido cancelado, ni un texto que no entendió). */
+export function anotarFallaDelBuscador(que: { estado?: number; error?: unknown }): void {
+  if ((que.error as { name?: string } | undefined)?.name === 'AbortError') return;
+  if (que.estado !== undefined && que.estado < 500 && que.estado !== 403 && que.estado !== 429) return;
+  try {
+    avisoDeFalla?.();
+  } catch { /* avisar nunca rompe la búsqueda */ }
+}
+
 export async function buscarDirecciones(consulta: string, opciones: { signal?: AbortSignal } & ContextoGeografico = {}): Promise<SugerenciaDeDireccion[]> {
   const url = urlDeBusqueda(consulta, MAXIMO_DE_SUGERENCIAS, opciones);
   if (!url) return [];
   try {
     const r = await fetch(url, { signal: opciones.signal });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      anotarFallaDelBuscador({ estado: r.status });
+      return [];
+    }
     return leerSugerencias(await r.json());
-  } catch {
+  } catch (error) {
+    anotarFallaDelBuscador({ error });
     return [];
   }
 }
@@ -166,8 +186,10 @@ async function pedir(url: string | null, signal?: AbortSignal): Promise<unknown>
   if (!url) return null;
   try {
     const r = await fetch(url, { signal });
+    if (!r.ok) anotarFallaDelBuscador({ estado: r.status });
     return r.ok ? await r.json() : null;
-  } catch {
+  } catch (error) {
+    anotarFallaDelBuscador({ error });
     return null;
   }
 }
@@ -244,7 +266,10 @@ export async function buscarCodigoPostal(lat: unknown, lon: unknown, opciones: {
   if (!url) return null;
   try {
     const r = await fetch(url, { signal: opciones.signal, headers: opciones.userAgent ? { 'User-Agent': opciones.userAgent } : undefined });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      anotarFallaDelBuscador({ estado: r.status });
+      return null;
+    }
     // Solo lugares de la Argentina (un punto en el límite no puede devolver el código de otro país): el primero que tenga un código con forma válida.
     for (const l of lugaresDePhoton(await r.json())) {
       const cp = normalizarCodigoPostal(l.propiedades.postcode);

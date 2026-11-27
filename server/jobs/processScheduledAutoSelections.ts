@@ -4,6 +4,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Proposal } from '../models/sql/Proposal.model.js';
 import { socketService } from '../index.js';
 import cacheService from '../services/cacheService.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Procesar auto-selecciones programadas
@@ -116,11 +117,11 @@ async function processScheduledAutoSelections() {
         cacheService.delPattern(`jobs:${job.id}`);
         cacheService.delPattern(`contracts:*`);
       } catch (error: any) {
-        console.error(`❌ [AUTO-SELECT] Error procesando job ${job.id}:`, error.message);
+        fallaDeTarea('processScheduledAutoSelections', `❌ [AUTO-SELECT] Error procesando job ${job.id}:`, error.message);
       }
     }
   } catch (error) {
-    console.error('❌ [AUTO-SELECT] Error en processScheduledAutoSelections:', error);
+    fallaDeTarea('processScheduledAutoSelections', '❌ [AUTO-SELECT] Error en processScheduledAutoSelections:', error);
   }
 }
 

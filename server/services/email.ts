@@ -8,6 +8,7 @@ import { User } from "../models/sql/User.model.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { DOMINIO, CORREOS, esDelDominio } from "../../shared/constants/contacto.js";
 import { enmascararCorreo } from "../../shared/seguridad/datosPersonales.js";
+import { fallaDe, exitoDe } from "./avisarFalla.js";
 
 interface EmailOptions {
   to: string;
@@ -80,6 +81,18 @@ class EmailService {
 
   motivoDelUltimoFallo(): string | null {
     return this.ultimoFallo;
+  }
+
+  /** Comprueba que el proveedor de correo conteste y acepte las claves, sin mandar nada. `null` si anda. */
+  async verificar(): Promise<string | null> {
+    if (!this.sendgridInitialized && !this.mailgunInitialized && !this.smtpInitialized) return "Este servidor no tiene el correo configurado (faltan SMTP_HOST, SMTP_USER y SMTP_PASS).";
+    if (config.emailProvider !== "smtp") return null; // sin forma de probar sin mandar: sus fallas se ven al enviar
+    try {
+      await this.smtpTransporter.verify();
+      return null;
+    } catch (error: any) {
+      return motivoDeSmtp(error);
+    }
   }
 
   constructor() {
@@ -240,6 +253,7 @@ class EmailService {
       return false;
     } catch (error) {
       console.error("Error sending email:", error);
+      fallaDe("correos", "El envío falló.");
       return false;
     }
   }
@@ -263,6 +277,7 @@ class EmailService {
       return true;
     } catch (error: any) {
       console.error("SendGrid error:", error.response?.body || error);
+      fallaDe("correos", "SendGrid rechazó el envío.");
       return false;
     }
   }
@@ -286,6 +301,7 @@ class EmailService {
       return true;
     } catch (error) {
       console.error("Mailgun error:", error);
+      fallaDe("correos", "Mailgun rechazó el envío.");
       return false;
     }
   }
@@ -312,6 +328,7 @@ class EmailService {
       const info = await this.smtpTransporter.sendMail(mailOptions);
       console.log(`✅ Email sent via SMTP to ${enmascararCorreo(options.to)}`);
       console.log(`📧 Message ID: ${info.messageId}`);
+      exitoDe("correos");
       return true;
     } catch (error: any) {
       const errorMessage = error.message || String(error);
@@ -339,6 +356,7 @@ class EmailService {
         console.error("❌ SMTP error:", errorMessage);
       }
       this.ultimoFallo = motivoDeSmtp(error);
+      fallaDe("correos", this.ultimoFallo);
       return false;
     }
   }

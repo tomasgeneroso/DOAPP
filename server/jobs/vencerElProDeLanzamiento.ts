@@ -3,6 +3,7 @@ import { QueryTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { conSistema } from '../db/contextoRls.js';
 import { logEvento } from '../utils/auditLog.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cuando se termina el mes de PRO gratis del beneficio de lanzamiento (`otorgarContratosLibres`), la cuenta vuelve a su plan.
@@ -52,7 +53,7 @@ export function startVencerElProDeLanzamientoJob() {
       const n = await vencerElProDeLanzamiento();
       if (n > 0) console.log(`🔄 [CRON] ${n} cuenta(s) terminaron su mes de PRO gratis y vuelven a su plan.`);
     } catch (e) {
-      console.error('❌ [CRON] vencerElProDeLanzamiento:', (e as Error).message);
+      fallaDeTarea('vencerElProDeLanzamiento', '❌ [CRON] vencerElProDeLanzamiento:', (e as Error).message);
     }
   });
 }

@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { devolverPresupuestosSinUsar, liquidarSaldosPendientes } from '../services/presupuestoDelTrabajo.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Deja a favor del cliente lo que sobró del presupuesto de los trabajos cuyo equipo ya se cerró (completo, o empezó con menos lugares), y pasa a su
@@ -20,7 +21,7 @@ export function startDevolucionDePresupuestoJob() {
       if (l > 0) console.log(`💸 [CRON] Saldo a favor pendiente pasado a saldo: ${l} asiento${l > 1 ? 's' : ''}`);
     } catch (e: any) {
       // Que falle no puede tumbar el proceso: se reintenta en 15 minutos.
-      console.error('❌ [CRON] No se pudo devolver el presupuesto sin usar:', e?.message);
+      fallaDeTarea('devolucionDePresupuesto', '❌ [CRON] No se pudo devolver el presupuesto sin usar:', e?.message);
     }
   });
 

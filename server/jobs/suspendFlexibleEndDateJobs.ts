@@ -4,6 +4,7 @@ import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Cron job para suspender trabajos con fecha final flexible (endDateFlexible = true)
@@ -95,7 +96,7 @@ export function startSuspendFlexibleEndDateJob() {
 
             console.log(`⏸️  [CRON] Trabajo "${job.title}" (${job.id}) suspendido por falta de fecha final`);
           } catch (error) {
-            console.error(`❌ [CRON] Error suspendiendo trabajo ${job.id}:`, error);
+            fallaDeTarea('suspendFlexibleEndDateJobs', `❌ [CRON] Error suspendiendo trabajo ${job.id}:`, error);
           }
         }
       } else {
@@ -177,7 +178,7 @@ export function startSuspendFlexibleEndDateJob() {
 
             console.log(`▶️  [CRON] Trabajo "${job.title}" (${job.id}) reactivado`);
           } catch (error) {
-            console.error(`❌ [CRON] Error reactivando trabajo ${job.id}:`, error);
+            fallaDeTarea('suspendFlexibleEndDateJobs', `❌ [CRON] Error reactivando trabajo ${job.id}:`, error);
           }
         }
       } else {
@@ -186,7 +187,7 @@ export function startSuspendFlexibleEndDateJob() {
 
       console.log(`🎯 [CRON] Proceso de fecha flexible completado: ${jobsToSuspend.length} suspendidos, ${jobsToReactivate.length} reactivados`);
     } catch (error) {
-      console.error('❌ [CRON] Error en job de fecha flexible:', error);
+      fallaDeTarea('suspendFlexibleEndDateJobs', '❌ [CRON] Error en job de fecha flexible:', error);
     }
   });
 

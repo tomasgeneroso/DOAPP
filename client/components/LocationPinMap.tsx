@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MapPin, Crosshair, RefreshCw } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { hayQueUbicar, ubicarDireccion, type EntradaDeUbicacion } from '../../shared/geo/ubicar';
+import { reportarFalla, vigilarMapa } from '../utils/reportarFalla';
 
 /**
  * Mapa con un pin que SIGUE a la dirección (regla del dueño, 2026-11-11: «el pin tiene que estar constantemente actualizándose»).
@@ -92,10 +93,10 @@ export default function LocationPinMap({ calle, numero, lugar, provincia, ciudad
       const startLat = numeroValido(inicial.current.lat) ? inicial.current.lat : DEFAULT_LAT;
       const startLng = numeroValido(inicial.current.lng) ? inicial.current.lng : DEFAULT_LNG;
       const map = Leaflet.map(containerRef.current, { center: [startLat, startLng], zoom: numeroValido(inicial.current.lat) ? 17 : DEFAULT_ZOOM, zoomControl: true });
-      Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      vigilarMapa(Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
-      }).addTo(map);
+      })).addTo(map);
 
       const marker = Leaflet.marker([startLat, startLng], { draggable: true }).addTo(map);
       const colocadoAMano = (la: number, lo: number) => {
@@ -119,7 +120,7 @@ export default function LocationPinMap({ calle, numero, lugar, provincia, ciudad
       mapRef.current = map;
       markerRef.current = marker;
       setMapaListo(true);
-    });
+    }).catch(() => reportarFalla('mapas'));
 
     return () => {
       cancelado = true;

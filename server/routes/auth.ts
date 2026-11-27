@@ -63,6 +63,7 @@ const LoginDevice: any = null;
 
 // ── Email verification helper ─────────────────────────────────────────────────
 import crypto from 'crypto';
+import { fallaDe } from "../services/avisarFalla.js";
 
 function generateVerificationToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -1339,6 +1340,7 @@ router.get(
   // la dirección del servidor). El detalle queda en el registro del servidor.
   (err: any, req: Request, res: Response, _next: NextFunction) => {
     console.error('❌ Google callback:', err?.name, err?.message);
+    fallaDe('ingreso', `Google: ${err?.message || err?.name || 'error al volver del ingreso'}`);
     const base = `${config.clientUrl}/login?error=social_failed&motivo=servidor`;
     res.redirect(leerEstadoDeLaApp(req.query.state).esApp ? `${base}&origen=app` : base);
   },
@@ -1514,6 +1516,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
 router.get("/twitter", (req: Request, res: Response): void => {
   try {
     if (!twitterOAuth.isTwitterOAuthConfigured()) {
+      fallaDe('ingreso', 'X: no se pudo completar el ingreso.');
       res.redirect(`${config.clientUrl}/login?error=twitter_not_configured`);
       return;
     }
@@ -1550,6 +1553,7 @@ router.get("/twitter", (req: Request, res: Response): void => {
     res.redirect(url);
   } catch (error: any) {
     console.error('Twitter OAuth initiation error:', error);
+    fallaDe('ingreso', 'X: no se pudo completar el ingreso.');
     res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);
   }
 });
@@ -1664,6 +1668,7 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
     res.redirect(direccionDeRetornoSocial(!user.dni));
   } catch (error: any) {
     console.error('Twitter OAuth callback error:', error);
+    fallaDe('ingreso', 'X: no se pudo completar el ingreso.');
     res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);
   }
 });

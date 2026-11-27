@@ -3,6 +3,7 @@ import { sequelize } from '../config/database.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { conSistema } from '../db/contextoRls.js';
 import { DIAS_ENTRE_AVISOS_A_LA_MISMA_PERSONA, HORAS_SIN_POSTULACIONES_PARA_AVISAR, claveDelAvisoSinPostulaciones } from '../../shared/momentos/momentos.js';
+import { fallaDeTarea } from '../services/avisarFalla.js';
 
 /**
  * Aviso con contexto (plan «Momentos DOAPP», prueba 2): una publicación abierta que lleva un día sin postulaciones recibe UN aviso con ideas concretas.
@@ -55,7 +56,7 @@ export async function avisarPublicacionesSinPostulaciones(ahora: Date = new Date
         } as any);
         enviados++;
       } catch (e: any) {
-        console.error('Aviso de publicación sin postulaciones:', e?.message);
+        fallaDeTarea('avisoSinPostulaciones', 'Aviso de publicación sin postulaciones:', e?.message);
       }
     }
     return enviados;
@@ -63,6 +64,6 @@ export async function avisarPublicacionesSinPostulaciones(ahora: Date = new Date
 }
 
 export function startAvisoSinPostulacionesJob(): void {
-  const correr = () => { void avisarPublicacionesSinPostulaciones().catch((e) => console.error('Aviso sin postulaciones:', e?.message)); };
+  const correr = () => { void avisarPublicacionesSinPostulaciones().catch((e) => fallaDeTarea('avisoSinPostulaciones', 'Aviso sin postulaciones:', e?.message)); };
   setInterval(correr, 60 * 60 * 1000);
 }
