@@ -192,6 +192,7 @@ import actividadRoutes from "./routes/actividad.js";
 import momentosRoutes from "./routes/momentos.js";
 import { startAvisoSinPostulacionesJob } from "./jobs/avisoSinPostulaciones.js";
 import adminMetricasRoutes from "./routes/admin/metricas.js";
+import claveDePanelRoutes from "./routes/claveDePanel.js";
 import { borrarUsoViejo } from "./services/registroDeUso.js";
 
 // Promoter routes
@@ -513,6 +514,7 @@ app.use("/api/app", appAndroidRoutes);
 app.use("/api/actividad", actividadRoutes);
 app.use("/api/momentos", momentosRoutes);
 app.use("/api/admin/metricas", adminMetricasRoutes);
+app.use("/api/clave-de-panel", claveDePanelRoutes);
 app.use("/api/admin/influencer-invites", adminInfluencerInvitesRoutes);
 app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);

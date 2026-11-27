@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { borrarClaveDePanel } from "../../services/claveDePanel.js";
 import { body, validationResult } from "express-validator";
 import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
@@ -706,7 +707,8 @@ router.put(
         }
 
         if (!verifiedVia) {
-          return res.status(401).json({
+          // 400 y no 401: la web toma un 401 como sesión vencida y mandaba al ingreso a quien escribía mal la contraseña.
+          return res.status(400).json({
             success: false,
             requiresVerification: true,
             message:
@@ -769,7 +771,7 @@ router.put(
       const { newPassword, ownerAccountPassword } = req.body;
 
       if (!adminUser.password || !(await adminUser.comparePassword(ownerAccountPassword))) {
-        return res.status(401).json({ success: false, message: "Contraseña de la cuenta del owner incorrecta" });
+        return res.status(400).json({ success: false, message: "Contraseña de la cuenta del owner incorrecta" });
       }
 
       const wasSet = hasEmergencyPassword();
@@ -850,6 +852,35 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/admin/roles/:userId/reiniciar-clave-de-panel
+ * El owner borra la clave de panel de otra persona (la perdió y el correo no le llega): crea una nueva la próxima vez que entre.
+ */
+router.post("/:userId/reiniciar-clave-de-panel", requireRole("owner"), async (req: AuthRequest, res: Response) => {
+  try {
+    const persona = await User.findByPk(req.params.userId, { attributes: ["id", "name", "adminRole"] });
+    if (!persona) return res.status(404).json({ success: false, message: "Usuario no encontrado" });
+    if (String(persona.id) === String(req.user.id)) {
+      return res.status(400).json({ success: false, message: "La tuya se cambia desde «Tu clave de panel»." });
+    }
+    if (!(await borrarClaveDePanel(String(persona.id)))) {
+      return res.status(409).json({ success: false, message: "Esa persona todavía no tiene clave de panel." });
+    }
+    await logAudit({
+      req,
+      action: "panel_key.reset_by_owner",
+      category: "role",
+      severity: "critical",
+      description: `El owner reinició la clave de panel de ${persona.name}`,
+      targetModel: "User",
+      targetId: String(persona.id),
+    });
+    res.json({ success: true, message: "Listo: va a crear una clave nueva la próxima vez que entre al panel." });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Error al reiniciar la clave de panel" });
+  }
+});
 
 /**
  * GET /api/admin/roles/audit

@@ -5,6 +5,7 @@ import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
 import { entrarComoUsuario } from "../db/contextoRls.js";
 import { sesionVigente } from "../services/vigenciaDeSesion.js";
+import { CODIGO_FALTA_LA_CLAVE, cerrarPoderesDeEquipo, tienePoderesDeEquipo } from "../services/claveDePanel.js";
 import { bloqueoParaOperar, correoConfirmado, MENSAJE_CORREO_SIN_CONFIRMAR } from "../services/identidadDeclarada.js";
 
 export type { AuthRequest };
@@ -59,6 +60,11 @@ export function tokensDelPedido(req: { cookies?: Record<string, any>; headers: R
   }
   return tokens;
 }
+
+/** Donde el rol se ve sin la clave de panel: la propia sesión (para saber que hay que pedirla), la pantalla de la clave y el latido de uso (no da ningún poder). */
+const SIN_CLAVE_DE_PANEL = /^\/api\/(auth|clave-de-panel|actividad)(\/|$)/i;
+const RUTAS_DEL_PANEL = /^\/api\/admin(\/|$)/i;
+const rutaDe = (req: AuthRequest): string => String(req.originalUrl || '').split('?')[0];
 
 export const protect = async (
   req: AuthRequest,
@@ -119,6 +125,16 @@ export const protect = async (
           message: "Usuario no encontrado",
         });
         return;
+      }
+
+      // Para ejercer un rol hace falta la clave de panel. Sin ella, esta persona es un usuario común en todo DOAPP y el panel la rechaza.
+      const conRol = req.user as any;
+      if (conRol.adminRole && !SIN_CLAVE_DE_PANEL.test(rutaDe(req)) && !(await tienePoderesDeEquipo(req as any, conRol))) {
+        if (RUTAS_DEL_PANEL.test(rutaDe(req))) {
+          res.status(403).json({ success: false, code: CODIGO_FALTA_LA_CLAVE, message: "Ingresá tu clave de panel para usar la administración." });
+          return;
+        }
+        cerrarPoderesDeEquipo(conRol);
       }
 
       // Desde acá las consultas de este pedido van como este usuario (Row Level Security: ve solo sus filas de las tablas de dinero).
@@ -189,6 +205,7 @@ export const optionalAuth = async (
     req.user = await User.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
     // Un token cerrado o de otro propósito se trata como visitante.
     if (req.user && !sesionVigente(decoded, req.user as any)) req.user = undefined as any;
+    if (req.user && (req.user as any).adminRole && !(await tienePoderesDeEquipo(req as any, req.user))) cerrarPoderesDeEquipo(req.user);
     if (req.user) entrarComoUsuario(String((req.user as any).id), (req.user as any).adminRole || (req.user as any).role);
   } catch {
     // Token vencido o inválido: se trata como visitante. No es un error.

@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
-import { getToken } from './api';
+import { getToken, getPaseDePanel } from './api';
 
 // Socket URL configuration
 const getSocketUrl = () => {
@@ -65,7 +65,8 @@ export async function initSocket(): Promise<Socket | null> {
 
   try {
     socketInstance = io(SOCKET_URL, {
-      auth: { token },
+      // `panel`: el pase de la clave de panel; sin él no llegan los avisos del equipo.
+      auth: { token, panel: await getPaseDePanel() },
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,

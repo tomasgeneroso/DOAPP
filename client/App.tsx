@@ -87,6 +87,7 @@ const BannedUserScreen = lazy(() => import("./pages/BannedUserScreen"));
 
 // Admin pages (lazy — only loaded for admin users)
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
+const PuertaDelPanel = lazy(() => import("./components/admin/ClaveDePanel"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminUserData = lazy(() => import("./pages/admin/UserData"));
@@ -616,7 +617,9 @@ export default function App() {
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <AdminLayout />
+                  <PuertaDelPanel>
+                    <AdminLayout />
+                  </PuertaDelPanel>
                 </ProtectedRoute>
               }
             >

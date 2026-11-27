@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Redirect } from 'expo-router';
+import PuertaDelPanel from '../../components/PuertaDelPanel';
 
 export default function AdminLayout() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -16,6 +17,7 @@ export default function AdminLayout() {
   }
 
   return (
+    <PuertaDelPanel>
     <Stack
       screenOptions={{
         headerStyle: {
@@ -57,5 +59,6 @@ export default function AdminLayout() {
       <Stack.Screen name="dispute/[id]" options={{ title: 'Disputa' }} />
       <Stack.Screen name="influencer-invites" options={{ title: 'Invitaciones de creadores' }} />
     </Stack>
+    </PuertaDelPanel>
   );
 }

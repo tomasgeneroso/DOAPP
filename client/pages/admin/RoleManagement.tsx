@@ -5,6 +5,7 @@ import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import { useTranslation } from "react-i18next";
 import { Shield, UserCog, Search, Check, X, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { GenerarContrasenaSegura, TarjetaDeTuClaveDePanel } from "@/components/admin/ClaveDePanel";
 
 interface User {
   id: string;
@@ -206,6 +207,18 @@ export default function RoleManagement() {
     }
     setPasswordError("");
     await handleAssignRole(rolePassword);
+  };
+
+  // La salida cuando alguien del equipo perdió su clave de panel y el correo no le llega: crea una nueva la próxima vez que entre.
+  const reiniciarClaveDePanel = async (persona: User) => {
+    if (!window.confirm(`¿Reiniciar la clave de panel de ${persona.name}? Va a crear una nueva la próxima vez que entre.`)) return;
+    try {
+      const res = await fetch(`/api/admin/roles/${persona.id}/reiniciar-clave-de-panel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const data = await res.json();
+      alert(data.message || (data.success ? "Listo" : "No se pudo reiniciar la clave de panel"));
+    } catch {
+      alert("No se pudo reiniciar la clave de panel");
+    }
   };
 
   const handleSaveSecurityPassword = async () => {
@@ -543,6 +556,11 @@ export default function RoleManagement() {
                       ) : (
                         <span className="text-xs text-slate-400">Lo cambia alguien de un nivel superior</span>
                       )}
+                      {isOwner && user.adminRole && user.id !== currentUser?.id && (
+                        <button type="button" onClick={() => { void reiniciarClaveDePanel(user); }} className="ml-2 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition">
+                          Reiniciar clave de panel
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -670,6 +688,8 @@ export default function RoleManagement() {
         </div>
       )}
 
+      <TarjetaDeTuClaveDePanel />
+
       {/* Security settings (owner only) */}
       {isOwner && (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
@@ -738,6 +758,7 @@ export default function RoleManagement() {
                   ))}
                 </div>
               </div>
+              <GenerarContrasenaSegura valorActual={newPassword} onGenerar={(c) => { setNewPassword(c); setConfirmPassword(c); }} />
               <div>
                 <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
                   Nueva contraseña (mín. 8 caracteres)
@@ -853,6 +874,7 @@ export default function RoleManagement() {
             </div>
             {showEmergencySettings && (
               <div className="mt-3 space-y-3">
+                <GenerarContrasenaSegura valorActual={emergencyNewPassword} onGenerar={(c) => { setEmergencyNewPassword(c); setEmergencyConfirm(c); }} />
                 <div>
                   <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
                     Nueva contraseña de emergencia (mín. 10 caracteres)

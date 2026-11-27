@@ -1,4 +1,5 @@
 import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
+import { tienePoderesDeEquipo } from "./claveDePanel.js";
 import { chatDelEquipoCerrado } from "./chatDelEquipo.js";
 import { Server, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
@@ -130,7 +131,13 @@ export class SocketService {
 
       // El equipo de administración recibe además los avisos de cambios de dinero, contratos y trabajos (`admin:*`). Antes se emitían a TODOS los
       // conectados, con los datos del pago o del retiro de otras personas.
-      if ((socket.user as any)?.adminRole) socket.join(SALA_DE_ADMINISTRACION);
+      // Solo con la clave de panel puesta (la web manda la cookie del pase; la app, `auth.panel`).
+      if ((socket.user as any)?.adminRole) {
+        const pase = socket.handshake.auth?.panel || valorDeCookie(socket.handshake.headers.cookie, "panel");
+        void tienePoderesDeEquipo({ cookies: { panel: pase }, headers: {} }, socket.user)
+          .then((abierto) => { if (abierto) socket.join(SALA_DE_ADMINISTRACION); })
+          .catch(() => undefined);
+      }
 
       // Send online status to contacts (sólo cuando es su primera conexión)
       if (this.cantidadDeConexiones(socket.userId!) === 1) this.broadcastOnlineStatus(socket.userId!, true);

@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { bloquearElPanel } from "@/components/admin/ClaveDePanel";
 import { useTheme } from "@/hooks/useTheme";
 import { useSocket } from "@/hooks/useSocket";
 import {
@@ -608,6 +609,14 @@ export default function AdminLayout() {
             >
               {t('admin.backToApp', 'Back to app')}
             </Link>
+            <button
+              type="button"
+              onClick={() => { void bloquearElPanel(); }}
+              data-testid="bloquear-el-panel"
+              className="flex items-center justify-center gap-2 px-3 py-2 w-full text-sm text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            >
+              Bloquear el panel
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center justify-center gap-2 px-3 py-2 w-full text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition"

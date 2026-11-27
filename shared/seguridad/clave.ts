@@ -12,6 +12,34 @@ export const TEXTO_DE_LA_REGLA_DE_CLAVE = 'Al menos 6 caracteres y un símbolo (
 
 const TIENE_SIMBOLO = /[!-/:-@[-`{-~]/;
 
+/** Largo de una clave generada por el sistema: 32 caracteres al azar sobre 69 posibles son más de 190 bits (imposible de adivinar). */
+export const LARGO_DE_UNA_CLAVE_GENERADA = 32;
+// Sin los que se confunden al copiarlos a mano (0 O 1 l I) y con símbolos que no molestan al pegarlos.
+const GRUPOS_DE_CARACTERES = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!#$%*+-=?@_'];
+
+/** Un entero al azar en [0, n), sin sesgo, con el generador criptográfico del navegador o de Node. */
+function alAzar(n: number): number {
+  const caja = new Uint32Array(1);
+  const tope = Math.floor(0x100000000 / n) * n;
+  do {
+    globalThis.crypto.getRandomValues(caja);
+  } while (caja[0] >= tope);
+  return caja[0] % n;
+}
+
+/** Una clave nueva extremadamente segura, con al menos un carácter de cada grupo. */
+export function generarClaveFuerte(largo: number = LARGO_DE_UNA_CLAVE_GENERADA): string {
+  const todos = GRUPOS_DE_CARACTERES.join('');
+  const letras = GRUPOS_DE_CARACTERES.map((g) => g[alAzar(g.length)]);
+  while (letras.length < Math.max(largo, GRUPOS_DE_CARACTERES.length)) letras.push(todos[alAzar(todos.length)]);
+  // Mezcla (Fisher-Yates): los obligatorios no quedan siempre al principio.
+  for (let i = letras.length - 1; i > 0; i--) {
+    const j = alAzar(i + 1);
+    [letras[i], letras[j]] = [letras[j], letras[i]];
+  }
+  return letras.join('');
+}
+
 /** Por qué una contraseña nueva no sirve, o `null` si sirve. */
 export function motivoDeClaveDebil(clave: unknown): string | null {
   if (typeof clave !== 'string' || clave.length < LARGO_MINIMO_DE_CLAVE) return 'La contraseña debe tener al menos 6 caracteres.';

@@ -205,6 +205,7 @@ async function registerModels() {
   const { ActivityDay } = await import('../models/sql/ActivityDay.model.js');
   const { UsageCounter } = await import('../models/sql/UsageCounter.model.js');
   const { UserMoment } = await import('../models/sql/UserMoment.model.js');
+  const { AdminPanelKey } = await import('../models/sql/AdminPanelKey.model.js');
   const { BeforeAfterShare } = await import('../models/sql/BeforeAfterShare.model.js');
 
   // Add models to sequelize
@@ -264,6 +265,7 @@ async function registerModels() {
     ActivityDay,
     UsageCounter,
     UserMoment,
+    AdminPanelKey,
     BeforeAfterShare,
   ]);
 

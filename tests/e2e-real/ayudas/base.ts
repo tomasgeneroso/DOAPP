@@ -32,6 +32,8 @@ async function cerrarElOfrecimientoDeAvisos(page: Page): Promise<void> {
 const ES_LOCAL = (url: URL) => ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
 
 async function aislar(context: BrowserContext, bloqueados: string[]): Promise<void> {
+  // El cartel de cookies tapa botones en una ventana baja. Una persona toca «Rechazar» y sigue: se arranca con esa respuesta ya dada.
+  await context.addInitScript(() => { try { localStorage.setItem('doapp:cookies-analitica', 'rechazado'); } catch { /* sin almacenamiento */ } });
   await context.route(
     (url) => !ES_LOCAL(url),
     async (route) => {

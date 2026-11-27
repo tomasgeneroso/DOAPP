@@ -61,7 +61,8 @@ export async function completarYaPague(
   await panel.getByLabel('Nombre de quien transfirió').fill(datos.nombre);
   await panel.getByLabel('DNI o CUIL/CUIT').fill(datos.documento);
   await panel.getByLabel('Banco o billetera de origen').fill(datos.banco);
-  await panel.getByLabel('Fecha de la transferencia').fill(new Date().toISOString().slice(0, 10));
+  // La fecha de HOY en la Argentina (en horario de Londres, de noche ya es «mañana» y el formulario la rechaza).
+  await panel.getByLabel('Fecha de la transferencia').fill(new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }));
   if (archivo) await page.locator('#tf-archivo').setInputFiles(archivo);
   return datos;
 }

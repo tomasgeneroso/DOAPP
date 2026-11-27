@@ -1838,6 +1838,7 @@ router.post("/refresh", authLimiter, async (req: Request, res: Response): Promis
 // @desc    Cerrar sesión (revocar refresh token)
 // @access  Private
 router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  res.clearCookie("panel", { path: "/" });
   try {
     const { refreshToken: token } = req.body ?? {};
 

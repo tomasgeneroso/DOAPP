@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { tienePoderesDeEquipo } from "../services/claveDePanel.js";
 import jwt from 'jsonwebtoken';
 import path from 'path';
 import { Op } from 'sequelize';
@@ -201,7 +202,7 @@ export async function protegerArchivosPrivados(req: Request, res: Response, next
       res.status(401).json({ success: false, message: 'Iniciá sesión para ver este archivo' });
       return;
     }
-    if (user.adminRole && ROLES_QUE_VEN_ARCHIVOS_PRIVADOS.includes(String(user.adminRole))) {
+    if (user.adminRole && ROLES_QUE_VEN_ARCHIVOS_PRIVADOS.includes(String(user.adminRole)) && (await tienePoderesDeEquipo(req as any, user))) {
       next();
       return;
     }

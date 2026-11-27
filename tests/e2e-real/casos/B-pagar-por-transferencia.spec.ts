@@ -25,7 +25,7 @@ async function pagarPorTransferencia(page: Page, titulo: string): Promise<DatosD
 /** El administrador abre «Pagos pendientes» → «Pendiente Verificación» y devuelve la fila del pago de ese trabajo. */
 async function filaDelPagoPendiente(admin: Page, titulo: string) {
   await admin.goto('/admin/pending-payments');
-  await admin.getByRole('button', { name: /Pendiente Verificación/ }).click();
+  await admin.getByRole('tab', { name: /Pendiente Verificación/ }).click();
   const fila = admin.getByRole('row').filter({ hasText: titulo });
   await expect(fila).toBeVisible();
   return fila;

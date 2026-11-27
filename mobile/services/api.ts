@@ -36,6 +36,8 @@ export function mensajeDeRed(error: { message?: string } | null | undefined): st
 // Keys para almacenamiento seguro
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+/** El pase que se recibe al poner la clave de panel (solo quienes tienen un rol). Vence a las 8 horas. */
+const PASE_KEY = 'panel_pass';
 
 // Helper para detectar si SecureStore está disponible
 const isSecureStoreAvailable = Platform.OS !== 'web';
@@ -84,6 +86,26 @@ export async function removeToken(): Promise<void> {
     }
   } catch (error) {
     console.error('Error removing token:', error);
+  }
+}
+
+export async function getPaseDePanel(): Promise<string | null> {
+  try {
+    return isSecureStoreAvailable ? await SecureStore.getItemAsync(PASE_KEY) : await AsyncStorage.getItem(PASE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function setPaseDePanel(pase: string | null): Promise<void> {
+  try {
+    if (isSecureStoreAvailable) {
+      if (pase) await SecureStore.setItemAsync(PASE_KEY, pase);
+      else await SecureStore.deleteItemAsync(PASE_KEY);
+    } else if (pase) await AsyncStorage.setItem(PASE_KEY, pase);
+    else await AsyncStorage.removeItem(PASE_KEY);
+  } catch (error) {
+    console.error('Error saving panel pass:', error);
   }
 }
 
@@ -140,7 +162,7 @@ export async function removeUser(): Promise<void> {
  * Limpia todos los datos de autenticación
  */
 export async function clearAuth(): Promise<void> {
-  await Promise.all([removeToken(), removeUser()]);
+  await Promise.all([removeToken(), removeUser(), setPaseDePanel(null)]);
 }
 
 /**
@@ -157,6 +179,8 @@ async function getHeaders(includeAuth: boolean = true): Promise<HeadersInit> {
     const token = await getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      const pase = await getPaseDePanel();
+      if (pase) headers['X-Clave-De-Panel'] = pase;
     }
   }
 
@@ -201,6 +225,7 @@ async function request<T>(
         success: false,
         message: 'Error del servidor',
         error: 'PARSE_ERROR',
+        status: response.status,
       };
     }
 

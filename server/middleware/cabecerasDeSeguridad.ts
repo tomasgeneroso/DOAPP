@@ -66,7 +66,7 @@ export function cabecerasDeSeguridad(req: Request, res: Response, next: NextFunc
  * sin comprobar contra la lista, y fuera de desarrollo solo https).
  */
 export const METODOS_PERMITIDOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
-export const CABECERAS_PERMITIDAS = ['Content-Type', 'Authorization', 'Accept', 'Accept-Language'];
+export const CABECERAS_PERMITIDAS = ['Content-Type', 'Authorization', 'Accept', 'Accept-Language', 'X-Clave-De-Panel'];
 
 export const OPCIONES_DE_CORS = {
   credentials: true,

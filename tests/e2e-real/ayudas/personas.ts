@@ -6,7 +6,7 @@ import { variablesDelServidor } from '../entorno/variables';
 
 /**
  * Una PERSONA de las pruebas: alguien con su correo, su clave y su documento, que usa el navegador como lo haría de verdad. Cada método es una cosa
- * que se hace con los ojos y las manos: llenar el formulario de registro, ir a Didit, abrir el correo, ingresar.
+ * que se hace con los ojos y las manos: llenar el formulario de registro, abrir el correo, ingresar.
  */
 let serie = 0;
 
@@ -49,29 +49,24 @@ export class Persona {
   }
 
   /**
-   * El registro en pasos, como lo hace una persona: correo y contraseña → la verificación de identidad (Didit) → revisar los datos que se leyeron
-   * del documento → «Terminar mi registro». Queda en la pantalla que muestre el sistema al terminar.
+   * El registro de un solo paso, como lo hace una persona (regla del dueño, 2026-11-12): nombre, apellido, usuario, correo, contraseña, DNI, teléfono y
+   * términos. No abre sesión: se ingresa después de confirmar el correo.
    */
   async registrarse(): Promise<void> {
     const { page, datos } = this;
     await page.goto('/register');
+    await page.locator('input[name=firstName]').fill(datos.nombre);
+    await page.locator('input[name=lastName]').fill(datos.apellido);
+    await page.locator('input[name=username]').fill(datos.correo.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(-20));
     await page.locator('input[name=email]').fill(datos.correo);
     await page.locator('input[name=password]').fill(datos.clave);
-    await page.locator('input[name=termsAccepted]').check();
-    await page.getByRole('button', { name: 'Registrarme' }).last().click();
-
-    await page.getByRole('button', { name: /Continuar a Didit/ }).click();
-    await page.waitForURL(/\/verificar\//);
-    await page.locator('#documento').fill(datos.dni);
-    await page.locator('#nombres').fill(datos.nombre);
-    await page.locator('#apellidos').fill(datos.apellido);
-    await page.locator('#nacimiento').fill('1990-05-20');
-    await page.getByRole('button', { name: 'Verificar mi identidad' }).click();
-
-    await page.waitForURL(/\/complete-registration/);
-    await expect(page.locator('input[name=dni]')).toHaveValue(datos.dni);
+    await page.locator('input[name=dni]').fill(datos.dni);
     await page.locator('input[name=phone]').fill(datos.telefono);
-    await page.getByRole('button', { name: 'Terminar mi registro' }).click();
+    await page.locator('input[name=termsAccepted]').check();
+    const alta = page.waitForResponse((r) => r.url().includes('/api/auth/register') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Registrarme' }).last().click();
+    const respuesta = await alta;
+    expect(respuesta.status(), await respuesta.text()).toBeLessThan(300);
   }
 
   /** Abre el correo de confirmación y toca el enlace. */
@@ -114,6 +109,19 @@ export class Persona {
       shell: true,
       stdio: 'pipe',
     });
+  }
+
+  /**
+   * La clave de panel, como la primera vez que alguien del equipo entra a la administración: la crea con la contraseña de su cuenta y la pone. El pase queda en
+   * una cookie de este navegador.
+   */
+  async abrirElPanel(): Promise<void> {
+    const creada = await this.page.request.post('/api/clave-de-panel/crear', { data: { contrasena: this.datos.clave } });
+    const clave = (await creada.json()).data?.clave;
+    if (!clave) throw new Error(`No se pudo crear la clave de panel (${creada.status()})`);
+    const abierta = await this.page.request.post('/api/clave-de-panel/abrir', { data: { clave } });
+    if (!abierta.ok()) throw new Error(`No se pudo abrir el panel (${abierta.status()})`);
+    await this.page.reload();
   }
 
   async reingresar(): Promise<void> {

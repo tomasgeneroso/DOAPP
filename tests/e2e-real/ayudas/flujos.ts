@@ -59,6 +59,7 @@ export async function administradorEn(pagina: Page, rol: 'admin' | 'owner' | 'su
   await admin.darseDeAlta();
   admin.darRol(rol);
   await admin.reingresar();
+  await admin.abrirElPanel();
   return admin;
 }
 

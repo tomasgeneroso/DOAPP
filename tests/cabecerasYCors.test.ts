@@ -42,7 +42,7 @@ describe('CORS', () => {
     expect(r.headers['access-control-allow-credentials']).toBe('true');
     expect(r.headers['access-control-allow-methods']).toBe('GET,POST,PUT,PATCH,DELETE,OPTIONS');
     expect(r.headers['access-control-allow-methods']).not.toMatch(/HEAD/);
-    expect(r.headers['access-control-allow-headers']).toBe('Content-Type,Authorization,Accept,Accept-Language');
+    expect(r.headers['access-control-allow-headers']).toBe('Content-Type,Authorization,Accept,Accept-Language,X-Clave-De-Panel'); // la última es el pase de la clave de panel (app)
     expect(r.headers['access-control-max-age']).toBe('600');
   });
 

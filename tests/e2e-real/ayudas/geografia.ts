@@ -2,7 +2,7 @@ import type { Route } from '@playwright/test';
 
 /**
  * El gemelo de las DIRECCIONES. La web consulta dos servicios públicos desde el navegador mientras alguien escribe una dirección: Georef (datos.gob.ar,
- * calles y alturas que existen) y Nominatim (el código postal de un punto del mapa). Acá hay una geografía chica y fija con el mismo formato de respuesta:
+ * calles y alturas que existen) y Photon (lugares y el código postal de un punto del mapa). Acá hay una geografía chica y fija con el mismo formato de respuesta:
  * un puñado de calles reales con su rango de números. Lo que no está en la lista «no existe» (igual que una calle inventada en Georef).
  */
 interface Calle {
@@ -73,17 +73,22 @@ export async function responderGeografia(route: Route): Promise<boolean> {
     return true;
   }
 
-  if (url.hostname === 'nominatim.openstreetmap.org') {
-    const lat = Number(url.searchParams.get('lat'));
-    const lon = Number(url.searchParams.get('lon'));
+  if (url.hostname === 'photon.komoot.io') {
+    const resultado = (x: Calle) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [x.lon, x.lat] },
+      properties: { type: 'street', name: x.nombre, street: x.nombre, district: x.barrio, city: CIUDAD, state: CIUDAD, postcode: x.codigoPostal, countrycode: 'AR' },
+    });
     if (url.pathname.endsWith('/reverse')) {
+      const lat = Number(url.searchParams.get('lat'));
+      const lon = Number(url.searchParams.get('lon'));
       const cerca = [...CALLES].sort((a, b) => Math.hypot(a.lat - lat, a.lon - lon) - Math.hypot(b.lat - lat, b.lon - lon))[0];
-      await json({ address: { postcode: cerca?.codigoPostal || 'C1425', country_code: 'ar', road: cerca?.nombre }, lat, lon });
+      await json({ type: 'FeatureCollection', features: [resultado(cerca)] });
       return true;
     }
     const q = sinTildes(url.searchParams.get('q') || '');
     const c = CALLES.find((x) => q.includes(sinTildes(x.nombre).replace(/^av /, ''))) || CALLES[0];
-    await json([{ lat: String(c.lat), lon: String(c.lon), display_name: `${c.nombre}, ${c.barrio}, ${CIUDAD}, Argentina` }]);
+    await json({ type: 'FeatureCollection', features: [resultado(c)] });
     return true;
   }
   return false;
