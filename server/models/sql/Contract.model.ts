@@ -283,6 +283,13 @@ export class Contract extends Model {
   deliveryPhotos!: Array<{ url: string; nombre: string; bytes: number; subidoPor: 'client' | 'worker'; subidoPorId: string; subidoEl: string }>;
 
   /**
+   * Cuándo las dos partes autorizaron que las fotos del trabajo se publiquen (T&C 6.8: se acepta al contratar). La pone el modelo al crear el contrato.
+   * NULL = contrato anterior a la cláusula o cargado a mano por un administrador: ahí se publica solo si las dos lo aceptan.
+   */
+  @Column({ type: DataType.DATE, field: 'photo_consent_at' })
+  photoConsentAt?: Date | null;
+
+  /**
    * Control diario del trabajo, dia por dia.
    *
    * Es opcional a proposito: nadie esta obligado a marcar nada. Sirve para dos
@@ -1121,6 +1128,15 @@ export class Contract extends Model {
       const commissionNum = typeof instance.commission === 'string' ? parseFloat(instance.commission) : instance.commission;
       instance.totalPrice = priceNum + commissionNum;
     }
+  }
+
+  /**
+   * El consentimiento de las fotos queda anotado en cada contrato que nace por el camino normal. Quien lo crea sin que las partes hayan contratado en la
+   * Plataforma pasa `photoConsentAt: null` y se respeta.
+   */
+  @BeforeCreate
+  static anotarConsentimientoDeFotos(instance: Contract) {
+    if (instance.getDataValue('photoConsentAt') === undefined) instance.setDataValue('photoConsentAt', new Date());
   }
 
   /**

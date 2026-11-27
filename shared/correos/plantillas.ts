@@ -80,7 +80,7 @@ export function armarCorreo(plantilla: PlantillaDeCorreo, datos: DatosDeLaPerson
   const cuerpo = reemplazarVariables(plantilla.cuerpo, datos).replace(/\r\n/g, '\n').trim();
   const parrafos = cuerpo.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const botonTexto = String(plantilla.botonTexto ?? '').trim();
-  const botonUrl = reemplazarVariables(String(plantilla.botonUrl ?? ''), datos).trim();
+  const botonUrl = normalizarUrlDeBoton(reemplazarVariables(String(plantilla.botonUrl ?? ''), datos));
   const hayBoton = !!botonTexto && /^https:\/\//i.test(botonUrl);
 
   const p = (t: string, estilo = '') => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1e293b;${estilo}">${t}</p>`;
@@ -108,6 +108,16 @@ Si no querés recibir más correos como este, <a href="${escapar(datos.enlaceDeB
     .join('\n');
 
   return { asunto, html, texto };
+}
+
+/**
+ * Quien escribe suele poner «doapparg.com» a secas: si es un dominio de DOAPP sin protocolo, se completa con https://. Cualquier otra cosa queda como vino
+ * (y la validación la rechaza si no es de DOAPP).
+ */
+export function normalizarUrlDeBoton(url: unknown, hostsPermitidos: string[] = ['doapparg.com', 'www.doapparg.com']): string {
+  const t = String(url ?? '').trim();
+  const m = t.match(/^([a-z0-9.-]+)([/?#].*)?$/i);
+  return m && hostsPermitidos.some((h) => h.toLowerCase() === m[1].toLowerCase()) ? `https://${t}` : t;
 }
 
 export interface ErrorDePlantilla {
@@ -141,7 +151,7 @@ export function erroresDePlantilla(p: PlantillaDeCorreo & { nombre?: string }, h
   }
 
   const texto = String(p.botonTexto ?? '').trim();
-  const url = String(p.botonUrl ?? '').trim();
+  const url = normalizarUrlDeBoton(p.botonUrl, hostsPermitidos);
   if (texto && !url) errores.push({ campo: 'botonUrl', mensaje: 'El botón necesita una dirección.' });
   if (url && !texto) errores.push({ campo: 'botonTexto', mensaje: 'La dirección necesita un texto para el botón.' });
   if (url && !/^\{\{\s*(enlaceRegistro|enlaceApp)\s*\}\}$/.test(url)) {

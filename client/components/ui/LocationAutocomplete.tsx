@@ -39,7 +39,7 @@ export default function LocationAutocomplete({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlRef = useRef<AbortController | null>(null);
 
-  // Lugares reales de OpenStreetMap (Nominatim) con el detalle de la dirección, sin clave: es el mismo servicio de los mapas de la app.
+  // Lugares reales (Photon, datos de OpenStreetMap) con el detalle de la dirección, sin clave. Es el mismo buscador de la app.
   const searchLocations = useCallback(async (query: string) => {
     controlRef.current?.abort();
     if (!query || query.trim().length < 3) {
@@ -73,7 +73,7 @@ export default function LocationAutocomplete({
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (inputValue.trim().length >= 3) {
-      // 500ms debounce respects Nominatim's usage policy
+      // Medio segundo sin escribir antes de preguntar: el buscador es público y pide uso razonable
       debounceRef.current = setTimeout(() => searchLocations(inputValue), 500);
     } else {
       controlRef.current?.abort();

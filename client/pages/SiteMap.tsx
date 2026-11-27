@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { aCoordenada, puntoDeUnaZona } from '../utils/coordenadas';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
@@ -85,7 +86,7 @@ function getApproximateCoordinates(location: string): [number, number] {
   return [-34.6037, -58.3816]; // Default: Buenos Aires
 }
 
-// Geocodificar ubicación usando Nominatim
+// El punto de la zona de un trabajo que no tiene coordenadas guardadas
 async function geocodeLocation(location: string): Promise<[number, number]> {
   const cacheKey = location.toLowerCase().trim();
 
@@ -103,25 +104,10 @@ async function geocodeLocation(location: string): Promise<[number, number]> {
     return geocodeCache[cacheKey];
   }
 
-  try {
-    const searchQuery = location.includes('Argentina') ? location : `${location}, Argentina`;
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ar`,
-      { headers: { 'Accept-Language': 'es' } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.length > 0) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        const coords: [number, number] = [lat, lon];
-        geocodeCache[cacheKey] = coords;
-        return coords;
-      }
-    }
-  } catch (error) {
-    console.error('Error geocoding location:', error);
+  const punto = await puntoDeUnaZona(location);
+  if (punto) {
+    geocodeCache[cacheKey] = punto;
+    return punto;
   }
 
   geocodeCache[cacheKey] = predefinedCoords;
@@ -154,8 +140,12 @@ export default function SiteMap() {
           // Geocodificar todas las ubicaciones
           const jobsWithCoords: JobWithCoords[] = await Promise.all(
             data.jobs.map(async (job: Job) => {
-              if (job.location) {
-                const coords = await geocodeLocation(job.location);
+              const lat = aCoordenada((job as any).latitude);
+              const lon = aCoordenada((job as any).longitude);
+              const guardadas: [number, number] | null = lat !== null && lon !== null ? [lat, lon] : null;
+              if (guardadas || job.location) {
+                // Con las coordenadas guardadas del trabajo no se le pregunta nada a nadie.
+                const coords = guardadas || (await geocodeLocation(job.location));
                 // Agregar pequeño offset aleatorio para evitar superposición
                 const offset = () => (Math.random() - 0.5) * 0.01;
                 return { ...job, coordinates: [coords[0] + offset(), coords[1] + offset()] as [number, number] };

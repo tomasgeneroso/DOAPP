@@ -26,6 +26,7 @@ import { getClientInfo } from "@/lib/utils";
 import AvisoSinProteccion from "@/components/pagos/AvisoSinProteccion";
 import Transicion from "../components/ui/Transicion";
 import { lugaresDelTrabajo, precioDeUnLugar } from "../../shared/jobs/precioDelLugar";
+import { AVISO_DE_FOTOS_AL_CONTRATAR } from "../../shared/momentos/momentos";
 
 export default function JobApplicationSummary() {
   const { t } = useTranslation();
@@ -487,6 +488,8 @@ export default function JobApplicationSummary() {
                 </p>
               </div>
             )}
+
+            <p className="mb-3 text-center text-xs text-slate-500 dark:text-slate-400" data-testid="aviso-de-fotos">{AVISO_DE_FOTOS_AL_CONTRATAR}</p>
 
             {/* Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -10,6 +10,7 @@ import { useQuoteStatus } from '../../hooks/useSocket';
 import { origenDelPago } from '../../services/pagos';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { lugaresDelTrabajo, precioDeUnLugar } from '../../../shared/jobs/precioDelLugar';
+import { AVISO_DE_FOTOS_AL_CONTRATAR } from '../../../shared/momentos/momentos';
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: 'Pendiente',  color: '#92400e', bg: '#fef3c7' },
@@ -123,10 +124,10 @@ export default function ProposalDetailScreen() {
       const botones: any[] = [{ text: 'Cancelar', style: 'cancel' }];
       botones.push({ text: quedanLugares ? 'Elegir y esperar al resto' : 'Elegir', onPress: () => aprobar(false, { jobId, lugares, elegidos }) });
       if (quedanLugares && puedeEmpezarConMenos) botones.push({ text: 'Elegir y empezar con los elegidos', onPress: () => aprobar(true, { jobId, lugares, elegidos }) });
-      Alert.alert(`Elegir trabajador (${elegidos + 1} de ${lugares})`, cuerpo, botones);
+      Alert.alert(`Elegir trabajador (${elegidos + 1} de ${lugares})`, `${cuerpo}\n\n${AVISO_DE_FOTOS_AL_CONTRATAR}`, botones);
       return;
     }
-    Alert.alert('Aceptar propuesta', '¿Aceptás esta propuesta? Se creará el contrato automáticamente.', [
+    Alert.alert('Aceptar propuesta', `¿Aceptás esta propuesta? Se creará el contrato automáticamente.\n\n${AVISO_DE_FOTOS_AL_CONTRATAR}`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Aceptar', style: 'default', onPress: () => aprobar(false) },
     ]);

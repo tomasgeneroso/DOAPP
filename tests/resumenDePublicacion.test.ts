@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { estadoFinal, estadoDelContrato, estadoDelPago, estadoDelPagoDePublicacion, alertaDeLaFila, resumenDePublicacion, rotuloDelEstadoDeUnPago } from '../shared/admin/resumenDePublicacion.js';
+import { elPagoRepiteElEstadoFinal, estadoFinal, estadoDelContrato, estadoDelPago, estadoDelPagoDePublicacion, alertaDeLaFila, resumenDePublicacion, rotuloDelEstadoDeUnPago } from '../shared/admin/resumenDePublicacion.js';
 
 /**
  * Qué dice cada fila del panel de publicaciones: ESTADO FINAL, CONTRATO y PAGO (regla del dueño, 2026-11-09).
@@ -146,5 +146,14 @@ describe('rotuloDelEstadoDeUnPago: qué dice un pago por sí mismo', () => {
     expect(rotuloDelEstadoDeUnPago('completed').tono).toBe('fin');
     expect(rotuloDelEstadoDeUnPago('algo_nuevo').rotulo).toBe('Pago: algo_nuevo');
     expect(rotuloDelEstadoDeUnPago(null).rotulo).toBe('Pago sin estado');
+  });
+});
+
+describe('la fila no dice dos veces lo mismo', () => {
+  it('«Terminada: falta pagar al trabajador» ya cuenta el pago, y «terminada y pagada» también', () => {
+    expect(elPagoRepiteElEstadoFinal('terminada_falta_pagar', 'falta_pagar_trabajador')).toBe(true);
+    expect(elPagoRepiteElEstadoFinal('terminada_pagada', 'pagado_trabajador')).toBe(true);
+    expect(elPagoRepiteElEstadoFinal('terminada_falta_pagar', 'pagado_trabajador')).toBe(false);
+    expect(elPagoRepiteElEstadoFinal('en_curso', 'falta_pagar_trabajador')).toBe(false);
   });
 });

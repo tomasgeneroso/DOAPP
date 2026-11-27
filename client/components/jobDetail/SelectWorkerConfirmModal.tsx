@@ -3,6 +3,7 @@ import { getImageUrl } from "../../utils/imageUrl";
 import AvatarConInicial from "@/components/ui/AvatarConInicial";
 import { CheckCircle, Star, Loader2 } from "lucide-react";
 import type { Job } from "@/types";
+import { AVISO_DE_FOTOS_AL_CONTRATAR } from "../../../shared/momentos/momentos";
 
 interface SelectWorkerConfirmModalProps {
   open: boolean;
@@ -115,6 +116,7 @@ export default function SelectWorkerConfirmModal({
               )}
             </ul>
           </div>
+          <p className="text-xs text-slate-300" data-testid="aviso-de-fotos">{AVISO_DE_FOTOS_AL_CONTRATAR}</p>
         </div>
 
         <div className="flex gap-3">

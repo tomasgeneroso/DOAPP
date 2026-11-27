@@ -18,14 +18,14 @@ afterEach(() => {
 const georef = (lat: number, lon: number, ciudad = 'Resistencia', provincia = 'Chaco') => ({
   direcciones: [{ calle: { nombre: 'AYACUCHO' }, altura: { valor: 470 }, localidad_censal: { nombre: ciudad }, provincia: { nombre: provincia }, ubicacion: { lat, lon } }],
 });
-const osm = (lat: number, lon: number) => [{ lat: String(lat), lon: String(lon), address: { country_code: 'ar', road: 'Ayacucho', house_number: '470', city: 'Resistencia', state: 'Chaco' } }];
+const osm = (lat: number, lon: number) => ({ features: [{ geometry: { coordinates: [lon, lat] }, properties: { countrycode: 'AR', street: 'Ayacucho', housenumber: '470', city: 'Resistencia', state: 'Chaco' } }] });
 
 function simularRed(handlers: { georef?: () => unknown; osm?: () => unknown }) {
   const pedidos: string[] = [];
   globalThis.fetch = (async (url: unknown) => {
     const u = String(url);
     pedidos.push(u);
-    const cuerpo = u.includes('apis.datos.gob.ar') ? handlers.georef?.() : u.includes('nominatim') ? handlers.osm?.() : undefined;
+    const cuerpo = u.includes('apis.datos.gob.ar') ? handlers.georef?.() : u.includes('photon.komoot.io') ? handlers.osm?.() : undefined;
     return { ok: cuerpo !== undefined, json: async () => cuerpo } as Response;
   }) as typeof fetch;
   return pedidos;
@@ -83,7 +83,7 @@ describe('ubicarDireccion', () => {
     const r = await ubicarDireccion({ calle: 'Ayacucho 470, H3500 Resistencia, Chaco, Argentina', numero: '470', lugar: 'Resistencia, Chaco' });
     expect(r).toMatchObject({ fuente: 'osm', zoom: 17 });
     expect(pedidos).toHaveLength(1);
-    expect(pedidos[0]).toContain('nominatim');
+    expect(pedidos[0]).toContain('photon.komoot.io');
     const q = decodeURIComponent(pedidos[0]).split('&q=')[1];
     expect(q).toBe('Ayacucho 470, H3500 Resistencia, Chaco, Argentina'); // sin el número ni la localidad repetidos
   });
@@ -94,7 +94,7 @@ describe('ubicarDireccion', () => {
   });
 
   it('si no encuentra nada devuelve null (el mapa dice «no encontramos esa dirección» y deja el pin a mano); con la red caída también', async () => {
-    simularRed({ georef: () => ({ direcciones: [] }), osm: () => [] });
+    simularRed({ georef: () => ({ direcciones: [] }), osm: () => ({ features: [] }) });
     expect(await ubicarDireccion({ calle: 'Calle Inexistente', numero: '9', lugar: 'Resistencia, Chaco' })).toBeNull();
     globalThis.fetch = (async () => { throw new Error('sin red'); }) as typeof fetch;
     expect(await ubicarDireccion({ calle: 'Ayacucho', numero: '470', lugar: 'Resistencia, Chaco' })).toBeNull();

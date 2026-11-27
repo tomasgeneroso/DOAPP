@@ -90,6 +90,7 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'activity_days.day', sql: `CREATE INDEX IF NOT EXISTS activity_days_day ON activity_days (day)` },
   { label: 'usage_counters', sql: `CREATE TABLE IF NOT EXISTS usage_counters (day DATE NOT NULL, name VARCHAR(40) NOT NULL, total INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, name))` },
   // --- momentos importantes (migración 20261126110000) ---
+  { label: 'admin_panel_keys', sql: "CREATE TABLE IF NOT EXISTS admin_panel_keys (user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, key_hash VARCHAR(100), stamp VARCHAR(32), failed_attempts INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, reset_code_hash VARCHAR(64), reset_expires_at TIMESTAMPTZ, key_set_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())" },
   { label: 'user_moments', sql: "CREATE TABLE IF NOT EXISTS user_moments (user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, moment_key VARCHAR(80) NOT NULL, seen_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_id, moment_key))" },
   { label: 'before_after_shares', sql: "CREATE TABLE IF NOT EXISTS before_after_shares (id UUID PRIMARY KEY, contract_id UUID NOT NULL UNIQUE REFERENCES contracts(id) ON DELETE CASCADE, proposed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, status VARCHAR(20) NOT NULL DEFAULT 'pending', photos JSONB NOT NULL, caption VARCHAR(300), answered_by UUID, answered_at TIMESTAMPTZ, post_id UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())" },
   // --- matrícula profesional encriptada (ver migración 20261012100000) ---
@@ -156,6 +157,7 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'jobs.payment_mode', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
   { label: 'contracts.payout_requested_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS payout_requested_at TIMESTAMPTZ` },
   { label: 'contracts.delivery_photos', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS delivery_photos JSONB NOT NULL DEFAULT '[]'::jsonb` },
+  { label: 'contracts.photo_consent_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS photo_consent_at TIMESTAMPTZ` },
   { label: 'contracts.payment_mode', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT 'escrow'` },
   // Vencimiento de la orden de pago al terminar. Una orden abierta para siempre
   // es plata que nadie reclama y un contrato que nunca cierra.

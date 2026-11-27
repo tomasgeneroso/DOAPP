@@ -5,7 +5,7 @@ import { useCambiosDeAdministracion } from '../../hooks/useSocket';
 import { AlertTriangle, ExternalLink, FileText, Loader2, Receipt, Search, X } from 'lucide-react';
 import Transicion from '../../components/ui/Transicion';
 import IdBadge from '../../components/admin/IdBadge';
-import { ESTADOS_FINALES, type TonoDeEstado } from '../../../shared/admin/resumenDePublicacion';
+import { ESTADOS_FINALES, type TonoDeEstado, elPagoRepiteElEstadoFinal } from '../../../shared/admin/resumenDePublicacion';
 
 /**
  * Publicaciones, vista general: UNA fila por publicación con su ESTADO FINAL, su CONTRATO y su PAGO (el dibujo del dueño, 2026-11-09).
@@ -215,8 +215,15 @@ export default function PanelGeneralDePublicaciones() {
                     {f.contrato.cantidad > 1 && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{f.contrato.terminados} de {f.contrato.cantidad} terminados</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${COLOR_DE_PAGO[f.pago.clave] ?? TONOS.espera}`}>{f.pago.rotulo}</span>
-                    {f.pago.detalle && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{f.pago.detalle}</div>}
+                    {elPagoRepiteElEstadoFinal(f.estadoFinal.clave, f.pago.clave) ? (
+                      // El estado final ya lo dice: acá queda lo que no se repite, el pago de la publicación.
+                      <span className="text-xs text-slate-600 dark:text-slate-300">{f.pago.detalle ? `Publicación: ${f.pago.detalle}` : '—'}</span>
+                    ) : (
+                      <>
+                        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${COLOR_DE_PAGO[f.pago.clave] ?? TONOS.espera}`}>{f.pago.rotulo}</span>
+                        {f.pago.detalle && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{f.pago.detalle}</div>}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">

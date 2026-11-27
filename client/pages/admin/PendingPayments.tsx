@@ -11,7 +11,7 @@ import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
 import { TONOS, tonoDe, COLOR_DE_CONTRATO, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
-import { rotuloDelEstadoDeUnPago } from "../../../shared/admin/resumenDePublicacion";
+import { rotuloDelEstadoDeUnPago, elPagoRepiteElEstadoFinal } from '../../../shared/admin/resumenDePublicacion';
 import { rotuloDelMetodo } from "../../../shared/pagos/detalleDelPagoDeLaPublicacion";
 import ImagenProtegida from "../../components/ui/ImagenProtegida";
 import Pestanas from "../../components/ui/Pestanas";
@@ -279,6 +279,8 @@ export default function PendingPayments() {
   // Approve modal state (mandatory proof upload)
   const [approveModalPaymentId, setApproveModalPaymentId] = useState<string | null>(null);
   const [approveFile, setApproveFile] = useState<File | null>(null);
+  /** El pago que se está verificando trae un comprobante del cliente esperando: se puede verificar ese sin subir otro. */
+  const [hayComprobanteDelCliente, setHayComprobanteDelCliente] = useState(false);
   const [approveReference, setApproveReference] = useState("");
   const [refCheck, setRefCheck] = useState<{ duplicate: boolean; matches: any[] } | null>(null);
   const [approveAmount, setApproveAmount] = useState("");
@@ -650,6 +652,7 @@ export default function PendingPayments() {
   const handleApproveVerificationPayment = (paymentId: string, payment?: any) => {
     setApproveModalPaymentId(paymentId);
     setApproveFile(null);
+    setHayComprobanteDelCliente(!!payment?.proofs?.some((p: any) => p?.fileUrl && (!p.status || p.status === "pending")));
     setRefCheck(null);
     // Auto-fill with the information we already have from the client's uploaded proof
     const proof = payment?.proofs?.[0] || {};
@@ -700,7 +703,7 @@ export default function PendingPayments() {
   // Confirmar aprobación desde modal
   const handleConfirmApprove = async () => {
     if (!approveModalPaymentId) return;
-    if (!approveFile) {
+    if (!approveFile && !hayComprobanteDelCliente) {
       alert("Debes subir el comprobante de pago");
       return;
     }
@@ -721,17 +724,20 @@ export default function PendingPayments() {
       setApproveUploading(true);
       const token = localStorage.getItem("token");
 
-      // 1. Upload proof file
-      const formData = new FormData();
-      formData.append("file", approveFile);
-      const uploadResponse = await fetch("/api/admin/payments/upload-proof", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const uploadData = await uploadResponse.json();
-      if (!uploadData.success) {
-        throw new Error(uploadData.message || "Error al subir comprobante");
+      // 1. Upload proof file (solo si el equipo adjunta el suyo; si no, se verifica el del cliente)
+      let uploadData: any = null;
+      if (approveFile) {
+        const formData = new FormData();
+        formData.append("file", approveFile);
+        const uploadResponse = await fetch("/api/admin/payments/upload-proof", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        uploadData = await uploadResponse.json();
+        if (!uploadData.success) {
+          throw new Error(uploadData.message || "Error al subir comprobante");
+        }
       }
 
       // 2. Approve payment with proof data
@@ -742,7 +748,7 @@ export default function PendingPayments() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          proofUrl: uploadData.url,
+          proofUrl: uploadData?.url,
           bankReference: approveReference,
           transferAmount: approveAmount,
           transferDate: approveDate,
@@ -1773,9 +1779,9 @@ export default function PendingPayments() {
                                     <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${COLOR_DE_CONTRATO[payment.situacion.contrato.clave] ?? TONOS.espera}`}>
                                       Contrato: {payment.situacion.contrato.rotulo}
                                     </span>
-                                    <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${COLOR_DE_PAGO[payment.situacion.pago.clave] ?? TONOS.espera}`}>
+                                    {!elPagoRepiteElEstadoFinal(payment.situacion.estadoFinal.clave, payment.situacion.pago.clave) && <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${COLOR_DE_PAGO[payment.situacion.pago.clave] ?? TONOS.espera}`}>
                                       {payment.situacion.pago.rotulo}
-                                    </span>
+                                    </span>}
                                   </div>
                                   {payment.situacion.alerta && (
                                     <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {payment.situacion.alerta}</div>
@@ -1990,7 +1996,7 @@ export default function PendingPayments() {
                                 </>
                               )}
                               {/* Show verify escrow button for verified payments */}
-                              {appSubFilter === "verified" && (
+                              {String(payment.status) === "verified" && (
                                 <button
                                   onClick={() => handleVerifyEscrow(payment.id)}
                                   disabled={approvingPaymentId === payment.id}
@@ -2008,7 +2014,7 @@ export default function PendingPayments() {
                                 </button>
                               )}
                               {/* Show confirm for payout button for escrow payments */}
-                              {appSubFilter === "escrow" && (
+                              {String(payment.status) === "held_escrow" && (
                                 <button
                                   onClick={() => handleConfirmForPayout(payment.id)}
                                   disabled={approvingPaymentId === payment.id}
@@ -3335,6 +3341,11 @@ export default function PendingPayments() {
 
               <div className="space-y-4">
                 {/* Comprobante */}
+                {hayComprobanteDelCliente && (
+                  <p data-testid="se-verifica-el-del-cliente" className="rounded-lg border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 p-3 text-sm text-sky-900 dark:text-sky-200">
+                    El cliente ya subió su comprobante: al verificar queda aprobado ese. Adjuntar otro archivo acá es opcional (por ejemplo, la captura de tu banco).
+                  </p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <Upload className="inline h-4 w-4 mr-1" />
@@ -3457,7 +3468,7 @@ export default function PendingPayments() {
                 </button>
                 <button
                   onClick={handleConfirmApprove}
-                  disabled={approveUploading || !approveFile || !approveReference.trim() || !approveAmount.trim() || !approveDate.trim()}
+                  disabled={approveUploading || (!approveFile && !hayComprobanteDelCliente) || !approveReference.trim() || !approveAmount.trim() || !approveDate.trim()}
                   className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {approveUploading ? (

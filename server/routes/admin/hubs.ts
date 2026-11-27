@@ -126,7 +126,8 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
   try {
     const { Payment, RESOLVED_PAYMENT_STATUSES } = await import('../../models/sql/Payment.model.js');
     const { WithdrawalRequest } = await import('../../models/sql/WithdrawalRequest.model.js');
-    const { Op } = await import('sequelize');
+    const { Op, literal } = await import('sequelize');
+    const { SQL_ES_UN_INTENTO_ANIDADO } = await import('../../../shared/pagos/intentosDePago.js');
     let Dispute: any = null;
     try { Dispute = (await import('../../models/sql/Dispute.model.js')).Dispute; } catch { /* optional */ }
 
@@ -153,7 +154,8 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
     ] = await Promise.all([
       // Same rule as the Pendiente Verificacion tab, or the badge and the
       // list it points at report different numbers.
-      Payment.count({ where: { status: { [Op.notIn]: RESOLVED_PAYMENT_STATUSES } } }),
+      // Tampoco los intentos anidados bajo otro pago (se tocó «Pagar» varias veces): la lista no los muestra sueltos y acá contaban como pendientes.
+      Payment.count({ where: { status: { [Op.notIn]: RESOLVED_PAYMENT_STATUSES }, [Op.and]: [literal(`NOT ${SQL_ES_UN_INTENTO_ANIDADO}`)] } as any }),
       WithdrawalRequest.count({ where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } }),
       // Con un pago propio «confirmado para pagar» más los contratos que respalda el pago de la publicación (services/pagosAlTrabajador.ts): el mismo número que la lista.
       (async () => (await Payment.count({ where: { status: 'confirmed_for_payout' } })) + (await (await import('../../services/pagosAlTrabajador.js')).respaldadosPorLaPublicacion()).length)(),

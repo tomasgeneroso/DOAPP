@@ -10,6 +10,8 @@ interface Estado {
   terminado: boolean;
   fotos: { antes: string[]; despues: string[] };
   puedeProponer: boolean;
+  /** Las dos partes lo autorizaron al contratar: se publica sin pedir permiso de nuevo. */
+  sePublicaDirecto?: boolean;
   pedido: null | { id: string; estado: 'pending' | 'published' | 'rejected' | 'withdrawn'; loPropusisteVos: boolean; fotos: { antes: string[]; despues: string[] }; texto: string; publicacionId: string | null };
 }
 
@@ -32,7 +34,7 @@ function Miniaturas({ titulo, rutas, elegidas, onTocar }: { titulo: string; ruta
   );
 }
 
-/** «Antes y después» de un trabajo terminado: una parte propone y SOLO se publica si la otra acepta. Cualquiera de las dos puede retirarlo. */
+/** «Antes y después» de un trabajo terminado. Con la autorización de la contratación publica cualquiera de las dos; si no, tiene que aceptar la otra. Siempre se puede retirar. */
 export default function AntesYDespues({ contractId }: { contractId: string }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [armando, setArmando] = useState(false);
@@ -72,7 +74,7 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
       {activo && pedido && (
         <>
           <p className="text-sm text-slate-700 dark:text-slate-200">
-            {pedido.estado === 'published' ? 'Está publicado en el muro con el permiso de las dos partes.'
+            {pedido.estado === 'published' ? 'Está publicado en el muro con el permiso de las dos partes. Cualquiera puede retirarlo.'
               : pedido.loPropusisteVos ? 'Esperando que la otra persona lo acepte. Hasta entonces las fotos siguen siendo privadas.'
               : 'Quieren publicar estas fotos en el muro. Se publican solo si lo aceptás.'}
           </p>
@@ -96,7 +98,11 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
 
       {!activo && !armando && (
         <>
-          <p className="text-sm text-slate-700 dark:text-slate-200">Mostrá cómo quedó. Se publica solo si la otra persona también lo acepta.</p>
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            {estado.sePublicaDirecto
+              ? 'Mostrá cómo quedó. Las dos partes autorizaron publicar las fotos al contratar, y cualquiera puede retirarlas cuando quiera.'
+              : 'Mostrá cómo quedó. Se publica solo si la otra persona también lo acepta.'}
+          </p>
           <button type="button" onClick={() => { setArmando(true); setAviso(''); }} className={`${BOTON} bg-sky-600 text-white hover:bg-sky-700`}>Armar un antes y después</button>
         </>
       )}
@@ -111,8 +117,8 @@ export default function AntesYDespues({ contractId }: { contractId: string }) {
             <textarea value={texto} maxLength={300} onChange={(e) => setTexto(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-2 text-slate-900 dark:text-white" />
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={enviando || despues.length === 0} onClick={() => hacer(`/antes-despues/contrato/${contractId}`, { antes, despues, texto }, 'Pedido enviado.')} className={`${BOTON} bg-sky-600 text-white hover:bg-sky-700`}>
-              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Pedir permiso para publicar'}
+            <button type="button" disabled={enviando || despues.length === 0} onClick={() => hacer(`/antes-despues/contrato/${contractId}`, { antes, despues, texto }, estado.sePublicaDirecto ? 'Listo, quedó publicado.' : 'Pedido enviado.')} className={`${BOTON} bg-sky-600 text-white hover:bg-sky-700`}>
+              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : estado.sePublicaDirecto ? 'Publicar en el muro' : 'Pedir permiso para publicar'}
             </button>
             <button type="button" onClick={() => setArmando(false)} className={`${BOTON} text-slate-600 dark:text-slate-300`}>Cancelar</button>
           </div>

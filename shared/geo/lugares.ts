@@ -1,9 +1,9 @@
-import { normalizarCodigoPostal, separarCalleYAltura } from './direcciones.js';
+import { IDIOMA_PHOTON, URL_PHOTON_BUSQUEDA, URL_PHOTON_INVERSO, lugaresDePhoton, normalizarCodigoPostal, separarCalleYAltura } from './direcciones.js';
 
 /**
  * Lugares y direcciones reales para el formulario de un trabajo (Ubicación, Calle, Número, Barrio y Código postal).
  *
- *  - «Ubicación» busca lugares en OpenStreetMap (Nominatim) CON el detalle de la dirección: si la persona elige una dirección exacta
+ *  - «Ubicación» busca lugares en Photon (datos de OpenStreetMap) CON el detalle de la dirección: si la persona elige una dirección exacta
  *    (calle + número), se completan sola la calle, el número, el barrio, el código postal y la ubicación en el mapa.
  *  - Una dirección elegida sin barrio o sin código postal se completa con una consulta por su ubicación (`detallesDeUbicacion`).
  *  - Calle y número se SANEAN: el número de puerta son solo dígitos y el número no se queda escrito dentro de la calle.
@@ -23,53 +23,59 @@ export interface LugarSugerido {
   lon: number;
 }
 
-export const URL_NOMINATIM_BUSQUEDA = 'https://nominatim.openstreetmap.org/search';
-const URL_NOMINATIM_INVERSO = 'https://nominatim.openstreetmap.org/reverse';
-
 const txt = (x: unknown): string => (typeof x === 'string' ? x.trim() : '');
 const num = (x: unknown): number | undefined => {
   const n = typeof x === 'string' ? Number(x) : (x as number);
   return typeof n === 'number' && Number.isFinite(n) ? n : undefined;
 };
 
-/** El barrio, según cómo lo llame OpenStreetMap en cada ciudad. */
-function barrioDe(a: any): string {
-  return txt(a?.neighbourhood) || txt(a?.suburb) || txt(a?.quarter) || txt(a?.city_district) || '';
+/** El nombre del resultado cuando el resultado ES esa zona (un barrio buscado por su nombre no trae «barrio» aparte). */
+const nombreSiEs = (p: any, tipos: string[]): string => (tipos.includes(txt(p?.type)) ? txt(p?.name) : '');
+
+/** El barrio, según cómo esté cargado en cada ciudad («locality» es el más chico; en Corrientes «district» es la seccional). */
+function barrioDe(p: any): string {
+  return txt(p?.locality) || nombreSiEs(p, ['locality', 'district']) || txt(p?.district) || '';
 }
 
-function ciudadDe(a: any): string {
-  return txt(a?.city) || txt(a?.town) || txt(a?.village) || txt(a?.municipality) || txt(a?.county) || '';
+function ciudadDe(p: any): string {
+  return txt(p?.city) || nombreSiEs(p, ['city']) || txt(p?.county) || '';
 }
+
+const calleDe = (p: any): string => txt(p?.street) || nombreSiEs(p, ['street']);
 
 export function urlDeLugares(consulta: unknown, max = 6): string | null {
   const t = String(consulta ?? '').replace(/\s+/g, ' ').trim();
   if (t.length < 3) return null;
-  return `${URL_NOMINATIM_BUSQUEDA}?format=jsonv2&addressdetails=1&countrycodes=ar&accept-language=es&limit=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&q=${encodeURIComponent(t)}`;
+  return `${URL_PHOTON_BUSQUEDA}?countrycode=AR&lang=${IDIOMA_PHOTON}&limit=${Math.min(Math.max(1, Math.floor(max) || 1), 10)}&q=${encodeURIComponent(t)}`;
 }
 
-/** Lee la respuesta de Nominatim. Lo que venga raro (sin ubicación, de otro país) se descarta. */
-export function leerLugares(json: unknown): LugarSugerido[] {
-  if (!Array.isArray(json)) return [];
+const sinTildes = (t: string): string => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/**
+ * Lee la respuesta de Photon. Lo que venga raro (sin ubicación, de otro país) se descarta. Si algo se llama exactamente como lo buscado (el barrio «Palermo»),
+ * va primero: Photon suele poner antes lugares conocidos que quedan adentro.
+ */
+export function leerLugares(json: unknown, consulta = ''): LugarSugerido[] {
+  const buscado = sinTildes(consulta.split(',')[0] || '');
+  const todos = lugaresDePhoton(json);
+  const esLaZona = (l: (typeof todos)[number]) => ['district', 'locality', 'city'].includes(txt(l.propiedades.type)) && sinTildes(txt(l.propiedades.name)) === buscado;
+  const ordenados = buscado ? [...todos.filter(esLaZona), ...todos.filter((l) => !esLaZona(l))] : todos;
   const vistos = new Set<string>();
   const salida: LugarSugerido[] = [];
-  for (const r of json as any[]) {
-    const a = r?.address;
-    const lat = num(r?.lat);
-    const lon = num(r?.lon);
-    if (!a || lat === undefined || lon === undefined) continue;
-    if (a.country_code && String(a.country_code).toLowerCase() !== 'ar') continue;
-    const calle = txt(a.road) || txt(a.pedestrian) || txt(a.footway) || '';
+  for (const { propiedades: p, lat, lon } of ordenados) {
+    const calle = calleDe(p);
     // Del número de casa solo valen los dígitos («967», no «967 bis» ni «S/N»): el campo es numérico.
-    const crudo = txt(a.house_number).match(/\d{1,6}/)?.[0] || '';
+    const crudo = txt(p.housenumber).match(/\d{1,6}/)?.[0] || '';
     const numero = calle ? crudo.replace(/^0+/, '') : '';
-    const barrio = barrioDe(a);
-    const ciudad = ciudadDe(a);
-    const provincia = txt(a.state);
-    const principal = calle ? [calle, numero].filter(Boolean).join(' ') : txt(r?.name) || txt(r?.display_name).split(',')[0];
+    const barrio = barrioDe(p);
+    const ciudad = ciudadDe(p);
+    const provincia = txt(p.state);
+    // Una dirección se nombra por calle y número; un lugar con nombre propio («Aeroparque»), por su nombre.
+    const principal = calle && numero ? `${calle} ${numero}` : txt(p.name) || calle;
     const etiqueta = [principal, barrio && barrio !== principal ? barrio : '', ciudad && ciudad !== principal ? ciudad : '', provincia].filter(Boolean).join(', ');
-    if (!etiqueta || vistos.has(etiqueta)) continue;
+    if (!principal || vistos.has(etiqueta)) continue;
     vistos.add(etiqueta);
-    salida.push({ etiqueta, calle, numero, barrio, ciudad, provincia, codigoPostal: normalizarCodigoPostal(a.postcode), lat, lon });
+    salida.push({ etiqueta, calle, numero, barrio, ciudad, provincia, codigoPostal: normalizarCodigoPostal(p.postcode), lat, lon });
   }
   return salida;
 }
@@ -78,8 +84,8 @@ export async function buscarLugares(consulta: string, opciones: { signal?: Abort
   const url = urlDeLugares(consulta);
   if (!url) return [];
   try {
-    const r = await fetch(url, { signal: opciones.signal, headers: { 'Accept-Language': 'es' } });
-    return r.ok ? leerLugares(await r.json()) : [];
+    const r = await fetch(url, { signal: opciones.signal });
+    return r.ok ? leerLugares(await r.json(), consulta) : [];
   } catch {
     return [];
   }
@@ -92,21 +98,23 @@ export interface DetallesDeUbicacion {
   provincia: string;
 }
 
-/** Lo que OpenStreetMap sabe de un punto: código postal, barrio, ciudad y provincia. Una consulta por dirección elegida. */
+/** Lo que el mapa sabe de un punto: código postal, barrio, ciudad y provincia. Una consulta por dirección elegida. */
 export async function detallesDeUbicacion(lat: unknown, lon: unknown, opciones: { signal?: AbortSignal; userAgent?: string } = {}): Promise<DetallesDeUbicacion | null> {
   const la = num(lat);
   const lo = num(lon);
   if (la === undefined || lo === undefined || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
   try {
-    const r = await fetch(`${URL_NOMINATIM_INVERSO}?lat=${la}&lon=${lo}&format=jsonv2&zoom=18&addressdetails=1&accept-language=es`, {
+    const r = await fetch(`${URL_PHOTON_INVERSO}?lat=${la}&lon=${lo}&lang=${IDIOMA_PHOTON}&limit=5`, {
       signal: opciones.signal,
       headers: opciones.userAgent ? { 'User-Agent': opciones.userAgent } : undefined,
     });
     if (!r.ok) return null;
-    const j: any = await r.json();
-    const a = j?.address;
-    if (!a || (a.country_code && String(a.country_code).toLowerCase() !== 'ar')) return null;
-    return { codigoPostal: normalizarCodigoPostal(a.postcode), barrio: barrioDe(a), ciudad: ciudadDe(a), provincia: txt(a.state) };
+    const cerca = lugaresDePhoton(await r.json()).map((l) => l.propiedades);
+    if (cerca.length === 0) return null;
+    // Barrio, ciudad y provincia del punto más cercano; el código postal, del más cercano que lo tenga cargado.
+    const p = cerca[0];
+    const codigoPostal = cerca.map((x) => normalizarCodigoPostal(x.postcode)).find((cp) => !!cp) || null;
+    return { codigoPostal, barrio: barrioDe(p), ciudad: ciudadDe(p), provincia: txt(p.state) };
   } catch {
     return null;
   }

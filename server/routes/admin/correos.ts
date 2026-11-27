@@ -20,8 +20,8 @@ import {
   resumirCampana,
   sembrarLoDePartida,
 } from '../../services/campanasDeCorreo.js';
-import { contarGrupo, muestraDelGrupo, type CategoriaDeCorreo } from '../../services/gruposDeCorreo.js';
-import { erroresDePlantilla, LIMITES_DE_PLANTILLA, VARIABLES_DE_PLANTILLA } from '../../../shared/correos/plantillas.js';
+import { contarGrupo, explicarGrupo, muestraDelGrupo, type CategoriaDeCorreo } from '../../services/gruposDeCorreo.js';
+import { erroresDePlantilla, normalizarUrlDeBoton, LIMITES_DE_PLANTILLA, VARIABLES_DE_PLANTILLA } from '../../../shared/correos/plantillas.js';
 import { describirFiltros, limpiarFiltros } from '../../../shared/correos/grupos.js';
 
 /**
@@ -64,7 +64,8 @@ const plantillaDe = (b: Record<string, unknown>) => ({
   asunto: texto(b.subject),
   cuerpo: typeof b.body === 'string' ? b.body.replace(/\r\n/g, '\n').trim() : '',
   botonTexto: textoOpcional(b.buttonLabel),
-  botonUrl: textoOpcional(b.buttonUrl),
+  // Se guarda ya completada («doapparg.com» → «https://doapparg.com»).
+  botonUrl: textoOpcional(normalizarUrlDeBoton(b.buttonUrl, hostsPermitidos())),
 });
 
 router.get('/templates', async (req: AuthRequest, res: Response): Promise<void> => {
@@ -178,7 +179,7 @@ router.post('/audiences/preview', async (req: AuthRequest, res: Response): Promi
       return;
     }
     const categoria = (CATEGORIAS as string[]).includes(texto(req.body?.category)) ? (texto(req.body.category) as CategoriaDeCorreo) : 'servicio';
-    res.json({ success: true, data: { ...(await muestraDelGrupo(filtros, categoria)), resumen: describirFiltros(filtros) } });
+    res.json({ success: true, data: { ...(await muestraDelGrupo(filtros, categoria)), explicacion: await explicarGrupo(filtros, categoria), resumen: describirFiltros(filtros) } });
   } catch (e) {
     responderError(res, e);
   }

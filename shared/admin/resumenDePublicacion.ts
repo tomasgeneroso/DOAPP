@@ -106,6 +106,14 @@ export function estadoDelPago(
   return { ...publicacion, detalle: null };
 }
 
+/**
+ * Las pantallas muestran el estado final y, al lado, el estado del pago. Cuando el final ya dice lo mismo («Terminada: falta pagar al trabajador» + «Falta pagar al
+ * trabajador») la segunda etiqueta no se dibuja.
+ */
+export function elPagoRepiteElEstadoFinal(claveDelFinal: string | null | undefined, claveDelPago: string | null | undefined): boolean {
+  return (claveDelFinal === 'terminada_falta_pagar' && claveDelPago === 'falta_pagar_trabajador') || (claveDelFinal === 'terminada_pagada' && claveDelPago === 'pagado_trabajador');
+}
+
 /** El estado final: una sola frase que dice en qué está la publicación de punta a punta. */
 export function estadoFinal(trabajo: TrabajoParaResumir, contratos: ContratoParaResumir[], pagos: PagoParaResumir[]): Rotulo {
   if (trabajo.status === 'cancelled') return { clave: 'cancelada', rotulo: 'Cancelada' };

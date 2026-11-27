@@ -194,9 +194,36 @@ export async function buscarSugerencias(consulta: string, opciones: { signal?: A
   return { direcciones: [], calles: leerCalles(await pedir(urlDeCalles(calle, MAXIMO_DE_SUGERENCIAS, opciones), opciones.signal)) };
 }
 
-// Código postal: Georef no lo trae. Se pide a OpenStreetMap (Nominatim) por la UBICACIÓN de la dirección elegida: una consulta por
-// elección (nunca mientras se escribe: su política no admite autocompletar), con el código postal del lugar y no del nombre de la calle.
-export const URL_NOMINATIM_INVERSO = 'https://nominatim.openstreetmap.org/reverse';
+// Lo que Georef no trae (lugares por nombre, código postal y barrio de un punto) se pide a Photon (photon.komoot.io, datos de OpenStreetMap). Es un servidor
+// público y gratuito: admite buscar mientras se escribe y pide un uso razonable («extensive usage will be throttled or completely banned», sin garantía de
+// disponibilidad). Cuando el uso crezca corresponde instalar un Photon propio o pasar a un servicio pago: alcanza con cambiar esta dirección (y la CSP).
+export const URL_PHOTON = 'https://photon.komoot.io';
+export const URL_PHOTON_BUSQUEDA = `${URL_PHOTON}/api`;
+export const URL_PHOTON_INVERSO = `${URL_PHOTON}/reverse`;
+/** Photon no ofrece español: «default» devuelve cada nombre como se lo llama en el lugar, que en la Argentina es en español. */
+export const IDIOMA_PHOTON = 'default';
+
+export interface LugarDePhoton {
+  propiedades: Record<string, unknown>;
+  lat: number;
+  lon: number;
+}
+
+/** Los resultados de Photon (GeoJSON) que sirven: con ubicación y de la Argentina. Una respuesta rara da una lista vacía. */
+export function lugaresDePhoton(json: unknown): LugarDePhoton[] {
+  const lista = (json as { features?: unknown } | null | undefined)?.features;
+  if (!Array.isArray(lista)) return [];
+  const salida: LugarDePhoton[] = [];
+  for (const f of lista as any[]) {
+    const p = f?.properties;
+    const lon = numero(f?.geometry?.coordinates?.[0]);
+    const lat = numero(f?.geometry?.coordinates?.[1]);
+    if (!p || lat === undefined || lon === undefined) continue;
+    if (p.countrycode && String(p.countrycode).toUpperCase() !== 'AR') continue;
+    salida.push({ propiedades: p, lat, lon });
+  }
+  return salida;
+}
 
 /** Códigos postales argentinos: 4 dígitos (1043), con letra (C1043) o CPA completo (C1043AAJ). Lo demás no se usa. */
 export function normalizarCodigoPostal(v: unknown): string | null {
@@ -208,7 +235,8 @@ export function urlDeCodigoPostal(lat: unknown, lon: unknown): string | null {
   const la = numero(lat);
   const lo = numero(lon);
   if (la === undefined || lo === undefined || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
-  return `${URL_NOMINATIM_INVERSO}?lat=${la}&lon=${lo}&format=jsonv2&zoom=18&addressdetails=1&accept-language=es`;
+  // Varios resultados cercanos: el más cercano puede ser un lugar sin código postal cargado.
+  return `${URL_PHOTON_INVERSO}?lat=${la}&lon=${lo}&lang=${IDIOMA_PHOTON}&limit=5`;
 }
 
 export async function buscarCodigoPostal(lat: unknown, lon: unknown, opciones: { signal?: AbortSignal; userAgent?: string } = {}): Promise<string | null> {
@@ -217,10 +245,12 @@ export async function buscarCodigoPostal(lat: unknown, lon: unknown, opciones: {
   try {
     const r = await fetch(url, { signal: opciones.signal, headers: opciones.userAgent ? { 'User-Agent': opciones.userAgent } : undefined });
     if (!r.ok) return null;
-    const j: any = await r.json();
-    // Solo si OpenStreetMap dice que es Argentina: un punto en el límite no puede devolver el código de otro país.
-    if (j?.address?.country_code && String(j.address.country_code).toLowerCase() !== 'ar') return null;
-    return normalizarCodigoPostal(j?.address?.postcode);
+    // Solo lugares de la Argentina (un punto en el límite no puede devolver el código de otro país): el primero que tenga un código con forma válida.
+    for (const l of lugaresDePhoton(await r.json())) {
+      const cp = normalizarCodigoPostal(l.propiedades.postcode);
+      if (cp) return cp;
+    }
+    return null;
   } catch {
     return null;
   }

@@ -157,7 +157,8 @@ export async function enviarPrueba(plantilla: PlantillaDeCorreo, quien: { id: st
   const datos = datosDeLaPersona({ id: quien.id, name: quien.name });
   const correo = armarCorreo(plantilla, datos, { prueba: true });
   const salio = await emailService.sendEmail({ to: quien.email, subject: correo.asunto, html: correo.html, text: correo.texto, headers: cabecerasDeBaja(enlaceDeBajaDeUnToque(quien.id)) });
-  if (!salio) throw new ErrorDeCampana('El servidor de correo no aceptó la prueba. Probá de nuevo en un rato.', 502, 'CORREO_NO_SALIO');
+  // 424 y no 502: Cloudflare reemplaza las respuestas 502 por su propia página y el motivo se perdía (se veía solo «No se pudo mandar la prueba»).
+  if (!salio) throw new ErrorDeCampana(`La prueba no salió. ${emailService.motivoDelUltimoFallo?.() || 'Probá de nuevo en un rato.'}`, 424, 'CORREO_NO_SALIO');
 }
 
 export function __reiniciarPruebas(): void {

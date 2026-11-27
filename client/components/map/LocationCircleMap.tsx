@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
-import { aCoordenada } from '../../utils/coordenadas';
+import { aCoordenada, puntoDeUnaZona } from '../../utils/coordenadas';
 
 interface LocationCircleMapProps {
   location: string;
@@ -30,7 +30,7 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Geocodificar la ubicación usando Nominatim (OpenStreetMap)
+  // Ubicar la zona: las coordenadas guardadas mandan; si no hay, se busca el texto
   useEffect(() => {
     const geocodeLocation = async () => {
       setLoading(true);
@@ -67,33 +67,12 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
         return;
       }
 
-      // Usar Nominatim para geocodificar
-      try {
-        // Agregar ", Argentina" para mejorar resultados
-        const searchQuery = location.includes('Argentina') ? location : `${location}, Argentina`;
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ar`,
-          {
-            headers: {
-              'Accept-Language': 'es',
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.length > 0) {
-            const lat = parseFloat(data[0].lat);
-            const lon = parseFloat(data[0].lon);
-            const coords: [number, number] = [lat, lon];
-            setCoordinates(coords);
-            geocodeCache[cacheKey] = coords;
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error geocoding location:', error);
+      const punto = await puntoDeUnaZona(location);
+      if (punto) {
+        setCoordinates(punto);
+        geocodeCache[cacheKey] = punto;
+        setLoading(false);
+        return;
       }
 
       // Fallback a coordenadas predefinidas

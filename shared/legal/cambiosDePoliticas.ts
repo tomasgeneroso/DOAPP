@@ -19,11 +19,11 @@ export interface CambioDePoliticas {
 export const CAMBIOS_DE_POLITICAS: CambioDePoliticas[] = [
   {
     version: 1,
-    titulo: 'Actualizamos la Política de privacidad',
+    titulo: 'Actualizamos los Términos y la Política de privacidad',
     puntos: [
       'Medimos nosotros cuánto se usa DOAPP: qué días ingresás, cuántas visitas, cuánto duran y si usás la web, Android o iOS. Se borra a los 400 días y no se comparte.',
-      'Nombramos los servicios de mapas y direcciones: OpenStreetMap, Georef y Mapbox.',
-      'Un «antes y después» de un trabajo se publica solo si lo aceptan quien contrató y quien trabajó.',
+      'Nombramos los servicios de mapas y direcciones: Photon, OpenStreetMap, Georef y Mapbox.',
+      'Al aceptar un contrato aceptás que las fotos del trabajo se publiquen en DOAPP (Términos, punto 6.8). Cualquiera de las dos partes puede retirarlas.',
     ],
     enlace: '/legal/privacidad',
   },

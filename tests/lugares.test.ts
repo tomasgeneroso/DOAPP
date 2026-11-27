@@ -3,31 +3,27 @@ import { buscarLugares, detallesDeUbicacion, leerLugares, sanearCalle, sanearNum
 
 /** Lugares y direcciones reales del formulario de un trabajo. La red está simulada: ninguna prueba llama a un servicio externo. */
 
-const direccion = {
-  lat: '-27.4698', lon: '-58.8306',
-  name: '', display_name: '967, San Luis, Barrio Deportes, Seccional 1°, Corrientes, Argentina',
-  address: { house_number: '967', road: 'San Luis', neighbourhood: 'Barrio Deportes', city: 'Corrientes', state: 'Corrientes', postcode: 'W3400', country_code: 'ar' },
-};
-const barrio = {
-  lat: '-34.5889', lon: '-58.4306', name: 'Palermo', display_name: 'Palermo, Buenos Aires, Argentina',
-  address: { suburb: 'Palermo', city: 'Buenos Aires', state: 'Ciudad Autónoma de Buenos Aires', postcode: 'C1425', country_code: 'ar' },
-};
+const feature = (propiedades: Record<string, unknown>, lon = -58.8306, lat = -27.4698) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { countrycode: 'AR', ...propiedades } });
+const coleccion = (...features: unknown[]) => ({ type: 'FeatureCollection', features });
+const PROPIEDADES = { type: 'house', housenumber: '967', street: 'San Luis', locality: 'Barrio Deportes', district: 'Seccional 1°', city: 'Corrientes', state: 'Corrientes', postcode: 'W3400' };
+const direccion = feature(PROPIEDADES);
+const barrio = feature({ type: 'district', name: 'Palermo', city: 'Buenos Aires', state: 'Ciudad Autónoma de Buenos Aires', postcode: 'C1425' }, -58.4306, -34.5889);
 
 describe('leerLugares', () => {
   it('una dirección exacta trae calle, número, barrio, ciudad, provincia, código postal y ubicación', () => {
-    const [l] = leerLugares([direccion]);
+    const [l] = leerLugares(coleccion(direccion));
     expect(l).toMatchObject({ calle: 'San Luis', numero: '967', barrio: 'Barrio Deportes', ciudad: 'Corrientes', provincia: 'Corrientes', codigoPostal: 'W3400', lat: -27.4698, lon: -58.8306 });
     expect(l.etiqueta).toBe('San Luis 967, Barrio Deportes, Corrientes, Corrientes');
   });
 
   it('un barrio o una localidad no inventan calle ni número', () => {
-    const [l] = leerLugares([barrio]);
+    const [l] = leerLugares(coleccion(barrio));
     expect(l).toMatchObject({ calle: '', numero: '', barrio: 'Palermo', ciudad: 'Buenos Aires', codigoPostal: 'C1425' });
     expect(l.etiqueta).toBe('Palermo, Buenos Aires, Ciudad Autónoma de Buenos Aires');
   });
 
   it('del número de casa solo quedan dígitos («967 bis», «S/N», «0012»)', () => {
-    const con = (house_number: string) => leerLugares([{ ...direccion, address: { ...direccion.address, house_number } }])[0].numero;
+    const con = (housenumber: string) => leerLugares(coleccion(feature({ ...PROPIEDADES, housenumber })))[0].numero;
     expect(con('967 bis')).toBe('967');
     expect(con('12-14')).toBe('12');
     expect(con('S/N')).toBe('');
@@ -35,7 +31,7 @@ describe('leerLugares', () => {
   });
 
   it('descarta lo que no tiene ubicación o es de otro país, y las repetidas', () => {
-    const r = leerLugares([direccion, direccion, { ...direccion, lat: 'x' }, { ...direccion, address: { ...direccion.address, country_code: 'uy' } }, null, 1, {}]);
+    const r = leerLugares(coleccion(direccion, direccion, feature(PROPIEDADES, 'x' as never), feature({ ...PROPIEDADES, countrycode: 'UY' }), null, 1, {}));
     expect(r).toHaveLength(1);
   });
 
@@ -44,7 +40,18 @@ describe('leerLugares', () => {
   });
 
   it('código postal con otro formato no se acepta', () => {
-    expect(leerLugares([{ ...direccion, address: { ...direccion.address, postcode: 'SW1A 1AA' } }])[0].codigoPostal).toBeNull();
+    expect(leerLugares(coleccion(feature({ ...PROPIEDADES, postcode: 'SW1A 1AA' })))[0].codigoPostal).toBeNull();
+  });
+
+  it('una calle o una localidad que son el resultado mismo traen su nombre', () => {
+    expect(leerLugares(coleccion(feature({ type: 'street', name: 'Junín', city: 'Corrientes', state: 'Corrientes' })))[0]).toMatchObject({ calle: 'Junín', numero: '', ciudad: 'Corrientes' });
+    expect(leerLugares(coleccion(feature({ type: 'city', name: 'Resistencia', state: 'Chaco' })))[0]).toMatchObject({ calle: '', ciudad: 'Resistencia', etiqueta: 'Resistencia, Chaco' });
+  });
+
+  it('lo que se llama como lo buscado va primero: «Palermo» antes que un lugar de adentro de Palermo', () => {
+    const aeroparque = feature({ type: 'house', name: 'Aeroparque', street: 'Costanera', district: 'Palermo', city: 'Buenos Aires' }, -58.41, -34.55);
+    expect(leerLugares(coleccion(aeroparque, barrio), 'Palermo, Buenos Aires').map((l) => l.etiqueta.split(',')[0])).toEqual(['Palermo', 'Aeroparque']);
+    expect(leerLugares(coleccion(aeroparque, barrio))[0].etiqueta).toBe('Aeroparque, Palermo, Buenos Aires');
   });
 });
 
@@ -52,7 +59,11 @@ describe('urlDeLugares', () => {
   it('no busca con poco texto y escapa lo escrito', () => {
     expect(urlDeLugares('ab')).toBeNull();
     expect(urlDeLugares('San Luis 967 & más')).toContain('q=San%20Luis%20967%20%26%20m%C3%A1s');
-    expect(urlDeLugares('San Luis 967')).toContain('addressdetails=1');
+    const url = urlDeLugares('San Luis 967')!;
+    expect(url.startsWith('https://photon.komoot.io/api?')).toBe(true);
+    // Solo Argentina, y sin «lang=es»: Photon responde 400 a ese idioma.
+    expect(url).toContain('countrycode=AR');
+    expect(url).toContain('lang=default');
   });
 });
 
@@ -63,7 +74,7 @@ describe('red simulada', () => {
   });
 
   it('buscarLugares: la lista, o vacía si falla', async () => {
-    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => [direccion] }));
+    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => coleccion(direccion) }));
     expect((await buscarLugares('San Luis 967')).length).toBe(1);
     (globalThis as any).fetch = jest.fn(async () => {
       throw new Error('sin red');
@@ -74,9 +85,9 @@ describe('red simulada', () => {
   });
 
   it('detallesDeUbicacion: código postal, barrio y ciudad de un punto (solo Argentina)', async () => {
-    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => ({ address: direccion.address }) }));
+    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => coleccion(feature({ ...PROPIEDADES, postcode: undefined }), feature(PROPIEDADES)) }));
     expect(await detallesDeUbicacion(-27.4698, -58.8306)).toEqual({ codigoPostal: 'W3400', barrio: 'Barrio Deportes', ciudad: 'Corrientes', provincia: 'Corrientes' });
-    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => ({ address: { ...direccion.address, country_code: 'br' } }) }));
+    (globalThis as any).fetch = jest.fn(async () => ({ ok: true, json: async () => coleccion(feature({ ...PROPIEDADES, countrycode: 'BR' })) }));
     expect(await detallesDeUbicacion(-27, -58)).toBeNull();
   });
 

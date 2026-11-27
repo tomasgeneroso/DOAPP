@@ -8,6 +8,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { get, post } from '../../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
 import { lugaresDelTrabajo, precioDeUnLugar } from '../../../../shared/jobs/precioDelLugar';
+import { AVISO_DE_FOTOS_AL_CONTRATAR } from '../../../../shared/momentos/momentos';
 
 export default function JobApplyScreen() {
   const router = useRouter();
@@ -170,6 +171,8 @@ export default function JobApplyScreen() {
             placeholder="Presentate y explica por qué sos el indicado para este trabajo..."
             placeholderTextColor={themeColors.text.muted}
           />
+
+          <Text style={[styles.avisoTexto, { color: themeColors.text.muted, marginTop: 12 }]}>{AVISO_DE_FOTOS_AL_CONTRATAR}</Text>
 
           <TouchableOpacity
             style={[styles.button, submitting && { opacity: 0.6 }]}

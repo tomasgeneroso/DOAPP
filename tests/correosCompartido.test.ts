@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { armarCorreo, erroresDePlantilla, primerNombre, reemplazarVariables, variablesDesconocidas, type DatosDeLaPersona } from '../shared/correos/plantillas.js';
+import { armarCorreo, erroresDePlantilla, normalizarUrlDeBoton, primerNombre, reemplazarVariables, variablesDesconocidas, type DatosDeLaPersona } from '../shared/correos/plantillas.js';
 import { describirFiltros, limpiarFiltros } from '../shared/correos/grupos.js';
 
 /**
@@ -69,7 +69,7 @@ describe('erroresDePlantilla', () => {
   });
 
   it('el botón solo puede llevar a DOAPP: otro sitio, http, un parecido o una dirección rota se rechazan', () => {
-    for (const mal of ['https://estafa.example/login', 'http://doapparg.com', 'https://doapparg.com.estafa.example', 'https://doapparg.com@estafa.example', 'doapparg.com', 'javascript:alert(1)']) {
+    for (const mal of ['https://estafa.example/login', 'http://doapparg.com', 'https://doapparg.com.estafa.example', 'https://doapparg.com@estafa.example', 'estafa.example', 'javascript:alert(1)']) {
       expect({ mal, campos: erroresDePlantilla({ ...buena, botonUrl: mal }, HOSTS).map((e) => e.campo) }).toEqual({ mal, campos: ['botonUrl'] });
     }
   });
@@ -100,5 +100,20 @@ describe('filtros de un grupo', () => {
     expect(describirFiltros({})).toBe('Todas las personas con cuenta');
     expect(describirFiltros({ registro: 'incompleto', creadosHaceMasDeHoras: 24 })).toBe('Personas con el registro sin terminar, cuenta creada hace más de 24 h');
     expect(describirFiltros({ identidad: 'sin_verificar', membresia: 'gratis' })).toBe('Personas sin verificar, con plan gratuito');
+  });
+});
+
+describe('la dirección del botón', () => {
+  it('un dominio de DOAPP a secas se completa con https://; el resto queda como vino', () => {
+    expect(normalizarUrlDeBoton('doapparg.com', HOSTS)).toBe('https://doapparg.com');
+    expect(normalizarUrlDeBoton('  www.doapparg.com/jobs?x=1 ', HOSTS)).toBe('https://www.doapparg.com/jobs?x=1');
+    for (const otra of ['malo.example', 'doapparg.com.malo.example', 'doapparg.com@malo.example', 'http://doapparg.com', 'javascript:alert(1)', '{{enlaceApp}}', '']) {
+      expect(normalizarUrlDeBoton(otra, HOSTS)).toBe(otra);
+    }
+  });
+
+  it('el correo armado sale con la dirección completa', () => {
+    const armado = armarCorreo({ asunto: 'a', cuerpo: 'b', botonTexto: 'Ir', botonUrl: 'doapparg.com' }, datos);
+    expect(armado.html).toContain('href="https://doapparg.com"');
   });
 });

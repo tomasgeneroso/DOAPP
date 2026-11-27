@@ -1,4 +1,5 @@
 import DetalleDeCotizacion from "../components/proposals/DetalleDeCotizacion";
+import { AVISO_DE_FOTOS_AL_CONTRATAR } from "../../shared/momentos/momentos";
 import { useEffect, useState } from "react";
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
@@ -598,7 +599,8 @@ export default function ProposalDetail() {
           t('proposals.confirmAccept', '¿Aceptar esta propuesta? Se creará el contrato automáticamente.') +
           (proposal && proposal.proposedPrice < proposal.job.price
             ? ` ${t('proposals.saldoAFavorAviso', 'Como el precio acordado es menor a lo que pagaste por la publicación, la diferencia te queda a favor en tu saldo.')}`
-            : '')
+            : '') +
+          ` ${AVISO_DE_FOTOS_AL_CONTRATAR}`
         }
         confirmLabel={t('common.accept', 'Aceptar')}
         loading={actionLoading}

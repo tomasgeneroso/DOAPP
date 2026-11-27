@@ -2,6 +2,7 @@ import { useCambiosDeAdministracion } from "../../hooks/useSocket";
 import Pestanas from "../../components/ui/Pestanas";
 import PanelDelProblema from "../../components/contracts/PanelDelProblema";
 import { useEffect, useState, useRef } from "react";
+import { useAuth } from "../../hooks/useAuth";
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
@@ -64,6 +65,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function TicketDetail() {
+  const { user: quienMira } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -149,6 +151,22 @@ export default function TicketDetail() {
     }
   };
 
+  const [reabriendo, setReabriendo] = useState(false);
+  const reabrir = async () => {
+    if (!id) return;
+    setReabriendo(true);
+    try {
+      const r = await fetch(`/api/admin/tickets/${id}/reopen`, { method: "PUT", credentials: "include", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const d = await r.json().catch(() => null);
+      if (!d?.success) alert(d?.message || "No se pudo reabrir el ticket");
+      await loadTicket();
+    } catch {
+      alert("No se pudo reabrir el ticket");
+    } finally {
+      setReabriendo(false);
+    }
+  };
+
   const handlePriorityChange = async (newPriority: string) => {
     if (!id || !ticket) return;
     setShowPriorityDropdown(false);
@@ -180,6 +198,7 @@ export default function TicketDetail() {
   const publicMessages = ticket?.messages?.filter((m) => !m.isInternal) || [];
   const internalNotes = ticket?.messages?.filter((m) => m.isInternal) || [];
   const isClosed = ticket?.status === "closed" || ticket?.status === "resolved";
+  const puedeReabrir = ["owner", "super_admin", "support"].includes(String((quienMira as any)?.adminRole));
 
   if (loading) {
     return (
@@ -494,6 +513,13 @@ export default function TicketDetail() {
                   {ticket.status === "closed" ? "cerrado" : "resuelto"} — no se
                   pueden agregar mensajes
                 </p>
+                {puedeReabrir && (
+                  <div className="mt-2 text-center">
+                    <button type="button" onClick={() => { void reabrir(); }} disabled={reabriendo} data-testid="reabrir-ticket" className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
+                      {reabriendo ? "Reabriendo..." : "Reabrir ticket"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -144,15 +144,17 @@ describe('código postal', () => {
     const responde = (j: unknown, ok = true) => {
       (globalThis as any).fetch = jest.fn(async () => ({ ok, json: async () => j }));
     };
-    responde({ address: { postcode: 'C1043AAJ', country_code: 'ar' } });
+    const punto = (propiedades: Record<string, unknown>) => ({ geometry: { coordinates: [-58.38, -34.6] }, properties: propiedades });
+    const con = (...p: Array<Record<string, unknown>>) => ({ features: p.map(punto) });
+    responde(con({ postcode: 'C1043AAJ', countrycode: 'AR' }));
     expect(await buscarCodigoPostal(-34.6, -58.38)).toBe('C1043AAJ');
-    responde({ address: { postcode: '8400', country_code: 'ar' } });
+    responde(con({ countrycode: 'AR' }, { postcode: '8400', countrycode: 'AR' })); // el primero no tiene: sirve el siguiente
     expect(await buscarCodigoPostal(-41.1, -71.3)).toBe('8400');
-    responde({ address: { postcode: '1100', country_code: 'uy' } }); // otro país
+    responde(con({ postcode: '1100', countrycode: 'UY' })); // otro país
     expect(await buscarCodigoPostal(-34.9, -56.1)).toBeNull();
-    responde({ address: { postcode: 'basura', country_code: 'ar' } });
+    responde(con({ postcode: 'basura', countrycode: 'AR' }));
     expect(await buscarCodigoPostal(-34.6, -58.38)).toBeNull();
-    responde({ address: {} });
+    responde(con({}));
     expect(await buscarCodigoPostal(-34.6, -58.38)).toBeNull();
     responde({}, false);
     expect(await buscarCodigoPostal(-34.6, -58.38)).toBeNull();

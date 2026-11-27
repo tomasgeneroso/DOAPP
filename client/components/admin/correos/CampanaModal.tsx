@@ -34,6 +34,26 @@ export function tiempoDeEnvio(personas: number, ritmo: string): string {
   return `unas ${Math.round(minutos / 60)} horas`;
 }
 
+/** Por qué el grupo alcanza a esta cantidad: sin esto un «0 personas» no se entiende (casi siempre es la categoría «Novedades y ofertas» o cuentas del equipo). */
+function PorQueEsaCantidad({ filtros, categoria }: { filtros: unknown; categoria: 'servicio' | 'promocional' }) {
+  const [x, setX] = useState<{ coinciden: number; reciben: number; afuera: Array<{ motivo: string; personas: number }> } | null>(null);
+  const clave = JSON.stringify(filtros ?? {});
+  useEffect(() => {
+    let vigente = true;
+    setX(null);
+    void llamar<{ explicacion: any }>('/audiences/preview', 'POST', { filters: JSON.parse(clave), category: categoria }).then((r) => { if (vigente && r.ok && r.datos?.explicacion) setX(r.datos.explicacion); });
+    return () => { vigente = false; };
+  }, [clave, categoria]);
+  if (!x) return null;
+  return (
+    <div data-testid="por-que-esa-cantidad" className="animate-fadeIn mt-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs text-amber-900 dark:text-amber-200">
+      <p className="font-semibold">{x.coinciden === 0 ? 'Ninguna cuenta cumple los filtros de este grupo.' : `${x.coinciden} cuentas cumplen los filtros y ${x.reciben} reciben este correo.`}</p>
+      {x.afuera.length > 0 && <ul className="mt-1 list-disc pl-4">{x.afuera.map((a) => <li key={a.motivo}>{a.motivo}: {a.personas}</li>)}</ul>}
+      {categoria === 'promocional' && <p className="mt-1">«Novedades y ofertas» solo llega a quien las aceptó (arranca apagado). Si es un aviso sobre la cuenta, cambiá el tipo de la plantilla a «servicio».</p>}
+    </div>
+  );
+}
+
 /** Armar una campaña: elegir una plantilla, elegir un grupo y el ritmo. Queda en borrador: todavía no se manda nada. */
 export function CampanaNueva({ plantillas, grupos, onCerrar, onCreada }: { plantillas: PlantillaDeLista[]; grupos: GrupoDeLista[]; onCerrar: () => void; onCreada: (id: string) => void }) {
   const [nombre, setNombre] = useState('');
@@ -91,6 +111,7 @@ export function CampanaNueva({ plantillas, grupos, onCerrar, onCreada }: { plant
                   {grupos.map((g) => <option key={g.id} value={g.id}>{g.name} ({plantilla?.category === 'promocional' ? g.promocional : g.servicio} personas hoy)</option>)}
                 </select>
                 {grupo && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{grupo.resumen}</p>}
+                {grupo && plantilla && alcanza === 0 && <PorQueEsaCantidad filtros={grupo.filters} categoria={plantilla.category} />}
               </div>
               <div>
                 <label htmlFor="ca-ritmo" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Ritmo de envío</label>

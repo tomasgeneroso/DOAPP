@@ -905,7 +905,7 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                         {fila(trabajadorAcepto, t('contracts.worker', 'Trabajador'), t('contracts.acceptedOnApplying', 'Aceptó al postularse'))}
                       </div>
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {t('contracts.termsHow', 'Los términos se aceptan al contratar: el cliente al elegir al trabajador y el trabajador al postularse. El contrato empieza solo a la hora de inicio, con el pago acreditado: no hace falta que un administrador lo apruebe ni un paso aparte.')}
+                        {t('contracts.termsHow', 'Los términos se aceptan al contratar: el cliente al elegir al trabajador y el trabajador al postularse. Eso incluye que las fotos del trabajo se publiquen en DOAPP (Términos, punto 6.8); cualquiera de las dos partes puede retirarlas. El contrato empieza solo a la hora de inicio, con el pago acreditado: no hace falta que un administrador lo apruebe ni un paso aparte.')}
                       </p>
                       {contract.status === 'ready' && ((isClient && !contract.termsAcceptedByClient) || (isDoer && !contract.termsAcceptedByDoer)) && (
                         <div className="mt-3">

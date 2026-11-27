@@ -29,6 +29,8 @@ import { crearUsuario, crearTrabajo, crearContrato } from '../helpers/fixtures.j
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const migracion = require('../../migrations/20261126110000-momentos.cjs');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const migracionDelConsentimiento = require('../../migrations/20261126120000-consentimiento-de-fotos.cjs');
 const SECRETO = process.env.JWT_SECRET || 'test-secret';
 const como = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, SECRETO)}` });
 const SUBIDAS = path.join(process.cwd(), 'uploads');
@@ -55,6 +57,16 @@ describe('momentos importantes', () => {
   });
 
   describe('migración', () => {
+    it('la columna del consentimiento se crea, se puede repetir y se puede deshacer', async () => {
+      const interfaz = { sequelize: duenoDelEsquema() };
+      const existe = async () => ((await sequelize.query("SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'photo_consent_at'"))[0] as unknown[]).length;
+      await migracionDelConsentimiento.down(interfaz);
+      expect(await existe()).toBe(0);
+      await migracionDelConsentimiento.up(interfaz);
+      await migracionDelConsentimiento.up(interfaz);
+      expect(await existe()).toBe(1);
+    });
+
     it('corre, se puede repetir, deja las columnas de los modelos y la app puede usar las tablas con su rol', async () => {
       const interfaz = { sequelize: duenoDelEsquema() };
       await migracion.down(interfaz);
@@ -175,7 +187,8 @@ describe('momentos importantes', () => {
   });
 
   describe('antes y después', () => {
-    const armar = async () => {
+    // Por omisión, un contrato SIN la autorización de la contratación (anterior a T&C 6.8): ahí hace falta que acepte la otra parte.
+    const armar = async (extra: Record<string, unknown> = { photoConsentAt: null }) => {
       const cliente: any = await crearUsuario();
       const doer: any = await crearUsuario({ role: 'doer' });
       const ajeno: any = await crearUsuario();
@@ -183,7 +196,7 @@ describe('momentos importantes', () => {
       const antes = archivo('job-images', `antes-${sello}.jpg`);
       const despues = archivo('delivery', `despues-${sello}.png`);
       const t: any = await crearTrabajo(cliente.id, { status: 'completed', title: 'Patio nuevo', images: [antes] });
-      const c: any = await crearContrato({ jobId: t.id, clientId: cliente.id, doerId: doer.id }, { status: 'completed', deliveryPhotos: [{ url: despues, nombre: 'a.png', bytes: 5, subidoPor: 'worker', subidoPorId: doer.id, subidoEl: new Date().toISOString() }] });
+      const c: any = await crearContrato({ jobId: t.id, clientId: cliente.id, doerId: doer.id }, { status: 'completed', deliveryPhotos: [{ url: despues, nombre: 'a.png', bytes: 5, subidoPor: 'worker', subidoPorId: doer.id, subidoEl: new Date().toISOString() }], ...extra });
       const proponer = (quien: any, cuerpo: any = { antes: [antes], despues: [despues], texto: 'Quedó <b>lindo</b>' }) => request(app).post(`/api/momentos/antes-despues/contrato/${c.id}`).set(como(quien)).send(cuerpo);
       const accion = (id: string, que: string, quien: any) => request(app).post(`/api/momentos/antes-despues/${id}/${que}`).set(como(quien));
       return { cliente, doer, ajeno, antes, despues, c, proponer, accion };
@@ -243,6 +256,52 @@ describe('momentos importantes', () => {
       expect((await x.accion(id, 'aceptar', x.doer)).status).toBe(409);
       expect(await Post.count({ where: { linkedContract: x.c.id } as any })).toBe(0);
       expect((await x.proponer(x.doer)).status).toBe(200);
+    });
+
+    it('un contrato nuevo nace con la autorización anotada; el que carga un administrador (null explícito) queda sin ella', async () => {
+      const x = await armar({});
+      await x.c.reload();
+      expect(x.c.photoConsentAt).toBeInstanceOf(Date);
+      expect((await request(app).get(`/api/momentos/antes-despues/contrato/${x.c.id}`).set(como(x.doer))).body.data.sePublicaDirecto).toBe(true);
+      const viejo = await armar();
+      await viejo.c.reload();
+      expect(viejo.c.photoConsentAt).toBeNull();
+      expect((await request(app).get(`/api/momentos/antes-despues/contrato/${viejo.c.id}`).set(como(viejo.doer))).body.data.sePublicaDirecto).toBe(false);
+    });
+
+    it('con la autorización publica cualquiera de las dos sin pedir permiso, una sola vez, y avisa a la otra', async () => {
+      const x = await armar({});
+      const [a, b] = await Promise.all([x.proponer(x.doer), x.proponer(x.cliente)]);
+      expect([a.status, b.status].sort()).toEqual([200, 409]);
+      const salio = a.status === 200 ? a : b;
+      expect(salio.body.data.publicacionId).toBeTruthy();
+      const posts: any[] = await Post.findAll({ where: { linkedContract: x.c.id } as any });
+      expect(posts).toHaveLength(1);
+      for (const g of posts[0].gallery) creados.push(path.join(process.cwd(), g.url));
+      const laOtra = a.status === 200 ? x.cliente : x.doer;
+      expect(await Notification.count({ where: { recipientId: laOtra.id, relatedId: x.c.id, title: 'Se publicó el antes y después' } as any })).toBe(1);
+    });
+
+    it('si alguien lo retira, volver a publicarlo necesita que la otra parte acepte', async () => {
+      const x = await armar({});
+      const id = (await x.proponer(x.doer)).body.data.id;
+      for (const g of ((await Post.findOne({ where: { linkedContract: x.c.id } as any })) as any).gallery) creados.push(path.join(process.cwd(), g.url));
+      expect((await x.accion(id, 'retirar', x.cliente)).status).toBe(200);
+      const otraVez = await x.proponer(x.doer);
+      expect(otraVez.status).toBe(200);
+      expect(otraVez.body.data.publicacionId).toBeNull();
+      expect(await Post.count({ where: { linkedContract: x.c.id } as any })).toBe(0);
+      expect((await BeforeAfterShare.findByPk(id))?.status).toBe('pending');
+    });
+
+    it('con la autorización, si falta una foto no queda nada a medias y se puede reintentar sin pedir permiso', async () => {
+      const x = await armar({});
+      const cuantas = copiasPublicas().length;
+      fs.rmSync(path.join(process.cwd(), x.despues));
+      expect((await x.proponer(x.doer)).status).toBe(500);
+      expect(copiasPublicas().length).toBe(cuantas);
+      expect(await BeforeAfterShare.count({ where: { contractId: x.c.id } })).toBe(0);
+      expect((await request(app).get(`/api/momentos/antes-despues/contrato/${x.c.id}`).set(como(x.doer))).body.data.sePublicaDirecto).toBe(true);
     });
 
     it('si falta una foto al publicar, no queda nada a medias y se puede reintentar', async () => {

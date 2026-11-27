@@ -57,12 +57,30 @@ async function destinatario(id: unknown): Promise<any | null> {
 const esc = (valor: unknown): string =>
   String(valor ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
+/** Traduce un error de SMTP a algo que se pueda corregir. Solo usa el código: el texto del servidor puede traer direcciones. */
+export function motivoDeSmtp(error: { code?: unknown; responseCode?: unknown } | null | undefined): string {
+  const codigo = String(error?.code ?? '');
+  const respuesta = Number(error?.responseCode) || 0;
+  if (codigo === 'EAUTH' || respuesta === 535) return 'El servidor de correo rechazó el usuario o la contraseña (revisá SMTP_USER y SMTP_PASS).';
+  if (['ETIMEDOUT', 'ECONNECTION', 'ESOCKET', 'ECONNREFUSED', 'ECONNRESET', 'EDNS', 'ENOTFOUND'].includes(codigo)) {
+    return 'No se pudo conectar con el servidor de correo (revisá SMTP_HOST, SMTP_PORT y SMTP_SECURE).';
+  }
+  if (respuesta >= 400) return `El servidor de correo rechazó el envío (código ${respuesta}). Revisá el remitente (SMTP_FROM_EMAIL) y los límites de la casilla.`;
+  return 'El envío falló. El detalle queda en el registro del servidor.';
+}
+
 class EmailService {
   private sendgridInitialized = false;
   private mailgunInitialized = false;
   private smtpInitialized = false;
   private mailgunClient: any = null;
   private smtpTransporter: any = null;
+  /** Por qué no salió el último correo, en palabras para el equipo. Nunca lleva direcciones, usuarios ni claves. */
+  private ultimoFallo: string | null = null;
+
+  motivoDelUltimoFallo(): string | null {
+    return this.ultimoFallo;
+  }
 
   constructor() {
     this.initialize();
@@ -207,6 +225,7 @@ class EmailService {
     options = { ...options, subject: desescaparHtml(options.subject) };
     if (!this.sendgridInitialized && !this.mailgunInitialized && !this.smtpInitialized) {
       console.warn("No email provider initialized. Skipping email.");
+      this.ultimoFallo = "Este servidor no tiene el correo configurado (faltan SMTP_HOST, SMTP_USER y SMTP_PASS).";
       return false;
     }
 
@@ -319,6 +338,7 @@ class EmailService {
       } else {
         console.error("❌ SMTP error:", errorMessage);
       }
+      this.ultimoFallo = motivoDeSmtp(error);
       return false;
     }
   }

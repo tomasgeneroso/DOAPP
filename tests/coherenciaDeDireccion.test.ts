@@ -3,12 +3,17 @@ import { cambiosPorElBarrio, consultasDeBarrio, nombreDeZona, ubicarBarrio, ubic
 
 /**
  * La dirección queda congruente al cambiar el barrio o el código postal a mano (pedido del dueño, 2026-11-13): el mapa, la ciudad y el código postal (o el
- * barrio) cambian con ello, y la calle de antes se borra si ya no corresponde. Sin red: Nominatim se simula.
+ * barrio) cambian con ello, y la calle de antes se borra si ya no corresponde. Sin red: el buscador (Photon) se simula.
  */
-const resultado = (a: Record<string, string>, lat = '-34.6', lon = '-58.4') => ({ lat, lon, name: a.suburb || '', display_name: a.suburb || '', address: { country_code: 'ar', ...a } });
+const resultado = (a: Record<string, string>, lat = '-34.6', lon = '-58.4') => ({
+  geometry: { coordinates: [Number(lon), Number(lat)] },
+  properties: { countrycode: 'AR', type: 'district', name: a.suburb || '', district: a.suburb, city: a.city, state: a.state, postcode: a.postcode },
+});
+/** Búsqueda y consulta por un punto contestan igual: una colección de resultados. */
+const coleccion = (r: unknown) => ({ features: Array.isArray(r) ? r : [resultado((r as { address: Record<string, string> }).address)] });
 
 function simularRed(porUrl: (url: string) => unknown) {
-  (global as any).fetch = jest.fn(async (url: string) => ({ ok: true, json: async () => porUrl(String(url)) }));
+  (global as any).fetch = jest.fn(async (url: string) => ({ ok: true, json: async () => coleccion(porUrl(String(url))) }));
 }
 
 afterEach(() => { delete (global as any).fetch; });

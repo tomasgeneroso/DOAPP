@@ -7,7 +7,7 @@ import { Contract } from "../../models/sql/Contract.model.js";
 import { siguienteNumeroDeTicket } from "../../services/numeroDeTicket.js";
 import { sequelize } from "../../config/database.js";
 import { protect } from "../../middleware/auth.js";
-import { requirePermission, requireAdminRole } from "../../middleware/permissions.js";
+import { requirePermission, requireAdminRole, requireRole } from "../../middleware/permissions.js";
 import { relacionesDelTicket, ErrorDeReporte } from "../../services/reportesDeSoporte.js";
 import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
@@ -16,6 +16,9 @@ import { alCerrarseElTicket, resumenDelProblemaDelTicket } from "../../services/
 import { avisarMensajeDeTicket } from "../../services/avisosDeMensajes.js";
 
 const router = express.Router();
+
+/** Quiénes pueden reabrir un ticket cerrado o resuelto. */
+const PUEDEN_REABRIR = ["owner", "super_admin", "support"];
 
 router.use(protect);
 
@@ -444,6 +447,13 @@ router.put(
         return;
       }
 
+      // Sacar un ticket de «cerrado» o «resuelto» es reabrirlo: solo quienes pueden (la misma regla que el botón).
+      const estabaTerminado = ['closed', 'resolved'].includes(String(ticket.status));
+      if (estabaTerminado && !['closed', 'resolved'].includes(String(status)) && !PUEDEN_REABRIR.includes(String(req.user.adminRole))) {
+        res.status(403).json({ success: false, code: 'REABRIR_NO_PERMITIDO', message: 'Un ticket cerrado lo reabren el owner, un super admin o soporte.' });
+        return;
+      }
+
       const updateData: any = { status };
       if (resolution) updateData.resolution = resolution;
       if (status === 'resolved' && !(ticket as any).resolvedAt) updateData.resolvedAt = new Date();
@@ -479,6 +489,62 @@ router.put(
     }
   }
 );
+
+// @route   PUT /api/admin/tickets/:id/reopen
+// @desc    Reabrir un ticket cerrado o resuelto (pedido del dueño, 2026-11-26)
+// @access  owner, super_admin, support
+router.put("/:id/reopen", requireRole(...PUEDEN_REABRIR), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const ticket = await Ticket.findByPk(req.params.id);
+    if (!ticket) {
+      res.status(404).json({ success: false, message: "Ticket no encontrado" });
+      return;
+    }
+    const anterior = { status: ticket.status, closedAt: ticket.closedAt ?? null, closedBy: ticket.closedBy ?? null, resolvedAt: (ticket as any).resolvedAt ?? null };
+    // Un solo cambio condicional: dos toques seguidos reabren una vez.
+    const [reabiertos] = await Ticket.update(
+      { status: 'open', closedAt: null, closedBy: null, resolvedAt: null } as any,
+      { where: { id: ticket.id, status: { [Op.in]: ['closed', 'resolved'] } } },
+    );
+    if (reabiertos === 0) {
+      res.status(409).json({ success: false, message: "Ese ticket ya está abierto." });
+      return;
+    }
+    await ticket.reload();
+    ticket.messages = [...(ticket.messages || []), { author: req.user.id, message: 'Ticket reabierto por el equipo.', isInternal: false, createdAt: new Date() } as any];
+    ticket.changed('messages', true);
+    await ticket.save();
+
+    await logAudit({
+      req,
+      action: "reopen_ticket",
+      category: "ticket",
+      severity: "medium",
+      description: `Ticket ${ticket.ticketNumber} reabierto`,
+      targetModel: "Ticket",
+      targetId: ticket.id.toString(),
+      targetIdentifier: ticket.ticketNumber,
+      // Lo que se vació queda anotado.
+      metadata: { anterior },
+    });
+    await Notification.create({
+      recipientId: typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy,
+      type: "info",
+      category: "ticket",
+      title: `Ticket ${ticket.ticketNumber} reabierto`,
+      message: "El equipo de DOAPP reabrió tu consulta: ya podés responder.",
+      relatedModel: "Ticket",
+      relatedId: ticket.id,
+      actionUrl: `/tickets/${ticket.id}`,
+      actionText: "Ver ticket",
+      sentVia: ["in_app"],
+    } as any);
+
+    res.json({ success: true, message: "Ticket reabierto", data: ticket });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
 
 // @route   PUT /api/admin/tickets/:id/priority
 // @desc    Cambiar prioridad del ticket

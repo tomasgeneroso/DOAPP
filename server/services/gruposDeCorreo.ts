@@ -16,19 +16,21 @@ import { type FiltrosDeGrupo } from '../../shared/correos/grupos.js';
 
 export type CategoriaDeCorreo = 'servicio' | 'promocional';
 
-export function dondeDelGrupo(filtros: FiltrosDeGrupo, categoria: CategoriaDeCorreo, ahora: Date = new Date()): WhereOptions {
-  const y: WhereOptions[] = [
-    { email: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } },
-    { isBanned: false },
-    { mergedIntoId: null },
-    { marketingEmailsUnsubscribedAt: null },
-    { adminRole: null },
-  ];
-  y.push(
+/** Quiénes quedan afuera de toda campaña (o de esta categoría), en el orden en que se explican. */
+function exclusiones(categoria: CategoriaDeCorreo): Array<{ motivo: string; regla: WhereOptions }> {
+  return [
+    { motivo: 'Son del equipo de DOAPP', regla: { adminRole: null } },
+    { motivo: 'No tienen correo cargado', regla: { email: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } } },
+    { motivo: 'Cuenta suspendida o unida a otra', regla: { [Op.and]: [{ isBanned: false }, { mergedIntoId: null }] } as WhereOptions },
+    { motivo: 'Se dieron de baja de los correos', regla: { marketingEmailsUnsubscribedAt: null } },
     categoria === 'promocional'
-      ? literal(`("User"."notification_preferences"->>'marketing') = 'true'`)
-      : literal(`COALESCE("User"."notification_preferences"->>'email', 'true') <> 'false'`),
-  );
+      ? { motivo: 'No aceptaron recibir novedades y ofertas', regla: literal(`("User"."notification_preferences"->>'marketing') = 'true'`) as unknown as WhereOptions }
+      : { motivo: 'Apagaron los correos en sus preferencias', regla: literal(`COALESCE("User"."notification_preferences"->>'email', 'true') <> 'false'`) as unknown as WhereOptions },
+  ];
+}
+
+function condicionesDeLosFiltros(filtros: FiltrosDeGrupo, ahora: Date): WhereOptions[] {
+  const y: WhereOptions[] = [];
 
   if (filtros.registro === 'incompleto') y.push({ registrationPending: true });
   if (filtros.registro === 'completo') y.push({ registrationPending: false });
@@ -47,7 +49,37 @@ export function dondeDelGrupo(filtros: FiltrosDeGrupo, categoria: CategoriaDeCor
   if (filtros.sinIngresarHaceDias !== undefined) {
     y.push({ [Op.or]: [{ lastLogin: null }, { lastLogin: { [Op.lte]: new Date(ahora.getTime() - filtros.sinIngresarHaceDias * 86_400_000) } }] });
   }
-  return { [Op.and]: y };
+  return y;
+}
+
+export function dondeDelGrupo(filtros: FiltrosDeGrupo, categoria: CategoriaDeCorreo, ahora: Date = new Date()): WhereOptions {
+  return { [Op.and]: [...exclusiones(categoria).map((e) => e.regla), ...condicionesDeLosFiltros(filtros, ahora)] };
+}
+
+export interface ExplicacionDelGrupo {
+  /** Cuentas que cumplen los filtros, antes de sacar a quienes no pueden recibir el correo. */
+  coinciden: number;
+  /** Cuántas se van por cada motivo (cada cuenta se cuenta una sola vez, en el primero que le toca). */
+  afuera: Array<{ motivo: string; personas: number }>;
+  reciben: number;
+}
+
+/** Por qué un grupo alcanza a las personas que alcanza (para que un «0 personas» se entienda). Solo cantidades. */
+export async function explicarGrupo(filtros: FiltrosDeGrupo, categoria: CategoriaDeCorreo, ahora: Date = new Date()): Promise<ExplicacionDelGrupo> {
+  return conSistema(async () => {
+    const reglas: WhereOptions[] = condicionesDeLosFiltros(filtros, ahora);
+    const contar = () => User.count({ where: { [Op.and]: [...reglas] } });
+    const coinciden = await contar();
+    let quedan = coinciden;
+    const afuera: ExplicacionDelGrupo['afuera'] = [];
+    for (const e of exclusiones(categoria)) {
+      reglas.push(e.regla);
+      const despues = await contar();
+      if (quedan - despues > 0) afuera.push({ motivo: e.motivo, personas: quedan - despues });
+      quedan = despues;
+    }
+    return { coinciden, afuera, reciben: quedan };
+  });
 }
 
 export async function contarGrupo(filtros: FiltrosDeGrupo, categoria: CategoriaDeCorreo, ahora: Date = new Date()): Promise<number> {

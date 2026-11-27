@@ -123,6 +123,24 @@ describe('módulo de correos a usuarios', () => {
       expect(soloTexto.status).toBe(400);
     });
 
+    it('«doapparg.com» a secas se acepta y se guarda completa; otro dominio a secas se sigue rechazando', async () => {
+      const base = { name: 'Botón corto', category: 'servicio', subject: 'Hola', body: 'Texto', buttonLabel: 'Entrá' };
+      const r = await api('post', '/templates').send({ ...base, buttonUrl: 'doapparg.com' });
+      expect(r.status).toBe(201);
+      expect(((await EmailTemplate.findByPk(r.body.data.id)) as any).buttonUrl).toBe('https://doapparg.com');
+      expect((await api('post', '/templates').send({ ...base, buttonUrl: 'otro-sitio.example' })).status).toBe(400);
+      await api('delete', `/templates/${r.body.data.id}`);
+    });
+
+    it('si la prueba no sale dice por qué, con un estado que Cloudflare no reemplaza por su página', async () => {
+      __reiniciarPruebas();
+      fallan.add(dueno.email);
+      const r = await api('post', '/templates/test').send({ name: 'x', subject: 'a', body: 'b' });
+      fallan.delete(dueno.email);
+      expect([r.status, r.body.code]).toEqual([424, 'CORREO_NO_SALIO']);
+      expect(r.body.message).toMatch(/^La prueba no salió\./);
+    });
+
     it('crea, edita y borra; el botón puede llevar a una variable o a una dirección de DOAPP', async () => {
       const creada = await api('post', '/templates').send({ name: 'Bienvenida', category: 'promocional', subject: '{{saludo}}: novedades', body: 'Mirá lo nuevo.', buttonLabel: 'Ver', buttonUrl: 'https://doapparg.com/jobs' });
       expect(creada.status).toBe(201);
@@ -150,6 +168,16 @@ describe('módulo de correos a usuarios', () => {
   });
 
   describe('grupos de destinatarios', () => {
+    it('explica por qué alcanza a esa cantidad: cuántas coinciden y cuántas quedan afuera por cada motivo, solo con números', async () => {
+      await persona();
+      const r = await api('post', '/audiences/preview').send({ filters: { registro: 'incompleto' }, category: 'promocional' });
+      const e = r.body.data.explicacion;
+      expect(e.reciben).toBe(r.body.data.total);
+      expect(e.afuera.reduce((s: number, x: any) => s + x.personas, 0)).toBe(e.coinciden - e.reciben);
+      expect(e.afuera.map((x: any) => x.motivo)).toContain('No aceptaron recibir novedades y ofertas');
+      expect(JSON.stringify(e)).not.toContain('@');
+    });
+
     it('un filtro inventado o mal escrito se rechaza', async () => {
       expect((await api('post', '/audiences').send({ name: 'Mal', filters: { hackear: true } })).status).toBe(400);
       expect((await api('post', '/audiences').send({ name: 'Mal', filters: { registro: 'a medias' } })).status).toBe(400);

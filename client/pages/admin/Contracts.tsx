@@ -8,6 +8,7 @@ import { statusDescription, contractStatusDescriptions, contractPaymentDescripti
 import { useSocket, useCambiosDeAdministracion } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
 import { TONOS, tonoDe, COLOR_DE_PAGO } from "./PanelGeneralDePublicaciones";
+import { elPagoRepiteElEstadoFinal } from '../../../shared/admin/resumenDePublicacion';
 
 interface ContractChange {
   field: string;
@@ -787,7 +788,7 @@ export default function AdminContracts() {
                             {contract.situacion.estadoFinal.rotulo}
                           </span>
                           <div>
-                            <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${COLOR_DE_PAGO[contract.situacion.pago.clave] ?? TONOS.espera}`}>{contract.situacion.pago.rotulo}</span>
+                            {!elPagoRepiteElEstadoFinal(contract.situacion.estadoFinal.clave, contract.situacion.pago.clave) && <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${COLOR_DE_PAGO[contract.situacion.pago.clave] ?? TONOS.espera}`}>{contract.situacion.pago.rotulo}</span>}
                           </div>
                           {contract.situacion.alerta && <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠️ {contract.situacion.alerta}</div>}
                         </div>

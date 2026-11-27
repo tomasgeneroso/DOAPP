@@ -387,6 +387,7 @@ router.post(
         commission,
         totalPrice,
         status: "accepted", // Admin-created contracts start as accepted
+        photoConsentAt: null, // las partes no contrataron en la Plataforma: sus fotos se publican solo si las dos lo aceptan
         paymentStatus: "pending",
         startDate: new Date(startDate),
         endDate: new Date(endDate),
