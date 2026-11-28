@@ -73,7 +73,7 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
     // El administrador ve la publicación esperando aprobación y la aprueba.
     const paginaAdmin = await otraPersona();
     await administradorEn(paginaAdmin);
-    await paginaAdmin.goto('/admin/jobs');
+    await paginaAdmin.goto('/admin/jobs?vista=moderacion');
     // Aprobar pregunta «¿Estás seguro?» y después avisa «aprobada exitosamente»: la persona toca Aceptar las dos veces.
     const avisos: string[] = [];
     paginaAdmin.on('dialog', (d) => { avisos.push(d.message()); void d.accept(); });
@@ -327,7 +327,8 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
     const cliente = Persona.nueva(page, 'cliente');
     await cliente.darseDeAlta();
     const [cuenta] = await consulta<{ free_contracts_remaining: number }>('SELECT free_contracts_remaining FROM users WHERE lower(email) = lower($1)', [cliente.correo]);
-    expect(Number(cuenta.free_contracts_remaining)).toBe(0);
+    // Al completar el registro recibe el beneficio de lanzamiento: 1 contrato libre de COMISIÓN. La publicación se paga igual.
+    expect(Number(cuenta.free_contracts_remaining)).toBe(1);
 
     for (let i = 0; i < 3; i++) {
       const datos = trabajoDePrueba();
@@ -354,7 +355,7 @@ test.describe('A · publicar y pagar con Mercado Pago', () => {
       avisos.push(d.message());
       void d.accept();
     });
-    await paginaAdmin.goto('/admin/jobs');
+    await paginaAdmin.goto('/admin/jobs?vista=moderacion');
     const fila = filaDelTrabajo(paginaAdmin, trabajo.datos.titulo);
     await fila.getByRole('button', { name: /Rechazar|Reject/ }).click();
 

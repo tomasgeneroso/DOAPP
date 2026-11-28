@@ -112,6 +112,25 @@ export async function aplicarAumentoDePrecio(payment: Payment, origen: OrigenDel
   let resultado: ResultadoAumento = { aplicado: false, motivo: 'No hay un aumento de precio pendiente para este pago.' };
   let trabajo: any = null;
   let saldoSinDebitar: { reservado: number; motivo: string } | null = null;
+  // El pedido que las personas elegidas ya aceptaron y esperaba este pago (si lo había): dice cuánto pasa a cobrar cada una.
+  let seHabiaPausado = false;
+  let pedido: import('./cambioDePresupuesto.js').PedidoDeCambio | null = null;
+
+  const previo: any = await Job.findOne({ where: { publicationPaymentId: payment.id } });
+  if (previo?.budgetChangeRequest) {
+    const { vencerElPedidoSiCorresponde } = await import('./cambioDePresupuesto.js');
+    const motivo = await vencerElPedidoSiCorresponde(previo);
+    if (motivo) {
+      await avisarAAdmins(
+        'Aumento de presupuesto pagado que ya no se puede aplicar',
+        `El aumento de "${previo.title}" se pagó (${pesos(Number(payment.amount))} ARS) pero ya no corresponde aplicarlo: ${motivo} El dinero está cobrado: revisalo y, si corresponde, devolvelo.`,
+        'error',
+        'Payment',
+        String(payment.id),
+      );
+      return { aplicado: false, motivo };
+    }
+  }
 
   await sequelize.transaction(async (t) => {
     const job: any = await Job.findOne({ where: { publicationPaymentId: payment.id }, lock: t.LOCK.UPDATE, transaction: t });
@@ -119,7 +138,10 @@ export async function aplicarAumentoDePrecio(payment: Payment, origen: OrigenDel
 
     const precioAnterior = Number(job.price);
     const precioNuevo = Number(job.pendingNewPrice);
-    const estadoAnterior = job.previousStatus || 'open';
+    // Solo se «reactiva» lo que se había pausado para pagar. Con alguien elegido el trabajo no se pausa: su estado siguió su curso y no se toca.
+    seHabiaPausado = ['paused', 'pending_payment'].includes(job.status);
+    const estadoAnterior = seHabiaPausado ? job.previousStatus || 'open' : job.status;
+    pedido = job.budgetChangeRequest ?? null;
 
     const reservado = Number(job.pendingBalanceDeduction) || 0;
     let saldoDebitado = 0;
@@ -160,6 +182,7 @@ export async function aplicarAumentoDePrecio(payment: Payment, origen: OrigenDel
         pendingBalanceDeduction: 0,
         previousStatus: null,
         status: estadoAnterior,
+        budgetChangeRequest: null,
       } as any,
       { transaction: t },
     );
@@ -169,6 +192,16 @@ export async function aplicarAumentoDePrecio(payment: Payment, origen: OrigenDel
   });
 
   if (!resultado.aplicado || !trabajo) return resultado;
+
+  // Ya con el precio nuevo: los contratos de las personas elegidas y las postulaciones que esperaban respuesta (eran por el precio anterior).
+  const { aplicarEfectosDelPrecioNuevo } = await import('./cambioDePresupuesto.js');
+  await aplicarEfectosDelPrecioNuevo(trabajo, {
+    precioAnterior: pedido ? (pedido as any).precioAnterior : resultado.precioAnterior!,
+    precioNuevo: pedido ? (pedido as any).precioNuevo : resultado.precioNuevo!,
+    publicado: Number(resultado.precioNuevo),
+    motivo: trabajo.priceChangeReason || 'Aumento de presupuesto',
+    repartos: pedido ? (pedido as any).elegidos : [],
+  });
 
   if (saldoSinDebitar) {
     const { reservado, motivo } = saldoSinDebitar;
@@ -194,7 +227,7 @@ export async function aplicarAumentoDePrecio(payment: Payment, origen: OrigenDel
   await avisarPagoRecibido({
     userId: trabajo.clientId,
     titulo: 'Presupuesto actualizado',
-    mensaje: `${encabezado}El presupuesto de "${trabajo.title}" ha sido actualizado a ${pesos(resultado.precioNuevo!)} ARS. El trabajo ha sido reactivado.`,
+    mensaje: `${encabezado}El presupuesto de "${trabajo.title}" ha sido actualizado a ${pesos(resultado.precioNuevo!)} ARS.${seHabiaPausado ? ' El trabajo ha sido reactivado.' : ''}`,
     monto: Number(payment.amount),
     relatedModel: 'Job',
     relatedId: String(trabajo.id),

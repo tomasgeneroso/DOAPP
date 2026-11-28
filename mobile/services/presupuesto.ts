@@ -1,12 +1,11 @@
-import { patch } from './api';
+import { del, get, patch, post } from './api';
 
 /**
  * Cambiar el presupuesto de un trabajo publicado, desde el celular.
  *
- * Subir el precio obliga a pagar la diferencia (más su comisión, el costo de procesamiento y el IVA, menos el saldo a
- * favor que se use); el pago queda en revisión de un administrador y, si en 24 horas nadie lo revisa, se aprueba solo
- * siempre que Mercado Pago lo haya confirmado bien. Bajar el precio se acredita al saldo. Las reglas son las del
- * servidor; esto sólo arma el pedido, valida lo que se puede validar antes de mandarlo y traduce la respuesta.
+ * Primero se pide el análisis (qué va a pasar: saldos, postulaciones que se quitan, quién tiene que aceptar) y se muestra; recién con la aceptación se cambia.
+ * Con alguien ya elegido, queda como pedido hasta que esa persona lo acepte. Las reglas son las del servidor (shared/jobs/cambioDePresupuesto.ts); esto sólo
+ * arma el pedido, valida lo que se puede validar antes de mandarlo y traduce la respuesta.
  */
 
 export const PRECIO_MAXIMO = 999_999_999;
@@ -79,7 +78,44 @@ export function interpretarCambioDePresupuesto(res: any): ResultadoDelCambio {
 }
 
 export async function cambiarPresupuesto(jobId: string, precio: number, motivo: string): Promise<ResultadoDelCambio> {
-  return interpretarCambioDePresupuesto(await patch<any>(`/jobs/${jobId}/budget`, { newPrice: precio, reason: motivo }));
+  // `aceptaEfectos`: la pantalla ya mostró lo que va a pasar y la persona tocó «Aceptar».
+  return interpretarCambioDePresupuesto(await patch<any>(`/jobs/${jobId}/budget`, { newPrice: precio, reason: motivo, aceptaEfectos: true }));
+}
+
+export type RevisionDelCambio = { tipo: 'puede'; efectos: string[]; conAceptacion: boolean } | { tipo: 'no'; mensaje: string } | { tipo: 'sin_analisis' };
+
+/** Lo que va a pasar si el presupuesto cambia. Con un servidor que todavía no ofrece el análisis, se sigue sin él. */
+export async function revisarCambioDePresupuesto(jobId: string, precio: number): Promise<RevisionDelCambio> {
+  const res: any = await post<any>(`/jobs/${jobId}/budget/analisis`, { newPrice: precio });
+  if (res?.status === 404) return { tipo: 'sin_analisis' };
+  if (res?.success !== true || !res?.analisis) return { tipo: 'no', mensaje: String(res?.message || 'No pudimos revisar el cambio. Probá de nuevo.') };
+  if (!res.analisis.puede) return { tipo: 'no', mensaje: String(res.analisis.bloqueo?.mensaje || 'Ahora no se puede cambiar el presupuesto.') };
+  return { tipo: 'puede', efectos: (res.efectos || []).map(String), conAceptacion: res.analisis.modo === 'con_aceptacion' };
+}
+
+export interface PedidoDeCambioEnCurso {
+  soy: 'cliente' | 'elegido';
+  estado: 'esperando_respuesta' | 'esperando_pago';
+  precioAnterior: number;
+  precioNuevo: number;
+  motivo: string;
+  elegidos: Array<{ trabajadorId: string; nombre: string; montoActual: number; montoNuevo: number; respuesta: 'pendiente' | 'acepta' | 'rechaza' }>;
+}
+
+/** El cambio en curso de este trabajo para quien mira; null si no hay (o no le toca). */
+export async function leerPedidoDeCambio(jobId: string): Promise<PedidoDeCambioEnCurso | null> {
+  const res: any = await get<any>(`/jobs/${jobId}/budget/solicitud`);
+  return res?.success === true && res?.solicitud ? (res.solicitud as PedidoDeCambioEnCurso) : null;
+}
+
+export async function responderPedidoDeCambio(jobId: string, acepta: boolean): Promise<{ ok: boolean; mensaje: string }> {
+  const res: any = await post<any>(`/jobs/${jobId}/budget/solicitud/responder`, { acepta });
+  return { ok: res?.success === true, mensaje: String(res?.message || (res?.success ? 'Listo.' : 'No pudimos guardar tu respuesta. Probá de nuevo.')) };
+}
+
+export async function retirarPedidoDeCambio(jobId: string): Promise<{ ok: boolean; mensaje: string }> {
+  const res: any = await del<any>(`/jobs/${jobId}/budget/solicitud`);
+  return { ok: res?.success === true, mensaje: String(res?.message || (res?.success ? 'Listo.' : 'No se pudo retirar el pedido.')) };
 }
 
 export type ResultadoDeCancelar = { ok: true; mensaje: string } | { ok: false; mensaje: string; yaPagado?: boolean };
@@ -91,7 +127,7 @@ export async function cancelarCambioDePresupuesto(jobId: string): Promise<Result
   return { ok: false, mensaje: String(res?.message || 'No se pudo cancelar.'), yaPagado: res?.code === 'AUMENTO_PAGADO_EN_REVISION' };
 }
 
-/** ¿Se le ofrece cambiar el presupuesto? Sólo al dueño de un trabajo abierto y sin un cambio a medias. */
+/** ¿Se le ofrece cambiar el presupuesto? Al dueño de un trabajo publicado (abierto o en curso) y sin un cambio a medias; el análisis del servidor dice el resto. */
 export function puedeCambiarElPresupuesto(job: any, soyElDueno: boolean): boolean {
-  return Boolean(soyElDueno && job && String(job.status) === 'open' && !job.pendingNewPrice && !job.aumentoPendiente);
+  return Boolean(soyElDueno && job && ['open', 'in_progress'].includes(String(job.status)) && !job.pendingNewPrice && !job.aumentoPendiente);
 }

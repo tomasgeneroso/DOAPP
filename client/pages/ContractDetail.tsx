@@ -54,6 +54,8 @@ import CodigoDeEmparejamiento from "@/components/contracts/CodigoDeEmparejamient
 import RecordatorioDeConfirmacion from "@/components/contracts/RecordatorioDeConfirmacion";
 import AntesYDespues from "../components/momentos/AntesYDespues";
 import { ConsultaAbiertaDelContrato } from "../components/OfertasYaHechas";
+import { instanteDeLoEscrito, valorDelCampoLocal } from "../../shared/fechas/horaLocal";
+import CambioDePresupuestoEnCurso from "../components/jobs/CambioDePresupuestoEnCurso";
 import { textoDeAceptacion } from "../../shared/contratos/aceptacion";
 
 /**
@@ -353,8 +355,8 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
         }
       }
       const response = await api.post(`/contracts/${id}/confirm`, {
-        proposedStartTime: proposedStart,
-        proposedEndTime: proposedEnd,
+        proposedStartTime: instanteDeLoEscrito(proposedStart),
+        proposedEndTime: instanteDeLoEscrito(proposedEnd),
         notes: confirmationNotes || undefined,
       });
       if (response.success) {
@@ -605,6 +607,11 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
             <ArrowLeft className="h-5 w-5" />
             {t('common.back', 'Back')}
           </button>
+
+          {/* Un cambio de presupuesto pendiente se responde también desde el contrato (dentro del trabajo lo muestra el trabajo). */}
+          {!embebido && user && (
+            <CambioDePresupuestoEnCurso jobId={String(contract.job?.id || (typeof contract.jobId === 'object' ? contract.jobId?.id : contract.jobId) || '')} alCambiar={loadContract} className="mb-6" />
+          )}
 
           {/* Al volver de pagar en Mercado Pago (?pago=ok): confirma, espera y avisa qué sigue. */}
           <AvisoDeRetornoDePago
@@ -1052,8 +1059,8 @@ export default function ContractDetail({ embebido = false, contratoId, alConfirm
                         {!showHoursForm ? (
                           <button
                             onClick={() => {
-                              setProposedStart(contract.startDate?.slice(0, 16) || '');
-                              setProposedEnd(contract.endDate?.slice(0, 16) || '');
+                              setProposedStart(valorDelCampoLocal(contract.startDate));
+                              setProposedEnd(valorDelCampoLocal(contract.endDate));
                               setShowHoursForm(true);
                             }}
                             disabled={isDoer && (() => {

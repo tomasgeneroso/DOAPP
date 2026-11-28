@@ -206,13 +206,13 @@ export default function JobPayment() {
 
       if (response.ok && data.success) {
         toast.success('Cambio cancelado', 'El cambio de presupuesto ha sido cancelado');
+        navigate(`/jobs/${id}`);
+      } else {
+        toast.error('No se pudo cancelar el cambio', data?.message || 'Probá de nuevo.');
       }
-      // Navegar independientemente del resultado
-      navigate(`/jobs/${id}`);
     } catch (error) {
       console.error("Error canceling budget change:", error);
-      // Navegar de todos modos
-      navigate(`/jobs/${id}`);
+      toast.error('No se pudo cancelar el cambio', 'Revisá tu conexión y probá de nuevo.');
     }
   };
 

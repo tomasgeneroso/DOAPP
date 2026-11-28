@@ -36,7 +36,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
     <View style={styles.contenedor} testID="cobros-pendientes">
       <Text style={[styles.titulo, { color: tema.text.primary }]}>Cobros pendientes</Text>
       <Text style={[styles.ayuda, { color: tema.text.secondary }]}>
-        Plata que ya te corresponde pero todavía no podés usar o retirar. Cada tarjeta dice de qué contrato viene y cuántos días faltan.
+        Plata que ya te corresponde pero todavía no podés usar o retirar. Cada tarjeta dice de qué trabajo o contrato viene y qué falta.
       </Text>
       {cobros.map((c) => {
         const aFavor = c.tipo === 'a_favor';
@@ -55,7 +55,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
                 <Text style={[styles.etiqueta, { color: tema.text.primary }]} numberOfLines={1}>{c.etiqueta}</Text>
                 <View style={[styles.chip, { backgroundColor: fondoChip }]}>
                   {bien ? <CheckCircle2 size={12} color={colorChip} /> : <Clock size={12} color={colorChip} />}
-                  <Text style={[styles.chipTexto, { color: colorChip }]}>{aFavor ? 'A favor pendiente' : texto?.estado}</Text>
+                  <Text style={[styles.chipTexto, { color: colorChip }]}>{aFavor ? 'A favor pendiente' : c.esperando && !c.disponibleDesde ? 'En espera' : texto?.estado}</Text>
                 </View>
                 {!aFavor && !bien && dias > 0 && (
                   <Text style={[styles.dias, { color: tema.text.secondary }]} testID="dias-que-faltan">Faltan {dias} {dias === 1 ? 'día' : 'días'}</Text>
@@ -67,8 +67,13 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
             <Text style={[styles.detalle, { color: tema.text.secondary }]} testID="detalle-del-cobro">
               {aFavor
                 ? (c.disponibleDesde ? `Pasa a tu saldo el ${fechaDeLiquidacion(c.disponibleDesde)}: desde ahí lo podés usar o retirar.` : 'Pasa a tu saldo cuando se libere el pago: desde ahí lo podés usar o retirar.')
-                : `${!delTrabajo ? 'Ya está en tu saldo, pero todavía no lo podés retirar. ' : ''}${texto?.detalle ?? ''}`}
+                : `${!delTrabajo ? 'Ya está en tu saldo, pero todavía no lo podés retirar. ' : ''}${c.esperando ? '' : texto?.detalle ?? ''}`}
             </Text>
+            {!!c.esperando && (
+              <Text style={[styles.detalle, { color: tema.text.primary, fontWeight: fontWeight.medium }]} testID="que-falta-para-retirar">
+                {c.esperando}
+              </Text>
+            )}
 
             {c.trabajo && (
               <Text style={[styles.trabajo, { color: tema.text.primary }]} numberOfLines={1}>

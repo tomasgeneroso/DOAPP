@@ -40,6 +40,8 @@ export interface CobroPendiente {
   disponibleDesde: string | null;
   trabajo: ReferenciaDelCobro | null;
   contrato: ReferenciaDelCobro | null;
+  /** Qué falta para poder retirarlo cuando no es (solo) una fecha: que termine el trabajo o el contrato, o que se resuelva un reclamo. */
+  esperando?: string;
   /** Solo `cobro_del_trabajo`: ¿ya pasaron los plazos? */
   liberado?: boolean;
   /** Solo `cobro_del_trabajo`: cuándo lo pidió el trabajador (ISO), si ya lo pidió. */

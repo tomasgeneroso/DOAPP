@@ -1,6 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { PAGO_TRABAJADOR_RETENCION_DIAS, POLITICAS } from '../../shared/constants/policies.js';
 import { etiquetaDelAFavor, type AFavorPendienteItem, type CobroPendiente, type ReferenciaDelCobro } from '../../shared/pagos/aFavorPendiente.js';
+import { conceptoDelCredito, NOMBRE_DEL_CONCEPTO } from '../../shared/pagos/retiroPorContrato.js';
 
 export type { AFavorPendienteItem, CobroPendiente };
 
@@ -139,11 +140,29 @@ export interface SaldoRetirable {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Cuánto de su saldo puede retirar un usuario ahora. Las entradas todavía no liberadas se descuentan del saldo actual, con un tope: si el
- * usuario ya gastó parte de su saldo dentro de la app, lo gastado sale de lo disponible primero (lo que se puede retirar nunca supera lo que
- * hay, ni queda negativo).
+ * Cuánto puede RETIRAR ahora. Además de la liberación de la pasarela, cada crédito se mira contra el estado de su trabajo y su contrato (terminado y sin reclamo:
+ * `shared/pagos/retiroPorContrato.ts`). Con el mismo tope: lo que espera nunca supera el saldo.
  */
 export async function saldoRetirable(userId: string, saldoTotal: number, opciones: { transaction?: unknown; ahora?: Date } = {}): Promise<SaldoRetirable> {
+  const { creditosDelSaldo } = await import('./creditosParaRetirar.js');
+  const enEspera = (await creditosDelSaldo(userId, opciones)).filter((c) => c.espera);
+  const total = r2(Number(saldoTotal) || 0);
+  const enLiberacion = r2(Math.max(0, Math.min(total, enEspera.reduce((s, c) => s + c.monto, 0))));
+  const fechas = enEspera.filter((c) => c.espera!.motivo === 'liberacion' && c.disponibleDesde).map((c) => new Date(c.disponibleDesde!).getTime());
+  return {
+    total,
+    disponible: r2(Math.max(0, total - enLiberacion)),
+    enLiberacion,
+    proximaLiberacion: enLiberacion > 0 && fechas.length ? new Date(Math.min(...fechas)) : null,
+  };
+}
+
+/**
+ * Cuánto de su saldo está LIBERADO para usarlo dentro de la app (pagar una publicación o un aumento): solo espera a la pasarela, porque esa plata no sale de la
+ * plataforma. Las entradas todavía no liberadas se descuentan del saldo actual, con un tope: si ya gastó parte dentro de la app, lo gastado sale de lo disponible
+ * primero (nunca supera lo que hay, ni queda negativo).
+ */
+export async function saldoLiberado(userId: string, saldoTotal: number, opciones: { transaction?: unknown; ahora?: Date } = {}): Promise<SaldoRetirable> {
   const { sequelize } = await import('../config/database.js');
   const ahora = opciones.ahora ?? new Date();
   const filas = (await sequelize.query(
@@ -231,7 +250,25 @@ export async function cobrosPendientes(userId: string, ahora: Date = new Date())
       LIMIT 50`,
     { replacements: { userId, ahora }, type: QueryTypes.SELECT },
   )) as Array<{ id: string; amount: string | number; status: string; description: string; metadata: Record<string, any> | null; contratoId: string | null }>;
-  if (filas.length === 0) return [];
+
+  const { creditosDelSaldo } = await import('./creditosParaRetirar.js');
+  const porEstado = (await creditosDelSaldo(userId, { ahora })).filter((c) => c.espera);
+  const estadoDe = new Map(porEstado.map((c) => [c.movimientoId, c]));
+  const yaListados = new Set(filas.map((f) => String(f.id)));
+  const soloPorEstado: CobroPendiente[] = porEstado
+    .filter((c) => !yaListados.has(c.movimientoId))
+    .map((c) => ({
+      id: c.movimientoId,
+      tipo: 'en_liberacion' as const,
+      monto: c.monto,
+      etiqueta: NOMBRE_DEL_CONCEPTO[c.concepto],
+      descripcion: c.descripcion,
+      disponibleDesde: c.disponibleDesde,
+      trabajo: c.trabajoId ? { id: c.trabajoId, titulo: c.trabajoTitulo || 'Trabajo' } : null,
+      contrato: c.contratoId ? { id: c.contratoId, titulo: c.trabajoTitulo || 'Trabajo' } : null,
+      esperando: c.espera!.texto,
+    }));
+  if (filas.length === 0) return soloPorEstado;
 
   const idDe = (v: unknown): string | null => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
   const refs = filas.map((f) => {
@@ -255,9 +292,15 @@ export async function cobrosPendientes(userId: string, ahora: Date = new Date())
     for (const j of (await Job.findAll({ where: { id: idsDeTrabajos } as any, attributes: ['id', 'title'] })) as any[]) titulos.set(String(j.id), String(j.title || ''));
   }
 
-  return filas.map((f, i) => {
+  return [...soloPorEstado, ...filas.map((f, i) => {
     const m = f.metadata || {};
     const aFavor = f.status === 'pending';
+    const retiro = estadoDe.get(String(f.id));
+    // Lo que quedó a favor por bajar un presupuesto (o porque sobró) además espera a que el trabajo termine para poder retirarse.
+    const concepto = conceptoDelCredito('refund', m);
+    const trasLiberarse = aFavor && (concepto === 'baja_de_presupuesto' || concepto === 'sobrante_de_presupuesto') ? 'Para retirarlo, además tiene que terminar el trabajo.' : undefined;
+    // Si lo que frena no es la fecha, se dice qué es.
+    const frena = retiro?.espera && retiro.espera.motivo !== 'liberacion' ? retiro.espera.texto : trasLiberarse;
     const trabajoId = refs[i].trabajoId ?? (refs[i].contratoId ? contratos.get(refs[i].contratoId!)?.jobId ?? null : null);
     const referencia = (id: string | null): ReferenciaDelCobro | null => (id ? { id, titulo: titulos.get(trabajoId ?? '') || 'Trabajo' } : null);
     return {
@@ -269,8 +312,9 @@ export async function cobrosPendientes(userId: string, ahora: Date = new Date())
       disponibleDesde: m.disponibleDesde ? String(m.disponibleDesde) : null,
       trabajo: trabajoId ? { id: trabajoId, titulo: titulos.get(trabajoId) || 'Trabajo' } : null,
       contrato: referencia(refs[i].contratoId),
+      ...(frena ? { esperando: frena } : {}),
     } satisfies CobroPendiente;
-  });
+  })];
 }
 
 /** Cuándo libera Mercado Pago el pago de donde sale una devolución, y cuál es ese pago (la devolución lo anota para poder comprobarlo al liquidarla). */

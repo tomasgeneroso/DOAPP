@@ -411,9 +411,9 @@ export default function WithdrawalRequestPage() {
           )}
           {enLiberacion > 0 && (
             <p className="mt-2 text-xs text-sky-100">
-              + ${enLiberacion.toLocaleString('es-AR')} ya están en tu saldo de DOAPP, pero Mercado Pago todavía no liberó ese pago
-              {proximaLiberacion ? `: faltan ${diasQueFaltan(proximaLiberacion)} ${diasQueFaltan(proximaLiberacion) === 1 ? 'día' : 'días'} (los vas a poder retirar desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}.
-              {' '}No se retiran solos: cuando llegue la fecha, el retiro lo pedís vos desde esta pantalla.
+              + ${enLiberacion.toLocaleString('es-AR')} ya están en tu saldo de DOAPP, pero todavía no los podés retirar: en «Cobros pendientes» ves qué le falta a cada uno
+              {proximaLiberacion ? ` (la próxima fecha: ${new Date(proximaLiberacion).toLocaleDateString('es-AR')}, en ${diasQueFaltan(proximaLiberacion)} ${diasQueFaltan(proximaLiberacion) === 1 ? 'día' : 'días'})` : ''}.
+              {' '}No se retiran solos: cuando se puedan retirar, el retiro lo pedís vos desde esta pantalla.
             </p>
           )}
           {cobroEnEspera > 0 && (

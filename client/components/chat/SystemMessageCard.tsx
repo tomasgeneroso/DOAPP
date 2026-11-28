@@ -39,7 +39,9 @@ interface SystemMessageCardProps {
     metadata?: {
       jobId?: string;
       proposalId?: string;
-      proposalStatus?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+      proposalStatus?: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
+      /** Se quitó porque cambió el presupuesto del trabajo: esa persona puede postularse de nuevo. */
+      quitadaPorPresupuesto?: boolean;
       action?: string;
       autoSelected?: boolean;
       isCounterOffer?: boolean;
@@ -129,6 +131,7 @@ const getStatusConfig = (status?: string, t?: (key: string, fallback: string) =>
         icon: XCircle,
         borderColor: 'border-red-300 dark:border-red-700',
       };
+    case 'cancelled':
     case 'withdrawn':
       return {
         label: translate('common.status.cancelled', 'Cancelled'),
@@ -506,6 +509,18 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             <span className="text-xs font-medium text-green-800 dark:text-green-200">
               {textoDeAceptacion({ como: message.metadata?.aceptadaPor ?? 'automatica', cuando: message.metadata?.aceptadaEl }, isCurrentUser ? 'quien_trabaja' : 'quien_publico')}
             </span>
+          </div>
+        )}
+
+        {/* Se quitó porque cambió el presupuesto: se dice por qué y, a quien se había postulado, se le ofrece volver a hacerlo. */}
+        {message.metadata?.quitadaPorPresupuesto && (
+          <div className="animate-fadeIn px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-xs font-medium text-amber-900 dark:text-amber-200" data-testid="quitada-por-presupuesto">
+            Cambió el presupuesto del trabajo y esta postulación se quitó.{" "}
+            {isCurrentUser && message.metadata?.jobId ? (
+              <a href={`/jobs/${message.metadata.jobId}`} className="font-semibold underline">Postulate de nuevo</a>
+            ) : (
+              "Para sumarse, la persona se tiene que postular de nuevo."
+            )}
           </div>
         )}
 

@@ -102,7 +102,6 @@ import paymentOrderRoutes from "./routes/paymentOrders.js";
 import matchingRoutes from "./routes/matching.js";
 
 // Negotiation routes
-import negotiationRoutes from "./routes/negotiation.js";
 
 // Review routes
 import reviewsRoutes from "./routes/reviews.js";
@@ -424,7 +423,10 @@ app.use("/api/refund-requests", (await import('./routes/refundRequests.js')).def
 // Ordenes de pago del modo sin proteccion (pago al terminar).
 app.use("/api/payment-orders", paymentOrderRoutes);
 app.use("/api/matching", matchingRoutes);
-app.use("/api/negotiation", negotiationRoutes);
+// La negociación por contrato cambiaba el precio y las fechas acordadas sin las comprobaciones de dinero, y ninguna pantalla la usaba (2026-11-27).
+app.use("/api/negotiation", (_req, res) => {
+  res.status(410).json({ success: false, code: 'USAR_CAMBIAR_PRESUPUESTO', message: 'Los cambios de precio se piden desde el trabajo, con «Cambiar presupuesto».' });
+});
 app.use("/api/search", searchRoutes);
 app.use("/api/webhooks", webhooksRoutes);
 app.use("/api/contact", contactRoutes);

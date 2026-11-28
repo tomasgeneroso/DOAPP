@@ -102,7 +102,7 @@ describe('llamadas', () => {
   it('cambiar el presupuesto manda newPrice y reason a PATCH /jobs/:id/budget', async () => {
     mockPatch.mockResolvedValue({ success: true, message: 'ok' });
     await cambiarPresupuesto('j1', 12000, 'Más trabajo del previsto');
-    expect(mockPatch).toHaveBeenCalledWith('/jobs/j1/budget', { newPrice: 12000, reason: 'Más trabajo del previsto' });
+    expect(mockPatch).toHaveBeenCalledWith('/jobs/j1/budget', { newPrice: 12000, reason: 'Más trabajo del previsto', aceptaEfectos: true });
   });
 
   it('cancelar el cambio: éxito, y el rechazo por aumento ya pagado se marca', async () => {
@@ -118,10 +118,11 @@ describe('llamadas', () => {
 });
 
 describe('puedeCambiarElPresupuesto', () => {
-  it('sólo el dueño de un trabajo abierto y sin un cambio a medias', () => {
+  it('sólo el dueño de un trabajo publicado (abierto o en curso) y sin un cambio a medias', () => {
     expect(puedeCambiarElPresupuesto({ status: 'open' }, true)).toBe(true);
+    expect(puedeCambiarElPresupuesto({ status: 'in_progress' }, true)).toBe(true);
     expect(puedeCambiarElPresupuesto({ status: 'open' }, false)).toBe(false);
-    for (const status of ['draft', 'pending_payment', 'pending_approval', 'paused', 'in_progress', 'completed', 'cancelled']) {
+    for (const status of ['draft', 'pending_payment', 'pending_approval', 'paused', 'completed', 'cancelled']) {
       expect(puedeCambiarElPresupuesto({ status }, true)).toBe(false);
     }
     expect(puedeCambiarElPresupuesto({ status: 'open', pendingNewPrice: 12000 }, true)).toBe(false);

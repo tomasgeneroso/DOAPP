@@ -24,6 +24,7 @@ export const CAMBIOS_DE_POLITICAS: CambioDePoliticas[] = [
       'Medimos nosotros cuánto se usa DOAPP: qué días ingresás, cuántas visitas, cuánto duran y si usás la web, Android o iOS. Se borra a los 400 días y no se comparte.',
       'Nombramos los servicios de mapas y direcciones: Photon, OpenStreetMap, Georef y Mapbox.',
       'Al aceptar un contrato aceptás que las fotos del trabajo se publiquen en DOAPP (Términos, punto 6.8). Quien trabajó puede mostrar en su perfil el trabajo que hizo.',
+      'Presupuesto (Términos 6.9 y 7.12): con alguien elegido cambia solo si lo acepta; si cambia antes, las postulaciones se quitan. Lo que quede a favor se retira cuando el trabajo termina.',
     ],
     enlace: '/legal/privacidad',
   },

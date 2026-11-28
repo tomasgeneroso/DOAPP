@@ -346,6 +346,10 @@ export class Job extends Model {
   @Column(DataType.JSONB)
   destination?: import('../../../shared/jobs/destinoYPies.js').Destino | null;
 
+  /** Cambio de presupuesto que espera la respuesta de las personas elegidas. Nunca sale en las respuestas generales (ver `toJSON`): se pide por su propia ruta. */
+  @Column(DataType.JSONB)
+  budgetChangeRequest?: import('../../services/cambioDePresupuesto.js').PedidoDeCambio | null;
+
   // Minimum completion criteria: list of conditions that must be met for the job to be considered done
   // Serves as evidence baseline in case of disputes between client and worker
   @Default([])
@@ -851,6 +855,13 @@ export class Job extends Model {
   static vaciarMuroEnCacheEnMasa(): void {
     cacheService.delPattern('jobs:*');
     avisarQueCambioElMuro();
+  }
+
+  /** El pedido de cambio de presupuesto nombra a las personas elegidas y sus pagos: no viaja con el trabajo. Lo entrega `GET /jobs/:id/budget/solicitud` solo a quien es parte. */
+  toJSON(): any {
+    const plano: any = { ...(super.toJSON() as any) };
+    delete plano.budgetChangeRequest;
+    return plano;
   }
 }
 

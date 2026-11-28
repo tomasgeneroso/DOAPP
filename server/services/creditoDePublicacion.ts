@@ -172,8 +172,9 @@ export async function saldoDe(userId: string): Promise<number> {
 export async function saldoLiberadoUsable(userId: string): Promise<number> {
   const u: any = await User.findByPk(userId, { attributes: ['id', 'balanceArs'] });
   const total = Number(u?.balanceArs) || 0;
-  const [{ saldoRetirable }, { reservadoEnRetiros }] = await Promise.all([import('./liberacionDeSaldo.js'), import('./saldoReservado.js')]);
-  const retirable = await saldoRetirable(userId, total);
+  const [{ saldoLiberado }, { reservadoEnRetiros }] = await Promise.all([import('./liberacionDeSaldo.js'), import('./saldoReservado.js')]);
+  // Para usarlo dentro de la app alcanza con que la pasarela lo haya liberado; el estado del trabajo frena solo el RETIRO.
+  const retirable = await saldoLiberado(userId, total);
   return Math.max(0, r2(retirable.disponible - (await reservadoEnRetiros(userId))));
 }
 

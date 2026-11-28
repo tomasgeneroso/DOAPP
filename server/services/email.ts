@@ -571,6 +571,19 @@ ${ctaBlock}
     await this.sendToUser(userId, '¡Bienvenido a DoApp!', html);
   }
 
+  /** El mismo aviso que aparece dentro de DOAPP, por correo (`services/avisarPorTodosLados.ts`). */
+  async sendAvisoGeneral(to: string, userName: string, titulo: string, message: string, url: string): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Aviso',
+      accent: 'sky',
+      preheader: titulo,
+      title: titulo,
+      body: `<p>Hola <strong>${userName}</strong>.</p><p>${message}</p>`,
+      cta: { label: 'Ver en DOAPP', url },
+    });
+    return await this.sendEmail({ to, subject: `${titulo} · DOAPP`, html });
+  }
+
   /** Admin verified the user's identity (DNI). */
   async sendAccountVerifiedEmail(email: string, userName: string, userId?: string): Promise<boolean> {
     const html = this.tpl({

@@ -432,7 +432,7 @@ export default function Dashboard() {
               )}
               {(user?.balance || 0) > 0 && retiro && retiro.enLiberacion > 0 && (
                 <p className="mt-2 text-sm opacity-95">
-                  Retirable ahora: <strong>${retiro.disponible.toLocaleString('es-AR')}</strong> · ${retiro.enLiberacion.toLocaleString('es-AR')} se liberan{retiro.proxima ? ` el ${fechaCorta(retiro.proxima)}` : ''} (plazo de Mercado Pago). Dentro de la app podés usar todo el saldo ya.
+                  Retirable ahora: <strong>${retiro.disponible.toLocaleString('es-AR')}</strong> · ${retiro.enLiberacion.toLocaleString('es-AR')} en espera{retiro.proxima ? ` (la próxima fecha: ${fechaCorta(retiro.proxima)})` : ''}: en «Retiros» ves qué le falta a cada importe.
                 </p>
               )}
               <p className="mt-2 text-sm opacity-80">

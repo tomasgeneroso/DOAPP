@@ -182,19 +182,6 @@ export function leaveConversation(conversationId: string) {
 }
 
 /**
- * Send a chat message
- */
-export function sendMessage(data: {
-  conversationId: string;
-  message: string;
-  type?: 'text' | 'image' | 'file';
-  fileUrl?: string;
-  fileName?: string;
-}) {
-  emit('message:send', data);
-}
-
-/**
  * Send typing indicator
  */
 export function sendTyping(conversationId: string, isTyping: boolean) {
@@ -260,7 +247,6 @@ export default {
   emit,
   joinConversation,
   leaveConversation,
-  sendMessage,
   sendTyping,
   markMessageRead,
   markConversationRead,

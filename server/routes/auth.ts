@@ -1,4 +1,5 @@
 import express, { NextFunction, Request, Response } from "express";
+import { avisarEnDoapp } from '../services/avisarPorTodosLados.js';
 import { leerSignedRequestDeFacebook } from '../utils/facebookSignedRequest.js';
 import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
@@ -1744,6 +1745,8 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
             subject: "Tu cuenta de Facebook fue desvinculada - DOAPP",
             html: `<p>Hola ${user.name}, procesamos tu solicitud de eliminación de datos de Facebook. Código de confirmación: <strong>${confirmationCode}</strong></p><p>Fecha: ${new Date().toLocaleDateString("es-AR")}</p>`,
           });
+          // El código de confirmación va solo en el correo.
+          await avisarEnDoapp({ userId: String(user.id), titulo: 'Tu cuenta de Facebook fue desvinculada', mensaje: 'Procesamos tu pedido de eliminación de los datos de Facebook. El código de confirmación está en el correo.', ruta: '/settings', categoria: 'user' });
         } catch (emailError) {
           console.error("[GDPR] No se pudo enviar el correo de confirmación:", emailError);
         }
@@ -2070,6 +2073,7 @@ router.post(
 
       // Enviar email de confirmación
       await emailService.sendPasswordChangedEmail(user.email, user.name);
+      await avisarEnDoapp({ userId: String(user.id), titulo: 'Se cambió tu contraseña', mensaje: 'La contraseña de tu cuenta se cambió. Si no fuiste vos, escribinos desde el Centro de ayuda.', ruta: '/help', tipo: 'warning', categoria: 'user' });
 
       res.json({
         success: true,
@@ -2330,6 +2334,7 @@ router.post(
       await user.save();
       await revokeAllUserTokens(user.id as any, "Password change with email code");
       await emailService.sendPasswordChangedEmail(user.email, user.name);
+      await avisarEnDoapp({ userId: String(user.id), titulo: 'Se cambió tu contraseña', mensaje: 'La contraseña de tu cuenta se cambió. Si no fuiste vos, escribinos desde el Centro de ayuda.', ruta: '/help', tipo: 'warning', categoria: 'user' });
       res.json({ success: true, message: "Contraseña actualizada. Por seguridad cerramos todas tus sesiones: volvé a iniciar sesión.", logout: true });
     } catch (error: any) {
       console.error("Error en password/change-with-code:", error);

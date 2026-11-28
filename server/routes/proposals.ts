@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
+import { avisarEnDoapp } from '../services/avisarPorTodosLados.js';
 import { body, param, validationResult } from "express-validator";
 import { Proposal } from "../models/sql/Proposal.model.js";
+import { sePuedeVolverAPostular, POSTULACION_QUITADA_POR_PRESUPUESTO } from '../../shared/jobs/cambioDePresupuesto.js';
 import { Quote } from "../models/sql/Quote.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -217,6 +219,8 @@ router.get("/check/:jobId",
       hasApplied: !!proposal && ['pending', 'approved'].includes(String(proposal.status)),
       proposalId: proposal?.id || null,
       proposalStatus: proposal?.status || null,
+      // Su postulación se quitó porque cambió el presupuesto: la pantalla se lo dice y le ofrece postularse de nuevo.
+      quitadaPorPresupuesto: !!proposal && String(proposal.status) === 'cancelled' && proposal.cancellationReason === POSTULACION_QUITADA_POR_PRESUPUESTO,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -464,7 +468,7 @@ router.post(
         }
       });
 
-      if (existingProposal && !['rejected', 'withdrawn'].includes(String(existingProposal.status))) {
+      if (existingProposal && !sePuedeVolverAPostular(existingProposal)) {
         res.status(400).json({
           success: false,
           message: "Ya has enviado una propuesta para este trabajo",
@@ -496,7 +500,7 @@ router.post(
         originalJobPrice: precioDelLugar,
       };
       const proposal = existingProposal
-        ? await existingProposal.update({ ...datosDeLaPropuesta, status: 'pending' } as any)
+        ? await existingProposal.update({ ...datosDeLaPropuesta, status: 'pending', cancellationReason: null, rejectionReason: null, withdrawnReason: null } as any)
         : await Proposal.create({
             jobId: jobId,
             freelancerId: req.user.id,
@@ -1588,7 +1592,8 @@ router.post(
         }
       });
 
-      if (existingProposal) {
+      const quitadaPorElPrecio = !!existingProposal && String(existingProposal.status) === 'cancelled' && existingProposal.cancellationReason === POSTULACION_QUITADA_POR_PRESUPUESTO;
+      if (existingProposal && !quitadaPorElPrecio) {
         res.status(400).json({
           success: false,
           message: "Ya has enviado una propuesta para este trabajo",
@@ -1608,18 +1613,18 @@ router.post(
         durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24)));
       }
 
-      // Crear propuesta automáticamente aprobada
-      const proposal = await Proposal.create({
-        jobId: jobId,
-        freelancerId: req.user.id,
-        clientId: job.clientId,
+      // Crear propuesta automáticamente aprobada (hay una sola por persona y trabajo: la que se quitó por un cambio de presupuesto se reabre)
+      const datosDeLaDirecta = {
         coverLetter: "Aplicación directa - El freelancer aceptó los términos del trabajo tal como fueron publicados.",
         proposedPrice: jobPrice,
         estimatedDuration: durationDays,
         status: "approved",
         approvedBy: "directa",
         approvedAt: new Date(),
-      });
+      };
+      const proposal = existingProposal
+        ? await existingProposal.update({ ...datosDeLaDirecta, cancellationReason: null } as any)
+        : await Proposal.create({ jobId: jobId, freelancerId: req.user.id, clientId: job.clientId, ...datosDeLaDirecta } as any);
 
       // Actualizar trabajo
       // Solo poner in_progress si la fecha de inicio ya pasó
@@ -1716,6 +1721,9 @@ router.post(
       // Enviar emails a ambas partes
       const clientUser = job.client as any;
       const jobUrl = `${config.clientUrl}/jobs/${job.id}`;
+      // Lo mismo que dicen los dos correos, en la campana de cada parte.
+      await avisarEnDoapp({ userId: String(req.user.id), titulo: `Te postulaste al trabajo: ${job.title}`, mensaje: 'Aceptaste el trabajo tal como se publicó. Mirá el detalle y el chat.', ruta: `/jobs/${job.id}`, tipo: 'success', categoria: 'jobs', relatedModel: 'Job', relatedId: String(job.id) });
+      await avisarEnDoapp({ userId: String(job.clientId), titulo: `${req.user.name} se postuló a tu trabajo`, mensaje: `${req.user.name} aceptó "${job.title}" tal como lo publicaste.`, ruta: `/jobs/${job.id}`, categoria: 'jobs', relatedModel: 'Job', relatedId: String(job.id) });
 
       // Email al freelancer
       await emailService.sendEmail({
@@ -1915,7 +1923,7 @@ router.post(
         success: true,
         conversationId: conversation.id,
         message: "Conversación iniciada",
-        alreadyApplied: !!existingProposal,
+        alreadyApplied: !!existingProposal && !sePuedeVolverAPostular(existingProposal),
         proposalId: existingProposal?.id || null,
         proposalStatus: existingProposal?.status || null,
         jobStatus: job.status,

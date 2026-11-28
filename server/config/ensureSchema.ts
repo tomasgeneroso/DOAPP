@@ -248,6 +248,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'proposals.approved_at', sql: `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ` },
   { label: 'jobs.image_captions', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS image_captions JSONB NOT NULL DEFAULT '{}'::jsonb` },
   { label: 'jobs.destination', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS destination JSONB` },
+  // Pedido de cambio de presupuesto que espera la respuesta de las personas elegidas (2026-11-27).
+  { label: 'jobs.budget_change_request', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS budget_change_request JSONB` },
   // Publicaciones de trabajos terminados: a quién se etiquetó.
   { label: 'posts.tagged_users', sql: `ALTER TABLE posts ADD COLUMN IF NOT EXISTS tagged_users JSONB NOT NULL DEFAULT '[]'::jsonb` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---

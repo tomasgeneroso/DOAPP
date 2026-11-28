@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { ApiResponse, PaginatedResponse } from '../types';
+import { anotarRespuestaFallida } from './redDeErrores';
 
 // Configuración de la API
 // En desarrollo web, usa el servidor local para evitar CORS
@@ -221,6 +222,7 @@ async function request<T>(
       data = JSON.parse(text);
     } catch {
       console.error('API: non-JSON response:', text.substring(0, 200));
+      anotarRespuestaFallida({ metodo: String(options.method || 'GET'), url: `/api${endpoint}`, status: response.status >= 400 ? response.status : 500 });
       return {
         success: false,
         message: 'Error del servidor',
@@ -230,6 +232,7 @@ async function request<T>(
     }
 
     if (!response.ok) {
+      anotarRespuestaFallida({ metodo: String(options.method || 'GET'), url: `/api${endpoint}`, status: response.status, cuerpo: data });
       return {
         // El cuerpo se conserva entero. Antes se descartaba todo menos el
         // mensaje, y hay respuestas de error que traen datos que el llamador
@@ -246,6 +249,7 @@ async function request<T>(
     return data;
   } catch (error: any) {
     console.error('API Error:', error);
+    anotarRespuestaFallida({ metodo: String(options.method || 'GET'), url: `/api${endpoint}` });
     const isTimeout = error.name === 'AbortError';
     return {
       success: false,
@@ -362,6 +366,7 @@ export async function upload<T>(
     }
 
     if (!response.ok) {
+      anotarRespuestaFallida({ metodo: 'POST', url: `/api${endpoint}`, status: response.status, cuerpo: data });
       return {
         success: false,
         message: data.message || 'Error al subir archivo',
@@ -372,6 +377,7 @@ export async function upload<T>(
     return data;
   } catch (error: any) {
     console.error('Upload Error:', error);
+    anotarRespuestaFallida({ metodo: 'POST', url: `/api${endpoint}` });
     return {
       success: false,
       message: mensajeDeRed(error) || 'Error de conexión',

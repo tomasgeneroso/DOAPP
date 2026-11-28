@@ -494,7 +494,9 @@ export default function EditJobScreen() {
 
   // Volver a publicar una publicación cancelada o rechazada es otra cosa: ahí se cargan fechas y precio nuevos.
   const republica = ['cancelled', 'rejected'].includes(jobStatus);
-  const frenoDelPrecio = republica ? null : bloqueoDelPresupuesto({ status: jobStatus, publicationPaid: acordado.publicationPaid, startDate: acordado.startDate, hayAlguienElegido: acordado.hayAlguienElegido });
+  // Pagada, el precio se cambia SOLO desde el trabajo (ahí se ve lo que va a pasar y, con alguien elegido, tiene que aceptarlo). Una cancelada se vuelve a pagar: se edita libre.
+  const precioSeCambiaAparte = acordado.publicationPaid && jobStatus !== 'cancelled';
+  const frenoDelPrecio = republica || precioSeCambiaAparte ? null : bloqueoDelPresupuesto({ status: jobStatus, publicationPaid: acordado.publicationPaid, startDate: acordado.startDate, hayAlguienElegido: acordado.hayAlguienElegido });
   const fechasAcordadas = !republica && acordado.hayAlguienElegido;
 
   if (loading) {
@@ -725,12 +727,18 @@ export default function EditJobScreen() {
                     value={price}
                     onChange={setPrice}
                     required
-                    disabled={fieldsDisabled || !!frenoDelPrecio}
+                    disabled={fieldsDisabled || precioSeCambiaAparte || !!frenoDelPrecio}
                     placeholder="15.000"
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
                 {frenoDelPrecio && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" data-testid="precio-bloqueado">{frenoDelPrecio.mensaje}</p>}
+                {precioSeCambiaAparte && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" data-testid="precio-se-cambia-aparte">
+                    La publicación está pagada: el precio se cambia con «Cambiar presupuesto», en{' '}
+                    <Link to={`/jobs/${id}`} className="font-semibold underline">la página del trabajo</Link>.
+                  </p>
+                )}
                 {/* Counter-offers: defined next to the price */}
                 <label className="flex items-start gap-2 mt-2 cursor-pointer">
                   <input

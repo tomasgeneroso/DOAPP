@@ -48,6 +48,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SuspendedNotice } from '../../components/CancellationLadder';
 import AvisoSinProteccion from '../../components/AvisoSinProteccion';
 import CambiarPresupuesto from '../../components/CambiarPresupuesto';
+import PedidoDeCambioDePresupuesto from '../../components/PedidoDeCambioDePresupuesto';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { leerLista, contratosDelTrabajo } from '../../services/respuesta';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
@@ -1037,6 +1038,7 @@ export default function JobDetailScreen() {
         )}
 
         {/* Cambiar el presupuesto, y el seguimiento de un aumento a medias (falta pagar / pagado en revisión) */}
+        <PedidoDeCambioDePresupuesto jobId={String(job.id)} version={String(job.updatedAt || '')} onChanged={fetchJob} />
         <CambiarPresupuesto job={job} esDueno={isOwner} onChanged={fetchJob} />
 
         {/* Owner Action Buttons */}

@@ -2009,7 +2009,9 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
           pendingBalanceDeduction: 0,
           previousStatus: null,
           priceChangeReason: null,
-          status: estadoAnterior,
+          // Si ese aumento lo habían aceptado las personas elegidas, el pedido se cierra con él.
+          budgetChangeRequest: null,
+          status: ['paused', 'pending_payment'].includes(job.status) ? estadoAnterior : job.status,
         } as any);
         await Notification.create({
           recipientId: job.clientId,

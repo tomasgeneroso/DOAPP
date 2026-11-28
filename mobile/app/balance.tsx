@@ -348,7 +348,7 @@ export default function BalanceScreen() {
             <View style={styles.pendingRow}>
               <Clock size={14} color="rgba(255,255,255,0.8)" />
               <Text style={styles.pendingText}>
-                En liberación: {formatPrice(enLiberacion)}
+                Todavía no se puede retirar: {formatPrice(enLiberacion)}
                 {proximaLiberacion ? ` (faltan ${diasQueFaltan(proximaLiberacion)} ${diasQueFaltan(proximaLiberacion) === 1 ? 'día' : 'días'}; desde el ${new Date(proximaLiberacion).toLocaleDateString('es-AR')})` : ''}
               </Text>
             </View>

@@ -1,4 +1,5 @@
 import { noEsAnteriorAHoy } from '../../shared/fechas/limites.js';
+import { sePuedeVolverAPostular } from '../../shared/jobs/cambioDePresupuesto.js';
 import express, { Response } from 'express';
 import { Op } from 'sequelize';
 import { Quote } from '../models/sql/Quote.model.js';
@@ -239,7 +240,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
         return;
       }
       const yaPostulo: any = await Proposal.findOne({ where: { jobId, freelancerId: req.user.id } });
-      if (yaPostulo && !['pending', 'rejected', 'withdrawn'].includes(String(yaPostulo.status))) {
+      if (yaPostulo && String(yaPostulo.status) !== 'pending' && !sePuedeVolverAPostular(yaPostulo)) {
         res.status(400).json({ success: false, message: 'Ya tenés una propuesta para este trabajo que no está pendiente.' });
         return;
       }
@@ -305,7 +306,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
         } as any,
       });
       if (!proposalCreated) {
-        await proposal.update({ proposedPrice: total } as any);
+        // La que estaba rechazada, retirada o quitada por un cambio de presupuesto vuelve a quedar esperando respuesta.
+        await proposal.update({ proposedPrice: total, ...(String(proposal.status) !== 'pending' ? { status: 'pending', cancellationReason: null, rejectionReason: null, withdrawnReason: null } : {}) } as any);
       }
       await quote.update({ proposalId: proposal.id });
 

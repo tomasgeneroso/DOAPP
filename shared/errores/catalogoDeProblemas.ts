@@ -68,6 +68,43 @@ export const CATALOGO_DE_PROBLEMAS = {
     gravedad: 'alta',
   },
 
+  'BAJA-SIN-DINERO-CONFIRMADO': {
+    codigo: 'BAJA-SIN-DINERO-CONFIRMADO',
+    titulo: 'Se quiso bajar un presupuesto sin dinero confirmado que lo respalde',
+    paraElUsuario: 'Por seguridad frenamos el cambio: no encontramos el dinero confirmado que respalda esta publicación. El precio sigue igual y tu saldo no se movió. Escribinos desde el Centro de ayuda.',
+    queSignifica:
+      'Antes de dejar plata a favor por una baja se comprueba que haya entrado: pagos confirmados de ese trabajo, más lo pagado con saldo, menos lo que ya volvió, tienen que alcanzar para el presupuesto vigente. Acá no alcanzan, o hay un pago en disputa. El mensaje trae cada número.',
+    causas: [
+      'La publicación figura como pagada pero no tiene un pago confirmado (cargada a mano, de prueba o con el pago sin aprobar).',
+      'Ya se le había devuelto parte de ese dinero al cliente (por ejemplo una baja hecha antes de esta corrección).',
+      'Uno de los pagos del trabajo está en disputa o fue reembolsado.',
+    ],
+    queHacer: [
+      { texto: 'Abrí el trabajo en la vista general de publicaciones y mirá sus pagos y sus movimientos de saldo.', ruta: '/admin/jobs' },
+      { texto: 'Si el pago entró y falta aprobarlo, aprobalo desde Pagos.', ruta: '/admin/payments' },
+      { texto: 'Si hubo una devolución de más, se corrige con un asiento de ajuste (nunca editando el saldo).' },
+    ],
+    gravedad: 'alta',
+  },
+
+  'RETIRO-CON-RESPALDO-EN-ESPERA': {
+    codigo: 'RETIRO-CON-RESPALDO-EN-ESPERA',
+    titulo: 'El retiro incluye dinero de un trabajo o contrato que todavía no lo permite',
+    paraElUsuario: 'Este retiro incluye dinero de un trabajo que todavía no terminó o tiene un reclamo abierto. Queda frenado hasta que se resuelva. Tu saldo no se modificó.',
+    queSignifica:
+      'Cada peso de un retiro está atado al trabajo o contrato del que viene. Antes de aprobarlo o de transferirlo se vuelve a mirar su estado: si el trabajo no terminó, el contrato está en reclamo o la pasarela no liberó el pago, no sale. El mensaje dice cuál y por qué.',
+    causas: [
+      'Después de pedido el retiro se abrió un reclamo o una disputa sobre uno de sus contratos.',
+      'Un trabajo que figuraba terminado se volvió a abrir.',
+      'El retiro se pidió antes de que existiera este control.',
+    ],
+    queHacer: [
+      { texto: 'Abrí el retiro y mirá de qué trabajos y contratos viene cada monto.', ruta: '/admin/withdrawals' },
+      { texto: 'Resolvé el reclamo o esperá a que termine el trabajo. Si no corresponde, rechazá el retiro: el saldo no se descuenta.' },
+    ],
+    gravedad: 'alta',
+  },
+
   'PAGO-SIN-CONFIRMAR': {
     codigo: 'PAGO-SIN-CONFIRMAR',
     titulo: 'Se quiso devolver un pago que nadie confirmó',

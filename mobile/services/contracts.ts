@@ -138,12 +138,3 @@ export async function disputeContract(id: string, data: {
   return post<{ contract: Contract }>(`/contracts/${id}/dispute`, data);
 }
 
-/**
- * Modificar precio del contrato
- */
-export async function modifyContractPrice(id: string, data: {
-  newPrice: number;
-  reason: string;
-}): Promise<ApiResponse<{ contract: Contract }>> {
-  return put<{ contract: Contract }>(`/contracts/${id}/modify-price`, data);
-}

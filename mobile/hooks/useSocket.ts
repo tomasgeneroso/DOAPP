@@ -63,7 +63,6 @@ export function useSocket() {
     // Chat functions
     joinConversation: socketService.joinConversation,
     leaveConversation: socketService.leaveConversation,
-    sendMessage: socketService.sendMessage,
     sendTyping: socketService.sendTyping,
     markMessageRead: socketService.markMessageRead,
     markConversationRead: socketService.markConversationRead,
@@ -174,89 +173,6 @@ export function useUnreadCount(onUpdate: (count: number) => void) {
       onUpdate(data.unreadConversations ?? data.unreadCount ?? 0);
     });
   }, [subscribe, onUpdate]);
-}
-
-/**
- * Hook for real-time chat functionality
- */
-export function useChat(conversationId: string | null) {
-  const { subscribe, joinConversation, leaveConversation, sendMessage, sendTyping, markConversationRead } = useSocket();
-  const [messages, setMessages] = useState<any[]>([]);
-  const [typingUsers, setTypingUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!conversationId) return;
-
-    // Join conversation room
-    joinConversation(conversationId);
-
-    // Subscribe to events
-    const unsubHistory = subscribe('conversation:history', (data) => {
-      if (data.conversationId === conversationId) {
-        setMessages(data.messages || []);
-      }
-    });
-
-    const unsubNew = subscribe('message:new', (message) => {
-      if (message.conversationId === conversationId) {
-        setMessages(prev => [...prev, message]);
-      }
-    });
-
-    const unsubUpdated = subscribe('message:updated', (message) => {
-      setMessages(prev =>
-        prev.map(m => (m.id === message.id || m.id === message.id) ? { ...m, ...message } : m)
-      );
-    });
-
-    const unsubTyping = subscribe('typing:update', (data) => {
-      if (data.conversationId === conversationId) {
-        setTypingUsers(prev => {
-          if (data.isTyping) {
-            return [...prev.filter(u => u.userId !== data.userId), data];
-          }
-          return prev.filter(u => u.userId !== data.userId);
-        });
-      }
-    });
-
-    return () => {
-      leaveConversation(conversationId);
-      unsubHistory();
-      unsubNew();
-      unsubUpdated();
-      unsubTyping();
-    };
-  }, [conversationId, subscribe, joinConversation, leaveConversation]);
-
-  const send = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string, fileName?: string) => {
-    if (!conversationId) return;
-    sendMessage({
-      conversationId,
-      message: content,
-      type,
-      fileUrl,
-      fileName,
-    });
-  }, [conversationId, sendMessage]);
-
-  const setTyping = useCallback((isTyping: boolean) => {
-    if (!conversationId) return;
-    sendTyping(conversationId, isTyping);
-  }, [conversationId, sendTyping]);
-
-  const markRead = useCallback(() => {
-    if (!conversationId) return;
-    markConversationRead(conversationId);
-  }, [conversationId, markConversationRead]);
-
-  return {
-    messages,
-    typingUsers,
-    send,
-    setTyping,
-    markRead,
-  };
 }
 
 export default useSocket;

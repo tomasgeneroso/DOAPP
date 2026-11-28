@@ -1,4 +1,5 @@
 import { LoginDevice } from "../models/sql/LoginDevice.model.js";
+import { avisarEnDoapp } from './avisarPorTodosLados.js';
 import { User } from "../models/sql/User.model.js";
 import emailService from "./email.js";
 
@@ -351,6 +352,7 @@ class AnomalyDetectionService {
       subject: "⚠️ Actividad sospechosa en tu cuenta - DoApp",
       html,
     });
+    await avisarEnDoapp({ userId: String(user.id), titulo: 'Actividad sospechosa en tu cuenta', mensaje: 'Detectamos actividad inusual en tu cuenta. Revisá tu correo y, si no fuiste vos, cambiá la contraseña.', ruta: '/help', tipo: 'warning', categoria: 'user' });
   }
 }
 

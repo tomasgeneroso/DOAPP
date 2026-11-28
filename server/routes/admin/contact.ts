@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import { avisarEnDoapp } from '../../services/avisarPorTodosLados.js';
 import { body, param, validationResult } from 'express-validator';
 import { ContactMessage } from '../../models/sql/ContactMessage.model.js';
 import { User } from '../../models/sql/User.model.js';
@@ -254,6 +255,8 @@ router.post(
         conRespuesta: true,
       });
       if (!salio) console.warn('La respuesta de contacto quedó guardada pero el correo no salió.');
+      // Si quien escribió tiene cuenta, la respuesta también le aparece en DOAPP.
+      await avisarEnDoapp({ email: message.email, titulo: 'Respondimos tu mensaje', mensaje: String(req.body.response), ruta: '/help', categoria: 'system' });
 
       res.json({
         success: true,

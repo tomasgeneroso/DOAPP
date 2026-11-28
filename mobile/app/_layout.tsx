@@ -11,9 +11,13 @@ import socketService from '../services/socket';
 import { useLatidoDeUso } from '../hooks/useLatidoDeUso';
 import AvisoDePoliticas from '../components/AvisoDePoliticas';
 import { reportarFalla } from '../services/reportarFalla';
+import { instalarRedDeErrores } from '../services/redDeErrores';
+import AvisoDeError from '../components/AvisoDeError';
 import { alFallarElBuscador } from '../../shared/geo/direcciones';
 
 alFallarElBuscador(() => reportarFalla('direcciones'));
+// Ninguna falla pasa en silencio: lo que una pantalla no muestre, lo muestra el cartel de abajo.
+instalarRedDeErrores();
 
 function AppContent() {
   const { isDarkMode } = useTheme();
@@ -58,6 +62,7 @@ function AppContent() {
       </Stack>
       <PostWorkRatingGate isAuthenticated={isAuthenticated} refreshKey={`${pathname}:${tick}`} />
       <AvisoDePoliticas conSesion={isAuthenticated && !user?.registrationPending} />
+      <AvisoDeError />
     </>
   );
 }

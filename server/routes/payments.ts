@@ -357,6 +357,14 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
+      // Si las personas elegidas habían aceptado y el trabajo ya se está cerrando, ese aumento no se cobra.
+      const { vencerElPedidoSiCorresponde } = await import('../services/cambioDePresupuesto.js');
+      const vencido = await vencerElPedidoSiCorresponde(job);
+      if (vencido) {
+        res.status(409).json({ success: false, code: 'PEDIDO_VENCIDO', message: `Este cambio ya no se puede aplicar, así que no hace falta pagarlo. ${vencido}` });
+        return;
+      }
+
       // Un aumento ya pagado que espera al administrador no se paga de nuevo: quedaría cobrado dos veces.
       if (await aumentoPagadoEnRevision(job)) {
         res.status(409).json({
@@ -2338,53 +2346,9 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
       }
     }
 
-    // If this is a budget increase payment, apply the new price and reactivate the job
+    // Un aumento de presupuesto se aplica por la ÚNICA vía (acá se aplicaba aparte: no descontaba el saldo reservado, no tocaba los contratos ni avisaba a los postulados).
     if (payment.paymentType === 'budget_increase') {
-      const job = await Job.findOne({
-        where: { publicationPaymentId: paymentId }
-      });
-
-      if (job && job.pendingNewPrice) {
-        const oldPrice = Number(job.price);
-        const newPrice = Number(job.pendingNewPrice);
-        const previousStatus = job.previousStatus || 'open';
-
-        // Agregar al historial de cambios
-        const priceHistory = job.priceHistory || [];
-        priceHistory.push({
-          oldPrice,
-          newPrice,
-          reason: job.priceChangeReason || 'Aumento de presupuesto',
-          changedAt: new Date(),
-        });
-
-        // Aplicar el nuevo precio y reactivar el trabajo
-        await job.update({
-          price: newPrice,
-          priceChangedAt: new Date(),
-          priceHistory,
-          pendingNewPrice: null,
-          pendingPaymentAmount: 0,
-          previousStatus: null,
-          status: previousStatus,
-        });
-
-        console.log(`✅ [APPROVE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
-
-        // Notify job owner
-        await Notification.create({
-          recipientId: job.clientId,
-          title: 'Presupuesto actualizado',
-          message: `Tu pago fue aprobado. El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
-          type: 'success',
-          category: 'payment',
-          relatedId: job.id,
-          relatedModel: 'Job',
-        });
-
-        // Real-time notification
-        socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
-      }
+      await aplicarAumentoDePrecio(payment, 'admin', String(req.user.id));
     }
 
     // Notify user

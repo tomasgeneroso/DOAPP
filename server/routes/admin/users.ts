@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { avisarEnDoapp } from '../../services/avisarPorTodosLados.js';
 import { User } from "../../models/sql/User.model.js";
 import { config } from "../../config/env.js";
 import { Contract } from "../../models/sql/Contract.model.js";
@@ -384,6 +385,7 @@ router.post(
       // the user row, so it survives account deletion and blocks re-registration.
       // A banned person who wants their account back must contact support.
       await BannedIdentity.recordBan(user, reason, req.user.id);
+      await avisarEnDoapp({ userId: String(user.id), titulo: 'Tu cuenta fue suspendida', mensaje: `Motivo: ${reason}. Podés apelar desde el Centro de ayuda.`, ruta: '/help', tipo: 'error', categoria: 'user' });
 
       // Notify the banned user by email (best-effort).
       if (user.email) {

@@ -1,4 +1,5 @@
 import express, { Response } from "express";
+import { avisarEnDoapp } from '../../services/avisarPorTodosLados.js';
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
 import { WithdrawalRequest } from "../../models/sql/WithdrawalRequest.model.js";
@@ -157,9 +158,18 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       return { ...plano, bankingInfo: bi };
     });
 
+    // En los que todavía no salieron: de qué trabajo o contrato viene cada peso y cómo está AHORA.
+    const { respaldoConEstado } = await import('../../services/creditosParaRetirar.js');
+    const conRespaldo = await Promise.all(
+      conDestinoAbierto.map(async (w: any) => ({
+        ...w,
+        deDondeSale: ['pending', 'approved', 'processing'].includes(String(w.status)) && Array.isArray(w.metadata?.respaldo) ? await respaldoConEstado(w.metadata.respaldo) : null,
+      })),
+    );
+
     res.status(200).json({
       success: true,
-      withdrawals: conDestinoAbierto,
+      withdrawals: conRespaldo,
       pagination: {
         total: totalCount,
         limit: Number(limit),
@@ -203,6 +213,7 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
 
     if (frenarSiEsperaElEnfriamiento(withdrawal, res)) return;
     if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
+    if (await frenarSiElRespaldoEspera(withdrawal, res)) return;
 
     if (!(await reclamarEstado(String(withdrawal.id), ['pending'], { status: 'approved', processedAt: new Date(), processedBy: adminId, ...(adminNotes && { adminNotes }) }))) {
       res.status(409).json(YA_PROCESADO);
@@ -219,6 +230,7 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
     // Send email notification
     const user = withdrawal.user as any;
     await emailService.sendWithdrawalApproved(user.email, user.name, withdrawal.amount);
+    await avisarEnDoapp({ email: user.email, titulo: 'Tu retiro fue aprobado', mensaje: `Aprobamos tu retiro de $${Number(withdrawal.amount).toLocaleString('es-AR')}. Falta la transferencia: te avisamos cuando salga.`, ruta: '/balance', tipo: 'success', categoria: 'payment', relatedModel: 'WithdrawalRequest', relatedId: String(withdrawal.id) });
 
     // Send push notification
     const userId = typeof user === 'object' && 'id' in user ? user.id : user;
@@ -241,6 +253,32 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
     });
   }
 });
+
+/**
+ * De dónde sale cada peso de este retiro, con el estado de AHORA: si algún trabajo no terminó, hay un reclamo o la pasarela no liberó, no sale.
+ * Un retiro pedido antes de guardar el respaldo se mide con el saldo retirable de hoy.
+ */
+async function frenarSiElRespaldoEspera(withdrawal: any, res: Response): Promise<boolean> {
+  const userId = String(typeof withdrawal.user === 'object' && withdrawal.user ? withdrawal.user.id : withdrawal.userId ?? withdrawal.user);
+  const respaldo = withdrawal.metadata?.respaldo;
+  const { respaldoConEstado } = await import('../../services/creditosParaRetirar.js');
+  let detalle = '';
+  if (Array.isArray(respaldo)) {
+    const frenados = (await respaldoConEstado(respaldo)).filter((c) => c.espera);
+    detalle = frenados.map((c) => `${c.trabajoTitulo || c.descripcion} ($${c.monto}): ${c.espera!.texto}`).join(' | ');
+  } else {
+    const { saldoRetirable } = await import('../../services/liberacionDeSaldo.js');
+    const user: any = await User.findByPk(userId, { attributes: ['id', 'balanceArs'] });
+    const retirable = await saldoRetirable(userId, Number(user?.balanceArs) || 0);
+    const necesario = Number(withdrawal.metadata?.saldoDebitado) || Number(withdrawal.amount) || 0;
+    if (retirable.disponible + 0.01 < necesario) detalle = `El retiro pide $${necesario} y hoy se pueden retirar $${retirable.disponible}: el resto espera a su trabajo, contrato o a la pasarela.`;
+  }
+  if (!detalle) return false;
+  const { respuestaDeErrorDeDinero: responder, ErrorDeDinero: Err } = await import('../../services/controlesDeDinero.js');
+  const r = responder(new Err('RETIRO-CON-RESPALDO-EN-ESPERA', detalle), true)!;
+  res.status(r.status).json(r.body);
+  return true;
+}
 
 /**
  * Mark withdrawal as processing
@@ -329,6 +367,8 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
 
     if (frenarSiEsperaElEnfriamiento(withdrawal, res)) return;
     if (await frenarSiEsperaAlDueno(withdrawal, req, res)) return;
+
+    if (await frenarSiElRespaldoEspera(withdrawal, res)) return;
 
     /**
      * Controles antes de que salga la plata.
@@ -489,6 +529,7 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     // Send email notification
     const userObj = withdrawal.user as any;
     await emailService.sendWithdrawalCompleted(userObj.email, userObj.name, withdrawal.amount, newBalance);
+    await avisarEnDoapp({ email: userObj.email, titulo: 'Transferimos tu retiro', mensaje: `Transferimos $${Number(withdrawal.amount).toLocaleString('es-AR')} a tu cuenta. Tu saldo quedó en $${Number(newBalance).toLocaleString('es-AR')}.`, ruta: '/balance', tipo: 'success', categoria: 'payment', relatedModel: 'WithdrawalRequest', relatedId: String(withdrawal.id) });
 
     // Send push notification
     await fcmService.sendToUser({ userId: userId.toString(),
@@ -571,6 +612,7 @@ router.post("/:id/reject", protect, requireRole('admin', 'super_admin', 'owner')
     // Send email notification
     const user = withdrawal.user as any;
     await emailService.sendWithdrawalRejected(user.email, user.name, withdrawal.amount, rejectionReason);
+    await avisarEnDoapp({ email: user.email, titulo: 'Tu retiro fue rechazado', mensaje: `Rechazamos tu retiro de $${Number(withdrawal.amount).toLocaleString('es-AR')}. Motivo: ${rejectionReason}. Tu saldo no se descontó.`, ruta: '/balance', tipo: 'warning', categoria: 'payment', relatedModel: 'WithdrawalRequest', relatedId: String(withdrawal.id) });
 
     // Send push notification
     const userId = typeof user === 'object' && 'id' in user ? user.id : user;

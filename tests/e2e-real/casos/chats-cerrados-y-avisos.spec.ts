@@ -3,10 +3,10 @@ import { consulta } from '../ayudas/base-de-datos';
 import { Persona } from '../ayudas/personas';
 
 /**
- * Pedidos del dueño (2026-11-27), mirados en pantalla: chats cerrados en su pestaña y de solo lectura; los avisos del equipo como avisos (salían como postulaciones vacías); el presupuesto
- * apagado con su motivo cuando ya hay alguien elegido; el cobro en el saldo como UN movimiento con su estado; «ya lo compartiste» en lugar de ofrecer compartir otra vez; y las etiquetas.
+ * Pedidos del dueño (2026-11-27), mirados en pantalla: chats cerrados en su pestaña y de solo lectura; los avisos del equipo como avisos (salían como postulaciones vacías); el menú del
+ * presupuesto también con alguien elegido; el cobro en el saldo como UN movimiento con su estado; «ya lo compartiste» en lugar de ofrecer compartir otra vez; y las etiquetas.
  */
-test('chats cerrados, avisos del equipo, presupuesto bloqueado, un solo cobro, ya compartido y etiquetas', async ({ page, otraPersona }, info) => {
+test('chats cerrados, avisos del equipo, presupuesto desde el menú, un solo cobro, ya compartido y etiquetas', async ({ page, otraPersona }, info) => {
   test.setTimeout(240_000);
   const yo = Persona.nueva(page, 'equipo');
   await yo.darseDeAlta();
@@ -51,14 +51,15 @@ test('chats cerrados, avisos del equipo, presupuesto bloqueado, un solo cobro, y
   await expect(page.getByRole('tab', { name: 'Abiertos' })).toBeVisible();
   await expect(page.getByText(`[PRUEBA] Equipo ${sello}`)).toHaveCount(0);
 
-  // ── Con alguien ya elegido, el presupuesto no se ofrece: se dice por qué ──
+  // ── Con alguien ya elegido, el menú de quien publicó sigue estando (desaparecía) y el presupuesto se puede pedir; editar manda a esa puerta ──
   const conElegido = await trabajo(`[PRUEBA] Con elegido ${sello}`, 'open', miId, [suId], 5);
   await page.goto(`/jobs/${conElegido}`);
   await page.getByRole('button', { name: /^Acciones/ }).first().click();
-  await expect(page.getByTestId('motivo-sin-cambio-de-presupuesto')).toContainText('Ya elegiste');
-  await page.screenshot({ path: info.outputPath('presupuesto-bloqueado.png') });
+  await expect(page.getByRole('button', { name: 'Cambiar presupuesto' })).toBeEnabled();
+  await expect(page.getByTestId('motivo-sin-cambio-de-presupuesto')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('menu-con-alguien-elegido.png') });
   await page.goto(`/jobs/${conElegido}/edit`);
-  await expect(page.getByTestId('precio-bloqueado')).toBeVisible();
+  await expect(page.getByTestId('precio-se-cambia-aparte')).toBeVisible();
 
   // ── El cobro: un solo movimiento que dice en qué está ──
   const ajeno = await trabajo(`[PRUEBA] Cobro ${sello}`, 'completed', suId, [miId], -4, '{plomeria}');

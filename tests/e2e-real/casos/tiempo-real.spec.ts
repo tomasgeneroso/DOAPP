@@ -149,15 +149,20 @@ test.describe('Tiempo real · todo se ve al instante', () => {
     // Las dos personas dejan abierta la pantalla del trabajo.
     await abrirYEsperarElTiempoReal(page, `/jobs/${jobId}`);
     await abrirYEsperarElTiempoReal(paginaDelTrabajador, `/jobs/${jobId}`);
-    const confirmar = (p: Page) => p.getByRole('button', { name: /Confirmar finalización del trabajo|Confirmar mi trabajo|Confirmar trabajo hecho/i }).first();
+    const confirmar = (p: Page) => p.getByTestId('terminar-el-trabajo').first();
     await expect(confirmar(page)).toBeVisible({ timeout: 15_000 });
     await expect(confirmar(paginaDelTrabajador)).toBeVisible({ timeout: 15_000 });
     await page.screenshot({ path: 'tests/e2e-real/.registros/L3-antes-dueno.png', fullPage: true });
 
     // El trabajador toca «terminé»: se guarda su confirmación.
     await confirmar(paginaDelTrabajador).click();
+    // Pide las horas reales (vienen cargadas con las del contrato) y, si quiere, fotos.
+    await paginaDelTrabajador.getByRole('button', { name: 'Confirmar horas' }).click();
     await expect.poll(async () => (await consulta<{ doer_confirmed: boolean }>('SELECT doer_confirmed FROM contracts WHERE id = $1', [contractId]))[0].doer_confirmed, { timeout: 15_000 }).toBe(true);
     await paginaDelTrabajador.screenshot({ path: 'tests/e2e-real/.registros/L3-trabajador-confirmo.png', fullPage: true });
+    // Sin tocar nada, lo guardado son las horas del contrato (salían corridas por la zona horaria).
+    const [horas] = await consulta<{ corrimiento: string }>('SELECT ABS(EXTRACT(EPOCH FROM (proposed_start_time - start_date))) AS corrimiento FROM contracts WHERE id = $1', [contractId]);
+    expect(Number(horas.corrimiento)).toBeLessThan(60);
 
     // El dueño, que no tocó nada, ya ve que el trabajo espera su confirmación (antes seguía «En progreso» hasta recargar).
     await expect(page.getByText('Esperando confirmación').first()).toBeVisible({ timeout: 15_000 });
@@ -166,6 +171,7 @@ test.describe('Tiempo real · todo se ve al instante', () => {
 
     // El dueño toca «terminó»: las dos partes confirmaron, el contrato y el trabajo quedan completados.
     await confirmar(page).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
     await expect.poll(async () => (await consulta<{ status: string }>('SELECT status FROM contracts WHERE id = $1', [contractId]))[0].status, { timeout: 15_000 }).toBe('completed');
     await expect.poll(async () => (await consulta<{ status: string }>('SELECT status FROM jobs WHERE id = $1', [jobId]))[0].status, { timeout: 15_000 }).toBe('completed');
 

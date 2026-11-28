@@ -610,6 +610,31 @@ export default function AdminWithdrawalManager() {
                 </div>
               </div>
 
+              {/* De qué trabajo y contrato sale cada peso, con su estado de ahora: si algo espera, el servidor no deja aprobar ni transferir. */}
+              {Array.isArray((selectedWithdrawal as any).deDondeSale) && (
+                <div data-testid="de-donde-sale">
+                  <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">De dónde sale este retiro</p>
+                  <ul className="space-y-2">
+                    {(selectedWithdrawal as any).deDondeSale.map((c: any) => (
+                      <li key={c.movimientoId} className={`rounded-lg border p-3 text-sm ${c.espera ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20'}`}>
+                        <div className="flex flex-wrap justify-between gap-2 text-gray-900 dark:text-white">
+                          <span>{c.trabajoTitulo || c.descripcion}</span>
+                          <span className="font-semibold">${Number(c.monto).toLocaleString('es-AR')}</span>
+                        </div>
+                        <p className={`mt-1 text-xs ${c.espera ? 'text-red-800 dark:text-red-300' : 'text-emerald-800 dark:text-emerald-300'}`}>{c.espera ? c.espera.texto : 'Listo para salir: terminado, sin reclamo y liberado.'}</p>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs">
+                          {c.trabajoId && <Link to={`/jobs/${c.trabajoId}`} className="text-sky-700 underline dark:text-sky-400">Ver trabajo</Link>}
+                          {c.contratoId && <Link to={`/contracts/${c.contratoId}`} className="text-sky-700 underline dark:text-sky-400">Ver contrato</Link>}
+                        </div>
+                      </li>
+                    ))}
+                    {(selectedWithdrawal as any).deDondeSale.length === 0 && (
+                      <li className="text-sm text-gray-600 dark:text-gray-400">Es saldo que no viene de un trabajo ni de un contrato.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
               {(selectedWithdrawal.status === 'processing' || selectedWithdrawal.status === 'approved') && (
                 <div>
                   <p className="mb-3 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-900/20 dark:text-sky-100">

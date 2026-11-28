@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { avisarEnDoapp } from '../../services/avisarPorTodosLados.js';
 import { resolverDisputa } from '../../services/disputeResolution.js';
 import { protect, authorize, AuthRequest } from "../../middleware/auth.js";
 import { Dispute } from "../../models/sql/Dispute.model.js";
@@ -452,6 +453,9 @@ router.post(
         if (contract) {
           await emailService.sendDisputeResolvedEmail(contract.clientId, dispute.id.toString(), resolution, 0);
           await emailService.sendDisputeResolvedEmail(contract.doerId, dispute.id.toString(), resolution, 0);
+          for (const parte of [contract.clientId, contract.doerId]) {
+            await avisarEnDoapp({ userId: String(parte), titulo: 'La disputa fue resuelta', mensaje: `Un administrador resolvió la disputa de tu contrato: ${resolution}`, ruta: `/disputes/${dispute.id}`, categoria: 'contract', relatedModel: 'Dispute', relatedId: String(dispute.id) });
+          }
           const { getIO } = await import('../../services/socket.js');
           getIO()?.to(`user:${contract.clientId}`).to(`user:${contract.doerId}`).emit('contract:updated', {
             contract: contract.toJSON(),
@@ -840,6 +844,9 @@ router.post(
         job?.title || "Contrato",
         title
       );
+      for (const parte of [userId, againstUserId]) {
+        await avisarEnDoapp({ userId: String(parte), titulo: 'Se abrió una disputa', mensaje: `Hay una disputa abierta sobre "${job?.title || 'un contrato'}": ${title}`, ruta: `/disputes/${dispute.id}`, tipo: 'warning', categoria: 'contract', relatedModel: 'Dispute', relatedId: String(dispute.id) });
+      }
 
       res.status(201).json({
         success: true,

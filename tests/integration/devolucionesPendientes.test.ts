@@ -231,7 +231,7 @@ describe('devoluciones al cliente: a favor pendiente mientras Mercado Pago no li
   it('bajar el presupuesto de una publicación pagada: la diferencia queda a favor PENDIENTE (con el pago de origen anotado) y no es saldo hasta la liberación', async () => {
     const { job, pago } = await publicacion();
 
-    const r = await request(app).patch(`/api/jobs/${job.id}/budget`).set(con(cliente)).send({ newPrice: 30000, reason: 'Encontré una opción más barata' });
+    const r = await request(app).patch(`/api/jobs/${job.id}/budget`).set(con(cliente)).send({ newPrice: 30000, reason: 'Encontré una opción más barata', aceptaEfectos: true });
 
     expect([r.status, r.body.success]).toEqual([200, true]);
     expect(r.body.message).toMatch(/PENDIENTES de liquidar/);
@@ -247,28 +247,6 @@ describe('devoluciones al cliente: a favor pendiente mientras Mercado Pago no li
     expect(await saldo()).toBe(6000);
     // Una baja de precio no es la devolución de una publicación cancelada: no se vincula a ninguna.
     expect(Number(((await Job.findByPk(job.id)) as any).publicationCredit) || 0).toBe(0);
-  });
-
-  it('bajar el precio de un contrato pendiente: queda a favor PENDIENTE, con el pago de la publicación como origen (el contrato no tiene pago propio)', async () => {
-    const { job, pago } = await publicacion({}, { price: 50000 });
-    const contrato: any = await crearContrato({ jobId: job.id, clientId: cliente.id, doerId: doer.id }, { status: 'pending', price: 50000, paymentStatus: 'pending' });
-    contratos.push(contrato.id);
-
-    const r = await request(app).put(`/api/contracts/${contrato.id}/modify-price`).set(con(cliente)).send({ newPrice: 40000, reason: 'Se achicó el trabajo' });
-
-    expect([r.status, r.body.success]).toEqual([200, true]);
-    expect(r.body.message).toMatch(/PENDIENTES de liquidar/);
-    expect(r.body.pendienteHasta).toBeTruthy();
-    expect(await saldo()).toBe(0);
-    const [fila] = await devoluciones();
-    expect(fila.status).toBe('pending');
-    expect(fila.metadata).toMatchObject({ pagoOrigenId: String(pago.id), pendienteDeLiquidacion: true });
-    expect(Number(fila.amount)).toBe(10000);
-    // El asiento pendiente queda atado al contrato: el historial de precios lo encuentra.
-    expect(String(fila.relatedContractId)).toBe(String(contrato.id));
-
-    await pasanLosDiez();
-    expect(await saldo()).toBe(10000);
   });
 
   /* ---------------- el trabajador no puede ---------------- */

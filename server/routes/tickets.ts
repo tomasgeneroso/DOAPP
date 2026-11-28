@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { avisarEnDoapp } from '../services/avisarPorTodosLados.js';
 import { body, validationResult } from "express-validator";
 import { Ticket } from "../models/sql/Ticket.model.js";
 import { User } from "../models/sql/User.model.js";
@@ -91,6 +92,7 @@ router.post(
 
       // Confirmation email to user
       await emailService.sendTicketCreatedEmail(ticket.id, ticketNumber, subject, user.email, user.name).catch(() => {});
+      await avisarEnDoapp({ userId: String(user.id), titulo: `Recibimos tu consulta ${ticketNumber}`, mensaje: subject, ruta: `/tickets/${ticket.id}`, categoria: 'ticket', relatedModel: 'Ticket', relatedId: String(ticket.id) });
 
       // Notify support team
       const adminUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/admin/tickets/${ticket.id}`;
@@ -237,6 +239,7 @@ router.post(
           user.email,
           user.name
         );
+        await avisarEnDoapp({ userId: String(req.user.id), titulo: `Recibimos tu consulta ${ticketNumber}`, mensaje: subject, ruta: `/tickets/${ticket.id}`, categoria: 'ticket', relatedModel: 'Ticket', relatedId: String(ticket.id) });
       }
 
       // Notify support team

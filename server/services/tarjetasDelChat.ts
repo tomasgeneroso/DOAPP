@@ -7,13 +7,14 @@ import { Op } from 'sequelize';
 import { Proposal } from '../models/sql/Proposal.model.js';
 import { Job } from '../models/sql/Job.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
+import { POSTULACION_QUITADA_POR_PRESUPUESTO } from '../../shared/jobs/cambioDePresupuesto.js';
 
 export async function conEstadoActual(mensajes: any[]): Promise<any[]> {
   const planos = mensajes.map((m) => (typeof m?.toJSON === 'function' ? m.toJSON() : m));
   const ids = [...new Set(planos.map((m) => m?.metadata?.proposalId).filter(Boolean).map(String))];
   if (ids.length === 0) return planos;
 
-  const propuestas: any[] = await Proposal.findAll({ where: { id: ids } as any, attributes: ['id', 'status', 'jobId', 'freelancerId', 'approvedBy', 'approvedAt'] });
+  const propuestas: any[] = await Proposal.findAll({ where: { id: ids } as any, attributes: ['id', 'status', 'jobId', 'freelancerId', 'approvedBy', 'approvedAt', 'cancellationReason'] });
   if (propuestas.length === 0) return planos;
   const porId = new Map(propuestas.map((p) => [String(p.id), p]));
   const trabajos: any[] = await Job.findAll({ where: { id: [...new Set(propuestas.map((p) => p.jobId).filter(Boolean))] } as any, attributes: ['id', 'status'] });
@@ -33,6 +34,7 @@ export async function conEstadoActual(mensajes: any[]): Promise<any[]> {
       metadata: {
         ...m.metadata,
         proposalStatus: String(propuesta.status),
+        quitadaPorPresupuesto: propuesta.status === 'cancelled' && propuesta.cancellationReason === POSTULACION_QUITADA_POR_PRESUPUESTO,
         jobStatus: estadoDelTrabajo.get(String(propuesta.jobId)) ?? m.metadata.jobStatus,
         ...(contrato ? { contractId: contrato } : {}),
         ...(propuesta.approvedBy ? { aceptadaPor: propuesta.approvedBy, aceptadaEl: propuesta.approvedAt ? new Date(propuesta.approvedAt).toISOString() : null, autoSelected: propuesta.approvedBy === 'automatica' } : {}),

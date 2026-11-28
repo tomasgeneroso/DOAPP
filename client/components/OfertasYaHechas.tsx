@@ -17,7 +17,7 @@ export function useMiPostulacion(trabajoId: string | undefined, token: string | 
     fetch('/api/proposals?type=sent', { credentials: 'include', headers: cabeceras(token) })
       .then((r) => r.json())
       .then((d) => {
-        const mia = (d?.proposals || d?.data || []).find((p: any) => String(p?.job?.id || p?.jobId) === String(trabajoId) && !['withdrawn', 'rejected'].includes(p?.status));
+        const mia = (d?.proposals || d?.data || []).find((p: any) => String(p?.job?.id || p?.jobId) === String(trabajoId) && !['withdrawn', 'rejected', 'cancelled'].includes(p?.status));
         if (vigente) setRespuesta({ id: trabajoId, postulacion: mia ? String(mia.id) : null });
       })
       .catch(() => { if (vigente) setRespuesta({ id: trabajoId, postulacion: null }); });

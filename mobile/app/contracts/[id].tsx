@@ -32,6 +32,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation, uploadDeliveryPhotos, type FotoElegida } from '../../services/contracts';
+import { fechaYHoraLocal, instanteDeLoEscrito } from '../../../shared/fechas/horaLocal';
 import FotosDeEntrega, { SelectorDeFotos } from '../../components/FotosDeEntrega';
 import { leerClave } from '../../services/respuesta';
 import { post } from '../../services/api';
@@ -113,12 +114,13 @@ export default function ContractDetailScreen() {
 
   const handleOpenHoursForm = () => {
     if (contract) {
-      const start = new Date(contract.startDate);
-      const end = new Date(contract.endDate);
-      setProposedStartDate(start.toISOString().split('T')[0]);
-      setProposedStartTime(start.toTimeString().slice(0, 5));
-      setProposedEndDate(end.toISOString().split('T')[0]);
-      setProposedEndTime(end.toTimeString().slice(0, 5));
+      // Fecha y hora del reloj de la persona (antes la fecha salía en hora universal: de noche cargaba el día siguiente).
+      const inicio = fechaYHoraLocal(contract.startDate);
+      const fin = fechaYHoraLocal(contract.endDate);
+      setProposedStartDate(inicio.fecha);
+      setProposedStartTime(inicio.hora);
+      setProposedEndDate(fin.fecha);
+      setProposedEndTime(fin.hora);
       setConfirmNotes('');
       setShowHoursForm(true);
     }
@@ -149,8 +151,8 @@ export default function ContractDetailScreen() {
         setFotosAlTerminar([]);
       }
       const response = await confirmContract(id!, {
-        proposedStartTime: startISO,
-        proposedEndTime: endISO,
+        proposedStartTime: instanteDeLoEscrito(startISO),
+        proposedEndTime: instanteDeLoEscrito(endISO),
         notes: confirmNotes || undefined,
       });
       if (response.success) {

@@ -115,7 +115,7 @@ export async function aprobarPublicacion(pagina: Page, titulo: string): Promise<
     avisos.push(d.message());
     void d.accept();
   });
-  await pagina.goto('/admin/jobs');
+  await pagina.goto('/admin/jobs?vista=moderacion');
   const fila = filaDelTrabajo(pagina, titulo);
   await expect(fila).toContainText('Pendiente Aprobación');
   await fila.getByRole('button', { name: 'Aprobar' }).click();

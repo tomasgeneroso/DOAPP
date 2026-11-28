@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 
 /**
  * Un flujo de punta a punta por HTTP con RLS encendida donde el pedido es de UN usuario y el dinero que se mueve es de OTRO:
- * el trabajador acepta una baja de presupuesto y el servidor le deja al CLIENTE un asiento de saldo a favor.
+ * la persona elegida acepta una baja de presupuesto y el servidor le deja al CLIENTE un asiento de saldo a favor.
  *
  * Sin declarar esa escritura como operación de sistema, la base la rechazaba («viola la política de seguridad de registros») y la baja se
  * aceptaba a medias en producción. Este test es el que lo habría mostrado.
@@ -24,7 +24,9 @@ import { Proposal } from '../../server/models/sql/Proposal.model.js';
 import { BalanceTransaction } from '../../server/models/sql/BalanceTransaction.model.js';
 import { Notification } from '../../server/models/sql/Notification.model.js';
 import { comoUsuario, conSistema } from '../../server/db/contextoRls.js';
-import { crearUsuario, crearTrabajo } from '../helpers/fixtures.js';
+import { Contract } from '../../server/models/sql/Contract.model.js';
+import { Payment } from '../../server/models/sql/Payment.model.js';
+import { crearUsuario, crearTrabajo, crearContrato, pagarLaPublicacion } from '../helpers/fixtures.js';
 
 describe('RLS por HTTP: el trabajador acepta la baja de presupuesto y el cliente recibe su saldo a favor', () => {
   let app: Express;
@@ -37,12 +39,11 @@ describe('RLS por HTTP: el trabajador acepta la baja de presupuesto y el cliente
     app.use('/api/jobs', (await import('../../server/routes/jobs.js')).default);
     cliente = await crearUsuario({ role: 'client' });
     trabajador = await crearUsuario({ role: 'doer' });
-    trabajo = await crearTrabajo(cliente.id, {
-      status: 'open', price: 10000, publicationPaid: true,
-      pendingPriceDecrease: 8000, pendingPriceDecreaseReason: 'prueba', pendingPriceDecreaseAt: new Date(),
-      priceDecreaseAcceptances: [], priceDecreaseRejections: [],
-    });
-    await Proposal.create({ jobId: trabajo.id, freelancerId: trabajador.id, clientId: cliente.id, coverLetter: 'Hola', proposedPrice: 9000, estimatedDuration: 2, status: 'pending' } as any);
+    trabajo = await crearTrabajo(cliente.id, { status: 'open', price: 10000, publicationPaid: true, pricingMode: 'fixed', selectedWorkers: [trabajador.id] });
+    await pagarLaPublicacion(trabajo);
+    await crearContrato({ jobId: trabajo.id, clientId: cliente.id, doerId: trabajador.id }, { status: 'accepted', price: 10000 });
+    const pedido = await request(app).patch(`/api/jobs/${trabajo.id}/budget`).set(con(cliente)).send({ newPrice: 8000, reason: 'Se achicó el trabajo', aceptaEfectos: true });
+    expect(pedido.body.esperandoRespuesta).toBe(true);
   });
 
   afterAll(async () => {
@@ -51,6 +52,8 @@ describe('RLS por HTTP: el trabajador acepta la baja de presupuesto y el cliente
         await Notification.destroy({ where: { recipientId: [cliente.id, trabajador.id] } as any });
         await BalanceTransaction.destroy({ where: { userId: [cliente.id, trabajador.id] } as any });
         await Proposal.destroy({ where: { jobId: trabajo.id } as any });
+        await Contract.destroy({ where: { jobId: trabajo.id } as any, force: true });
+        await Payment.destroy({ where: { payerId: cliente.id } as any, force: true } as any);
         await Job.destroy({ where: { id: trabajo.id } as any });
         await User.destroy({ where: { id: [cliente.id, trabajador.id] } as any, force: true });
       });
@@ -60,7 +63,7 @@ describe('RLS por HTTP: el trabajador acepta la baja de presupuesto y el cliente
   });
 
   it('acepta, el precio baja y el asiento del cliente queda escrito (aunque el pedido sea del trabajador)', async () => {
-    const r = await request(app).post(`/api/jobs/${trabajo.id}/accept-price-decrease`).set(con(trabajador)).send({});
+    const r = await request(app).post(`/api/jobs/${trabajo.id}/budget/solicitud/responder`).set(con(trabajador)).send({ acepta: true });
     expect([r.status, r.body.message]).toEqual([200, expect.anything()]);
     const job: any = await conSistema(() => Job.findByPk(trabajo.id));
     expect(Number(job.price)).toBe(8000);

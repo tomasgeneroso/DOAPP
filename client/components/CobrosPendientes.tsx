@@ -37,7 +37,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
             Cobros pendientes
           </h2>
           <p className="mt-1 mb-4 text-sm text-gray-600 dark:text-gray-400">
-            Plata que ya te corresponde pero todavía no podés usar o retirar. Cada tarjeta dice de qué contrato viene y cuántos días faltan.
+            Plata que ya te corresponde pero todavía no podés usar o retirar. Cada tarjeta dice de qué trabajo o contrato viene y qué falta.
           </p>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {cobros.map((c) => {
@@ -69,7 +69,7 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
                         }`}
                       >
                         {liberado || pedido ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <Clock className="h-3 w-3" aria-hidden="true" />}
-                        {aFavor ? 'A favor pendiente' : texto?.estado}
+                        {aFavor ? 'A favor pendiente' : c.esperando && !c.disponibleDesde ? 'En espera' : texto?.estado}
                       </span>
                       {!aFavor && !liberado && !pedido && dias > 0 && (
                         <span data-testid="dias-que-faltan" className="ml-2 text-xs font-semibold text-sky-700 dark:text-sky-300">
@@ -87,7 +87,12 @@ export default function CobrosPendientes({ cobros, onPedirCobro }: { cobros: Cob
                   ) : (
                     <p className="mt-3 text-xs text-gray-600 dark:text-gray-400" data-testid="detalle-del-cobro">
                       {!delTrabajo && 'Ya está en tu saldo, pero todavía no lo podés retirar. '}
-                      {texto?.detalle}
+                      {!c.esperando && texto?.detalle}
+                    </p>
+                  )}
+                  {c.esperando && (
+                    <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-300" data-testid="que-falta-para-retirar">
+                      {c.esperando}
                     </p>
                   )}
 

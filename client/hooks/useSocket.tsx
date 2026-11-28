@@ -492,20 +492,6 @@ export function useSocket() {
     }
   }, []);
 
-  // Send message
-  const sendMessage = useCallback((data: {
-    conversationId: string;
-    message: string;
-    type?: "text" | "image" | "file";
-    fileUrl?: string;
-    fileName?: string;
-    fileSize?: number;
-  }) => {
-    if (globalSocket?.connected) {
-      globalSocket.emit("message:send", data);
-    }
-  }, []);
-
   // Start typing
   const startTyping = useCallback((conversationId: string) => {
     if (globalSocket?.connected) {
@@ -619,7 +605,6 @@ export function useSocket() {
     messages,
     joinConversation,
     leaveConversation,
-    sendMessage,
     startTyping,
     stopTyping,
     markAsRead,

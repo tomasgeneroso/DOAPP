@@ -468,13 +468,22 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     const { saldoRetirable } = await import('../services/liberacionDeSaldo.js');
     const retirable = await saldoRetirable(String(userId), saldoTotal);
     const amount = retirable.disponible;
+    // De dónde sale cada peso de este retiro: administración lo ve y lo vuelve a comprobar antes de aprobar y de transferir.
+    const { creditosDelSaldo, armarRespaldo } = await import('../services/creditosParaRetirar.js');
+    const creditos = await creditosDelSaldo(String(userId));
+    const respaldo = armarRespaldo(creditos, amount);
+    // Lo que todavía espera no entra en este retiro: tampoco cuenta para calcular lo que se retiene sobre la parte devuelta.
+    const enEspera = new Set(creditos.filter((c) => c.espera).map((c) => c.movimientoId));
+    const soloEsperaALaPasarela = creditos.every((c) => !c.espera || c.espera.motivo === 'liberacion');
     if (amount < MINIMUM_WITHDRAWAL_ARS) {
       const cuando = retirable.proximaLiberacion ? ` Se libera el ${retirable.proximaLiberacion.toLocaleDateString('es-AR')}.` : '';
       res.status(400).json({
         success: false,
         message:
           `El monto mínimo de retiro es $${MINIMUM_WITHDRAWAL_ARS.toLocaleString("es-AR")} ARS. Tu saldo disponible para retirar es $${amount.toLocaleString("es-AR")}.` +
-          (retirable.enLiberacion > 0 ? ` Otros $${retirable.enLiberacion.toLocaleString("es-AR")} ya están en tu saldo de DOAPP pero Mercado Pago todavía no liberó ese pago.${cuando}` : ''),
+          (retirable.enLiberacion > 0
+            ? ` Otros $${retirable.enLiberacion.toLocaleString("es-AR")} ya están en tu saldo de DOAPP${soloEsperaALaPasarela ? ' pero Mercado Pago todavía no liberó ese pago.' : ', pero todavía no se pueden retirar: en «Cobros pendientes» ves qué le falta a cada uno.'}${cuando}`
+            : ''),
         disponibleParaRetirar: amount,
         enLiberacion: retirable.enLiberacion,
         proximaLiberacion: retirable.proximaLiberacion,
@@ -514,7 +523,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // momento, siempre que ya estén liberadas. Las que todavía no se liberan se quedan en la cuenta y se cuentan cuando se retiren.
     const { QueryTypes } = await import('sequelize');
     const devoluciones = (await (sequelize as any).query(
-      `SELECT amount, metadata FROM balance_transactions
+      `SELECT id, amount, metadata FROM balance_transactions
         WHERE user_id = :userId AND type = 'refund' AND status = 'completed'
           AND (CAST(:ultimo AS timestamptz) IS NULL
                OR created_at > CAST(:ultimo AS timestamptz)
@@ -527,6 +536,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     let retencionComision = 0;
     let retencionPasarela = 0;
     for (const d of devoluciones) {
+      if (enEspera.has(String((d as any).id))) continue;
       const monto = Number((d as any).amount) || 0;
       creditosDevueltos += monto;
       const meta: any = (d as any).metadata || {};
@@ -632,6 +642,7 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         userAgent: req.get('user-agent'),
         saldoDebitado: amount,
         enLiberacion: retirable.enLiberacion,
+        respaldo,
         requiereDueno,
         topeDiario: TOPE_DIARIO_RETIRO_USUARIO_ARS,
         retiradoHoy,

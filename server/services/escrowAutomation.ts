@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { avisarEnDoapp } from './avisarPorTodosLados.js';
 import { Contract } from "../models/sql/Contract.model.js";
 import { User } from "../models/sql/User.model.js";
 import fcmService from "./fcm.js";
@@ -88,6 +89,7 @@ class EscrowAutomationService {
           },
         });
 
+        await avisarEnDoapp({ userId: String(contract.client.id), titulo: 'Pago liberado', mensaje: clientMessage, ruta: `/contracts/${contract.id}`, categoria: 'payment', relatedModel: 'Contract', relatedId: String(contract.id) });
         await emailService.sendToUser(
           contract.client.id,
           "Pago liberado",
@@ -107,6 +109,7 @@ class EscrowAutomationService {
           },
         });
 
+        await avisarEnDoapp({ userId: String(contract.doer.id), titulo: 'Pago recibido', mensaje: doerMessage, ruta: `/contracts/${contract.id}`, tipo: 'success', categoria: 'payment', relatedModel: 'Contract', relatedId: String(contract.id) });
         await emailService.sendToUser(
           contract.doer.id,
           "Pago recibido",
@@ -168,6 +171,7 @@ class EscrowAutomationService {
           });
 
           // Send email
+          await avisarEnDoapp({ userId: String(contract.client.id), titulo: 'Confirmación pendiente', mensaje: message, ruta: `/contracts/${contract.id}`, tipo: 'warning', categoria: 'contract', relatedModel: 'Contract', relatedId: String(contract.id) });
           await emailService.sendToUser(
             contract.client.id,
             "Confirmación pendiente",

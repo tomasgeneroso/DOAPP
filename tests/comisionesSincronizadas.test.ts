@@ -189,17 +189,17 @@ describe('el servidor calcula y describe la comisión vigente', () => {
     expect(f).toContain('splitFees(');
   });
 
-  it('la comisión de modificar el precio de un contrato sale de calculateCommission y se cobra junto con la diferencia', () => {
-    /**
-     * Esa ruta (`modify-price`) leía `currentCommissionRate` —que en las cuentas existentes quedó con la tasa del plan viejo— y sólo cobraba la diferencia, no la
-     * comisión sobre ella. Cambiar sólo el valor guardado habría dejado un ingreso contable que nadie pagó (lo marcó el `reviewer`), así que el cambio va completo:
-     * la comisión sale de la política y, si el precio sube, lo que se debita es la diferencia MÁS la comisión de la diferencia.
-     */
-    const f = sinComentarios(leer('server/routes/contracts.ts'));
-    expect(f).not.toContain('currentCommissionRate / 100');
-    expect(f).toContain('comisionDeLaDiferencia');
-    expect(f).toMatch(/debitarSaldo\(String\(userId\), aDebitar,/);
+  it('al subir un presupuesto la comisión de la diferencia sale de la política, y la ya cobrada no se devuelve ni se recalcula', () => {
+    // La única puerta del precio (`services/cambioDePresupuesto.ts`) cobra el aumento por `liquidarAumento`, que usa calculateCommission sobre la diferencia.
+    const cambio = sinComentarios(leer('server/services/cambioDePresupuesto.ts'));
+    expect(cambio).toContain('liquidarAumento(');
+    expect(sinComentarios(leer('server/services/quotePayment.ts'))).toMatch(/calculateCommission\(String\(job\.clientId\), diferencia\)/);
+    // A los contratos se les cambia el precio y el total; la comisión anotada queda como estaba.
+    expect(cambio).not.toMatch(/\bcommission:\s/);
+    // Y ya no hay otra ruta que toque el precio desde el contrato.
+    expect(sinComentarios(leer('server/routes/contracts.ts'))).toContain('router.put("/:id/modify-price", protect, precioDesdeElTrabajo)');
   });
+
 });
 
 describe('la app mobile ofrece un solo plan pago', () => {

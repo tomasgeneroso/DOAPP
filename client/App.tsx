@@ -3,6 +3,7 @@ import { LimpiarDireccion } from './utils/datosDeLaDireccion';
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
+import RedDeErrores from "./components/RedDeErrores";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import BannerDeCookies from "./components/BannerDeCookies";
 import { SeoDeRuta } from "./components/SeoDeRuta";
@@ -171,6 +172,7 @@ export default function App() {
       <HelmetProvider>
         <AuthProvider>
           <ToastProvider>
+            <RedDeErrores />
             {/*
               Sin `future`: en react-router 7 los dos flags que había acá
               (v7_relativeSplatPath y v7_startTransition) son el comportamiento

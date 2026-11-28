@@ -21,6 +21,7 @@ import {
   cambiarPresupuesto,
   cancelarCambioDePresupuesto,
   puedeCambiarElPresupuesto,
+  revisarCambioDePresupuesto,
   validarCambioDePresupuesto,
   type DesgloseDelAumento,
 } from '../services/presupuesto';
@@ -137,6 +138,21 @@ export default function CambiarPresupuesto({
     setError('');
     setEnviando(true);
     try {
+      // Antes de cambiar nada se muestra lo que va a pasar (pedido del dueño, 2026-11-27).
+      const revision = await revisarCambioDePresupuesto(id, v.precio);
+      if (revision.tipo === 'no') {
+        setError(revision.mensaje);
+        return;
+      }
+      if (revision.tipo === 'puede') {
+        const acepto = await new Promise<boolean>((resolve) =>
+          Alert.alert('Esto es lo que va a pasar', revision.efectos.map((f) => `• ${f}`).join('\n\n'), [
+            { text: 'Volver', style: 'cancel', onPress: () => resolve(false) },
+            { text: revision.conAceptacion ? 'Aceptar y pedirlo' : 'Aceptar y cambiar', onPress: () => resolve(true) },
+          ], { cancelable: false }),
+        );
+        if (!acepto) return;
+      }
       const r = await cambiarPresupuesto(id, v.precio, v.motivo);
       if (r.tipo === 'requierePago') {
         setAbierto(false);
@@ -214,7 +230,7 @@ export default function CambiarPresupuesto({
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={[styles.hojaTitulo, { color: themeColors.text.primary }]}>Cambiar el presupuesto</Text>
               <Text style={[styles.parrafo, { color: themeColors.text.secondary }]}>
-                Precio actual: {pesos(job.price)}. Si lo subís, pagás la diferencia (más comisión, costo de procesamiento e IVA); si lo bajás, la diferencia vuelve a tu favor (a tu saldo cuando Mercado Pago libera el pago original; hasta entonces figura como «a favor pendiente»).
+                Precio actual: {pesos(job.price)}. Antes de cambiar nada te mostramos lo que va a pasar: lo que se paga o te queda a favor, las postulaciones que se quitan y quién tiene que aceptar.
               </Text>
 
               <Text style={[styles.etiqueta, { color: themeColors.text.primary }]}>Nuevo presupuesto ($)</Text>

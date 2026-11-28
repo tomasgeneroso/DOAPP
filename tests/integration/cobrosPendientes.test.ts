@@ -119,6 +119,13 @@ describe('GET /api/balance → cobrosPendientes', () => {
     });
   });
 
+  it('un cobro de un contrato sin terminar sigue pendiente aunque la fecha haya pasado, y dice qué falta; terminado, deja de serlo', async () => {
+    // El contrato de estas pruebas está en curso: los retiros se atan al contrato (regla del dueño, 2026-11-27).
+    const enCurso = await balance(trabajador);
+    expect(enCurso.cobrosPendientes[0].esperando).toMatch(/contrato termine/i);
+    await Contract.update({ status: 'completed' } as any, { where: { id: contrato.id } });
+  });
+
   it('un cobro que ya se puede retirar no es pendiente', async () => {
     await asiento(trabajador.id, { type: 'payment', amount: 500, status: 'completed', relatedContractId: contrato.id, metadata: { disponibleDesde: new Date(Date.now() - DIA).toISOString() } });
     const b = await balance(trabajador);

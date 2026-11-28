@@ -23,7 +23,8 @@ describe('avisos por mensajes en reclamos y tickets', () => {
   let cliente: any, trabajador: any, equipo: any, otroEquipo: any;
   let jobId: string, contractId: string;
   const como = (u: any) => ({ Authorization: `Bearer ${jwt.sign({ id: u.id, email: u.email }, process.env.JWT_SECRET || 'test-secret')}` });
-  const avisos = (u: any, relatedId: string) => Notification.findAll({ where: { recipientId: u.id, relatedId } as any });
+  // Sin contar el «Recibimos tu consulta» que acompaña al correo de alta del ticket: acá se miden los avisos por MENSAJES.
+  const avisos = async (u: any, relatedId: string) => (await Notification.findAll({ where: { recipientId: u.id, relatedId } as any })).filter((n: any) => !String(n.title).startsWith('Recibimos tu consulta'));
 
   beforeAll(async () => {
     app = express();

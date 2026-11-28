@@ -138,7 +138,7 @@ export async function acreditadoAlSaldoPorElPago(pagoId: string): Promise<number
       `SELECT COALESCE(SUM(amount), 0) AS total FROM balance_transactions
         WHERE COALESCE(metadata->>'pagoId', metadata->>'pagoOrigenId') = :pagoId
           AND ((type = 'refund' AND status IN ('completed', 'pending'))
-            OR (type = 'adjustment' AND status = 'completed' AND metadata->>'origen' = 'correccion_doble_devolucion'))`,
+            OR (type = 'adjustment' AND status = 'completed' AND metadata->>'origen' IN ('correccion_doble_devolucion', 'reversion_de_baja')))`,
       { replacements: { pagoId: String(pagoId) }, type: QueryTypes.SELECT },
     ),
   )) as Array<{ total: string | number }>;

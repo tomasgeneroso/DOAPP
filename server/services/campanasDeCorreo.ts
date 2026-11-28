@@ -1,4 +1,6 @@
 import { Op, QueryTypes } from 'sequelize';
+import { avisarEnDoapp } from './avisarPorTodosLados.js';
+import { desescaparHtml } from '../utils/escaparHtml.js';
 import { sequelize } from '../config/database.js';
 import { config } from '../config/env.js';
 import { conSistema } from '../db/contextoRls.js';
@@ -291,6 +293,8 @@ async function mandarUno(c: EmailCampaign, userId: string): Promise<{ estado: 's
     const datos = datosDeLaPersona(user);
     const correo = armarCorreo(comoPlantilla(c), datos);
     const salio = await emailService.sendEmail({ to: String(user.email), subject: correo.asunto, html: correo.html, text: correo.texto, headers: cabecerasDeBaja(enlaceDeBajaDeUnToque(String(user.id))) });
+    // Lo que se manda por correo también aparece en DOAPP (sin el pie del correo, que habla de darse de baja).
+    if (salio) await avisarEnDoapp({ userId: String(user.id), titulo: desescaparHtml(correo.asunto), mensaje: String(correo.texto || '').split(/\n-{2,}|\n_{2,}/)[0].trim() || desescaparHtml(correo.asunto), ruta: '/', categoria: 'system' });
     return salio ? { estado: 'sent' } : { estado: 'failed', error: 'El servidor de correo no lo aceptó' };
   } catch (e) {
     // Sin correos ni números largos en el error guardado (CLAUDE.md, regla 6).

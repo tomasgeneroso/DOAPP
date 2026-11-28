@@ -151,3 +151,27 @@ export async function crearEscenario(over: {
   );
   return { cliente, trabajador, job, contrato };
 }
+
+/**
+ * El pago de la publicación, como queda cuando el dinero entró: confirmado, de quien publicó y atado al trabajo. Cambiar el presupuesto de una publicación pagada
+ * comprueba que ese dinero exista (`publicationPaid` solo no alcanza). Con transferencia (el valor por defecto) la plata ya está en la cuenta: no espera a la pasarela.
+ */
+export async function pagarLaPublicacion(trabajo: any, over: Partial<any> = {}): Promise<any> {
+  const { Payment } = await import('../../server/models/sql/Payment.model.js');
+  const precio = Number(trabajo.price);
+  const pago: any = await Payment.create({
+    payerId: trabajo.clientId,
+    amount: Math.round(precio * 1.1 * 100) / 100,
+    currency: 'ARS',
+    status: 'completed',
+    paymentType: 'job_publication',
+    paymentMethod: 'bank_transfer',
+    jobId: trabajo.id,
+    platformFee: Math.round(precio * 0.05 * 100) / 100,
+    processingCharge: Math.round(precio * 0.05 * 100) / 100,
+    approvedAt: new Date(),
+    ...over,
+  } as any);
+  await Job.update({ publicationPaymentId: pago.id } as any, { where: { id: trabajo.id } as any });
+  return pago;
+}

@@ -23,6 +23,7 @@ import { TERMS_COMMISSION_ROWS, TERMS_BODY_KEYS } from '../../shared/legal/terms
 /** Clausula → constantes que tiene que nombrar. */
 const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: string }> = [
   { key: 's6p6', valores: [POLITICAS.COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR], que: 'dias habiles antes de pausar' },
+  { key: 's6p9', valores: [POLITICAS.CAMBIO_DE_PRESUPUESTO_HASTA_HORAS_ANTES], que: 'horas antes del inicio para cambiar el presupuesto' },
   { key: 's7p3', valores: [`${COMMISSION_RATES.free}%`, `${COMMISSION_RATES.pro}%`], que: 'comision' },
   { key: 's7p4', valores: [`EUR ${MINIMUM_COMMISSION_EUR}`], que: 'piso de comision' },
   { key: 's7p11', valores: [POLITICAS.INVITACION_DIAS_SIN_COMISION], que: 'dias sin comision de una invitacion de creador' },

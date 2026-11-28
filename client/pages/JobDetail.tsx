@@ -90,6 +90,8 @@ import AvisoSaldoAFavor from "../components/proposals/AvisoSaldoAFavor";
 import { OfertaDeCompartir, useTrabajosCompartidos } from "../components/jobs/TrabajosCompartidos";
 import Etiqueta from "../components/Etiqueta";
 import { bloqueoDelPresupuesto } from "../../shared/jobs/cambioDePresupuesto";
+import CambioDePresupuestoEnCurso from "../components/jobs/CambioDePresupuestoEnCurso";
+import { useToast } from "../components/ui/Toast";
 import { DestinoDelTrabajo } from "../components/jobs/DireccionDeDestino";
 
 export default function JobDetail() {
@@ -133,6 +135,9 @@ export default function JobDetail() {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [newBudget, setNewBudget] = useState("");
   const [budgetReason, setBudgetReason] = useState("");
+  const aviso = useToast();
+  // Sube cada vez que se pide o aplica un cambio, para que la tarjeta del pedido se vuelva a leer.
+  const [versionDelCambio, setVersionDelCambio] = useState(0);
   const [changingBudget, setChangingBudget] = useState(false);
   const [showClientMenu, setShowClientMenu] = useState(false);
   const [showPauseApprovalModal, setShowPauseApprovalModal] = useState(false);
@@ -1325,6 +1330,8 @@ export default function JobDetail() {
         body: JSON.stringify({
           newPrice: parsedBudget,
           reason: budgetReason.trim(),
+          // El modal ya le mostró lo que va a pasar y tocó «Aceptar».
+          aceptaEfectos: true,
         }),
       });
 
@@ -1367,6 +1374,8 @@ export default function JobDetail() {
         setShowBudgetModal(false);
         setNewBudget("");
         setBudgetReason("");
+        if (data.message) aviso.success(data.esperandoRespuesta ? "Pedido enviado" : "Presupuesto", data.message);
+        setVersionDelCambio((n) => n + 1);
         // Refresh job + proposals so price change is reflected everywhere
         const [jobResponse, proposalsResponse] = await Promise.all([
           fetch(`/api/jobs/${id}`),
@@ -1675,6 +1684,18 @@ export default function JobDetail() {
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Content */}
           <div className="space-y-6 lg:col-span-2">
+            {/* Arriba de todo: si hay un cambio de presupuesto en curso, quien publicó y quien fue elegido lo ven y lo resuelven acá. */}
+            {user && (
+              <CambioDePresupuestoEnCurso
+                jobId={String(job.id)}
+                version={versionDelCambio}
+                alCambiar={() => {
+                  void fetch(`/api/jobs/${id}`).then((r) => r.json()).then((d) => d?.success && setJob(d.job)).catch(() => undefined);
+                  fetchAllContracts();
+                  setPollKey((k) => k + 1);
+                }}
+              />
+            )}
             {/* Header Card */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
               <div className="mb-4 flex items-start justify-between">
@@ -4481,58 +4502,6 @@ export default function JobDetail() {
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowActionsMenu(!showActionsMenu)}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-600 dark:bg-slate-600 dark:hover:bg-slate-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                      {t("jobs.actions.actions")}
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${showActionsMenu ? "rotate-180" : ""}`}
-                      />
-                    </button>
-
-                    <JobActionsMenu
-                      open={showActionsMenu}
-                      loading={actionLoading}
-                      canPause={canPauseJob()}
-                      canCancel={canCancelJob()}
-                      onChangeBudget={() => setShowBudgetModal(true)}
-                      motivoSinCambioDePresupuesto={bloqueoDelPresupuesto({ status: job.status, publicationPaid: (job as any).publicationPaid, startDate: job.startDate, hayAlguienElegido: ((job as any).selectedWorkers?.length ?? 0) > 0 || Boolean((job as any).doer) })?.mensaje ?? null}
-                      onPause={handlePauseJob}
-                      onCancel={() => setShowCancelModal(true)}
-                      onContactSupport={() =>
-                        navigate(
-                          `/tickets/new?type=job&jobId=${job.id}&jobTitle=${encodeURIComponent(job.title)}`,
-                        )
-                      }
-                      onClose={() => setShowActionsMenu(false)}
-                    />
-
-                    {/* Aviso de cancelación: tardía (mitad al trabajador) o cuánto falta para que lo sea */}
-                    {esCancelacionTardia() ? (
-                      <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
-                        <p className="text-xs text-amber-800 dark:text-amber-200">
-                          <AlertTriangle className="inline h-3 w-3 mr-1" />
-                          {t("jobs.actions.cantCancel")}
-                        </p>
-                      </div>
-                    ) : (
-                      getTimeUntilCancelDeadline() && (
-                        <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
-                            <Clock className="inline h-3 w-3 mr-1" />
-                            {t("jobs.actions.timeToCancel")}{" "}
-                            <span className="font-semibold">
-                              {getTimeUntilCancelDeadline()}
-                            </span>
-                          </p>
-                        </div>
-                      )
-                    )}
-                  </div>
 
                   <Transicion mostrar={!!error}>
                   {error && (
@@ -4551,6 +4520,61 @@ export default function JobDetail() {
                   </div>
                 </div>
               )}
+            {/* Las acciones de quien publicó (presupuesto, pausar, cancelar, soporte) NO dependen de que queden lugares libres: estaban dentro del bloque de
+                postulantes y desaparecían al elegir a alguien (2026-11-28). Lo que no se puede en un estado se muestra apagado con el motivo. */}
+            {isOwnJob && !isDraft && !["completed", "cancelled"].includes(job.status) && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowActionsMenu(!showActionsMenu)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-600 dark:bg-slate-600 dark:hover:bg-slate-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                  {t("jobs.actions.actions")}
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${showActionsMenu ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                <JobActionsMenu
+                  open={showActionsMenu}
+                  loading={actionLoading}
+                  canPause={canPauseJob() && job.status === "open"}
+                  canCancel={canCancelJob()}
+                  onChangeBudget={() => setShowBudgetModal(true)}
+                  motivoSinCambioDePresupuesto={bloqueoDelPresupuesto({ status: job.status, publicationPaid: (job as any).publicationPaid, startDate: job.startDate, hayAlguienElegido: ((job as any).selectedWorkers?.length ?? 0) > 0 || Boolean((job as any).doer) })?.mensaje ?? null}
+                  onPause={handlePauseJob}
+                  onCancel={() => setShowCancelModal(true)}
+                  onContactSupport={() =>
+                    navigate(
+                      `/tickets/new?type=job&jobId=${job.id}&jobTitle=${encodeURIComponent(job.title)}`,
+                    )
+                  }
+                  onClose={() => setShowActionsMenu(false)}
+                />
+
+                {/* Aviso de cancelación: tardía (mitad al trabajador) o cuánto falta para que lo sea */}
+                {esCancelacionTardia() ? (
+                  <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="inline h-3 w-3 mr-1" />
+                      {t("jobs.actions.cantCancel")}
+                    </p>
+                  </div>
+                ) : (
+                  getTimeUntilCancelDeadline() && (
+                    <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <Clock className="inline h-3 w-3 mr-1" />
+                        {t("jobs.actions.timeToCancel")}{" "}
+                        <span className="font-semibold">
+                          {getTimeUntilCancelDeadline()}
+                        </span>
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             {isOwnJob && !isDraft && job.status === "paused" && (
               <div className="space-y-4">
@@ -5473,6 +5497,7 @@ export default function JobDetail() {
 
         <ChangeBudgetModal
           open={showBudgetModal}
+          jobId={String(job.id)}
           currentPrice={Number(job.price || 0)}
           newBudget={newBudget}
           onNewBudgetChange={setNewBudget}
